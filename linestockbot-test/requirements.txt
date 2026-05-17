@@ -1,0 +1,11 @@
+flask
+gunicorn
+line-bot-sdk
+requests
+pandas
+numpy
+twstock
+yfinance
+lightgbm
+scikit-learn
+google-generativeai
