@@ -14,7 +14,6 @@ import numpy as np
 import json
 import google.generativeai as genai
 
-from snownlp import SnowNLP
 from sklearn.preprocessing import StandardScaler
 from lightgbm import LGBMClassifier
 from flask import Flask, request, abort, render_template_string
@@ -239,20 +238,20 @@ AI勝率:{data['prob']}%
 def analyze_sentiment(news_list):
     if not news_list: return 50, "中性"
     scores = []
-    pos_words = ["漲", "紅", "高", "多", "買", "利多", "創紀錄", "看好", "強", "優"]
-    neg_words = ["跌", "綠", "低", "空", "賣", "利空", "虧", "看壞", "弱", "劣", "崩", "違約"]
+    pos_words = ["漲", "紅", "高", "多", "買", "利多", "創紀錄", "看好", "強", "優", "雙位數", "營收增", "獲利", "新高", "上揚", "突破"]
+    neg_words = ["跌", "綠", "低", "空", "賣", "利空", "虧", "看壞", "弱", "劣", "崩", "違約", "衰退", "下修", "降評", "保守", "跳水"]
     for n in news_list:
         t = n['title']
-        s = SnowNLP(t).sentiments
-        # 加權關鍵字
+        s = 0.5
+        # 基於自訂關鍵字的輕量級情緒分析
         for w in pos_words: 
-            if w in t: s += 0.2
+            if w in t: s += 0.15
         for w in neg_words: 
-            if w in t: s -= 0.2
+            if w in t: s -= 0.15
         scores.append(max(0, min(1, s)))
     avg_s = sum(scores) / len(scores) * 100
-    if avg_s > 70: return avg_s, "🔥 樂觀貪婪"
-    elif avg_s < 30: return avg_s, "😨 悲觀恐慌"
+    if avg_s >= 65: return avg_s, "🔥 樂觀貪婪"
+    elif avg_s <= 35: return avg_s, "😨 悲觀恐慌"
     else: return avg_s, "⚖️ 中性觀望"
 
 def _do_analyze(code):

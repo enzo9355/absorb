@@ -9,4 +9,3 @@ yfinance
 lightgbm
 scikit-learn
 google-generativeai
-snownlp
