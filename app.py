@@ -455,6 +455,21 @@ def broadcast_weekly():
 # ==================================================
 # 8. 路由與 LINE 基礎指令 (💡 修正過度轉義字串)
 # ==================================================
+# 💡 [新增] 健康檢查端點：給 UptimeRobot 敲擊，防止 Render 休眠！
+@app.route("/")
+def home():
+    return "AI Stock Bot is awake and running!", 200
+
+@app.route("/stock/<code>")
+def stock_page(code):
+    d = analyze(code)
+    return render_web(d) if d else "查無資料"
+
+@app.route("/market")
+def market_page():
+    d = analyze("TAIEX")
+    return render_web(d) if d else "資料更新中"
+    
 @app.route("/stock/<code>")
 def stock_page(code):
     d = analyze(code)
