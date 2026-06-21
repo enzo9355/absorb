@@ -69,6 +69,28 @@ def finmind_login():
         if r.get("msg") == "success": finmind_token = r["token"]
     except: pass
 
+def fetch_finmind_dataset(dataset, code, start_date, end_date):
+    finmind_login()
+    params = {
+        "dataset": dataset,
+        "data_id": code,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+    if finmind_token:
+        params["token"] = finmind_token
+    try:
+        response = requests.get(
+            "https://api.finmindtrade.com/api/v4/data",
+            params=params,
+            timeout=8,
+        )
+        response.raise_for_status()
+        return pd.DataFrame(response.json().get("data", []))
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        print(f"FinMind {dataset} 讀取失敗: {exc}")
+        return pd.DataFrame()
+
 def get_stock_name(code):
     if code == "TAIEX": return "台股大盤"
     if code in twstock.codes: return twstock.codes[code].name
@@ -82,44 +104,100 @@ def search_stock_code(keyword):
         if keyword in info.name.upper(): return code, info.name
     return None, None
 
+def merge_chip_data(price, institutional=None, margin=None):
+    result = price.copy()
+    if institutional is not None and not institutional.empty:
+        flows = institutional.copy()
+        flows["Date"] = pd.to_datetime(flows["date"], errors="coerce")
+        flows["buy"] = pd.to_numeric(flows["buy"], errors="coerce").fillna(0)
+        flows["sell"] = pd.to_numeric(flows["sell"], errors="coerce").fillna(0)
+        flows["InstitutionalNet"] = flows["buy"] - flows["sell"]
+        flows = flows.groupby("Date", as_index=False)["InstitutionalNet"].sum()
+        result = result.merge(flows, on="Date", how="left")
+    if margin is not None and not margin.empty:
+        balances = margin.copy()
+        balances["Date"] = pd.to_datetime(balances["date"], errors="coerce")
+        balances = balances.rename(
+            columns={
+                "MarginPurchaseTodayBalance": "MarginBalance",
+                "ShortSaleTodayBalance": "ShortBalance",
+            }
+        )
+        balances = balances[["Date", "MarginBalance", "ShortBalance"]]
+        balances[["MarginBalance", "ShortBalance"]] = balances[
+            ["MarginBalance", "ShortBalance"]
+        ].apply(pd.to_numeric, errors="coerce")
+        balances = balances.groupby("Date", as_index=False).last()
+        result = result.merge(balances, on="Date", how="left")
+    for column in ["InstitutionalNet", "MarginBalance", "ShortBalance"]:
+        if column not in result:
+            result[column] = 0.0
+        result[column] = result[column].fillna(0.0)
+    return result
+
 def _clean_df(df):
     df[['Open', 'High', 'Low', 'Close']] = df[['Open', 'High', 'Low', 'Close']].replace(0, np.nan)
+    for column in ["Volume", "InstitutionalNet", "MarginBalance", "ShortBalance"]:
+        if column not in df:
+            df[column] = 0.0
+        df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0.0)
     df = df.dropna(subset=['Date', 'Close'])
     return df.sort_values('Date').drop_duplicates(subset=['Date'], keep='last').set_index("Date")
 
 def get_data(code, days=730):
     start_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
     end_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    
-    finmind_login()
-    try:
-        url = "https://api.finmindtrade.com/api/v4/data"
-        params = {"dataset": "TaiwanStockPrice", "data_id": code, "start_date": start_date, "end_date": end_date}
-        if finmind_token: params["token"] = finmind_token
-        r = requests.get(url, params=params, timeout=8).json()
-        if r.get("data"):
-            df = pd.DataFrame(r["data"])
-            df["Date"] = pd.to_datetime(df["date"], errors="coerce")
-            df["Open"] = pd.to_numeric(df["open"], errors="coerce")
-            df["High"] = pd.to_numeric(df["max"], errors="coerce")
-            df["Low"] = pd.to_numeric(df["min"], errors="coerce")
-            df["Close"] = pd.to_numeric(df["close"], errors="coerce")
-            return _clean_df(df[["Date", "Open", "High", "Low", "Close"]])
-    except: pass
-    
-    try:
-        import yfinance as yf
-        ticker = "^TWII" if code == "TAIEX" else f"{code}.TW"
-        hist = yf.download(ticker, start=start_date, progress=False)
-        if isinstance(hist.columns, pd.MultiIndex): hist.columns = hist.columns.droplevel(1)
-        if not hist.empty and "Close" in hist.columns:
-            df = hist.copy()
-            df.index = pd.to_datetime(df.index).tz_localize(None)
-            df.index.name = 'Date'
-            df = df.reset_index()
-            return _clean_df(df[["Date", "Open", "High", "Low", "Close"]])
-    except: pass
-    return pd.DataFrame()
+    raw = fetch_finmind_dataset(
+        "TaiwanStockPrice", code, start_date, end_date
+    )
+    price = None
+    if not raw.empty:
+        price = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(raw["date"], errors="coerce"),
+                "Open": pd.to_numeric(raw["open"], errors="coerce"),
+                "High": pd.to_numeric(raw["max"], errors="coerce"),
+                "Low": pd.to_numeric(raw["min"], errors="coerce"),
+                "Close": pd.to_numeric(raw["close"], errors="coerce"),
+                "Volume": pd.to_numeric(raw.get("Trading_Volume", 0), errors="coerce"),
+            }
+        )
+    if price is None:
+        try:
+            import yfinance as yf
+            tickers = ["^TWII"] if code == "TAIEX" else [f"{code}.TW", f"{code}.TWO"]
+            for ticker in tickers:
+                hist = yf.download(ticker, start=start_date, progress=False)
+                if isinstance(hist.columns, pd.MultiIndex):
+                    hist.columns = hist.columns.droplevel(1)
+                if not hist.empty and "Close" in hist.columns:
+                    price = hist.copy()
+                    price.index = pd.to_datetime(price.index).tz_localize(None)
+                    price.index.name = "Date"
+                    price = price.reset_index()[
+                        ["Date", "Open", "High", "Low", "Close", "Volume"]
+                    ]
+                    break
+        except Exception as exc:
+            print(f"Yahoo Finance 讀取失敗: {exc}")
+    if price is None:
+        return pd.DataFrame()
+
+    institutional = margin = None
+    if code != "TAIEX":
+        institutional = fetch_finmind_dataset(
+            "TaiwanStockInstitutionalInvestorsBuySell",
+            code,
+            start_date,
+            end_date,
+        )
+        margin = fetch_finmind_dataset(
+            "TaiwanStockMarginPurchaseShortSale",
+            code,
+            start_date,
+            end_date,
+        )
+    return _clean_df(merge_chip_data(price, institutional, margin))
 
 # ==================================================
 # 3. 核心運算模組 (LGBM)
@@ -135,8 +213,18 @@ def get_news(name):
 
 def calc_all(df):
     df = df.copy()
+    for column in ["Volume", "InstitutionalNet", "MarginBalance", "ShortBalance"]:
+        if column not in df:
+            df[column] = 0.0
     c = df["Close"]
-    df['MA_5'], df['MA20'], df['RET_1'] = c.rolling(5).mean(), c.rolling(20).mean(), c.pct_change()
+    df['MA_5'], df['MA20'], df['RET_1'] = c.rolling(5).mean(), c.rolling(20).mean(), c.pct_change(fill_method=None)
+    df['RET_5'], df['RET_20'] = c.pct_change(5, fill_method=None), c.pct_change(20, fill_method=None)
+    df['RANGE_PCT'] = (df['High'] - df['Low']) / (c.abs() + 1e-9)
+    df['VOL_RATIO'] = df['Volume'].rolling(5).mean() / (df['Volume'].rolling(20).mean() + 1e-9)
+    df['VOL_CHG'] = df['Volume'].pct_change(fill_method=None).replace([np.inf, -np.inf], 0).fillna(0).clip(-5, 5)
+    df['INST_NET_RATIO'] = (df['InstitutionalNet'] / (df['Volume'] + 1e-9)).clip(-5, 5)
+    df['MARGIN_CHG'] = df['MarginBalance'].replace(0, np.nan).pct_change(fill_method=None).replace([np.inf, -np.inf], 0).fillna(0).clip(-1, 1)
+    df['SHORT_CHG'] = df['ShortBalance'].replace(0, np.nan).pct_change(fill_method=None).replace([np.inf, -np.inf], 0).fillna(0).clip(-1, 1)
     d = c.diff()
     g, l = d.clip(lower=0).rolling(14).mean(), -d.clip(upper=0).rolling(14).mean()
     df["RSI"] = 100 - (100 / (1 + (g / (l + 1e-9))))
