@@ -85,6 +85,25 @@ class FirestoreStoreTests(unittest.TestCase):
             with self.subTest(project_id=project_id), self.assertRaises(ValueError):
                 FirestoreStore(project_id, session=session)
 
+    def test_constructor_accepts_only_standard_project_ids(self):
+        self.assertEqual(
+            FirestoreStore("line-stock-bot-498908", session=FakeSession()).project_id,
+            "line-stock-bot-498908",
+        )
+        invalid_ids = [
+            "short",
+            "a" + "b" * 30,
+            "Line-stock-bot-498908",
+            "line_stock_bot_498908",
+            "line-stock-bot-498908/path",
+            "line-stock-bot-498908?query=yes",
+            "line-stock-bot-498908-",
+            " line-stock-bot-498908",
+        ]
+        for project_id in invalid_ids:
+            with self.subTest(project_id=project_id), self.assertRaises(ValueError):
+                FirestoreStore(project_id, session=FakeSession())
+
     @mock.patch("line_state.time.time")
     def test_metadata_token_is_cached_until_refresh_window(self, now):
         now.side_effect = [1000, 1100]
@@ -136,6 +155,31 @@ class FirestoreStoreTests(unittest.TestCase):
                     store._access_token()
                 self.assertNotIn("secret", str(raised.exception).lower())
                 self.assertNotIn("body", str(raised.exception).lower())
+
+    def test_metadata_expiry_is_converted_and_must_be_finite_and_positive(self):
+        store = FirestoreStore(
+            "demo-project",
+            session=FakeSession(
+                [FakeResponse(payload={"access_token": "token", "expires_in": "300"})]
+            ),
+        )
+        self.assertEqual(store._access_token(), "token")
+
+        invalid_expiries = [True, 0, float("nan"), float("inf"), "NaN", "Infinity"]
+        for expires_in in invalid_expiries:
+            with self.subTest(expires_in=expires_in):
+                store = FirestoreStore(
+                    "demo-project",
+                    session=FakeSession(
+                        [
+                            FakeResponse(
+                                payload={"access_token": "token", "expires_in": expires_in}
+                            )
+                        ]
+                    ),
+                )
+                with self.assertRaises(StoreError):
+                    store._access_token()
 
     def test_load_parses_normalizes_and_url_encodes_user_id(self):
         state = {"watchlist": [{"code": "2330", "name": "台積電", "added_at": 1}], "extra": True}
@@ -212,6 +256,41 @@ class FirestoreStoreTests(unittest.TestCase):
                 with self.assertRaises(StoreError):
                     store.save("user", empty_state(), "v1")
 
+    def test_save_maps_only_failed_precondition_400_to_conflict(self):
+        failed_precondition = FakeResponse(
+            status_code=400,
+            payload={
+                "error": {
+                    "code": 400,
+                    "message": "document changed; secret body",
+                    "status": "FAILED_PRECONDITION",
+                }
+            },
+        )
+        store, _ = self.make_store([failed_precondition])
+        with self.assertRaises(StoreConflict):
+            store.save("user", empty_state(), "v1")
+
+        other_bad_request = FakeResponse(
+            status_code=400,
+            payload={"error": {"status": "INVALID_ARGUMENT", "message": "secret body"}},
+        )
+        store, _ = self.make_store([other_bad_request])
+        with self.assertRaises(StoreError) as raised:
+            store.save("user", empty_state(), "v1")
+        self.assertNotIn("secret", str(raised.exception).lower())
+        self.assertNotIn("body", str(raised.exception).lower())
+
+        malformed_bad_request = FakeResponse(
+            status_code=400,
+            json_error=ValueError("secret response body"),
+        )
+        store, _ = self.make_store([malformed_bad_request])
+        with self.assertRaises(StoreError) as raised:
+            store.save("user", empty_state(), "v1")
+        self.assertNotIn("secret", str(raised.exception).lower())
+        self.assertNotIn("body", str(raised.exception).lower())
+
     def test_update_reloads_and_reapplies_mutation_after_first_conflict(self):
         store, _ = self.make_store()
         first = empty_state()
@@ -262,6 +341,24 @@ class FirestoreStoreTests(unittest.TestCase):
         store.load.assert_called_once_with("user")
         store.save.assert_not_called()
 
+    def test_update_ignores_alert_return_value_and_saves_mutated_state(self):
+        state = empty_state()
+        add_watch(state, "2330", "台積電", now=1)
+        store, _ = self.make_store()
+        store.load = mock.Mock(return_value=(state, "v1"))
+        store.save = mock.Mock(return_value="v2")
+
+        result = store.update(
+            "user",
+            lambda current: add_alert(current, "2330", "台積電", "price", 1000),
+        )
+
+        saved_state = store.save.call_args.args[1]
+        self.assertIn("watchlist", saved_state)
+        self.assertEqual(saved_state["watchlist"], state["watchlist"])
+        self.assertEqual(len(saved_state["alerts"]), 1)
+        self.assertIs(result, state)
+
     def test_iter_users_paginates_decodes_ids_and_tolerates_bad_state(self):
         first = firestore_document(user_id="user%2Fone")
         bad = firestore_document(user_id="%E5%8F%B0%E7%81%A3")
@@ -290,6 +387,27 @@ class FirestoreStoreTests(unittest.TestCase):
                 store, _ = self.make_store([response])
                 with self.assertRaises(StoreError):
                     list(store.iter_users())
+
+    def test_iter_users_rejects_invalid_or_repeated_page_tokens(self):
+        for token in ("", 123, [], {}):
+            with self.subTest(token=token):
+                store, session = self.make_store(
+                    [FakeResponse(payload={"documents": [], "nextPageToken": token})]
+                )
+                with self.assertRaises(StoreError):
+                    list(store.iter_users())
+                self.assertEqual(len(session.calls), 1)
+
+        store, session = self.make_store(
+            [
+                FakeResponse(payload={"documents": [], "nextPageToken": "repeat"}),
+                FakeResponse(payload={"documents": [], "nextPageToken": "repeat"}),
+            ]
+        )
+        with self.assertRaises(StoreError) as raised:
+            list(store.iter_users())
+        self.assertEqual(len(session.calls), 2)
+        self.assertNotIn("repeat", str(raised.exception))
 
 
 class LineStateTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 import copy
 import json
 import math
+import re
 import time
 import uuid
 from datetime import date
@@ -29,9 +30,11 @@ class StoreConflict(StoreError):
 
 class FirestoreStore:
     def __init__(self, project_id, session=None, token_provider=None):
-        if not isinstance(project_id, str) or not project_id.strip():
-            raise ValueError("project_id must be non-empty")
-        self.project_id = project_id.strip()
+        if not isinstance(project_id, str) or re.fullmatch(
+            r"[a-z][a-z0-9-]{4,28}[a-z0-9]", project_id
+        ) is None:
+            raise ValueError("project_id is invalid")
+        self.project_id = project_id
         self.session = session if session is not None else requests.Session()
         self.token_provider = token_provider if token_provider is not None else self._access_token
         self._cached_token = None
@@ -60,11 +63,13 @@ class FirestoreStore:
             payload = response.json()
             token = payload["access_token"]
             expires_in = payload["expires_in"]
+            if isinstance(expires_in, bool):
+                raise ValueError("metadata fields")
+            expires_in = float(expires_in)
             if (
                 not isinstance(token, str)
                 or not token
-                or isinstance(expires_in, bool)
-                or not isinstance(expires_in, (int, float))
+                or not math.isfinite(expires_in)
                 or expires_in <= 0
             ):
                 raise ValueError("metadata fields")
@@ -145,6 +150,16 @@ class FirestoreStore:
         )
         if response.status_code in {409, 412}:
             raise StoreConflict("Firestore write conflict")
+        if response.status_code == 400:
+            try:
+                payload = response.json()
+                error = payload.get("error", {})
+                if error.get("status") == "FAILED_PRECONDITION":
+                    raise StoreConflict("Firestore write conflict")
+            except StoreConflict:
+                raise
+            except Exception:
+                pass
         if response.status_code != 200:
             raise StoreError(f"Firestore write failed with status {response.status_code}")
         try:
@@ -158,9 +173,7 @@ class FirestoreStore:
     def update(self, user_id, mutate):
         for attempt in range(2):
             state, update_time = self.load(user_id)
-            mutated = mutate(state)
-            if mutated is not None:
-                state = mutated
+            mutate(state)
             try:
                 self.save(user_id, state, update_time)
                 return state
@@ -171,6 +184,7 @@ class FirestoreStore:
 
     def iter_users(self):
         page_token = None
+        seen_page_tokens = set()
         while True:
             params = {"pageSize": 100}
             if page_token:
@@ -186,11 +200,21 @@ class FirestoreStore:
             try:
                 payload = response.json()
                 documents = payload.get("documents", [])
-                page_token = payload.get("nextPageToken")
+                next_page_token = payload.get("nextPageToken")
                 if not isinstance(documents, list):
                     raise ValueError("invalid documents")
+                if next_page_token is not None and (
+                    not isinstance(next_page_token, str)
+                    or not next_page_token
+                    or next_page_token in seen_page_tokens
+                ):
+                    raise ValueError("invalid page token")
             except Exception:
                 raise StoreError("Firestore list response was invalid") from None
+
+            if next_page_token is not None:
+                seen_page_tokens.add(next_page_token)
+            page_token = next_page_token
 
             for document in documents:
                 try:
