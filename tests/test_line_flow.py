@@ -108,6 +108,32 @@ class BlockingReadStore:
         return True
 
 
+class ReaderAbort(BaseException):
+    pass
+
+
+class BaseExceptionReadStore:
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.load_calls = 0
+
+    def load(self, user_id):
+        with self.condition:
+            self.load_calls += 1
+            self.condition.notify_all()
+        raise ReaderAbort("simulated reader abort")
+
+    def wait_for_calls(self, expected, timeout=0.2):
+        deadline = time.monotonic() + timeout
+        with self.condition:
+            while self.load_calls < expected:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self.condition.wait(remaining)
+        return True
+
+
 class LineBuilderTests(unittest.TestCase):
     def test_stock_flex_has_two_postbacks_and_one_analysis_uri(self):
         card = stock_app.build_stock_flex_message(
@@ -481,6 +507,31 @@ class MessageFlowTests(unittest.TestCase):
 
         self.assertEqual(state, empty_state())
         self.assertEqual(store.load_calls, limit + 1)
+
+    def test_reader_slot_is_released_after_base_exception(self):
+        store = BaseExceptionReadStore()
+        slots = threading.BoundedSemaphore(1)
+
+        with patch.object(stock_app, "line_store", store), \
+             patch.object(stock_app, "_line_state_read_slots", slots):
+            with self.assertRaises(StoreError):
+                stock_app.get_line_state_bounded("U123", timeout=0.05)
+            self.assertTrue(store.wait_for_calls(1))
+
+            with self.assertRaises(StoreError):
+                stock_app.get_line_state_bounded("U123", timeout=0.05)
+            self.assertTrue(store.wait_for_calls(2))
+
+    def test_reader_slot_is_released_when_thread_start_fails(self):
+        slots = threading.BoundedSemaphore(1)
+        with patch.object(stock_app, "line_store", CopyOnWriteStore()), \
+             patch.object(stock_app, "_line_state_read_slots", slots), \
+             patch.object(stock_app.threading, "Thread", side_effect=RuntimeError):
+            with self.assertRaises(StoreError):
+                stock_app.get_line_state_bounded("U123", timeout=0.05)
+
+        self.assertTrue(slots.acquire(blocking=False))
+        slots.release()
 
     def test_watchlist_and_strong_signals_reply_in_line(self):
         state = empty_state()

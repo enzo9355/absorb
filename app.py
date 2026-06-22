@@ -729,14 +729,16 @@ def get_line_state_bounded(user_id, timeout=LINE_STATE_READ_BUDGET_SECONDS):
 
     def load_state():
         try:
-            value = (True, store.load(user_id)[0])
-        except Exception:
             value = (False, None)
-        finally:
+            try:
+                value = (True, store.load(user_id)[0])
+            except BaseException:
+                pass
             try:
                 result.put_nowait(value)
-            except queue.Full:
+            except BaseException:
                 pass
+        finally:
             slots.release()
 
     try:
