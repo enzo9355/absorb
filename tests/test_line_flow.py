@@ -483,6 +483,34 @@ class MessageFlowTests(unittest.TestCase):
         line_api.reply_message.assert_called_once()
         return line_api
 
+    def test_sector_selection_uses_snapshot_without_running_analysis(self):
+        snapshot = {
+            "as_of": "2026-06-24",
+            "generated_at": "2026-06-24T08:30:00Z",
+            "sectors": {
+                "半導體": [{
+                    "code": "2330", "name": "台積電", "price": 1000.0,
+                    "prob": 68, "trend": "多頭", "score": 72.5,
+                    "strat_cum": 8.0, "mdd": -6.0,
+                    "foreign_net_5": 2000.0, "as_of": "2026-06-24",
+                }]
+            },
+        }
+        line_api = Mock()
+        event = message_event("選產業_半導體")
+
+        with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
+             patch.object(stock_app, "line_store", object()), \
+             patch.object(stock_app, "load_sector_signal_snapshot", return_value=snapshot), \
+             patch.object(stock_app, "analyze") as analyze, \
+             patch.object(stock_app, "line_bot_api", line_api):
+            stock_app.handle_message(event)
+
+        analyze.assert_not_called()
+        message = line_api.reply_message.call_args.args[1]
+        self.assertEqual(message.type, "flex")
+        self.assertIn("台積電", flex_text(message))
+
     def test_pending_numeric_success_creates_alert_and_stops_stock_lookup(self):
         state = empty_state()
         state["pending"] = {"code": "2330", "name": "台積電", "kind": "probability", "expires_at": 9999999999}

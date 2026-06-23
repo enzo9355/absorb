@@ -1648,6 +1648,65 @@ def build_industry_carousel(cat, arr):
         })
     return { "type": "carousel", "contents": bubbles }
 
+
+def _build_sector_signal_row(item):
+    code = item["code"]
+    name = item["name"]
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "paddingAll": "12px",
+        "cornerRadius": "8px",
+        "backgroundColor": "#ffffff",
+        "spacing": "xs",
+        "margin": "md",
+        "action": {"type": "message", "label": f"查詢 {code}", "text": code},
+        "contents": [
+            {
+                "type": "text", "text": f"{name} ({code})",
+                "color": "#0f172a", "size": "md", "weight": "bold", "wrap": True,
+            },
+            {
+                "type": "text",
+                "text": f"AI勝率 {item['prob']}%｜{item['trend']}｜外資5日 {item['foreign_net_5']:,.0f}",
+                "color": "#475569", "size": "xs", "wrap": True,
+            },
+            {
+                "type": "text",
+                "text": f"排序分數 {item['score']:.1f}｜資料 {item['as_of']}",
+                "color": "#0284c7", "size": "xs", "wrap": True,
+            },
+        ],
+    }
+
+
+def build_sector_signal_carousel(category, items):
+    return {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": "#0f766e",
+            "paddingAll": "16px",
+            "contents": [{
+                "type": "text", "text": f"📊 {category}｜每日產業預測",
+                "color": "#ffffff", "weight": "bold", "size": "lg", "wrap": True,
+            }],
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": "#f8fafc",
+            "paddingAll": "12px",
+            "contents": [
+                _build_sector_signal_row(item)
+                for item in items[:SECTOR_DISPLAY_LIMIT]
+            ],
+        },
+    }
+
+
 @app.route("/")
 def home():
     """健康檢查端點：給外部監控服務敲擊，防止 Render 休眠"""
@@ -2092,12 +2151,21 @@ def handle_message(event):
         
     elif msg.startswith("選產業_"):
         cat = msg.replace("選產業_", "")
-        arr = industry_map.get(cat, [])[:10]
-        if not arr:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 無資料"))
+        try:
+            snapshot = load_sector_signal_snapshot(line_store) if line_store else None
+        except StoreError:
+            snapshot = None
+        items = (snapshot or {}).get("sectors", {}).get(cat, [])
+        if items:
+            line_bot_api.reply_message(
+                event.reply_token,
+                FlexSendMessage(
+                    alt_text=f"{cat} 每日產業預測",
+                    contents=build_sector_signal_carousel(cat, items),
+                ),
+            )
         else:
-            flex_content = build_industry_carousel(cat, arr)
-            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"📈 {cat} 推薦名單出爐！", contents=flex_content))
+            _reply_text(event, "產業資料尚未更新，請稍後再試。你也可以直接輸入股票代碼查詢個股。")
         
     elif msg == "免責聲明":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="本系統資訊僅供研究參考，不構成投資建議，投資盈虧請自負。"))
