@@ -63,6 +63,9 @@ else:
 
 finmind_token = None
 CATEGORY_PAGE_SIZE = 12
+SECTOR_SCAN_LIMIT = 20
+SECTOR_DISPLAY_LIMIT = 10
+SECTOR_SNAPSHOT_DOC = "sector_signals"
 PREDICTION_HORIZON = 5
 ROUND_TRIP_COST = 0.00585
 ENTRY_THRESHOLD = 0.60
@@ -728,6 +731,86 @@ def render_web(d):
 # ==================================================
 # 6. 動態產業分類與選單生成
 # ==================================================
+def _safe_float(value, default=0.0):
+    try:
+        value = float(value)
+        return value if np.isfinite(value) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _clamp(value, low, high):
+    return max(low, min(high, value))
+
+
+def sector_signal_score(data):
+    bt = data.get("bt") or {}
+    foreign = data.get("foreign_flow") or {}
+    prob = _safe_float(data.get("prob"))
+    strat_bonus = _clamp(_safe_float(bt.get("strat_cum")), -20.0, 20.0) * 0.35
+    foreign_bonus = _clamp(_safe_float(foreign.get("net_5")) / 1000.0, -5.0, 5.0)
+    drawdown_penalty = min(abs(_safe_float(bt.get("mdd"))), 30.0) * 0.15
+    return round(prob + strat_bonus + foreign_bonus - drawdown_penalty, 2)
+
+
+def sector_candidates(category, codes, limit=SECTOR_SCAN_LIMIT):
+    selected = []
+    seen = set()
+    for code in codes:
+        code = str(code).strip()
+        if code in seen or not code.isdigit() or len(code) not in (4, 5):
+            continue
+        if category != "ETF專區" and code.startswith("00"):
+            continue
+        selected.append(code)
+        seen.add(code)
+        if len(selected) == limit:
+            break
+    return selected
+
+
+def sector_signal_item(code, data):
+    if not data or not isinstance(data.get("as_of"), str):
+        return None
+    bt = data.get("bt") or {}
+    foreign = data.get("foreign_flow") or {}
+    return {
+        "code": code,
+        "name": data.get("name") or get_stock_name(code),
+        "price": _safe_float(data.get("price")),
+        "prob": int(round(_safe_float(data.get("prob")))),
+        "trend": data.get("trend") or "中性",
+        "score": sector_signal_score(data),
+        "strat_cum": _safe_float(bt.get("strat_cum")),
+        "mdd": _safe_float(bt.get("mdd")),
+        "foreign_net_5": _safe_float(foreign.get("net_5")),
+        "as_of": data["as_of"],
+    }
+
+
+def build_sector_signal_snapshot(market_map, analyze_fn, now=None):
+    now = now or datetime.datetime.utcnow()
+    sectors = {}
+    dates = []
+    for category, codes in market_map.items():
+        items = []
+        for code in sector_candidates(category, codes):
+            try:
+                item = sector_signal_item(code, analyze_fn(code))
+            except Exception:
+                item = None
+            if item:
+                items.append(item)
+                dates.append(item["as_of"])
+        items.sort(key=lambda item: item["score"], reverse=True)
+        sectors[category] = items[:SECTOR_DISPLAY_LIMIT]
+    return {
+        "as_of": max(dates) if dates else now.date().isoformat(),
+        "generated_at": now.replace(microsecond=0).isoformat() + "Z",
+        "sectors": sectors,
+    }
+
+
 def build_market_map():
     market = {"全市場": [], "ETF專區": [], "AI伺服器": []}
     ai_names = {"鴻海", "廣達", "緯創", "英業達", "仁寶", "和碩", "華碩", "微星", "技嘉", "神達", "緯穎", "勤誠", "雙鴻", "奇鋐", "宏碁"}

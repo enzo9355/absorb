@@ -181,6 +181,40 @@ def scheduler_quote(code="2330", name="台積電", **changes):
 
 
 class LineBuilderTests(unittest.TestCase):
+    def test_sector_signal_score_rewards_probability_backtest_and_foreign_flow(self):
+        strong = scheduler_quote(prob=70)
+        strong["bt"] = {"strat_cum": 12.0, "mdd": -5.0}
+        strong["foreign_flow"] = {"net_5": 3000.0}
+        weak = scheduler_quote(prob=55)
+        weak["bt"] = {"strat_cum": -8.0, "mdd": -20.0}
+        weak["foreign_flow"] = {"net_5": -3000.0}
+
+        self.assertGreater(
+            stock_app.sector_signal_score(strong),
+            stock_app.sector_signal_score(weak),
+        )
+
+    def test_build_sector_signal_snapshot_limits_each_sector_to_twenty_codes(self):
+        calls = []
+
+        def analyze(code):
+            calls.append(code)
+            quote = scheduler_quote(code=code, name=f"股票{code}", prob=50 + int(code[-1]))
+            quote["bt"] = {"strat_cum": 1.0, "mdd": -2.0}
+            quote["foreign_flow"] = {"net_5": 100.0}
+            return quote
+
+        market = {"測試產業": [f"12{i:02d}" for i in range(25)]}
+        snapshot = stock_app.build_sector_signal_snapshot(
+            market,
+            analyze,
+            now=stock_app.datetime.datetime(2026, 6, 24, 8, 30),
+        )
+
+        self.assertEqual(len(calls), 20)
+        self.assertEqual(len(snapshot["sectors"]["測試產業"]), 10)
+        self.assertEqual(snapshot["generated_at"], "2026-06-24T08:30:00Z")
+
     def test_stock_flex_has_three_postbacks_and_one_analysis_uri(self):
         card = stock_app.build_stock_flex_message(
             "2330", "台積電", sample_data(),
