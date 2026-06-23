@@ -2,16 +2,18 @@
 
 LINE 負責關注清單、提醒與快速摘要；Web 只負責完整圖表、模型解釋與分析建議。
 
-## Rich Menu 四個入口
+## Rich Menu 六個入口
 
 | 區塊 | LINE 動作 | Web 目的地 |
 | --- | --- | --- |
 | 今日盤勢 | 傳送文字 `今日盤勢`，回覆大盤摘要卡 | `/market` |
 | 我的關注 | 傳送文字 `我的關注`，在 LINE 內回覆關注清單 | 無 |
+| 強勢訊號 | 傳送文字 `強勢訊號`，在 LINE 內回覆關注股票排行 | 無 |
 | 提醒管理 | 傳送文字 `提醒管理`，在 LINE 內列出提醒並提供取消按鈕 | 無 |
+| 投資試算 | 傳送文字 `投資試算`，回覆操作說明；查詢個股後可點按鈕試算 | 無 |
 | 完整分析 | 傳送文字 `完整分析`，回覆單一 CTA 卡 | `/dashboard` |
 
-LINE Official Account Manager 建立 Rich Menu 時，依上表設定四個 message action。`功能選單` 可用來預覽相同資訊架構，不需要額外後端狀態。
+LINE Official Account Manager 建立 Rich Menu 時，依上表設定六個 action。`功能選單` 可用來預覽相同資訊架構，不需要額外後端狀態。
 
 ## Flex Message 結構
 

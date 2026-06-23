@@ -101,11 +101,11 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         analyze.assert_not_called()
 
-    def test_line_navigation_maps_four_entries_to_web_routes(self):
+    def test_line_navigation_maps_six_entries_to_web_routes_and_line_actions(self):
         navigation = stock_app.build_line_navigation_flex("https://example.com/")
 
         self.assertEqual(navigation["type"], "carousel")
-        self.assertEqual(len(navigation["contents"]), 4)
+        self.assertEqual(len(navigation["contents"]), 6)
         expected_uri = {
             "今日盤勢": "https://example.com/market",
             "完整分析": "https://example.com/dashboard",
@@ -123,7 +123,9 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(actual_uri, expected_uri)
         self.assertEqual(actual_message, {
             "我的關注": "我的關注",
+            "強勢訊號": "強勢訊號",
             "提醒管理": "提醒管理",
+            "投資試算": "投資試算",
         })
 
     def test_line_summary_card_has_one_clear_cta(self):

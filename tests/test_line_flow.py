@@ -685,6 +685,14 @@ class MessageFlowTests(unittest.TestCase):
                 if text == "提醒管理":
                     self.assertIn("alert:remove:" + "a" * 32, str(contents))
 
+    def test_investment_calculator_menu_text_replies_with_usage_hint(self):
+        line_api = self.call("投資試算", CopyOnWriteStore())
+
+        reply = line_api.reply_message.call_args.args[1]
+        self.assertEqual(reply.type, "flex")
+        self.assertIn("試算 2330 100000", flex_text(reply))
+        self.assertIn("先輸入股票代碼", flex_text(reply))
+
     def test_missing_or_failing_store_returns_safe_message_for_native_commands(self):
         for text in ("我的關注", "強勢訊號", "提醒管理"):
             with self.subTest(text=text, failure="missing"):

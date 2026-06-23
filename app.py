@@ -1345,18 +1345,33 @@ def build_line_summary_card(title, lines, cta_label, url, accent="#39c6a3", acti
     }
 
 def build_line_navigation_flex(base_url):
-    """Rich Menu 四個入口的可預覽 Flex 版本。"""
+    """Rich Menu 入口的可預覽 Flex 版本。"""
     root = base_url.rstrip("/")
     entries = [
         ("今日盤勢", "先看大盤趨勢與五日上漲機率", "查看盤勢", {"type": "uri", "label": "查看盤勢", "uri": f"{root}/market"}),
         ("我的關注", "在 LINE 內查看自選股票與條件提醒", "開啟關注", {"type": "message", "label": "開啟關注", "text": "我的關注"}),
+        ("強勢訊號", "查看關注清單內目前最強的標的", "查看訊號", {"type": "message", "label": "查看訊號", "text": "強勢訊號"}),
         ("提醒管理", "查看與取消已設定的提醒", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
+        ("投資試算", "用按鈕或自訂金額估算歷史損益", "開始試算", {"type": "message", "label": "開始試算", "text": "投資試算"}),
         ("完整分析", "進入量化儀表板做完整判讀", "開啟分析", {"type": "uri", "label": "開啟分析", "uri": f"{root}/dashboard"}),
     ]
     return {
         "type": "carousel",
         "contents": [build_line_summary_card(title, [description], cta, root, action=action) for title, description, cta, action in entries],
     }
+
+def build_calculator_help_flex():
+    return build_line_summary_card(
+        "投資試算",
+        [
+            "先輸入股票代碼，例如 2330。",
+            "查詢結果會出現「投資試算」按鈕，可直接選 1 萬 / 5 萬 / 10 萬。",
+            "自訂金額可輸入：試算 2330 100000",
+        ],
+        "輸入 2330 開始",
+        "2330",
+        action={"type": "message", "label": "輸入 2330 開始", "text": "2330"},
+    )
 
 def build_welcome_flex():
     return {
@@ -1899,6 +1914,9 @@ def handle_message(event):
     elif msg == "完整分析":
         card = build_line_summary_card("量化分析總覽", ["從市場摘要、強勢訊號與產業雷達開始判讀。"], "開啟完整分析", f"{web_root}/dashboard")
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="開啟完整分析", contents=card))
+
+    elif msg == "投資試算":
+        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="投資試算", contents=build_calculator_help_flex()))
 
     elif msg == "功能選單":
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="量化觀測站功能選單", contents=build_line_navigation_flex(web_root)))
