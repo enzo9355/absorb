@@ -96,7 +96,6 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(len(navigation["contents"]), 4)
         expected_uri = {
             "今日盤勢": "https://example.com/market",
-            "熱門產業": "https://example.com/dashboard#sectors",
             "完整分析": "https://example.com/dashboard",
         }
         actual_uri = {}
@@ -110,7 +109,10 @@ class WebProductTests(unittest.TestCase):
             else:
                 actual_message[title] = action["text"]
         self.assertEqual(actual_uri, expected_uri)
-        self.assertEqual(actual_message, {"我的關注": "我的關注"})
+        self.assertEqual(actual_message, {
+            "我的關注": "我的關注",
+            "提醒管理": "提醒管理",
+        })
 
     def test_line_summary_card_has_one_clear_cta(self):
         card = stock_app.build_line_summary_card(
@@ -139,6 +141,14 @@ class WebProductTests(unittest.TestCase):
 
         for removed in ["localStorage", "quant-watchlist", "data-watchlist", "data-alert-open", "data-alert-form"]:
             self.assertNotIn(removed, source)
+
+    def test_stock_chart_is_clipped_and_resizes_with_its_panel(self):
+        css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")
+        js = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+
+        self.assertIn(".chart-panel{margin-bottom:16px;overflow:hidden}", css)
+        self.assertIn(".stock-chart{width:100%;max-width:100%;height:430px", css)
+        self.assertIn("ResizeObserver", js)
 
 
 if __name__ == "__main__":

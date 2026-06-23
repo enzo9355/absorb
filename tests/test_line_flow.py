@@ -253,6 +253,26 @@ class LineBuilderTests(unittest.TestCase):
         self.assertEqual([action["label"] for action in actions[2:]], ["趨勢為多頭", "趨勢為空頭"])
         self.assertNotIn("趨勢轉", str(card))
 
+    def test_alert_management_flex_lists_cancel_buttons(self):
+        state = empty_state()
+        alert_id = "a" * 32
+        state["alerts"] = [{
+            "id": alert_id, "code": "2330", "name": "台積電",
+            "kind": "price", "value": 900, "enabled": True,
+            "last_triggered_date": None,
+        }]
+
+        message = stock_app.build_alerts_flex(state)
+        action = message["contents"][0]["footer"]["contents"][0]["action"]
+
+        self.assertIn("提醒管理", str(message))
+        self.assertIn("股價達到 900", str(message))
+        self.assertEqual(action, {
+            "type": "postback",
+            "label": "取消提醒",
+            "data": f"alert:remove:{alert_id}",
+        })
+
     def test_strong_signals_empty_is_one_explanatory_bubble(self):
         message = stock_app.build_strong_signals_flex(empty_state(), "https://example.com")
 
@@ -606,14 +626,22 @@ class MessageFlowTests(unittest.TestCase):
         state["signals"] = {"as_of": "2026-06-22", "items": []}
         store = CopyOnWriteStore(state)
 
-        for text in ("我的關注", "強勢訊號"):
+        state["alerts"] = [{
+            "id": "a" * 32, "code": "2330", "name": "台積電",
+            "kind": "price", "value": 900, "enabled": True,
+            "last_triggered_date": None,
+        }]
+
+        for text in ("我的關注", "強勢訊號", "提醒管理"):
             with self.subTest(text=text):
                 line_api = self.call(text, store)
                 contents = line_api.reply_message.call_args.args[1].contents
                 self.assertNotIn("/watchlist", str(contents))
+                if text == "提醒管理":
+                    self.assertIn("alert:remove:" + "a" * 32, str(contents))
 
     def test_missing_or_failing_store_returns_safe_message_for_native_commands(self):
-        for text in ("我的關注", "強勢訊號"):
+        for text in ("我的關注", "強勢訊號", "提醒管理"):
             with self.subTest(text=text, failure="missing"):
                 line_api = self.call(text, None)
                 self.assertIn("關注功能尚未設定", line_api.reply_message.call_args.args[1].text)

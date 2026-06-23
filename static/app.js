@@ -47,7 +47,9 @@ function initStockChart(){
   chart.addLineSeries({color:'#f5bb4b',lineWidth:2,lineStyle:2,title:'五日預測'}).setData(JSON.parse(raw.prediction));
   window.stockChart={chart,length:candles.length};
   setChartRange(90);
-  window.addEventListener('resize',()=>chart.resize(container.clientWidth,430));
+  const resize=()=>chart.resize(container.clientWidth,container.clientHeight||430);
+  if(window.ResizeObserver)new ResizeObserver(resize).observe(container);
+  window.addEventListener('resize',resize);
 }
 
 function setChartRange(days){

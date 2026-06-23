@@ -955,6 +955,42 @@ def build_watchlist_flex(state, base_url):
     }
 
 
+def _alert_condition_text(alert):
+    if alert["kind"] == "price":
+        return f"股價達到 {float(alert['value']):g}"
+    if alert["kind"] == "probability":
+        return f"五日上漲機率達到 {float(alert['value']):g}%"
+    return f"趨勢為{alert['value']}"
+
+
+def _alert_management_card(alert):
+    return {
+        "type": "bubble",
+        "size": "kilo",
+        "body": {
+            "type": "box", "layout": "vertical", "paddingAll": "18px", "spacing": "sm",
+            "contents": [
+                {"type": "text", "text": "提醒管理", "weight": "bold", "size": "sm", "color": "#39c6a3"},
+                {"type": "text", "text": f"{alert['name']} ({alert['code']})", "weight": "bold", "size": "lg", "wrap": True},
+                {"type": "text", "text": _alert_condition_text(alert), "color": "#64748b", "size": "sm", "wrap": True},
+            ],
+        },
+        "footer": {
+            "type": "box", "layout": "vertical", "paddingAll": "14px",
+            "contents": [{"type": "button", "style": "secondary", "action": {
+                "type": "postback", "label": "取消提醒", "data": f"alert:remove:{alert['id']}",
+            }}],
+        },
+    }
+
+
+def build_alerts_flex(state):
+    alerts = [alert for alert in state.get("alerts", []) if alert.get("enabled", True)][:12]
+    if not alerts:
+        return _empty_line_bubble("提醒管理", "尚未設定提醒。請先查詢個股，再點選「設定提醒」。")
+    return {"type": "carousel", "contents": [_alert_management_card(alert) for alert in alerts]}
+
+
 def build_alert_menu_flex(code, name):
     choices = [
         ("收盤價門檻", f"alert:start:{code}:price"),
@@ -1187,8 +1223,8 @@ def build_line_navigation_flex(base_url):
     root = base_url.rstrip("/")
     entries = [
         ("今日盤勢", "先看大盤趨勢與五日上漲機率", "查看盤勢", {"type": "uri", "label": "查看盤勢", "uri": f"{root}/market"}),
-        ("熱門產業", "快速比較近期訊號較強的產業", "查看產業", {"type": "uri", "label": "查看產業", "uri": f"{root}/dashboard#sectors"}),
         ("我的關注", "在 LINE 內查看自選股票與條件提醒", "開啟關注", {"type": "message", "label": "開啟關注", "text": "我的關注"}),
+        ("提醒管理", "查看與取消已設定的提醒", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
         ("完整分析", "進入量化儀表板做完整判讀", "開啟分析", {"type": "uri", "label": "開啟分析", "uri": f"{root}/dashboard"}),
     ]
     return {
@@ -1666,6 +1702,22 @@ def handle_message(event):
                 ),
             )
 
+    elif msg == "提醒管理":
+        if line_store is None:
+            _reply_text(event, _store_error_text())
+        elif not user_id:
+            _reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
+        elif state_load_failed:
+            _reply_text(event, _store_error_text())
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                FlexSendMessage(
+                    alt_text="提醒管理",
+                    contents=build_alerts_flex(current_state),
+                ),
+            )
+
     elif msg == "完整分析":
         card = build_line_summary_card("量化分析總覽", ["從市場摘要、強勢訊號與產業雷達開始判讀。"], "開啟完整分析", f"{web_root}/dashboard")
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="開啟完整分析", contents=card))
@@ -1713,7 +1765,7 @@ def handle_message(event):
             flex_content = build_stock_flex_message(code, name, data, url, watched=watched)
             line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"📊 {name} ({code}) 預測出爐，點擊查看！", contents=flex_content))
         else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="請輸入股票代碼，或輸入：今日盤勢 / 熱門產業 / 我的關注 / 完整分析"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="請輸入股票代碼，或輸入：今日盤勢 / 我的關注 / 提醒管理 / 完整分析"))
 
 if __name__ == "__main__":
     app.run(host=LOCAL_HOST, port=int(os.environ.get("PORT", 5000)))
