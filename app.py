@@ -1398,6 +1398,64 @@ def run_alert_checks(store, analyze_fn, push_fn, today, base_url):
     if push_failed:
         raise RuntimeError("部分 LINE 提醒發送失敗")
 
+
+def _system_document_url(store, document_id):
+    return (
+        "https://firestore.googleapis.com/v1/projects/"
+        f"{store.project_id}/databases/(default)/documents/system/"
+        f"{urllib.parse.quote(document_id, safe='')}"
+    )
+
+
+def save_sector_signal_snapshot(store, snapshot):
+    body = {
+        "fields": {
+            "payload": {
+                "stringValue": json.dumps(
+                    snapshot, ensure_ascii=False, separators=(",", ":")
+                )
+            }
+        }
+    }
+    response = store._request(
+        "PATCH",
+        _system_document_url(store, SECTOR_SNAPSHOT_DOC),
+        timeout=10,
+        params={"updateMask.fieldPaths": "payload"},
+        json=body,
+    )
+    if response.status_code != 200:
+        raise StoreError(
+            f"sector snapshot write failed with status {response.status_code}"
+        )
+
+
+def load_sector_signal_snapshot(store):
+    response = store._request(
+        "GET", _system_document_url(store, SECTOR_SNAPSHOT_DOC), timeout=5
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise StoreError(
+            f"sector snapshot read failed with status {response.status_code}"
+        )
+    try:
+        raw = response.json().get("fields", {}).get("payload", {}).get("stringValue")
+        snapshot = json.loads(raw)
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get("sectors"), dict):
+            raise ValueError("invalid snapshot")
+        return snapshot
+    except (TypeError, ValueError, json.JSONDecodeError):
+        raise StoreError("sector snapshot response was invalid") from None
+
+
+def refresh_sector_signals(store):
+    snapshot = build_sector_signal_snapshot(industry_map, analyze)
+    save_sector_signal_snapshot(store, snapshot)
+    return snapshot
+
+
 def build_line_summary_card(title, lines, cta_label, url, accent="#39c6a3", action=None):
     """建立只有一個主要動作的 LINE 摘要卡。"""
     action = action or {"type": "uri", "label": cta_label, "uri": url}
@@ -1639,6 +1697,24 @@ def callback():
     try: handler.handle(request.get_data(as_text=True), request.headers.get("X-Line-Signature", ""))
     except InvalidSignatureError: abort(400)
     return "OK"
+
+
+@app.route("/tasks/refresh-sector-signals", methods=["POST"])
+def refresh_sector_signals_task():
+    if not ALERT_TASK_TOKEN:
+        return "產業預測排程尚未設定", 503
+    if not hmac.compare_digest(
+        request.headers.get("Authorization", ""),
+        f"Bearer {ALERT_TASK_TOKEN}",
+    ):
+        return "身份驗證失敗", 403
+    if line_store is None:
+        return "關注功能尚未設定", 503
+    try:
+        snapshot = refresh_sector_signals(line_store)
+    except Exception:
+        return "產業預測排程執行失敗", 500
+    return f"產業預測排程執行完成：{snapshot.get('as_of')}", 200
 
 
 @app.route("/tasks/check-alerts", methods=["POST"])

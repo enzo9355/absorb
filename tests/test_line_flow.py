@@ -1064,6 +1064,26 @@ class ScheduledAlertRouteTests(unittest.TestCase):
     def setUp(self):
         self.client = stock_app.app.test_client()
 
+    def test_refresh_sector_signals_requires_valid_token(self):
+        with patch.object(stock_app, "ALERT_TASK_TOKEN", "secret"), \
+             patch.object(stock_app, "refresh_sector_signals") as refresh:
+            response = self.client.post("/tasks/refresh-sector-signals")
+
+        self.assertEqual(response.status_code, 403)
+        refresh.assert_not_called()
+
+    def test_refresh_sector_signals_runs_after_valid_auth(self):
+        with patch.object(stock_app, "ALERT_TASK_TOKEN", "secret"), \
+             patch.object(stock_app, "line_store", object()), \
+             patch.object(stock_app, "refresh_sector_signals", return_value={"as_of": "2026-06-24"}):
+            response = self.client.post(
+                "/tasks/refresh-sector-signals",
+                headers={"Authorization": "Bearer secret"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("2026-06-24", response.get_data(as_text=True))
+
     def test_missing_token_configuration_returns_503(self):
         with patch.object(stock_app, "ALERT_TASK_TOKEN", None), \
              patch.object(stock_app, "run_alert_checks") as run:
