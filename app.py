@@ -972,9 +972,10 @@ def build_sector_signal_snapshot(market_map, analyze_fn, now=None):
     now = now or datetime.datetime.utcnow()
     sectors = {}
     dates = []
+    scan_limit = max(SECTOR_SCAN_LIMIT, SECTOR_DISPLAY_LIMIT * 6)
     for category, codes in market_map.items():
         items = []
-        for code in sector_candidates(category, codes):
+        for code in sector_candidates(category, codes, limit=scan_limit):
             try:
                 item = sector_signal_item(code, analyze_fn(code))
             except Exception:
@@ -982,8 +983,10 @@ def build_sector_signal_snapshot(market_map, analyze_fn, now=None):
             if item:
                 items.append(item)
                 dates.append(item["as_of"])
+                if len(items) >= SECTOR_DISPLAY_LIMIT:
+                    break
         items.sort(key=lambda item: item["score"], reverse=True)
-        sectors[category] = items[:SECTOR_DISPLAY_LIMIT]
+        sectors[category] = items
     return {
         "as_of": max(dates) if dates else now.date().isoformat(),
         "generated_at": now.replace(microsecond=0).isoformat() + "Z",
