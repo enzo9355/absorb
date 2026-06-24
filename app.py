@@ -69,14 +69,22 @@ SECTOR_SNAPSHOT_DOC = "sector_signals"
 PREDICTION_HORIZON = 5
 ROUND_TRIP_COST = 0.00585
 ENTRY_THRESHOLD = 0.60
+MARKET_FEATURES = [
+    "MARKET_RET_1", "MARKET_RET_5", "MARKET_RET_20", "MARKET_VOL_20",
+    "ETF50_RET_5", "STOCK_VS_MARKET_5",
+]
+DATA_QUALITY_FEATURES = ["DATA_PRICE_DIFF_PCT", "DATA_PRICE_WARNING"]
+PRICE_DIFF_WARNING_THRESHOLD = 0.02
 MODEL_FEATURES = [
     "MA_5", "MA20", "RET_1", "RET_5", "RET_20", "RSI", "Volat",
     "RANGE_PCT", "VOL_RATIO", "VOL_CHG", "INST_NET_RATIO", "MARGIN_CHG",
     "SHORT_CHG", "MACD_OSC", "K", "D",
-]
+] + MARKET_FEATURES + DATA_QUALITY_FEATURES
 
 _SYSTEM_CACHE = {}
-CACHE_EXPIRY_SECONDS = 3600  
+CACHE_EXPIRY_SECONDS = 3600
+_YFINANCE_CACHE = {}
+YFINANCE_CACHE_SECONDS = 3600
 
 # ==================================================
 # 2. 資料抓取與清洗模組
@@ -115,6 +123,40 @@ def fetch_finmind_dataset(dataset, code, start_date, end_date):
     except (requests.RequestException, ValueError, TypeError) as exc:
         print(f"FinMind {dataset} 讀取失敗: {exc}")
         return pd.DataFrame()
+
+
+def fetch_yfinance_price_history(tickers, start_date, end_date=None):
+    if isinstance(tickers, str):
+        tickers = [tickers]
+    cache_key = (tuple(tickers), start_date, end_date or "")
+    now = time.time()
+    cached = _YFINANCE_CACHE.get(cache_key)
+    if cached and now - cached[1] < YFINANCE_CACHE_SECONDS:
+        return cached[0].copy()
+
+    try:
+        import yfinance as yf
+
+        for ticker in tickers:
+            hist = yf.download(
+                ticker,
+                start=start_date,
+                end=end_date,
+                progress=False,
+                threads=False,
+            )
+            if isinstance(hist.columns, pd.MultiIndex):
+                hist.columns = hist.columns.droplevel(1)
+            if not hist.empty and "Close" in hist.columns:
+                frame = hist.copy()
+                frame.index = pd.to_datetime(frame.index).tz_localize(None)
+                frame.index.name = "Date"
+                frame = frame.reset_index()[["Date", "Open", "High", "Low", "Close", "Volume"]]
+                _YFINANCE_CACHE[cache_key] = (frame.copy(), now)
+                return frame
+    except Exception as exc:
+        print(f"Yahoo Finance 讀取失敗: {exc}")
+    return pd.DataFrame()
 
 def get_stock_name(code):
     if code == "TAIEX": return "台股大盤"
@@ -173,12 +215,105 @@ def merge_chip_data(price, institutional=None, margin=None):
         result[column] = result[column].fillna(0.0)
     return result
 
+
+def _neutral_market_features(frame):
+    result = frame.copy()
+    for column in MARKET_FEATURES:
+        result[column] = 0.0
+    return result
+
+
+def _market_feature_frame(market, prefix):
+    if market is None or market.empty or "Date" not in market or "Close" not in market:
+        return pd.DataFrame()
+    frame = market[["Date", "Close"]].copy()
+    frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    close = pd.to_numeric(frame["Close"], errors="coerce")
+    daily_return = close.pct_change(fill_method=None)
+    frame[f"{prefix}_RET_1"] = daily_return
+    frame[f"{prefix}_RET_5"] = close.pct_change(5, fill_method=None)
+    frame[f"{prefix}_RET_20"] = close.pct_change(20, fill_method=None)
+    frame[f"{prefix}_VOL_20"] = daily_return.rolling(20).std()
+    return frame.drop(columns=["Close"]).dropna(subset=["Date"])
+
+
+def add_market_context_features(price, market=None, etf50=None):
+    if price is None or price.empty:
+        return price
+
+    result = price.copy()
+    if "Date" not in result:
+        return _neutral_market_features(result)
+
+    result["Date"] = pd.to_datetime(result["Date"], errors="coerce")
+    market_frame = _market_feature_frame(market, "MARKET")
+    if not market_frame.empty:
+        result = result.merge(market_frame, on="Date", how="left")
+
+    etf_frame = _market_feature_frame(etf50, "ETF50")
+    if not etf_frame.empty and "ETF50_RET_5" in etf_frame:
+        result = result.merge(etf_frame[["Date", "ETF50_RET_5"]], on="Date", how="left")
+
+    if "Close" in result:
+        stock_ret_5 = pd.to_numeric(result["Close"], errors="coerce").pct_change(5, fill_method=None)
+    else:
+        stock_ret_5 = pd.Series(0.0, index=result.index)
+    if "MARKET_RET_5" in result:
+        market_ret_5 = pd.to_numeric(result["MARKET_RET_5"], errors="coerce")
+    else:
+        market_ret_5 = pd.Series(0.0, index=result.index)
+    result["STOCK_VS_MARKET_5"] = stock_ret_5 - market_ret_5
+
+    for column in MARKET_FEATURES:
+        if column not in result:
+            result[column] = 0.0
+        result[column] = (
+            pd.to_numeric(result[column], errors="coerce")
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0.0)
+        )
+    return result
+
+
+def add_price_quality_features(price, yf_price=None):
+    result = price.copy()
+    result["YF_CLOSE"] = 0.0
+    result["DATA_PRICE_DIFF_PCT"] = 0.0
+    result["DATA_PRICE_WARNING"] = 0.0
+    if yf_price is None or yf_price.empty or "Date" not in yf_price or "Close" not in yf_price:
+        return result
+
+    left = result[["Date", "Close"]].copy()
+    left["Date"] = pd.to_datetime(left["Date"], errors="coerce")
+    right = yf_price[["Date", "Close"]].copy()
+    right["Date"] = pd.to_datetime(right["Date"], errors="coerce")
+    right = right.rename(columns={"Close": "YF_CLOSE"})
+    merged = left.merge(right, on="Date", how="left")
+
+    yf_close = pd.to_numeric(merged["YF_CLOSE"], errors="coerce")
+    close = pd.to_numeric(merged["Close"], errors="coerce")
+    diff = ((yf_close - close).abs() / (close.abs() + 1e-9)).replace([np.inf, -np.inf], np.nan)
+    result["YF_CLOSE"] = yf_close.fillna(0.0).to_numpy()
+    result["DATA_PRICE_DIFF_PCT"] = diff.fillna(0.0).to_numpy()
+    result["DATA_PRICE_WARNING"] = (
+        result["DATA_PRICE_DIFF_PCT"] > PRICE_DIFF_WARNING_THRESHOLD
+    ).astype(float)
+    return result
+
+
 def _clean_df(df):
     df[['Open', 'High', 'Low', 'Close']] = df[['Open', 'High', 'Low', 'Close']].replace(0, np.nan)
-    for column in ["Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance"]:
+    numeric_columns = [
+        "Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance",
+    ] + MARKET_FEATURES + DATA_QUALITY_FEATURES
+    for column in numeric_columns:
         if column not in df:
             df[column] = 0.0
-        df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0.0)
+        df[column] = (
+            pd.to_numeric(df[column], errors="coerce")
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0.0)
+        )
     df = df.dropna(subset=['Date', 'Close'])
     return df.sort_values('Date').drop_duplicates(subset=['Date'], keep='last').set_index("Date")
 
@@ -234,6 +369,10 @@ def summarize_foreign_flow(df):
 def get_data(code, days=730):
     start_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
     end_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    yf_price = pd.DataFrame()
+    if code != "TAIEX":
+        yf_price = fetch_yfinance_price_history([f"{code}.TW", f"{code}.TWO"], start_date, end_date)
+
     raw = fetch_finmind_dataset(
         "TaiwanStockPrice", code, start_date, end_date
     )
@@ -250,25 +389,18 @@ def get_data(code, days=730):
             }
         )
     if price is None:
-        try:
-            import yfinance as yf
-            tickers = ["^TWII"] if code == "TAIEX" else [f"{code}.TW", f"{code}.TWO"]
-            for ticker in tickers:
-                hist = yf.download(ticker, start=start_date, progress=False)
-                if isinstance(hist.columns, pd.MultiIndex):
-                    hist.columns = hist.columns.droplevel(1)
-                if not hist.empty and "Close" in hist.columns:
-                    price = hist.copy()
-                    price.index = pd.to_datetime(price.index).tz_localize(None)
-                    price.index.name = "Date"
-                    price = price.reset_index()[
-                        ["Date", "Open", "High", "Low", "Close", "Volume"]
-                    ]
-                    break
-        except Exception as exc:
-            print(f"Yahoo Finance 讀取失敗: {exc}")
-    if price is None:
+        price = (
+            fetch_yfinance_price_history("^TWII", start_date, end_date)
+            if code == "TAIEX"
+            else yf_price
+        )
+    if price is None or price.empty:
         return pd.DataFrame()
+
+    price = add_price_quality_features(price, yf_price)
+    market = fetch_yfinance_price_history("^TWII", start_date, end_date)
+    etf50 = fetch_yfinance_price_history("0050.TW", start_date, end_date)
+    price = add_market_context_features(price, market, etf50)
 
     institutional = margin = None
     if code != "TAIEX":
@@ -300,9 +432,17 @@ def get_news(name):
 
 def calc_all(df):
     df = df.copy()
-    for column in ["Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance"]:
+    numeric_columns = [
+        "Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance",
+    ] + MARKET_FEATURES + DATA_QUALITY_FEATURES
+    for column in numeric_columns:
         if column not in df:
             df[column] = 0.0
+        df[column] = (
+            pd.to_numeric(df[column], errors="coerce")
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0.0)
+        )
     c = df["Close"]
     df['MA_5'], df['MA20'], df['RET_1'] = c.rolling(5).mean(), c.rolling(20).mean(), c.pct_change(fill_method=None)
     df['RET_5'], df['RET_20'] = c.pct_change(5, fill_method=None), c.pct_change(20, fill_method=None)
@@ -442,6 +582,14 @@ def run_ai_engine(df):
             "INST_NET_RATIO": "法人買賣超", "MARGIN_CHG": "融資變化",
             "SHORT_CHG": "融券變化", "MACD_OSC": "MACD 柱狀體動能",
             "K": "KD K值", "D": "KD D值",
+            "MARKET_RET_1": "大盤單日動能",
+            "MARKET_RET_5": "大盤5日動能",
+            "MARKET_RET_20": "大盤月動能",
+            "MARKET_VOL_20": "大盤波動度",
+            "ETF50_RET_5": "0050五日動能",
+            "STOCK_VS_MARKET_5": "個股相對大盤強度",
+            "DATA_PRICE_DIFF_PCT": "資料源價差",
+            "DATA_PRICE_WARNING": "資料品質警示",
         }
         importances = final_model.feature_importances_
         total_importance = max(float(importances.sum()), 1.0)
@@ -495,24 +643,52 @@ def get_ai_insight_for_broadcast(name, data, bt, news):
 # ==================================================
 # 4. 分析總控
 # ==================================================
-def analyze_sentiment(news_list):
-    if not news_list: return 50, "中性"
+def analyze_sentiment_detail(news_list):
+    if not news_list:
+        return {
+            "score": 50.0,
+            "status": "中性",
+            "count": 0,
+            "positive_ratio": 0.0,
+            "negative_ratio": 0.0,
+        }
+
     scores = []
+    positives = 0
+    negatives = 0
     pos_words = ["漲", "紅", "高", "多", "買", "利多", "創紀錄", "看好", "強", "優", "雙位數", "營收增", "獲利", "新高", "上揚", "突破"]
     neg_words = ["跌", "綠", "低", "空", "賣", "利空", "虧", "看壞", "弱", "劣", "崩", "違約", "衰退", "下修", "降評", "保守", "跳水"]
     for n in news_list:
-        t = n['title']
+        t = str(n.get('title', ''))
         s = 0.5
-        # 基於自訂關鍵字的輕量級情緒分析
-        for w in pos_words: 
-            if w in t: s += 0.15
-        for w in neg_words: 
-            if w in t: s -= 0.15
+        pos_hits = sum(1 for w in pos_words if w in t)
+        neg_hits = sum(1 for w in neg_words if w in t)
+        if pos_hits:
+            positives += 1
+        if neg_hits:
+            negatives += 1
+        s += 0.15 * pos_hits
+        s -= 0.15 * neg_hits
         scores.append(max(0, min(1, s)))
     avg_s = sum(scores) / len(scores) * 100
-    if avg_s >= 65: return avg_s, "🔥 樂觀貪婪"
-    elif avg_s <= 35: return avg_s, "😨 悲觀恐慌"
-    else: return avg_s, "⚖️ 中性觀望"
+    if avg_s >= 65:
+        status = "🔥 樂觀貪婪"
+    elif avg_s <= 35:
+        status = "😨 悲觀恐慌"
+    else:
+        status = "⚖️ 中性觀望"
+    return {
+        "score": avg_s,
+        "status": status,
+        "count": len(news_list),
+        "positive_ratio": positives / len(news_list),
+        "negative_ratio": negatives / len(news_list),
+    }
+
+
+def analyze_sentiment(news_list):
+    detail = analyze_sentiment_detail(news_list)
+    return detail["score"], detail["status"]
 
 def _do_analyze(code):
     df = get_data(code)
@@ -525,7 +701,8 @@ def _do_analyze(code):
     name = get_stock_name(code)
     news = get_news(name)
 
-    s_score, s_status = analyze_sentiment(news)
+    sentiment = analyze_sentiment_detail(news)
+    s_score, s_status = sentiment["score"], sentiment["status"]
     prob = last['AI_P']
     prob = int(max(0, min(100, prob)))
 
@@ -559,6 +736,9 @@ def _do_analyze(code):
         "macd_osc": last['MACD_OSC'], "k": last['K'], "d": last['D'],
         "foreign_flow": foreign_flow,
         "s_score": s_score, "s_status": s_status,
+        "news_count": sentiment["count"],
+        "news_positive_ratio": sentiment["positive_ratio"],
+        "news_negative_ratio": sentiment["negative_ratio"],
         "candles": json.dumps(tv_df[['Date','Open','High_corr','Low_corr','Close']].rename(columns={'Date':'time','Open':'open','High_corr':'high','Low_corr':'low','Close':'close'}).to_dict('records')),
         "ma20_line": json.dumps(tv_df[['Date','MA20']].dropna().rename(columns={'Date':'time','MA20':'value'}).to_dict('records')),
         "prob_h": json.dumps(tv_df[['Date','AI_P']].dropna().rename(columns={'Date':'time','AI_P':'value'}).to_dict('records')),

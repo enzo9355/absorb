@@ -108,6 +108,88 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertTrue(np.isfinite(result[columns].to_numpy()).all())
         self.assertTrue((result[["INST_NET_RATIO", "MARGIN_CHG", "SHORT_CHG"]] == 0).all().all())
 
+    def test_add_market_context_features_aligns_by_date(self):
+        dates = pd.to_datetime(
+            ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"]
+        )
+        stock = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": [100, 101, 102, 103, 104],
+                "High": [101, 102, 103, 104, 105],
+                "Low": [99, 100, 101, 102, 103],
+                "Close": [100, 102, 101, 103, 106],
+                "Volume": [1000, 1100, 1050, 1200, 1300],
+            }
+        )
+        market = pd.DataFrame({"Date": dates, "Close": [200, 202, 204, 206, 208]})
+        etf = pd.DataFrame({"Date": dates, "Close": [50, 51, 52, 51, 53]})
+
+        result = stock_app.add_market_context_features(stock, market, etf)
+
+        self.assertIn("MARKET_RET_1", result)
+        self.assertIn("ETF50_RET_5", result)
+        self.assertIn("STOCK_VS_MARKET_5", result)
+        self.assertFalse(result[["MARKET_RET_1", "STOCK_VS_MARKET_5"]].isna().any().any())
+
+    def test_add_market_context_features_is_neutral_without_market_data(self):
+        dates = pd.to_datetime(["2026-01-02", "2026-01-03"])
+        stock = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": [100, 101],
+                "High": [101, 102],
+                "Low": [99, 100],
+                "Close": [100, 102],
+                "Volume": [1000, 1100],
+            }
+        )
+
+        result = stock_app.add_market_context_features(stock, pd.DataFrame(), pd.DataFrame())
+
+        for column in stock_app.MARKET_FEATURES:
+            self.assertIn(column, result)
+            self.assertEqual(result[column].tolist(), [0.0, 0.0])
+
+    def test_add_price_quality_features_flags_large_close_gap(self):
+        dates = pd.to_datetime(
+            ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"]
+        )
+        price = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": [100, 100, 100, 100, 100],
+                "High": [101, 101, 101, 101, 101],
+                "Low": [99, 99, 99, 99, 99],
+                "Close": [100, 100, 100, 100, 100],
+                "Volume": [1000, 1000, 1000, 1000, 1000],
+            }
+        )
+        yf_price = pd.DataFrame({"Date": dates, "Close": [110, 110, 110, 110, 110]})
+
+        result = stock_app.add_price_quality_features(price, yf_price)
+
+        self.assertEqual(result["DATA_PRICE_WARNING"].iloc[-1], 1.0)
+        self.assertGreater(result["DATA_PRICE_DIFF_PCT"].iloc[-1], 0.09)
+        self.assertEqual(result["YF_CLOSE"].iloc[-1], 110)
+
+    def test_add_price_quality_features_is_neutral_without_yfinance(self):
+        price = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2026-01-02"]),
+                "Open": [100],
+                "High": [101],
+                "Low": [99],
+                "Close": [100],
+                "Volume": [1000],
+            }
+        )
+
+        result = stock_app.add_price_quality_features(price, pd.DataFrame())
+
+        self.assertEqual(result["DATA_PRICE_WARNING"].iloc[-1], 0.0)
+        self.assertEqual(result["DATA_PRICE_DIFF_PCT"].iloc[-1], 0.0)
+
     def test_chip_data_is_aggregated_by_trading_date(self):
         dates = pd.to_datetime(["2026-01-02", "2026-01-05"])
         price = pd.DataFrame({"Date": dates, "Close": [100.0, 101.0]})
@@ -197,8 +279,10 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertEqual(params["token"], "token")
 
     @patch("app.requests.get", side_effect=AssertionError("legacy request path"))
+    @patch("app.fetch_yfinance_price_history")
     @patch("app.fetch_finmind_dataset")
-    def test_get_data_preserves_volume_and_chip_columns(self, fetch, _get):
+    def test_get_data_preserves_volume_and_chip_columns(self, fetch, yf_history, _get):
+        yf_history.return_value = pd.DataFrame()
         fetch.side_effect = [
             pd.DataFrame(
                 {
@@ -231,6 +315,89 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertEqual(result["Volume"].tolist(), [10000, 12000])
         self.assertEqual(result["InstitutionalNet"].tolist(), [1500, 0])
         self.assertEqual(result["MarginBalance"].tolist(), [3000, 3100])
+
+    @patch("app.fetch_yfinance_price_history")
+    @patch("app.fetch_finmind_dataset")
+    def test_get_data_adds_market_and_price_quality_columns(self, finmind, yf_history):
+        dates = pd.to_datetime(
+            ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"]
+        )
+        finmind.side_effect = [
+            pd.DataFrame(
+                {
+                    "date": dates.strftime("%Y-%m-%d"),
+                    "open": [100, 101, 102, 103, 104],
+                    "max": [101, 102, 103, 104, 105],
+                    "min": [99, 100, 101, 102, 103],
+                    "close": [100, 102, 101, 103, 106],
+                    "Trading_Volume": [1000, 1100, 1050, 1200, 1300],
+                }
+            ),
+            pd.DataFrame(),
+            pd.DataFrame(),
+        ]
+        yf_history.side_effect = [
+            pd.DataFrame(
+                {
+                    "Date": dates,
+                    "Open": [100] * 5,
+                    "High": [101] * 5,
+                    "Low": [99] * 5,
+                    "Close": [100, 101, 102, 103, 104],
+                    "Volume": [1] * 5,
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "Date": dates,
+                    "Open": [200] * 5,
+                    "High": [201] * 5,
+                    "Low": [199] * 5,
+                    "Close": [200, 202, 204, 206, 208],
+                    "Volume": [1] * 5,
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "Date": dates,
+                    "Open": [50] * 5,
+                    "High": [51] * 5,
+                    "Low": [49] * 5,
+                    "Close": [50, 51, 52, 51, 53],
+                    "Volume": [1] * 5,
+                }
+            ),
+        ]
+
+        result = stock_app.get_data("2330", days=10)
+
+        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+            self.assertIn(column, result.columns)
+        self.assertIn("YF_CLOSE", result.columns)
+
+    def test_model_features_include_market_and_data_quality_features(self):
+        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+            self.assertIn(column, stock_app.MODEL_FEATURES)
+
+    def test_calc_all_preserves_market_and_data_quality_features(self):
+        dates = pd.date_range("2026-01-01", periods=80, freq="D")
+        raw = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": np.linspace(100, 180, len(dates)),
+                "High": np.linspace(101, 181, len(dates)),
+                "Low": np.linspace(99, 179, len(dates)),
+                "Close": np.linspace(100, 180, len(dates)),
+                "Volume": np.linspace(1000, 2000, len(dates)),
+            }
+        )
+        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+            raw[column] = 0.1
+
+        result = stock_app.calc_all(raw)
+
+        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+            self.assertIn(column, result.columns)
 
     def test_walk_forward_engine_returns_oos_metrics_and_current_probability(self):
         x = np.arange(260)
@@ -297,6 +464,26 @@ class PredictionPipelineTests(unittest.TestCase):
 
         self.assertEqual(result["prob"], 55)
         self.assertEqual(len(json.loads(result["prob_h"])), 1)
+
+    def test_analyze_sentiment_returns_breakdown_without_model_side_effects(self):
+        news = [
+            {"title": "台積電營收創新高 外資看好", "link": "#"},
+            {"title": "半導體需求保守 股價下修", "link": "#"},
+        ]
+
+        result = stock_app.analyze_sentiment_detail(news)
+
+        self.assertEqual(result["count"], 2)
+        self.assertIn("score", result)
+        self.assertIn("negative_ratio", result)
+        self.assertIn("positive_ratio", result)
+        self.assertIn("status", result)
+
+    def test_analyze_sentiment_keeps_legacy_tuple_api(self):
+        score, status = stock_app.analyze_sentiment([])
+
+        self.assertEqual(score, 50)
+        self.assertEqual(status, "中性")
 
     def test_web_and_line_messages_name_the_five_day_probability(self):
         data = sample_analysis_data()
