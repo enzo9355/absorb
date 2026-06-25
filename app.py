@@ -966,6 +966,86 @@ def _extract_stock_from_papi_prompt(prompt):
     return None, None
 
 
+def _match_sector_from_prompt(prompt):
+    """Try to match a Papi prompt to an industry_map category.
+
+    Returns (category_name, stock_codes_list) or (None, None).
+    """
+    keywords = prompt.upper()
+    best_cat = None
+    best_len = 0
+    for cat in industry_map:
+        cat_upper = cat.upper()
+        if cat_upper in keywords and len(cat_upper) > best_len:
+            best_cat = cat
+            best_len = len(cat_upper)
+    if best_cat:
+        return best_cat, industry_map[best_cat]
+    return None, None
+
+
+def _build_single_stock_context(data):
+    """Build a data context string for a single analyzed stock."""
+    bt = data.get("bt", {})
+    foreign = data.get("foreign_flow", {})
+    foreign_str = ""
+    if foreign.get("available"):
+        foreign_str = f"外資買賣超：{foreign.get('status', '未知')}（近5日淨額 {foreign.get('net_5', 0):.0f}）"
+    news_titles = "\n".join(
+        [f"  - {n['title']}" for n in data.get("news", [])[:3]]
+    )
+    return (
+        f"▸ {data.get('name', '?')} ({data.get('code', '?')})："
+        f"收盤 {data['price']:.2f}，"
+        f"AI 勝率 {data['prob']}%，"
+        f"趨勢 {data['trend']}，"
+        f"RSI {data['rsi']:.1f}，"
+        f"{'紅柱' if data['macd_osc'] > 0 else '綠柱'}，"
+        f"KD {'黃金交叉' if data['k'] > data['d'] else '死亡交叉'}，"
+        f"情緒 {data['s_status']}（{data['s_score']:.0f}），"
+        f"{foreign_str}，"
+        f"回測策略報酬 {bt.get('strat_cum', 0):.1f}%，"
+        f"勝率 {bt.get('win_rate', 0):.0f}%，"
+        f"夏普 {bt.get('sharpe', 0):.2f}"
+    )
+
+
+def _gather_sector_data(codes, max_fresh=2, max_total=5):
+    """Gather analysis data for a sector. Prioritize cache, analyze at most max_fresh new stocks.
+
+    Returns a list of (code, data) tuples.
+    """
+    results = []
+    fresh_count = 0
+    now = time.time()
+
+    # First pass: collect cached stocks
+    for code in codes:
+        if len(results) >= max_total:
+            break
+        if code in _SYSTEM_CACHE:
+            cached_data, ts = _SYSTEM_CACHE[code]
+            if now - ts < CACHE_EXPIRY_SECONDS and cached_data:
+                results.append((code, cached_data))
+
+    # Second pass: analyze a few uncached stocks if we need more
+    if len(results) < max_total:
+        for code in codes:
+            if len(results) >= max_total or fresh_count >= max_fresh:
+                break
+            if any(r[0] == code for r in results):
+                continue
+            try:
+                data = analyze(code)
+                if data:
+                    results.append((code, data))
+                    fresh_count += 1
+            except Exception:
+                continue
+
+    return results
+
+
 def call_papi_gemini_fallback(prompt):
     if not gemini_model:
         return None
@@ -976,38 +1056,44 @@ def call_papi_gemini_fallback(prompt):
         {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
     ]
 
-    # Try to extract a stock code and enrich with quantitative data
-    code, name = _extract_stock_from_papi_prompt(prompt)
     data_context = ""
+
+    # 1. Try individual stock first
+    code, name = _extract_stock_from_papi_prompt(prompt)
     if code:
         data = analyze(code)
         if data:
-            bt = data.get("bt", {})
-            news_titles = "\n".join(
-                [f"- {n['title']}" for n in data.get("news", [])[:5]]
-            )
-            foreign = data.get("foreign_flow", {})
-            foreign_str = ""
-            if foreign.get("available"):
-                foreign_str = f"外資買賣超狀態：{foreign.get('status', '未知')}（近5日淨額 {foreign.get('net_5', 0):.0f}）"
-
             data_context = f"""
 以下是 {name} ({code}) 的最新量化分析數據（來自我們的 LightGBM 模型與技術指標系統）：
-- 最新收盤價：{data['price']:.2f}
-- AI 五日上漲機率：{data['prob']}%
-- 當前趨勢：{data['trend']}
-- RSI：{data['rsi']:.1f}
-- MACD 柱狀體：{'紅柱 (多頭動能)' if data['macd_osc'] > 0 else '綠柱 (空頭動能)'}
-- KD 指標：K={data['k']:.1f}, D={data['d']:.1f}（{'黃金交叉' if data['k'] > data['d'] else '死亡交叉'}）
-- 均線狀態：{'站上 MA20（支撐強）' if data['price'] > data['ma20'] else '跌破 MA20（壓力大）'}
-- 新聞情緒：{data['s_status']}（分數 {data['s_score']:.1f}）
-- {foreign_str}
-- 回測績效（近 {bt.get('days', '?')} 交易日）：策略報酬 {bt.get('strat_cum', 0):.1f}%，買進持有報酬 {bt.get('bh_cum', 0):.1f}%，勝率 {bt.get('win_rate', 0):.0f}%，夏普值 {bt.get('sharpe', 0):.2f}
-- 回測結論：{bt.get('conclusion', '無')}
-最近相關新聞：
-{news_titles or '暫無新聞'}
+{_build_single_stock_context(data)}
+- 回測結論：{data.get('bt', {}).get('conclusion', '無')}
 
 請根據以上「真實數據」來回答使用者的問題。數據是核心依據，你的角色是用白話文幫新手解讀這些數據。
+"""
+    # 2. If no individual stock, try sector/industry match
+    if not data_context:
+        cat, cat_codes = _match_sector_from_prompt(prompt)
+        if cat and cat_codes:
+            sector_data = _gather_sector_data(cat_codes)
+            if sector_data:
+                stock_lines = "\n".join(
+                    _build_single_stock_context(d) for _, d in sector_data
+                )
+                avg_prob = sum(d["prob"] for _, d in sector_data) / len(sector_data)
+                bullish = sum(1 for _, d in sector_data if d["trend"] == "多頭")
+                total = len(sector_data)
+                data_context = f"""
+以下是「{cat}」產業的量化分析數據（來自我們的 LightGBM 模型，共掃描 {total} 檔代表性個股）：
+
+產業概覽：
+- 平均 AI 五日上漲機率：{avg_prob:.0f}%
+- 多頭比例：{bullish}/{total} 檔呈多頭趨勢
+- {'產業整體偏多' if bullish > total / 2 else '產業整體偏空' if bullish < total / 2 else '產業多空分歧'}
+
+個股明細：
+{stock_lines}
+
+請根據以上「真實數據」綜合分析該產業的整體狀態與投資方向。引用具體個股數據來支撐你的論點，幫新手理解產業全貌。
 """
 
     full_prompt = f"""你是 Stock Papi，負責替 LINE bot 使用者做台股研究摘要。
