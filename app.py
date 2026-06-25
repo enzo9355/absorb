@@ -1128,7 +1128,7 @@ Papi 源自西班牙文，意思是「老爸」。你的人設是一位資深投
     summary = (getattr(response, "text", "") or "").strip()
     if not summary:
         return None
-    return summary
+    return f"Papi 分析\n{summary}"
 
 
 def sector_signal_score(data):
@@ -1886,12 +1886,12 @@ def build_line_navigation_flex(base_url):
     """Rich Menu 入口的可預覽 Flex 版本。"""
     root = base_url.rstrip("/")
     entries = [
-        ("今日盤勢", "先看大盤趨勢與五日上漲機率", "查看盤勢", {"type": "uri", "label": "查看盤勢", "uri": f"{root}/market"}),
-        ("我的關注", "在 LINE 內查看自選股票與條件提醒", "開啟關注", {"type": "message", "label": "開啟關注", "text": "我的關注"}),
-        ("產業預測", "查看每日產業預測與分類機會", "選擇產業", {"type": "message", "label": "選擇產業", "text": "預測"}),
-        ("提醒管理", "查看與取消已設定的提醒", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
-        ("投資試算", "用按鈕或自訂金額估算歷史損益", "開始試算", {"type": "message", "label": "開始試算", "text": "投資試算"}),
-        ("完整分析", "進入量化儀表板做完整判讀", "開啟分析", {"type": "uri", "label": "開啟分析", "uri": f"{root}/dashboard"}),
+        ("看大盤", "今天台股強不強", "查看盤勢", {"type": "uri", "label": "查看盤勢", "uri": f"{root}/market"}),
+        ("找機會", "產業排行與熱門題材", "選擇產業", {"type": "message", "label": "選擇產業", "text": "預測"}),
+        ("查自選", "自選股票清單", "開啟關注", {"type": "message", "label": "開啟關注", "text": "我的關注"}),
+        ("設提醒", "漲跌、機率、趨勢通知", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
+        ("算報酬", "投入金額試算", "開始試算", {"type": "message", "label": "開始試算", "text": "投資試算"}),
+        ("深度分析", "K線、回測、新聞", "開啟分析", {"type": "uri", "label": "開啟分析", "uri": f"{root}/dashboard"}),
     ]
     return {
         "type": "carousel",

@@ -107,8 +107,8 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(navigation["type"], "carousel")
         self.assertEqual(len(navigation["contents"]), 6)
         expected_uri = {
-            "今日盤勢": "https://example.com/market",
-            "完整分析": "https://example.com/dashboard",
+            "看大盤": "https://example.com/market",
+            "深度分析": "https://example.com/dashboard",
         }
         actual_uri = {}
         actual_message = {}
@@ -122,12 +122,23 @@ class WebProductTests(unittest.TestCase):
                 actual_message[title] = action["text"]
         self.assertEqual(actual_uri, expected_uri)
         self.assertEqual(actual_message, {
-            "我的關注": "我的關注",
-            "產業預測": "預測",
-            "提醒管理": "提醒管理",
-            "投資試算": "投資試算",
+            "查自選": "我的關注",
+            "找機會": "預測",
+            "設提醒": "提醒管理",
+            "算報酬": "投資試算",
         })
         self.assertNotIn("強勢訊號", actual_message)
+
+    def test_rich_menu_source_is_plain_text_and_large(self):
+        svg = Path("assets/rich-menu.svg").read_text(encoding="utf-8")
+
+        for label in ["看大盤", "找機會", "查自選", "設提醒", "算報酬", "深度分析"]:
+            self.assertIn(label, svg)
+        for old_label in ["今日盤勢", "我的關注", "產業預測", "提醒管理", "投資試算", "完整分析"]:
+            self.assertNotIn(old_label, svg)
+        for emoji in ["📈", "⭐", "🏭", "🔔", "🧮", "📊"]:
+            self.assertNotIn(emoji, svg)
+        self.assertIn('font:800 140px', svg)
 
     def test_line_summary_card_has_one_clear_cta(self):
         card = stock_app.build_line_summary_card(
