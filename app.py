@@ -951,6 +951,32 @@ def call_openalice(prompt):
     return f"Alice 分析\n{summary}" + (f"\n\n詳細分析：{detail_url}" if detail_url else "")
 
 
+def call_alice_gemini_fallback(prompt):
+    if not gemini_model:
+        return None
+    safety = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    ]
+    response = gemini_model.generate_content(
+        f"""你是 Alice，負責替 LINE bot 使用者做台股研究摘要。
+請用繁體中文、冷靜、具體、適合新手的語氣回答。
+限制：
+- 不要分析虛擬貨幣。
+- 不要承諾報酬或給絕對買賣指令。
+- 用 3 到 5 行，先講結論，再講主要理由與風險。
+
+使用者問題：{prompt}""",
+        safety_settings=safety,
+    )
+    summary = (getattr(response, "text", "") or "").strip()
+    if not summary:
+        return None
+    return f"Alice 分析\n{summary}"
+
+
 def sector_signal_score(data):
     bt = data.get("bt") or {}
     foreign = data.get("foreign_flow") or {}
@@ -2279,12 +2305,16 @@ def handle_message(event):
         prompt = alice_match.group(1).strip()
         if _is_crypto_query(prompt):
             _reply_text(event, "Alice 分析目前不支援虛擬貨幣。")
-        elif not OPENALICE_API_URL or not OPENALICE_API_TOKEN:
-            _reply_text(event, "Alice 分析服務尚未設定。")
-        else:
+        elif OPENALICE_API_URL and OPENALICE_API_TOKEN:
             try:
                 _reply_text(event, call_openalice(prompt))
             except (requests.RequestException, ValueError, TypeError):
+                _reply_text(event, "Alice 分析服務暫時無法回應，請稍後再試。")
+        else:
+            try:
+                reply = call_alice_gemini_fallback(prompt)
+                _reply_text(event, reply or "Alice 分析服務尚未設定。")
+            except Exception:
                 _reply_text(event, "Alice 分析服務暫時無法回應，請稍後再試。")
         return
 
