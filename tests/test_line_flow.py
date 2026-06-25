@@ -572,6 +572,55 @@ class MessageFlowTests(unittest.TestCase):
 
         self.assertIn("約可買", flex_text(line_api.reply_message.call_args.args[1]))
 
+    def test_alice_command_replies_with_openalice_summary(self):
+        line_api = Mock()
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "summary": "台積電短線偏多，但追價風險升高。",
+            "detail_url": "https://alice.example/reports/2330",
+        }
+        with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
+             patch.object(stock_app, "line_store", None), \
+             patch.object(stock_app, "line_bot_api", line_api), \
+             patch.object(stock_app, "OPENALICE_API_URL", "https://alice.example/api/analyze", create=True), \
+             patch.object(stock_app, "OPENALICE_API_TOKEN", "secret", create=True), \
+             patch.object(stock_app.requests, "post", return_value=response) as post:
+            stock_app.handle_message(message_event("Alice 分析 2330"))
+
+        post.assert_called_once()
+        self.assertEqual(post.call_args.kwargs["json"]["prompt"], "分析 2330")
+        text = line_api.reply_message.call_args.args[1].text
+        self.assertIn("Alice 分析", text)
+        self.assertIn("台積電短線偏多", text)
+        self.assertIn("https://alice.example/reports/2330", text)
+
+    def test_alice_command_requires_configuration(self):
+        line_api = Mock()
+        with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
+             patch.object(stock_app, "line_store", None), \
+             patch.object(stock_app, "line_bot_api", line_api), \
+             patch.object(stock_app, "OPENALICE_API_URL", None, create=True), \
+             patch.object(stock_app, "OPENALICE_API_TOKEN", None, create=True), \
+             patch.object(stock_app.requests, "post") as post:
+            stock_app.handle_message(message_event("Alice 今日市場摘要"))
+
+        post.assert_not_called()
+        self.assertIn("Alice 分析服務尚未設定", line_api.reply_message.call_args.args[1].text)
+
+    def test_alice_command_rejects_crypto_requests(self):
+        line_api = Mock()
+        with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
+             patch.object(stock_app, "line_store", None), \
+             patch.object(stock_app, "line_bot_api", line_api), \
+             patch.object(stock_app, "OPENALICE_API_URL", "https://alice.example/api/analyze", create=True), \
+             patch.object(stock_app, "OPENALICE_API_TOKEN", "secret", create=True), \
+             patch.object(stock_app.requests, "post") as post:
+            stock_app.handle_message(message_event("Alice 分析 BTC"))
+
+        post.assert_not_called()
+        self.assertIn("不支援虛擬貨幣", line_api.reply_message.call_args.args[1].text)
+
     def test_pending_cancel_clears_pending_without_alert(self):
         state = empty_state()
         state["pending"] = {"code": "2330", "name": "台積電", "kind": "price", "expires_at": 9999999999}

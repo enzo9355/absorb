@@ -45,6 +45,8 @@ GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 LOCAL_HOST = os.getenv("HOST", "127.0.0.1")
 BROADCAST_TOKEN = os.getenv("BROADCAST_TOKEN")
 ALERT_TASK_TOKEN = os.getenv("ALERT_TASK_TOKEN")
+OPENALICE_API_URL = os.getenv("OPENALICE_API_URL")
+OPENALICE_API_TOKEN = os.getenv("OPENALICE_API_TOKEN")
 LINE_STATE_READ_BUDGET_SECONDS = 0.25
 LINE_STATE_READ_MAX_WORKERS = 4
 _line_state_read_slots = threading.BoundedSemaphore(LINE_STATE_READ_MAX_WORKERS)
@@ -921,6 +923,32 @@ def _safe_float(value, default=0.0):
 
 def _clamp(value, low, high):
     return max(low, min(high, value))
+
+
+def _is_crypto_query(text):
+    normalized = text.upper()
+    return any(
+        keyword in normalized
+        for keyword in ("BTC", "ETH", "USDT", "USDC", "CRYPTO", "虛擬貨幣", "虛擬幣", "加密貨幣", "比特幣", "以太幣")
+    )
+
+
+def call_openalice(prompt):
+    response = requests.post(
+        OPENALICE_API_URL,
+        headers={"Authorization": f"Bearer {OPENALICE_API_TOKEN}"},
+        json={"prompt": prompt},
+        timeout=4,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    summary = str(
+        payload.get("summary") or payload.get("text") or payload.get("message") or ""
+    ).strip()
+    detail_url = str(payload.get("detail_url") or payload.get("url") or "").strip()
+    if not summary:
+        summary = "Alice 沒有回傳可用摘要。"
+    return f"Alice 分析\n{summary}" + (f"\n\n詳細分析：{detail_url}" if detail_url else "")
 
 
 def sector_signal_score(data):
@@ -2244,6 +2272,20 @@ def handle_message(event):
             _reply_text(event, str(error))
         except StoreError:
             _reply_text(event, _store_error_text())
+        return
+
+    alice_match = re.fullmatch(r"(?i)alice\s+(.+)", msg)
+    if alice_match:
+        prompt = alice_match.group(1).strip()
+        if _is_crypto_query(prompt):
+            _reply_text(event, "Alice 分析目前不支援虛擬貨幣。")
+        elif not OPENALICE_API_URL or not OPENALICE_API_TOKEN:
+            _reply_text(event, "Alice 分析服務尚未設定。")
+        else:
+            try:
+                _reply_text(event, call_openalice(prompt))
+            except (requests.RequestException, ValueError, TypeError):
+                _reply_text(event, "Alice 分析服務暫時無法回應，請稍後再試。")
         return
 
     calc_text = re.fullmatch(r"試算\s+([A-Za-z0-9]+)\s+([0-9]+(?:\.[0-9]+)?)", msg)
