@@ -139,6 +139,9 @@ class WebProductTests(unittest.TestCase):
         for emoji in ["📈", "⭐", "🏭", "🔔", "🧮", "📊"]:
             self.assertNotIn(emoji, svg)
         self.assertIn('font:800 140px', svg)
+        self.assertEqual(svg.count('class="label" x="0" y="300"'), 6)
+        self.assertEqual(svg.count('class="hint" x="0" y="500"'), 6)
+        self.assertNotIn('y="376"', svg)
 
     def test_line_summary_card_has_one_clear_cta(self):
         card = stock_app.build_line_summary_card(

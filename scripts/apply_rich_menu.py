@@ -55,9 +55,9 @@ def draw_menu(path, font_path):
 
     tiles = [
         (42, 132, "01", "看大盤", "今天台股強不強"),
-        (852, 132, "02", "找機會", "產業排行與熱門題材"),
-        (1662, 132, "03", "查自選", "自選股票清單"),
-        (42, 884, "04", "設提醒", "漲跌、機率、趨勢通知"),
+        (852, 132, "02", "找機會", "產業排行與題材"),
+        (1662, 132, "03", "查自選", "你的關注清單"),
+        (42, 884, "04", "設提醒", "價格與趨勢通知"),
         (852, 884, "05", "算報酬", "投入金額試算"),
         (1662, 884, "06", "深度分析", "K線、回測、新聞"),
     ]
@@ -77,8 +77,8 @@ def draw_menu(path, font_path):
             width=4,
         )
         draw.text((x + 68, y + 103), code, font=font_code, fill="#39c6a3")
-        draw.text((x + 84, y + 332), label, font=font_label, fill="#eef6ff")
-        draw.text((x + 84, y + 448), hint, font=font_hint, fill="#9fb4cc")
+        draw.text((x + 84, y + 290), label, font=font_label, fill="#eef6ff")
+        draw.text((x + 84, y + 520), hint, font=font_hint, fill="#9fb4cc")
 
     image.save(path, "PNG", optimize=True)
 

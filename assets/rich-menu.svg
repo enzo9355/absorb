@@ -30,43 +30,43 @@
     <g transform="translate(84 92)">
       <rect class="pill" x="0" y="0" width="138" height="108" rx="32"/>
       <text class="code" x="34" y="78">01</text>
-      <text class="label" x="0" y="288">看大盤</text>
-      <text class="hint" x="0" y="376">今天台股強不強</text>
+      <text class="label" x="0" y="300">看大盤</text>
+      <text class="hint" x="0" y="500">今天台股強不強</text>
     </g>
 
     <g transform="translate(894 92)">
       <rect class="pill" x="0" y="0" width="138" height="108" rx="32"/>
       <text class="code" x="28" y="78">02</text>
-      <text class="label" x="0" y="288">找機會</text>
-      <text class="hint" x="0" y="376">產業排行與熱門題材</text>
+      <text class="label" x="0" y="300">找機會</text>
+      <text class="hint" x="0" y="500">產業排行與題材</text>
     </g>
 
     <g transform="translate(1704 92)">
       <rect class="pill" x="0" y="0" width="138" height="108" rx="32"/>
       <text class="code" x="27" y="78">03</text>
-      <text class="label" x="0" y="288">查自選</text>
-      <text class="hint" x="0" y="376">自選股票清單</text>
+      <text class="label" x="0" y="300">查自選</text>
+      <text class="hint" x="0" y="500">你的關注清單</text>
     </g>
 
     <g transform="translate(84 844)">
       <rect class="pill" x="0" y="0" width="138" height="108" rx="32"/>
       <text class="code" x="26" y="78">04</text>
-      <text class="label" x="0" y="288">設提醒</text>
-      <text class="hint" x="0" y="376">漲跌、機率、趨勢通知</text>
+      <text class="label" x="0" y="300">設提醒</text>
+      <text class="hint" x="0" y="500">價格與趨勢通知</text>
     </g>
 
     <g transform="translate(894 844)">
       <rect class="pill" x="0" y="0" width="138" height="108" rx="32"/>
       <text class="code" x="28" y="78">05</text>
-      <text class="label" x="0" y="288">算報酬</text>
-      <text class="hint" x="0" y="376">投入金額試算</text>
+      <text class="label" x="0" y="300">算報酬</text>
+      <text class="hint" x="0" y="500">投入金額試算</text>
     </g>
 
     <g transform="translate(1704 844)">
       <rect class="pill" x="0" y="0" width="138" height="108" rx="32"/>
       <text class="code" x="27" y="78">06</text>
-      <text class="label" x="0" y="288">深度分析</text>
-      <text class="hint" x="0" y="376">K線、回測、新聞</text>
+      <text class="label" x="0" y="300">深度分析</text>
+      <text class="hint" x="0" y="500">K線、回測、新聞</text>
     </g>
   </g>
 </svg>
