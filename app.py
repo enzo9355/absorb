@@ -1253,9 +1253,6 @@ def build_market_map():
         if len(code) not in [4, 5]: continue
         grp = getattr(info, "group", None) or getattr(info, "type", None)
         if grp and isinstance(grp, str) and grp.strip():
-            grp = grp.strip()
-            if grp not in market: market[grp] = []
-            market[grp].append(code)
             market["全市場"].append(code)
             if code.startswith("00"): market["ETF專區"].append(code)
             for theme, names in PAPI_THEME_SECTORS.items():

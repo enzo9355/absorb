@@ -198,7 +198,7 @@ class LineBuilderTests(unittest.TestCase):
         self.assertIn("3324", market["散熱機構"])
         self.assertIn("2330", market["半導體製造"])
         self.assertIn("0050", market["ETF專區"])
-        self.assertIn("電腦及週邊設備業", market)
+        self.assertNotIn("電腦及週邊設備業", market)
 
     def test_sector_signal_score_rewards_probability_backtest_and_foreign_flow(self):
         strong = scheduler_quote(prob=70)
