@@ -68,6 +68,16 @@ CATEGORY_PAGE_SIZE = 12
 SECTOR_SCAN_LIMIT = 20
 SECTOR_DISPLAY_LIMIT = 10
 SECTOR_SNAPSHOT_DOC = "sector_signals"
+PAPI_THEME_SECTORS = {
+    "AI伺服器": {"鴻海", "廣達", "緯創", "緯穎", "英業達", "仁寶", "和碩", "神達", "勤誠"},
+    "PC／筆電": {"華碩", "宏碁", "微星", "技嘉", "神基", "藍天"},
+    "散熱機構": {"雙鴻", "奇鋐", "建準", "勤誠", "營邦", "迎廣"},
+    "工業電腦": {"研華", "樺漢", "凌華", "友通", "艾訊"},
+    "網通設備": {"智邦", "啟碁", "中磊", "正文", "台揚", "明泰"},
+    "半導體製造": {"台積電", "聯電", "世界", "力積電"},
+    "IC設計ASIC": {"聯發科", "瑞昱", "創意", "世芯-KY", "力旺", "M31"},
+    "封測設備": {"日月光投控", "矽格", "京元電子", "辛耘", "弘塑", "家登"},
+}
 PREDICTION_HORIZON = 5
 ROUND_TRIP_COST = 0.00585
 ENTRY_THRESHOLD = 0.60
@@ -1236,8 +1246,9 @@ def build_sector_signal_snapshot(market_map, analyze_fn, now=None):
 
 
 def build_market_map():
-    market = {"全市場": [], "ETF專區": [], "AI伺服器": []}
-    ai_names = {"鴻海", "廣達", "緯創", "英業達", "仁寶", "和碩", "華碩", "微星", "技嘉", "神達", "緯穎", "勤誠", "雙鴻", "奇鋐", "宏碁"}
+    market = {"全市場": [], "ETF專區": []}
+    for theme in PAPI_THEME_SECTORS:
+        market[theme] = []
     for code, info in twstock.codes.items():
         if len(code) not in [4, 5]: continue
         grp = getattr(info, "group", None) or getattr(info, "type", None)
@@ -1247,7 +1258,9 @@ def build_market_map():
             market[grp].append(code)
             market["全市場"].append(code)
             if code.startswith("00"): market["ETF專區"].append(code)
-            if info.name in ai_names: market["AI伺服器"].append(code)
+            for theme, names in PAPI_THEME_SECTORS.items():
+                if info.name in names and code not in market[theme]:
+                    market[theme].append(code)
     return {k: v for k, v in market.items() if v}
 
 industry_map = build_market_map()

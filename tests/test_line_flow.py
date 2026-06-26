@@ -181,6 +181,25 @@ def scheduler_quote(code="2330", name="台積電", **changes):
 
 
 class LineBuilderTests(unittest.TestCase):
+    def test_build_market_map_adds_papi_theme_sectors_before_raw_groups(self):
+        fake_codes = {
+            "2382": SimpleNamespace(name="廣達", group="電腦及週邊設備業"),
+            "2357": SimpleNamespace(name="華碩", group="電腦及週邊設備業"),
+            "3324": SimpleNamespace(name="雙鴻", group="其他電子業"),
+            "2330": SimpleNamespace(name="台積電", group="半導體業"),
+            "0050": SimpleNamespace(name="元大台灣50", group="ETF"),
+        }
+        with patch.object(stock_app.twstock, "codes", fake_codes):
+            market = stock_app.build_market_map()
+
+        self.assertEqual(list(market)[:6], ["全市場", "ETF專區", "AI伺服器", "PC／筆電", "散熱機構", "半導體製造"])
+        self.assertIn("2382", market["AI伺服器"])
+        self.assertIn("2357", market["PC／筆電"])
+        self.assertIn("3324", market["散熱機構"])
+        self.assertIn("2330", market["半導體製造"])
+        self.assertIn("0050", market["ETF專區"])
+        self.assertIn("電腦及週邊設備業", market)
+
     def test_sector_signal_score_rewards_probability_backtest_and_foreign_flow(self):
         strong = scheduler_quote(prob=70)
         strong["bt"] = {"strat_cum": 12.0, "mdd": -5.0}
