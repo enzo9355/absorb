@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import unittest
@@ -484,6 +485,25 @@ class PredictionPipelineTests(unittest.TestCase):
 
         self.assertEqual(score, 50)
         self.assertEqual(status, "中性")
+
+    def test_parse_news_items_preserves_metadata_and_missing_flags(self):
+        xml = """<rss><channel>
+          <item><title>台積電營收創新高 - 財經報</title><link>https://a</link><source>財經報</source><pubDate>Fri, 27 Jun 2026 00:00:00 GMT</pubDate></item>
+          <item><title>台積電營收創新高</title><link>https://b</link></item>
+        </channel></rss>"""
+        now = datetime.datetime(2026, 6, 27, 8, tzinfo=datetime.timezone.utc)
+
+        items = stock_app.parse_news_items(xml, now=now)
+        deduped = stock_app.normalize_and_dedupe(items)
+
+        self.assertEqual(items[0]["source"], "財經報")
+        self.assertEqual(items[0]["published_at"], "2026-06-27T00:00:00+00:00")
+        self.assertEqual(items[0]["age_hours"], 8.0)
+        self.assertTrue(items[1]["parse_flags"]["missing_source"])
+        self.assertTrue(items[1]["parse_flags"]["missing_published_at"])
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["normalized_title"], "台積電營收創新高")
+        self.assertEqual(deduped[0]["duplicate_count"], 1)
 
     def test_web_and_line_messages_name_the_five_day_probability(self):
         data = sample_analysis_data()

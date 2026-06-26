@@ -9,6 +9,7 @@ import threading
 import time
 import datetime
 import hmac
+from email.utils import parsedate_to_datetime
 from html import escape
 import requests
 import pandas as pd
@@ -433,14 +434,84 @@ def get_data(code, days=730):
 # ==================================================
 # 3. 核心運算模組 (LGBM)
 # ==================================================
+def fetch_news_rss(name):
+    q = urllib.parse.quote(f"{name} 股票")
+    url = f"https://news.google.com/rss/search?q={q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+    return requests.get(url, timeout=5).text
+
+
+def parse_news_items(xml, now=None):
+    root = ET.fromstring(xml)
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    now = (
+        now.replace(tzinfo=datetime.timezone.utc)
+        if now.tzinfo is None
+        else now.astimezone(datetime.timezone.utc)
+    )
+    items = []
+    for node in root.findall(".//item")[:20]:
+        title = (node.findtext("title") or "").strip()
+        if not title:
+            continue
+        source = (node.findtext("source") or "").strip() or None
+        published_text = (node.findtext("pubDate") or "").strip()
+        published_at = age_hours = None
+        if published_text:
+            try:
+                published = parsedate_to_datetime(published_text)
+                published = (
+                    published.replace(tzinfo=datetime.timezone.utc)
+                    if published.tzinfo is None
+                    else published.astimezone(datetime.timezone.utc)
+                )
+                published_at = published.isoformat()
+                age_hours = max(0.0, (now - published).total_seconds() / 3600)
+            except (TypeError, ValueError, OverflowError):
+                pass
+        items.append({
+            "title": title,
+            "normalized_title": title,
+            "link": (node.findtext("link") or "").strip(),
+            "source": source,
+            "published_at": published_at,
+            "age_hours": age_hours,
+            "parse_flags": {
+                "missing_source": source is None,
+                "missing_published_at": published_at is None,
+            },
+            "duplicate_count": 0,
+        })
+    return items
+
+
+def normalize_and_dedupe(items):
+    kept = []
+    by_title = {}
+    for original in items:
+        item = dict(original)
+        title = " ".join(str(item.get("title", "")).split())
+        source = item.get("source")
+        suffix = f" - {source}" if source else ""
+        if suffix and title.casefold().endswith(suffix.casefold()):
+            title = title[:-len(suffix)].rstrip()
+        key = re.sub(r"[\W_]+", "", title.casefold())
+        if not key:
+            continue
+        if key in by_title:
+            by_title[key]["duplicate_count"] += 1
+            continue
+        item["normalized_title"] = title
+        item["duplicate_count"] = int(item.get("duplicate_count", 0))
+        by_title[key] = item
+        kept.append(item)
+    return kept
+
+
 def get_news(name):
     try:
-        q = urllib.parse.quote(f"{name} 股票")
-        url = f"https://news.google.com/rss/search?q={q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
-        r = requests.get(url, timeout=5)
-        root = ET.fromstring(r.text)
-        return [{"title": i.find('title').text, "link": i.find('link').text} for i in root.findall('.//item')[:5]]
-    except: return []
+        return normalize_and_dedupe(parse_news_items(fetch_news_rss(name)))[:5]
+    except Exception:
+        return []
 
 def calc_all(df):
     df = df.copy()
