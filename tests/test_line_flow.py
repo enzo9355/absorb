@@ -591,7 +591,6 @@ class MessageFlowTests(unittest.TestCase):
         post.assert_called_once()
         self.assertEqual(post.call_args.kwargs["json"]["prompt"], "分析 2330")
         text = line_api.reply_message.call_args.args[1].text
-        self.assertIn("Papi 分析", text)
         self.assertIn("台積電短線偏多", text)
         self.assertIn("https://alice.example/reports/2330", text)
 
@@ -625,7 +624,6 @@ class MessageFlowTests(unittest.TestCase):
         post.assert_not_called()
         gemini.generate_content.assert_called_once()
         text = line_api.reply_message.call_args.args[1].text
-        self.assertIn("Papi 分析", text)
         self.assertIn("台積電短線偏多", text)
 
     def test_papi_command_returns_degraded_reply_when_gemini_fails(self):

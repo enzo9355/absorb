@@ -948,7 +948,7 @@ def call_openalice(prompt):
     detail_url = str(payload.get("detail_url") or payload.get("url") or "").strip()
     if not summary:
         summary = "Papi 沒有回傳可用摘要。"
-    return f"Papi 分析\n{summary}" + (f"\n\n詳細分析：{detail_url}" if detail_url else "")
+    return summary + (f"\n\n詳細分析：{detail_url}" if detail_url else "")
 
 
 def _extract_stock_from_papi_prompt(prompt):
@@ -1114,7 +1114,8 @@ Papi 源自西班牙文，意思是「老爸」。你的人設是一位資深投
 語氣與文字風格：
 - 使用繁體中文與全形標點。
 - 語氣像一位經驗豐富的長輩在跟晚輩聊投資，穩重但不死板，直接但不冷漠。
-- 可以用「你看」「我跟你說」「別急」「這個要注意」這類長輩常用的口吻。
+- 回答一開頭務必直接點出核心結論，切勿在第一句開頭使用「你看」、「我跟你說」這類口語發語詞，會顯得很突兀且不自然。
+- 在文章中間或後段補充說明時，可以自然地融入「我跟你說」、「別急」、「這個要注意」等老手叮嚀口吻。
 - 該潑冷水就潑，該鼓勵就鼓勵，但永遠中肯。
 - 刪掉「此外」「值得注意的是」「至關重要」「不僅……更是……」等 AI 套語。
 - 不要三段式堆疊、不要誇大宣傳語、不要模糊歸因與空泛結論。
@@ -1128,7 +1129,7 @@ Papi 源自西班牙文，意思是「老爸」。你的人設是一位資深投
     summary = (getattr(response, "text", "") or "").strip()
     if not summary:
         return None
-    return f"Papi 分析\n{summary}"
+    return summary
 
 
 def sector_signal_score(data):
