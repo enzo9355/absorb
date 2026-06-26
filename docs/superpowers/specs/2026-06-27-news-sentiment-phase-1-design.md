@@ -12,6 +12,7 @@
 - 清理空白、來源尾碼及完全重複的標題。
 - 以金融正負詞、否定詞及事件類型計算每則新聞分數。
 - 依時間、來源完整度與事件重要性加權。
+- 保留原始值、正規化值與分數拆解，供測試與除錯使用。
 - 輸出 0～100 分、五級情緒、正負比例、新聞數量及可信度。
 - LINE 顯示精簡摘要，Web 顯示各項拆解。
 
@@ -37,7 +38,8 @@
 
 ```text
 Google News RSS
-  -> 解析標題、連結、來源、發布時間
+  -> 抓取原始 XML
+  -> 解析標題、連結、來源、發布時間與缺漏旗標
   -> 正規化與完全重複標題去除
   -> 金融詞組、否定詞、事件類型判斷
   -> 時間權重 × 來源權重 × 事件權重
@@ -46,6 +48,33 @@ Google News RSS
 ```
 
 RSS 欄位缺漏時保留該則新聞，但採用較低權重，不中斷整體分析。
+
+## 函式邊界
+
+維持現有 `app.py` 結構，不新增模組或依賴：
+
+```python
+fetch_news_rss(name)              # 唯一含網路 I/O 的函式
+parse_news_items(xml, now=None)   # 純函式
+normalize_and_dedupe(items)       # 純函式
+score_news_item(item)             # 純函式
+aggregate_news_sentiment(items)   # 純函式
+```
+
+`get_news()` 只負責串接抓取、解析與去重；`analyze_sentiment_detail()` 串接單篇評分與彙總，並保留既有呼叫介面。
+
+LINE 繼續由 `build_stock_flex_message()` 輸出，Web 繼續由 `stock_detail.html` 輸出，不新增重複的格式轉換函式。
+
+每則新聞使用 Python `snake_case` 欄位，保留：
+
+- `title`、`normalized_title`、`link`、`source`、`published_at`、`age_hours`。
+- `raw_score`、`direction`、`event_type`。
+- `matched_phrases`、`matched_positive_terms`、`matched_negative_terms`、`matched_negations`。
+- `time_weight`、`source_weight`、`event_weight`、`final_weight`。
+- `parse_flags.missing_source`、`parse_flags.missing_published_at`。
+- `duplicate_count`：保留項目合併掉的重複新聞數量。
+
+內部詞典命中欄位不在 LINE 或 Web 顯示。
 
 ## 單篇新聞評分
 
