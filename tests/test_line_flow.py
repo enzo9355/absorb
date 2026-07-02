@@ -609,6 +609,20 @@ class MessageFlowTests(unittest.TestCase):
         self.assertEqual(message.type, "flex")
         self.assertIn("台積電", flex_text(message))
 
+    def test_us_ticker_query_reuses_stock_analysis_flow(self):
+        data = sample_data()
+        data.update({"code": "AAPL", "name": "美股 AAPL"})
+        line_api = Mock()
+
+        with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
+             patch.object(stock_app, "line_store", None), \
+             patch.object(stock_app, "line_bot_api", line_api), \
+             patch.object(stock_app, "analyze", return_value=data) as analyze:
+            stock_app.handle_message(message_event("AAPL"))
+
+        analyze.assert_called_once_with("AAPL")
+        self.assertIn("美股 AAPL", flex_text(line_api.reply_message.call_args.args[1]))
+
     def test_pending_numeric_success_creates_alert_and_stops_stock_lookup(self):
         state = empty_state()
         state["pending"] = {"code": "2330", "name": "台積電", "kind": "probability", "expires_at": 9999999999}

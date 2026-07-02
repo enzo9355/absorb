@@ -120,6 +120,13 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("/static/app.css", html)
 
     @patch.object(stock_app, "analyze", return_value=analysis_data())
+    def test_stock_page_accepts_standard_us_ticker(self, analyze):
+        response = stock_app.app.test_client().get("/stock/AAPL")
+
+        self.assertEqual(response.status_code, 200)
+        analyze.assert_called_once_with("AAPL")
+
+    @patch.object(stock_app, "analyze", return_value=analysis_data())
     def test_stock_page_uses_summary_chart_news_first_flow(self, _analyze):
         response = stock_app.app.test_client().get("/stock/2330")
         html = response.get_data(as_text=True)

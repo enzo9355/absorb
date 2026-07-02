@@ -172,15 +172,23 @@ def fetch_yfinance_price_history(tickers, start_date, end_date=None):
         print(f"Yahoo Finance 讀取失敗: {exc}")
     return pd.DataFrame()
 
+
+def is_us_ticker(value):
+    value = str(value or "").upper()
+    return value != "TAIEX" and bool(re.fullmatch(r"[A-Z]{1,5}", value))
+
+
 def get_stock_name(code):
     if code == "TAIEX": return "台股大盤"
     if code in twstock.codes: return twstock.codes[code].name
+    if is_us_ticker(code): return f"美股 {code}"
     return code
 
 def search_stock_code(keyword):
     keyword = keyword.upper().strip()
     if keyword in ["TAIEX", "加權指數", "台股大盤", "大盤"]: return "TAIEX", "台股大盤"
     if keyword.isdigit(): return keyword, get_stock_name(keyword)
+    if is_us_ticker(keyword): return keyword, get_stock_name(keyword)
     for code, info in twstock.codes.items():
         if keyword in info.name.upper(): return code, info.name
     return None, None
@@ -383,6 +391,16 @@ def summarize_foreign_flow(df):
 def get_data(code, days=730):
     start_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
     end_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    if is_us_ticker(code):
+        price = fetch_yfinance_price_history(code, start_date, end_date)
+        if price.empty:
+            return pd.DataFrame()
+        price = add_price_quality_features(price)
+        market = fetch_yfinance_price_history("^GSPC", start_date, end_date)
+        spy = fetch_yfinance_price_history("SPY", start_date, end_date)
+        price = add_market_context_features(price, market, spy)
+        return _clean_df(merge_chip_data(price))
+
     yf_price = pd.DataFrame()
     if code != "TAIEX":
         yf_price = fetch_yfinance_price_history([f"{code}.TW", f"{code}.TWO"], start_date, end_date)
@@ -2588,7 +2606,8 @@ def dashboard_api():
 
 @app.route("/stock/<code>")
 def stock_page(code):
-    if code not in twstock.codes:
+    code = code.upper()
+    if code not in twstock.codes and not is_us_ticker(code):
         abort(404)
     d = analyze(code)
     return render_template("stock_detail.html", d=d) if d else "查無資料"

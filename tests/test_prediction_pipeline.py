@@ -49,6 +49,38 @@ def sample_analysis_data(news=None):
 
 
 class PredictionPipelineTests(unittest.TestCase):
+    def test_search_stock_code_accepts_standard_us_tickers(self):
+        self.assertEqual(stock_app.search_stock_code("aapl"), ("AAPL", "美股 AAPL"))
+        self.assertEqual(stock_app._resolve_postback_stock("AAPL"), ("AAPL", "美股 AAPL"))
+        self.assertFalse(stock_app.is_us_ticker("TAIEX"))
+        self.assertEqual(stock_app.search_stock_code("TOOLONG"), (None, None))
+
+    @patch("app.fetch_yfinance_price_history")
+    @patch("app.fetch_finmind_dataset")
+    def test_get_data_uses_us_market_context_without_finmind(self, finmind, yf_history):
+        dates = pd.date_range("2025-01-01", periods=220, freq="B")
+
+        def frame(start):
+            close = np.arange(start, start + len(dates), dtype=float)
+            return pd.DataFrame({
+                "Date": dates,
+                "Open": close - 1,
+                "High": close + 1,
+                "Low": close - 2,
+                "Close": close,
+                "Volume": np.full(len(dates), 1_000_000),
+            })
+
+        yf_history.side_effect = [frame(100), frame(5000), frame(500)]
+
+        result = stock_app.get_data("AAPL", days=400)
+
+        finmind.assert_not_called()
+        self.assertEqual([call.args[0] for call in yf_history.call_args_list], ["AAPL", "^GSPC", "SPY"])
+        self.assertEqual(len(result), 220)
+        self.assertTrue((result["ForeignNet"] == 0).all())
+        self.assertIn("MARKET_RET_5", result)
+
     def test_broadcast_endpoint_is_disabled_without_token_configuration(self):
         previous = stock_app.BROADCAST_TOKEN
         self.addCleanup(setattr, stock_app, "BROADCAST_TOKEN", previous)
