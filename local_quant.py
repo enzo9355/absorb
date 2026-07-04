@@ -1,7 +1,10 @@
 import argparse
 import datetime
+import gzip
 import json
+import math
 import os
+import re
 import secrets
 import shutil
 import sys
@@ -127,6 +130,58 @@ def _write_json_atomic(path, state):
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+
+
+def _validate_json_value(value):
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("JSON numbers must be finite")
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_json_value(item)
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError("JSON object keys must be strings")
+            _validate_json_value(item)
+        return
+    raise TypeError(f"unsupported JSON value: {type(value).__name__}")
+
+
+def _write_gzip_json_atomic(path, document):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    encoded = json.dumps(
+        document,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    with temporary.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as stream:
+            stream.write(encoded)
+        raw.flush()
+        os.fsync(raw.fileno())
+    os.replace(temporary, path)
+
+
+def write_stock_artifact(root, market, symbol, payload):
+    symbol = str(symbol)
+    if market != "TW" or not re.fullmatch(r"[0-9]{4,6}", symbol):
+        raise ValueError("invalid Taiwan symbol")
+    if not isinstance(payload, dict):
+        raise TypeError("stock artifact payload must be a dictionary")
+    document = dict(payload)
+    document.update(schema_version=1, market=market, symbol=symbol)
+    _validate_json_value(document)
+    target = Path(root) / "artifacts" / "stocks" / market / f"{symbol}.json.gz"
+    _write_gzip_json_atomic(target, document)
+    return target
 
 
 def load_checkpoint(root):
