@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import sys
 import time
 from pathlib import Path
@@ -21,6 +22,13 @@ RUN_END = datetime.time(9, 30)
 LAYOUT_DIRS = (
     "raw", "cache", "checkpoints", "artifacts", "publish", "logs", "secrets",
 )
+RETENTION_DAYS = {
+    "cache/tmp": 1,
+    "cache/pycache": 30,
+    "raw": 30,
+    "logs": 30,
+    "publish": 30,
+}
 
 
 def validate_data_root(path):
@@ -58,6 +66,83 @@ def check_free_space(root, min_free_gb=100.0, free_bytes=None):
     if free_bytes < min_free_gb * 1024**3:
         raise RuntimeError(f"D drive requires at least {min_free_gb:g} GB free")
     return free_bytes
+
+
+def _is_reparse_point(entry, metadata):
+    return entry.is_symlink() or bool(
+        getattr(metadata, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def _cleanup_tree(directory, cutoff, root, summary):
+    try:
+        entries = list(os.scandir(directory))
+    except FileNotFoundError:
+        return
+    except OSError:
+        summary["failed"] += 1
+        return
+    for entry in entries:
+        path = Path(entry.path)
+        try:
+            metadata = entry.stat(follow_symlinks=False)
+            if _is_reparse_point(entry, metadata):
+                summary["skipped_reparse_points"] += 1
+                continue
+            if not path.resolve(strict=False).is_relative_to(root):
+                raise RuntimeError("cleanup path escaped data root")
+            if entry.is_dir(follow_symlinks=False):
+                _cleanup_tree(path, cutoff, root, summary)
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+            elif entry.is_file(follow_symlinks=False) and metadata.st_mtime < cutoff:
+                path.unlink()
+                summary["deleted_files"] += 1
+                summary["reclaimed_bytes"] += metadata.st_size
+        except RuntimeError:
+            raise
+        except OSError:
+            summary["failed"] += 1
+
+
+def cleanup_expired_data(root, now=None):
+    root = validate_data_root(root)
+    root_resolved = root.resolve(strict=True)
+    checked_at = now or datetime.datetime.now(TAIPEI)
+    summary = {
+        "deleted_files": 0,
+        "reclaimed_bytes": 0,
+        "failed": 0,
+        "skipped_reparse_points": 0,
+    }
+    for relative, days in RETENTION_DAYS.items():
+        cutoff = (checked_at - datetime.timedelta(days=days)).timestamp()
+        _cleanup_tree(root / Path(relative), cutoff, root_resolved, summary)
+
+    checkpoints = root / "checkpoints"
+    cutoff = (checked_at - datetime.timedelta(days=7)).timestamp()
+    try:
+        entries = list(os.scandir(checkpoints))
+    except OSError:
+        summary["failed"] += 1
+        return summary
+    for entry in entries:
+        if not re.fullmatch(r"runner\.lock\.stale\.\d{8}T\d{6}", entry.name):
+            continue
+        try:
+            metadata = entry.stat(follow_symlinks=False)
+            if _is_reparse_point(entry, metadata):
+                summary["skipped_reparse_points"] += 1
+            elif entry.is_file(follow_symlinks=False) and metadata.st_mtime < cutoff:
+                Path(entry.path).unlink()
+                summary["deleted_files"] += 1
+                summary["reclaimed_bytes"] += metadata.st_size
+        except OSError:
+            summary["failed"] += 1
+    return summary
 
 
 class RunnerLock:

@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,7 @@ from local_quant import (
     TAIPEI,
     acquire_lock,
     check_free_space,
+    cleanup_expired_data,
     ensure_layout,
     load_checkpoint,
     main,
@@ -24,6 +26,67 @@ def at(hour, minute):
 
 
 class LocalQuantTests(unittest.TestCase):
+    def test_cleanup_expired_data_is_allowlisted_and_age_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "StockPapiData"
+            ensure_layout(root)
+            now = at(6, 0)
+
+            files = {
+                "old_tmp": root / "cache" / "tmp" / "nested" / "old.tmp",
+                "new_tmp": root / "cache" / "tmp" / "new.tmp",
+                "old_log": root / "logs" / "old.log",
+                "artifact": root / "artifacts" / "stocks" / "TW" / "2330.json.gz",
+                "secret": root / "secrets" / "token.txt",
+                "progress": root / "checkpoints" / "progress.json",
+                "active_lock": root / "checkpoints" / "runner.lock",
+                "stale_lock": root / "checkpoints" / "runner.lock.stale.20260601T000000",
+            }
+            for path in files.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(path.name, encoding="utf-8")
+
+            old_2_days = (now - datetime.timedelta(days=2)).timestamp()
+            old_31_days = (now - datetime.timedelta(days=31)).timestamp()
+            old_8_days = (now - datetime.timedelta(days=8)).timestamp()
+            os.utime(files["old_tmp"], (old_2_days, old_2_days))
+            os.utime(files["old_log"], (old_31_days, old_31_days))
+            os.utime(files["stale_lock"], (old_8_days, old_8_days))
+            for name in ("artifact", "secret", "progress", "active_lock"):
+                os.utime(files[name], (old_31_days, old_31_days))
+
+            outside = base / "outside.txt"
+            outside.write_text("keep", encoding="utf-8")
+            link = root / "cache" / "tmp" / "outside-link"
+            linked = False
+            try:
+                link.symlink_to(outside)
+                linked = True
+            except OSError:
+                pass
+
+            with patch("local_quant.validate_data_root", return_value=root):
+                summary = cleanup_expired_data(root, now=now)
+
+            self.assertFalse(files["old_tmp"].exists())
+            self.assertFalse(files["old_log"].exists())
+            self.assertFalse(files["stale_lock"].exists())
+            self.assertTrue(files["new_tmp"].exists())
+            for name in ("artifact", "secret", "progress", "active_lock"):
+                self.assertTrue(files[name].exists())
+            self.assertTrue(outside.exists())
+            if linked:
+                self.assertTrue(link.is_symlink())
+            self.assertEqual(
+                set(summary),
+                {"deleted_files", "reclaimed_bytes", "failed", "skipped_reparse_points"},
+            )
+            self.assertEqual(summary["deleted_files"], 3)
+            self.assertEqual(summary["failed"], 0)
+            self.assertEqual(summary["skipped_reparse_points"], int(linked))
+            self.assertFalse((root / "cache" / "tmp" / "nested").exists())
+
     def test_data_root_must_be_stock_papi_directory_on_d_drive(self):
         self.assertEqual(
             validate_data_root(Path("D:/StockPapiData")),
