@@ -8,6 +8,7 @@ import re
 import secrets
 import shutil
 import sys
+import time
 from pathlib import Path
 
 
@@ -182,6 +183,60 @@ def write_stock_artifact(root, market, symbol, payload):
     target = Path(root) / "artifacts" / "stocks" / market / f"{symbol}.json.gz"
     _write_gzip_json_atomic(target, document)
     return target
+
+
+def run_market_batch(
+    root,
+    market,
+    symbols,
+    analyze_symbol,
+    limit=200,
+    now_fn=lambda: datetime.datetime.now(TAIPEI),
+    delay=0.5,
+    sleep_fn=time.sleep,
+):
+    if market != "TW" or limit < 1 or delay < 0:
+        raise ValueError("invalid market batch settings")
+    checkpoint = load_checkpoint(root)
+    start = (
+        checkpoint.get("next_index", 0)
+        if checkpoint.get("stage") == "market_batch"
+        and checkpoint.get("market") == market
+        else 0
+    )
+    next_index = start
+    attempted = completed = 0
+    failures = []
+    for index in range(start, min(len(symbols), start + limit)):
+        checked_at = now_fn()
+        if window_phase(checked_at) != "run":
+            break
+        symbol = str(symbols[index])
+        attempted += 1
+        try:
+            write_stock_artifact(root, market, symbol, analyze_symbol(symbol))
+            completed += 1
+        except Exception as exc:
+            failures.append({"symbol": symbol, "error": type(exc).__name__})
+        next_index = index + 1
+        save_checkpoint(
+            root,
+            {
+                "stage": "market_batch",
+                "market": market,
+                "next_index": next_index,
+                "failed": failures,
+                "updated_at": checked_at.isoformat(),
+            },
+        )
+        if delay:
+            sleep_fn(delay)
+    return {
+        "attempted": attempted,
+        "completed": completed,
+        "failed": failures,
+        "next_index": next_index,
+    }
 
 
 def load_checkpoint(root):
