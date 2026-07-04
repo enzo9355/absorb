@@ -195,8 +195,10 @@ gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
   - 成交量變化
   - 法人 / 外資買賣超
   - 融資與融券變化
+  - Cboe VIX 水準、1 日／5 日變化與 VIX9D／VIX3M 期限結構
 
 外資買賣超目前作為輔助判讀與模型特徵之一，不會單獨構成買賣建議。
+VIX 特徵只使用該交易日或前四個日曆日內已公布的歷史值，並同時套用於台股與美股模型；資料缺漏時改用中性值及缺漏旗標，不會使用未來資料補值。
 
 ## 安全與維運注意事項
 
@@ -214,5 +216,6 @@ gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
 - 經驗證的美股代碼會額外讀取 StockTwits 公開 symbol stream，只保存匿名 Bullish／Bearish 彙總。這是自陳的散戶情緒，來源權重低於新聞，端點失敗時安全略過。
 - 近 30 日、多來源、互動量與來源品質的設計參考 [mvanhorn/last30days-skill](https://github.com/mvanhorn/last30days-skill)；未將完整 agent 引擎或其額外依賴放進 Cloud Run。
 - FinMind 或 Yahoo 資料缺漏時，部分籌碼或價格資訊可能暫時不可用。
+- VIX 期限結構是整體市場風險偏好的代理指標，不等同個股即時 options flow、未平倉量、GEX、Vanna flow 或 0DTE 流量。
 - 美股目前支援 1 至 5 個英文字母的個股或 ETF 代碼直接查詢；尚未提供全美股每日掃描，且外資、融資融券欄位會顯示資料不足。
 - Cloud Run scale-to-zero 會有冷啟動；新增功能時應避免模組載入階段做重運算或網路請求。

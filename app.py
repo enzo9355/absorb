@@ -90,13 +90,17 @@ MARKET_FEATURES = [
     "MARKET_RET_1", "MARKET_RET_5", "MARKET_RET_20", "MARKET_VOL_20",
     "ETF50_RET_5", "STOCK_VS_MARKET_5",
 ]
+OPTION_FEATURES = [
+    "OPTION_IV_LEVEL", "OPTION_IV_CHG_1", "OPTION_IV_CHG_5",
+    "OPTION_IV_TERM_9D_3M", "OPTION_DATA_MISSING",
+]
 DATA_QUALITY_FEATURES = ["DATA_PRICE_DIFF_PCT", "DATA_PRICE_WARNING"]
 PRICE_DIFF_WARNING_THRESHOLD = 0.02
 MODEL_FEATURES = [
     "MA_5", "MA20", "RET_1", "RET_5", "RET_20", "RSI", "Volat",
     "RANGE_PCT", "VOL_RATIO", "VOL_CHG", "INST_NET_RATIO", "MARGIN_CHG",
     "SHORT_CHG", "MACD_OSC", "K", "D",
-] + MARKET_FEATURES + DATA_QUALITY_FEATURES
+] + MARKET_FEATURES + OPTION_FEATURES + DATA_QUALITY_FEATURES
 
 _SYSTEM_CACHE = {}
 CACHE_EXPIRY_SECONDS = 3600
@@ -174,6 +178,25 @@ def fetch_yfinance_price_history(tickers, start_date, end_date=None):
     except Exception as exc:
         print(f"Yahoo Finance 讀取失敗: {exc}")
     return pd.DataFrame()
+
+
+def fetch_option_context_history(start_date, end_date=None):
+    symbols = ("^VIX", "^VIX9D", "^VIX3M")
+    frames = {}
+    with ThreadPoolExecutor(max_workers=len(symbols)) as executor:
+        futures = {
+            symbol: executor.submit(
+                fetch_yfinance_price_history, symbol, start_date, end_date
+            )
+            for symbol in symbols
+        }
+        for symbol, future in futures.items():
+            try:
+                frames[symbol] = future.result()
+            except Exception as exc:
+                print(f"選擇權市場指標讀取失敗 ({symbol}): {exc}")
+                frames[symbol] = pd.DataFrame()
+    return tuple(frames[symbol] for symbol in symbols)
 
 
 def is_us_ticker(value):
@@ -300,6 +323,76 @@ def add_market_context_features(price, market=None, etf50=None):
     return result
 
 
+def _option_close_frame(frame, column):
+    if frame is None or frame.empty or "Date" not in frame or "Close" not in frame:
+        return pd.DataFrame(columns=["Date", column])
+    result = frame[["Date", "Close"]].copy()
+    result["Date"] = pd.to_datetime(result["Date"], errors="coerce").astype(
+        "datetime64[ns]"
+    )
+    result[column] = pd.to_numeric(result["Close"], errors="coerce")
+    return (
+        result.drop(columns=["Close"])
+        .dropna(subset=["Date"])
+        .sort_values("Date")
+        .drop_duplicates("Date", keep="last")
+    )
+
+
+def add_option_context_features(price, vix=None, vix9d=None, vix3m=None):
+    if price is None or price.empty:
+        return price
+
+    result = price.copy()
+    for column in OPTION_FEATURES[:-1]:
+        result[column] = 0.0
+    result["OPTION_DATA_MISSING"] = 1.0
+    if "Date" not in result:
+        return result
+
+    option = _option_close_frame(vix, "VIX")
+    if option.empty:
+        return result
+    option["OPTION_IV_LEVEL"] = option["VIX"] / 100.0
+    option["OPTION_IV_CHG_1"] = option["VIX"].pct_change(fill_method=None)
+    option["OPTION_IV_CHG_5"] = option["VIX"].pct_change(5, fill_method=None)
+
+    for frame, column in ((vix9d, "VIX9D"), (vix3m, "VIX3M")):
+        extra = _option_close_frame(frame, column)
+        if not extra.empty:
+            option = option.merge(extra, on="Date", how="left")
+    if "VIX9D" not in option:
+        option["VIX9D"] = np.nan
+    if "VIX3M" not in option:
+        option["VIX3M"] = np.nan
+    option["OPTION_IV_TERM_9D_3M"] = option["VIX9D"] / option["VIX3M"] - 1.0
+    option["OPTION_DATA_MISSING"] = 0.0
+    option = option[["Date"] + OPTION_FEATURES].sort_values("Date")
+
+    result["Date"] = pd.to_datetime(result["Date"], errors="coerce").astype(
+        "datetime64[ns]"
+    )
+    result = result.drop(columns=OPTION_FEATURES).sort_values("Date")
+    result = pd.merge_asof(
+        result,
+        option,
+        on="Date",
+        direction="backward",
+        tolerance=pd.Timedelta(days=4),
+    )
+    for column in OPTION_FEATURES[:-1]:
+        result[column] = (
+            pd.to_numeric(result[column], errors="coerce")
+            .replace([np.inf, -np.inf], 0.0)
+            .fillna(0.0)
+        )
+    result["OPTION_DATA_MISSING"] = (
+        pd.to_numeric(result["OPTION_DATA_MISSING"], errors="coerce")
+        .fillna(1.0)
+    )
+    return result
+
+
 def add_price_quality_features(price, yf_price=None):
     result = price.copy()
     result["YF_CLOSE"] = 0.0
@@ -330,7 +423,7 @@ def _clean_df(df):
     df[['Open', 'High', 'Low', 'Close']] = df[['Open', 'High', 'Low', 'Close']].replace(0, np.nan)
     numeric_columns = [
         "Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance",
-    ] + MARKET_FEATURES + DATA_QUALITY_FEATURES
+    ] + MARKET_FEATURES + OPTION_FEATURES + DATA_QUALITY_FEATURES
     for column in numeric_columns:
         if column not in df:
             df[column] = 0.0
@@ -402,6 +495,9 @@ def get_data(code, days=730):
         market = fetch_yfinance_price_history("^GSPC", start_date, end_date)
         spy = fetch_yfinance_price_history("SPY", start_date, end_date)
         price = add_market_context_features(price, market, spy)
+        price = add_option_context_features(
+            price, *fetch_option_context_history(start_date, end_date)
+        )
         return _clean_df(merge_chip_data(price))
 
     yf_price = pd.DataFrame()
@@ -436,6 +532,9 @@ def get_data(code, days=730):
     market = fetch_yfinance_price_history("^TWII", start_date, end_date)
     etf50 = fetch_yfinance_price_history("0050.TW", start_date, end_date)
     price = add_market_context_features(price, market, etf50)
+    price = add_option_context_features(
+        price, *fetch_option_context_history(start_date, end_date)
+    )
 
     institutional = margin = None
     if code != "TAIEX":
@@ -710,7 +809,7 @@ def calc_all(df):
     df = df.copy()
     numeric_columns = [
         "Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance",
-    ] + MARKET_FEATURES + DATA_QUALITY_FEATURES
+    ] + MARKET_FEATURES + OPTION_FEATURES + DATA_QUALITY_FEATURES
     for column in numeric_columns:
         if column not in df:
             df[column] = 0.0

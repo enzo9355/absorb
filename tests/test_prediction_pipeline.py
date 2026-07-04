@@ -55,9 +55,12 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertFalse(stock_app.is_us_ticker("TAIEX"))
         self.assertEqual(stock_app.search_stock_code("TOOLONG"), (None, None))
 
+    @patch("app.fetch_option_context_history", return_value=(pd.DataFrame(),) * 3)
     @patch("app.fetch_yfinance_price_history")
     @patch("app.fetch_finmind_dataset")
-    def test_get_data_uses_us_market_context_without_finmind(self, finmind, yf_history):
+    def test_get_data_uses_us_market_context_without_finmind(
+        self, finmind, yf_history, _option_history
+    ):
         dates = pd.date_range("2025-01-01", periods=220, freq="B")
 
         def frame(start):
@@ -183,6 +186,57 @@ class PredictionPipelineTests(unittest.TestCase):
         for column in stock_app.MARKET_FEATURES:
             self.assertIn(column, result)
             self.assertEqual(result[column].tolist(), [0.0, 0.0])
+
+    def test_option_context_uses_only_same_or_earlier_dates(self):
+        price = pd.DataFrame({
+            "Date": pd.to_datetime(["2026-01-05", "2026-01-06"]),
+            "Close": [100.0, 101.0],
+        })
+        vix = pd.DataFrame({
+            "Date": pd.Series(pd.to_datetime(["2026-01-02", "2026-01-07"])).astype(
+                "datetime64[s]"
+            ),
+            "Close": [20.0, 99.0],
+        })
+        vix9d = pd.DataFrame({
+            "Date": pd.to_datetime(["2026-01-02"]),
+            "Close": [24.0],
+        })
+        vix3m = pd.DataFrame({
+            "Date": pd.to_datetime(["2026-01-02"]),
+            "Close": [18.0],
+        })
+
+        result = stock_app.add_option_context_features(price, vix, vix9d, vix3m)
+
+        self.assertEqual(result["OPTION_IV_LEVEL"].tolist(), [0.2, 0.2])
+        self.assertTrue(
+            np.allclose(result["OPTION_IV_TERM_9D_3M"], (24.0 / 18.0) - 1.0)
+        )
+        self.assertEqual(result["OPTION_DATA_MISSING"].tolist(), [0.0, 0.0])
+
+    def test_option_context_returns_neutral_values_when_missing(self):
+        price = pd.DataFrame({
+            "Date": pd.to_datetime(["2026-01-05", "2026-01-06"]),
+            "Close": [100.0, 101.0],
+        })
+
+        result = stock_app.add_option_context_features(price)
+
+        self.assertTrue((result[stock_app.OPTION_FEATURES[:-1]] == 0.0).all().all())
+        self.assertEqual(result["OPTION_DATA_MISSING"].tolist(), [1.0, 1.0])
+
+    @patch("app.fetch_yfinance_price_history")
+    def test_fetch_option_context_history_requests_three_cboe_indexes(self, fetch):
+        fetch.return_value = pd.DataFrame()
+
+        result = stock_app.fetch_option_context_history("2025-01-01", "2026-01-01")
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(
+            {call.args[0] for call in fetch.call_args_list},
+            {"^VIX", "^VIX9D", "^VIX3M"},
+        )
 
     def test_add_price_quality_features_flags_large_close_gap(self):
         dates = pd.to_datetime(
@@ -311,10 +365,13 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertEqual(params["dataset"], "DatasetName")
         self.assertEqual(params["token"], "token")
 
+    @patch("app.fetch_option_context_history", return_value=(pd.DataFrame(),) * 3)
     @patch("app.requests.get", side_effect=AssertionError("legacy request path"))
     @patch("app.fetch_yfinance_price_history")
     @patch("app.fetch_finmind_dataset")
-    def test_get_data_preserves_volume_and_chip_columns(self, fetch, yf_history, _get):
+    def test_get_data_preserves_volume_and_chip_columns(
+        self, fetch, yf_history, _get, _option_history
+    ):
         yf_history.return_value = pd.DataFrame()
         fetch.side_effect = [
             pd.DataFrame(
@@ -349,9 +406,12 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertEqual(result["InstitutionalNet"].tolist(), [1500, 0])
         self.assertEqual(result["MarginBalance"].tolist(), [3000, 3100])
 
+    @patch("app.fetch_option_context_history", return_value=(pd.DataFrame(),) * 3)
     @patch("app.fetch_yfinance_price_history")
     @patch("app.fetch_finmind_dataset")
-    def test_get_data_adds_market_and_price_quality_columns(self, finmind, yf_history):
+    def test_get_data_adds_market_and_price_quality_columns(
+        self, finmind, yf_history, _option_history
+    ):
         dates = pd.to_datetime(
             ["2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"]
         )
@@ -404,12 +464,20 @@ class PredictionPipelineTests(unittest.TestCase):
 
         result = stock_app.get_data("2330", days=10)
 
-        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+        for column in (
+            stock_app.MARKET_FEATURES
+            + stock_app.OPTION_FEATURES
+            + stock_app.DATA_QUALITY_FEATURES
+        ):
             self.assertIn(column, result.columns)
         self.assertIn("YF_CLOSE", result.columns)
 
     def test_model_features_include_market_and_data_quality_features(self):
-        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+        for column in (
+            stock_app.MARKET_FEATURES
+            + stock_app.OPTION_FEATURES
+            + stock_app.DATA_QUALITY_FEATURES
+        ):
             self.assertIn(column, stock_app.MODEL_FEATURES)
 
     def test_calc_all_preserves_market_and_data_quality_features(self):
@@ -424,12 +492,20 @@ class PredictionPipelineTests(unittest.TestCase):
                 "Volume": np.linspace(1000, 2000, len(dates)),
             }
         )
-        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+        for column in (
+            stock_app.MARKET_FEATURES
+            + stock_app.OPTION_FEATURES
+            + stock_app.DATA_QUALITY_FEATURES
+        ):
             raw[column] = 0.1
 
         result = stock_app.calc_all(raw)
 
-        for column in stock_app.MARKET_FEATURES + stock_app.DATA_QUALITY_FEATURES:
+        for column in (
+            stock_app.MARKET_FEATURES
+            + stock_app.OPTION_FEATURES
+            + stock_app.DATA_QUALITY_FEATURES
+        ):
             self.assertIn(column, result.columns)
 
     def test_walk_forward_engine_returns_oos_metrics_and_current_probability(self):
