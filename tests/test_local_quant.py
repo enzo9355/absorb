@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from local_quant import (
     LAYOUT_DIRS,
@@ -11,6 +12,7 @@ from local_quant import (
     check_free_space,
     ensure_layout,
     load_checkpoint,
+    main,
     save_checkpoint,
     validate_data_root,
     window_phase,
@@ -99,6 +101,50 @@ class LocalQuantTests(unittest.TestCase):
             self.assertFalse(
                 (root / "checkpoints" / "progress.json.tmp").exists()
             )
+
+    def test_cli_initializes_layout_and_records_run_ready_checkpoint(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch("local_quant.validate_data_root", return_value=root):
+                result = main(
+                    ["--root", str(root), "--init", "--dry-run"],
+                    now=at(5, 30),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            self.assertEqual(load_checkpoint(root)["stage"], "ready")
+            self.assertFalse((root / "checkpoints" / "runner.lock").exists())
+            status = json.loads(
+                (root / "logs" / "runner-status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(status["phase"], "run")
+
+    def test_cli_outside_window_reports_closed_without_work_lock(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch("local_quant.validate_data_root", return_value=root):
+                result = main(
+                    ["--root", str(root), "--init", "--dry-run"],
+                    now=at(22, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            self.assertFalse((root / "checkpoints" / "runner.lock").exists())
+            self.assertEqual(load_checkpoint(root), {})
+
+    def test_cli_returns_nonzero_when_free_space_is_below_guard(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch("local_quant.validate_data_root", return_value=root):
+                result = main(
+                    ["--root", str(root), "--init", "--dry-run"],
+                    now=at(5, 30),
+                    free_bytes=50 * 1024**3,
+                )
+
+            self.assertEqual(result, 2)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
+import argparse
 import datetime
 import json
 import os
 import secrets
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -114,12 +116,17 @@ def save_checkpoint(root, state):
     if not isinstance(state, dict):
         raise TypeError("checkpoint must be a dictionary")
     checkpoint = Path(root) / "checkpoints" / "progress.json"
-    temporary = checkpoint.with_suffix(".json.tmp")
+    _write_json_atomic(checkpoint, state)
+
+
+def _write_json_atomic(path, state):
+    path = Path(path)
+    temporary = path.with_suffix(path.suffix + ".tmp")
     with temporary.open("w", encoding="utf-8") as stream:
         json.dump(state, stream, ensure_ascii=False, separators=(",", ":"))
         stream.flush()
         os.fsync(stream.fileno())
-    os.replace(temporary, checkpoint)
+    os.replace(temporary, path)
 
 
 def load_checkpoint(root):
@@ -133,3 +140,49 @@ def load_checkpoint(root):
     if not isinstance(state, dict):
         raise RuntimeError("checkpoint must contain an object")
     return state
+
+
+def main(argv=None, now=None, free_bytes=None):
+    parser = argparse.ArgumentParser(description="Stock Papi local quant runner")
+    parser.add_argument("--root", default=r"D:\StockPapiData")
+    parser.add_argument("--init", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--min-free-gb", type=float, default=100.0)
+    args = parser.parse_args(argv)
+
+    try:
+        root = validate_data_root(Path(args.root))
+        if args.init:
+            ensure_layout(root)
+        elif not root.is_dir():
+            raise RuntimeError("data root is not initialized")
+        available = check_free_space(root, args.min_free_gb, free_bytes)
+        checked_at = now or datetime.datetime.now(TAIPEI)
+        phase = window_phase(checked_at)
+        _write_json_atomic(
+            root / "logs" / "runner-status.json",
+            {
+                "checked_at": checked_at.isoformat(),
+                "dry_run": bool(args.dry_run),
+                "free_gb": round(available / 1024**3, 1),
+                "phase": phase,
+                "root": str(root),
+            },
+        )
+        if not args.dry_run:
+            raise RuntimeError("phase one only supports --dry-run")
+        if phase == "run":
+            with acquire_lock(root, now=checked_at):
+                save_checkpoint(
+                    root,
+                    {"stage": "ready", "checked_at": checked_at.isoformat()},
+                )
+        print(f"local quant phase={phase} free_gb={available / 1024**3:.1f}")
+        return 0
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        print(f"local quant refused: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
