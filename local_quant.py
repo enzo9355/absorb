@@ -29,6 +29,12 @@ RETENTION_DAYS = {
     "logs": 30,
     "publish": 30,
 }
+SEC_US_UNIVERSE_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
+SEC_US_UNIVERSE_MAX_BYTES = 5 * 1024 * 1024
+US_EXCHANGES = {"Nasdaq", "NYSE", "CBOE"}
+CRYPTO_SECURITY_TERMS = (
+    "bitcoin", "ethereum", "crypto", "solana", "litecoin", "dogecoin",
+)
 
 
 def validate_data_root(path):
@@ -383,6 +389,89 @@ def get_taiwan_symbols(pipeline):
             if re.fullmatch(r"[0-9]{4,6}", str(symbol))
         }
     )
+
+
+def parse_sec_us_universe(document):
+    if not isinstance(document, dict):
+        raise ValueError("invalid SEC universe document")
+    fields = document.get("fields")
+    rows = document.get("data")
+    if not isinstance(fields, list) or not isinstance(rows, list):
+        raise ValueError("invalid SEC universe schema")
+    required = {"name", "ticker", "exchange"}
+    if not required.issubset(fields):
+        raise ValueError("SEC universe fields are incomplete")
+    positions = {name: fields.index(name) for name in required}
+    symbols = set()
+    for row in rows:
+        if not isinstance(row, list) or len(row) < len(fields):
+            continue
+        exchange = row[positions["exchange"]]
+        name = str(row[positions["name"]] or "").lower()
+        symbol = str(row[positions["ticker"]] or "").strip().upper()
+        if exchange not in US_EXCHANGES or any(term in name for term in CRYPTO_SECURITY_TERMS):
+            continue
+        try:
+            symbols.add(validate_market_symbol("US", symbol))
+        except ValueError:
+            continue
+    if not symbols:
+        raise ValueError("SEC universe contains no supported US symbols")
+    return sorted(symbols)
+
+
+def fetch_sec_us_universe_json():
+    import requests
+
+    response = requests.get(
+        SEC_US_UNIVERSE_URL,
+        headers={
+            "User-Agent": "StockPapi/1.0 (https://github.com/enzo9355/Stock-Papi)"
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    content_length = response.headers.get("Content-Length")
+    if content_length and int(content_length) > SEC_US_UNIVERSE_MAX_BYTES:
+        raise RuntimeError("SEC universe response is too large")
+    content = response.content
+    if len(content) > SEC_US_UNIVERSE_MAX_BYTES:
+        raise RuntimeError("SEC universe response is too large")
+    return json.loads(content)
+
+
+def _read_us_universe_cache(path):
+    try:
+        cached = json.loads(Path(path).read_text(encoding="utf-8"))
+        symbols = [validate_market_symbol("US", item) for item in cached["symbols"]]
+        if not symbols or not isinstance(cached.get("as_of"), str):
+            return None
+        return {"as_of": cached["as_of"], "symbols": sorted(set(symbols))}
+    except (KeyError, OSError, TypeError, ValueError):
+        return None
+
+
+def get_us_symbols(root, fetch_json=None, now=None):
+    checked_at = now or datetime.datetime.now(TAIPEI)
+    cache_path = Path(root) / "raw" / "us-universe.json"
+    cached = _read_us_universe_cache(cache_path) if cache_path.exists() else None
+    if cached and cached["as_of"] == checked_at.date().isoformat():
+        return cached["symbols"]
+    try:
+        symbols = parse_sec_us_universe((fetch_json or fetch_sec_us_universe_json)())
+    except Exception as exc:
+        if cached:
+            return cached["symbols"]
+        raise RuntimeError("US universe is unavailable") from exc
+    _write_json_atomic(
+        cache_path,
+        {
+            "as_of": checked_at.date().isoformat(),
+            "source": SEC_US_UNIVERSE_URL,
+            "symbols": symbols,
+        },
+    )
+    return symbols
 
 
 def build_taiwan_stock_snapshot(pipeline, symbol):

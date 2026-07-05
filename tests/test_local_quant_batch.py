@@ -17,7 +17,9 @@ from local_quant import (
     TAIPEI,
     build_taiwan_stock_snapshot,
     ensure_layout,
+    get_us_symbols,
     load_checkpoint,
+    parse_sec_us_universe,
     run_market_batch,
     save_checkpoint,
     write_stock_artifact,
@@ -25,6 +27,71 @@ from local_quant import (
 
 
 class LocalQuantBatchTests(unittest.TestCase):
+    def test_sec_us_universe_filters_exchange_crypto_and_unsafe_tickers(self):
+        document = {
+            "fields": ["exchange", "ticker", "name", "cik"],
+            "data": [
+                ["Nasdaq", "aapl", "Apple Inc.", 1],
+                ["NYSE", "BRK-B", "Berkshire Hathaway", 2],
+                ["CBOE", "XYZ", "Example Fund", 3],
+                ["OTC", "OTCM", "OTC Company", 4],
+                ["Nasdaq", "BTCX", "Example Bitcoin Trust", 5],
+                ["NYSE", "AAPL.B", "Unsafe Symbol", 6],
+                ["Nasdaq", "AAPL", "Duplicate", 7],
+            ],
+        }
+
+        self.assertEqual(
+            parse_sec_us_universe(document),
+            ["AAPL", "BRK-B", "XYZ"],
+        )
+
+    def test_us_universe_uses_daily_cache_and_stale_fallback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            document = {
+                "fields": ["cik", "name", "ticker", "exchange"],
+                "data": [[1, "Apple Inc.", "AAPL", "Nasdaq"]],
+            }
+            calls = []
+
+            first = get_us_symbols(
+                root,
+                fetch_json=lambda: calls.append("fetch") or document,
+                now=datetime.datetime(2026, 7, 5, 6, tzinfo=TAIPEI),
+            )
+            same_day = get_us_symbols(
+                root,
+                fetch_json=lambda: self.fail("same-day cache should avoid fetch"),
+                now=datetime.datetime(2026, 7, 5, 7, tzinfo=TAIPEI),
+            )
+            stale = get_us_symbols(
+                root,
+                fetch_json=lambda: (_ for _ in ()).throw(TimeoutError("offline")),
+                now=datetime.datetime(2026, 7, 6, 6, tzinfo=TAIPEI),
+            )
+
+            self.assertEqual(first, ["AAPL"])
+            self.assertEqual(same_day, ["AAPL"])
+            self.assertEqual(stale, ["AAPL"])
+            self.assertEqual(calls, ["fetch"])
+            cache = json.loads(
+                (root / "raw" / "us-universe.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(set(cache), {"as_of", "source", "symbols"})
+
+    def test_us_universe_fails_safely_without_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            with self.assertRaisesRegex(RuntimeError, "US universe is unavailable"):
+                get_us_symbols(
+                    root,
+                    fetch_json=lambda: (_ for _ in ()).throw(TimeoutError("secret")),
+                    now=datetime.datetime(2026, 7, 5, 6, tzinfo=TAIPEI),
+                )
+
     def test_stock_artifact_is_atomic_gzip_json_with_fixed_schema(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
