@@ -308,6 +308,55 @@ class LocalQuantTests(unittest.TestCase):
                 [("TW", ["2330"]), ("US", ["AAPL"])],
             )
 
+    def test_cli_publishes_only_after_market_batch_is_complete(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 1,
+                    "failed": [],
+                    "cycle_completed_on": "2026-07-04",
+                },
+            )
+            pipeline = type("Pipeline", (), {"industry_map": {"全市場": ["2330"]}})()
+            with (
+                patch("local_quant.validate_data_root", return_value=root),
+                patch(
+                    "local_quant.cleanup_expired_data",
+                    return_value={
+                        "deleted_files": 0,
+                        "reclaimed_bytes": 0,
+                        "failed": 0,
+                        "skipped_reparse_points": 0,
+                    },
+                ),
+                patch("local_quant.load_stock_pipeline", return_value=pipeline),
+                patch(
+                    "local_quant.run_market_batch",
+                    return_value={
+                        "attempted": 1,
+                        "completed": 1,
+                        "failed": [],
+                        "next_index": 1,
+                    },
+                ),
+                patch("local_quant.publish_market_snapshot") as publish,
+            ):
+                result = main(
+                    ["--root", str(root), "--run", "--market", "TW", "--delay", "0"],
+                    now=at(6, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            publish.assert_called_once_with(root, "TW", ["2330"], generated_at=at(6, 0))
+            checkpoint = load_checkpoint(root)
+            self.assertEqual(checkpoint["published_cycle_on"], "2026-07-04")
+
     def test_cli_refuses_us_market_before_0530(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

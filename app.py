@@ -1123,14 +1123,23 @@ def aggregate_news_sentiment(items):
             "confidence_score": 0.0,
             "confidence": "低",
             "source_count": 0,
+            "publisher_count": 0,
             "social_sample_size": 0,
+            "weighted_volatility": 0.0,
+            "momentum": 0.0,
+            "momentum_data_sufficient": False,
+            "disagreement": 0.0,
+            "effective_sample_size": 0.0,
+            "missing_metadata_ratio": 0.0,
+            "extreme_score_flag": False,
             "window_days": SENTIMENT_WINDOW_DAYS,
             "items": [],
         }
 
-    total_weight = sum(item["final_weight"] for item in items) or 1.0
+    weights = [max(0.0, float(item["final_weight"])) for item in items]
+    total_weight = sum(weights) or 1.0
     weighted_score = sum(
-        item["raw_score"] * item["final_weight"] for item in items
+        item["raw_score"] * weight for item, weight in zip(items, weights)
     ) / total_weight
     score = max(0.0, min(100.0, 50.0 + 50.0 * weighted_score))
     status = (
@@ -1149,9 +1158,58 @@ def aggregate_news_sentiment(items):
     ) / count
     source_ratio = sum(bool(item.get("source")) for item in items) / count
     source_count = len({item.get("provider") or "news" for item in items})
+    publisher_count = len({item.get("source") for item in items if item.get("source")})
     social_sample_size = sum(
         max(0, int(item.get("social_sample_size") or 0)) for item in items
     )
+    weighted_volatility = min(100.0, 100.0 * math.sqrt(sum(
+        weight * (item["raw_score"] - weighted_score) ** 2
+        for item, weight in zip(items, weights)
+    ) / total_weight))
+    positive_weight = sum(
+        weight for item, weight in zip(items, weights)
+        if item["direction"] == "positive"
+    )
+    negative_weight = sum(
+        weight for item, weight in zip(items, weights)
+        if item["direction"] == "negative"
+    )
+    directional_weight = positive_weight + negative_weight
+    disagreement = (
+        200.0 * min(positive_weight, negative_weight) / directional_weight
+        if directional_weight else 0.0
+    )
+    squared_weight = sum(weight ** 2 for weight in weights)
+    effective_sample_size = total_weight ** 2 / squared_weight if squared_weight else 0.0
+
+    def window_score(predicate):
+        selected = [
+            (item, weight) for item, weight in zip(items, weights)
+            if predicate(item.get("age_hours"))
+        ]
+        selected_weight = sum(weight for _item, weight in selected)
+        if not selected_weight:
+            return None
+        return sum(
+            item["raw_score"] * weight for item, weight in selected
+        ) / selected_weight
+
+    recent_score = window_score(lambda age: age is not None and age <= 24)
+    prior_score = window_score(
+        lambda age: age is not None and 24 < age <= SENTIMENT_WINDOW_DAYS * 24
+    )
+    momentum_data_sufficient = recent_score is not None and prior_score is not None
+    momentum = (
+        max(-100.0, min(100.0, 50.0 * (recent_score - prior_score)))
+        if momentum_data_sufficient else 0.0
+    )
+    missing_metadata_ratio = sum(
+        not item.get("source")
+        or item.get("age_hours") is None
+        or (item.get("parse_flags") or {}).get("missing_source", False)
+        or (item.get("parse_flags") or {}).get("missing_published_at", False)
+        for item in items
+    ) / count
     confidence_score = 100 * (
         0.5 * min(count / 5, 1) + 0.3 * fresh_ratio + 0.2 * source_ratio
     )
@@ -1169,7 +1227,15 @@ def aggregate_news_sentiment(items):
             else "低"
         ),
         "source_count": source_count,
+        "publisher_count": publisher_count,
         "social_sample_size": social_sample_size,
+        "weighted_volatility": weighted_volatility,
+        "momentum": momentum,
+        "momentum_data_sufficient": momentum_data_sufficient,
+        "disagreement": disagreement,
+        "effective_sample_size": effective_sample_size,
+        "missing_metadata_ratio": missing_metadata_ratio,
+        "extreme_score_flag": score >= 80 or score <= 20,
         "window_days": SENTIMENT_WINDOW_DAYS,
         "items": items,
     }
@@ -1237,7 +1303,15 @@ def _do_analyze(code):
         "news_confidence_score": sentiment["confidence_score"],
         "news_confidence": sentiment["confidence"],
         "news_source_count": sentiment["source_count"],
+        "news_publisher_count": sentiment["publisher_count"],
         "social_sample_size": sentiment["social_sample_size"],
+        "news_weighted_volatility": sentiment["weighted_volatility"],
+        "news_momentum": sentiment["momentum"],
+        "news_momentum_data_sufficient": sentiment["momentum_data_sufficient"],
+        "news_disagreement": sentiment["disagreement"],
+        "news_effective_sample_size": sentiment["effective_sample_size"],
+        "news_missing_metadata_ratio": sentiment["missing_metadata_ratio"],
+        "news_extreme_score_flag": sentiment["extreme_score_flag"],
         "sentiment_window_days": sentiment["window_days"],
         "candles": json.dumps(tv_df[['Date','Open','High_corr','Low_corr','Close']].rename(columns={'Date':'time','Open':'open','High_corr':'high','Low_corr':'low','Close':'close'}).to_dict('records')),
         "ma20_line": json.dumps(tv_df[['Date','MA20']].dropna().rename(columns={'Date':'time','MA20':'value'}).to_dict('records')),
@@ -1328,7 +1402,9 @@ def market_forecast(): return analyze("TAIEX")
 # ==================================================
 def _format_sentiment_summary(data):
     parts = [f'{data.get("news_count", len(data.get("news", [])))} 則']
-    source_count = int(data.get("news_source_count") or 0)
+    source_count = int(
+        data.get("news_publisher_count") or data.get("news_source_count") or 0
+    )
     social_sample_size = int(data.get("social_sample_size") or 0)
     if source_count:
         parts.append(f"{source_count} 個來源")
@@ -1337,8 +1413,12 @@ def _format_sentiment_summary(data):
     parts.extend([
         f'正面 {round(data.get("news_positive_ratio", 0) * 100)}%',
         f'負面 {round(data.get("news_negative_ratio", 0) * 100)}%',
-        f'可信度{data.get("news_confidence", "低")}',
     ])
+    if data.get("news_momentum_data_sufficient"):
+        parts.append(f'動能 {data.get("news_momentum", 0):+.0f}')
+    if data.get("news_disagreement", 0) > 0:
+        parts.append(f'分歧 {data.get("news_disagreement", 0):.0f}')
+    parts.append(f'可信度{data.get("news_confidence", "低")}')
     return "｜".join(parts)
 
 
@@ -1603,6 +1683,9 @@ def _build_single_stock_context(data):
         f"{'紅柱' if data['macd_osc'] > 0 else '綠柱'}，"
         f"KD {'黃金交叉' if data['k'] > data['d'] else '死亡交叉'}，"
         f"情緒 {data['s_status']}（{data['s_score']:.0f}），"
+        f"情緒動能 {data.get('news_momentum', 0):+.0f}，"
+        f"情緒分歧 {data.get('news_disagreement', 0):.0f}，"
+        f"情緒波動 {data.get('news_weighted_volatility', 0):.0f}，"
         f"{foreign_str}，"
         f"回測策略報酬 {bt.get('strat_cum', 0):.1f}%，"
         f"勝率 {bt.get('win_rate', 0):.0f}%，"

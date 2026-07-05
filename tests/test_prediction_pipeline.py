@@ -585,6 +585,9 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertEqual(len(json.loads(result["prob_h"])), 1)
         self.assertIn("news_neutral_ratio", result)
         self.assertIn("news_confidence", result)
+        self.assertIn("news_momentum", result)
+        self.assertIn("news_disagreement", result)
+        self.assertIn("news_weighted_volatility", result)
         self.assertEqual(result["news"][0]["direction"], "positive")
         get_news.assert_called_once_with("台積電", "2330")
 
@@ -855,6 +858,67 @@ class PredictionPipelineTests(unittest.TestCase):
         self.assertEqual(empty["score"], 50)
         self.assertEqual(empty["status"], "中性")
         self.assertEqual(empty["confidence"], "低")
+
+    def test_aggregate_news_sentiment_exposes_candidate_stability_factors(self):
+        result = stock_app.aggregate_news_sentiment([
+            {
+                "raw_score": 0.8,
+                "final_weight": 2.0,
+                "direction": "positive",
+                "source": "財經報 A",
+                "provider": "news",
+                "age_hours": 2,
+                "parse_flags": {},
+            },
+            {
+                "raw_score": 0.4,
+                "final_weight": 1.0,
+                "direction": "positive",
+                "source": "財經報 A",
+                "provider": "news",
+                "age_hours": 12,
+                "parse_flags": {},
+            },
+            {
+                "raw_score": -0.6,
+                "final_weight": 1.0,
+                "direction": "negative",
+                "source": "財經報 B",
+                "provider": "marketaux",
+                "age_hours": 72,
+                "parse_flags": {},
+            },
+            {
+                "raw_score": -0.2,
+                "final_weight": 0.25,
+                "direction": "negative",
+                "source": None,
+                "provider": "news",
+                "age_hours": None,
+                "parse_flags": {
+                    "missing_source": True,
+                    "missing_published_at": True,
+                },
+            },
+        ])
+        empty = stock_app.aggregate_news_sentiment([])
+
+        self.assertGreater(result["weighted_volatility"], 0)
+        self.assertGreater(result["momentum"], 0)
+        self.assertTrue(result["momentum_data_sufficient"])
+        self.assertGreater(result["disagreement"], 0)
+        self.assertLess(result["effective_sample_size"], result["count"])
+        self.assertEqual(result["publisher_count"], 2)
+        self.assertEqual(result["missing_metadata_ratio"], 0.25)
+        for key in (
+            "weighted_volatility",
+            "momentum",
+            "disagreement",
+            "effective_sample_size",
+            "publisher_count",
+            "missing_metadata_ratio",
+        ):
+            self.assertIn(key, empty)
 
     def test_web_and_line_messages_name_the_five_day_probability(self):
         data = sample_analysis_data()

@@ -180,6 +180,97 @@ class LocalQuantBatchTests(unittest.TestCase):
             self.assertEqual(checkpoint["next_index"], 2)
             self.assertNotIn("secret upstream response", json.dumps(checkpoint))
 
+    def test_market_batch_retries_previous_failures_before_new_symbols(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 2,
+                    "failed": [{"symbol": "2317", "error": "TimeoutError"}],
+                },
+            )
+            calls = []
+
+            summary = run_market_batch(
+                root,
+                "TW",
+                ["2330", "2317", "2454"],
+                lambda symbol: calls.append(symbol) or {"as_of": "2026-07-03"},
+                limit=2,
+                now_fn=lambda: datetime.datetime(2026, 7, 6, 6, tzinfo=TAIPEI),
+                delay=0,
+            )
+
+            self.assertEqual(calls, ["2317", "2454"])
+            self.assertEqual(summary["completed"], 2)
+            self.assertEqual(summary["failed"], [])
+            checkpoint = load_checkpoint(root)
+            self.assertEqual(checkpoint["next_index"], 3)
+            self.assertEqual(checkpoint["failed"], [])
+
+    def test_market_batch_keeps_one_copy_of_a_failed_retry(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 1,
+                    "failed": [{"symbol": "2330", "error": "TimeoutError"}],
+                },
+            )
+
+            summary = run_market_batch(
+                root,
+                "TW",
+                ["2330", "2317"],
+                lambda _symbol: (_ for _ in ()).throw(ConnectionError("private")),
+                limit=1,
+                now_fn=lambda: datetime.datetime(2026, 7, 6, 6, tzinfo=TAIPEI),
+                delay=0,
+            )
+
+            self.assertEqual(summary["next_index"], 1)
+            self.assertEqual(
+                summary["failed"],
+                [{"symbol": "2330", "error": "ConnectionError"}],
+            )
+            self.assertEqual(load_checkpoint(root)["failed"], summary["failed"])
+
+    def test_market_batch_does_not_restart_an_unpublished_completed_cycle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 1,
+                    "failed": [],
+                    "cycle_completed_on": "2026-07-05",
+                },
+            )
+            calls = []
+
+            summary = run_market_batch(
+                root,
+                "TW",
+                ["2330"],
+                lambda symbol: calls.append(symbol) or {"as_of": "2026-07-03"},
+                now_fn=lambda: datetime.datetime(2026, 7, 6, 6, tzinfo=TAIPEI),
+                delay=0,
+            )
+
+            self.assertEqual(calls, [])
+            self.assertEqual(summary["next_index"], 1)
+
     def test_market_batch_resumes_and_stops_before_drain(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -213,6 +304,9 @@ class LocalQuantBatchTests(unittest.TestCase):
             )
             self.assertEqual(calls, ["2330", "2317"])
             self.assertEqual(second["next_index"], 2)
+            checkpoint = load_checkpoint(root)
+            checkpoint["published_cycle_on"] = checkpoint["cycle_completed_on"]
+            save_checkpoint(root, checkpoint)
 
             third = run_market_batch(
                 root,

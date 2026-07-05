@@ -1,7 +1,9 @@
 import argparse
 import datetime
 import gzip
+import hashlib
 import importlib
+import io
 import json
 import math
 import os
@@ -32,6 +34,8 @@ RETENTION_DAYS = {
 }
 SEC_US_UNIVERSE_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 SEC_US_UNIVERSE_MAX_BYTES = 5 * 1024 * 1024
+STOCK_ARTIFACT_MAX_COMPRESSED_BYTES = 5 * 1024 * 1024
+STOCK_ARTIFACT_MAX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
 US_EXCHANGES = {"Nasdaq", "NYSE", "CBOE"}
 CRYPTO_SECURITY_TERMS = (
     "bitcoin", "ethereum", "crypto", "solana", "litecoin", "dogecoin",
@@ -243,6 +247,25 @@ def _write_json_atomic(path, state):
     os.replace(temporary, path)
 
 
+def _write_bytes_atomic(path, content):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("wb") as stream:
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def _sha256_path(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _validate_json_value(value):
     if value is None or isinstance(value, (str, bool, int)):
         return
@@ -307,6 +330,114 @@ def write_stock_artifact(root, market, symbol, payload):
     return target
 
 
+def _validated_artifact(root, market, symbol, generated_at):
+    symbol = validate_market_symbol(market, symbol)
+    path = Path(root) / "artifacts" / "stocks" / market / f"{symbol}.json.gz"
+    if not path.is_file():
+        raise RuntimeError(f"artifact is missing for {market}:{symbol}")
+    compressed_size = path.stat().st_size
+    if not 0 < compressed_size <= STOCK_ARTIFACT_MAX_COMPRESSED_BYTES:
+        raise RuntimeError(f"artifact is invalid for {market}:{symbol}")
+    compressed = path.read_bytes()
+    if len(compressed) != compressed_size:
+        raise RuntimeError(f"artifact is invalid for {market}:{symbol}")
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as stream:
+            decoded = stream.read(STOCK_ARTIFACT_MAX_UNCOMPRESSED_BYTES + 1)
+        if len(decoded) > STOCK_ARTIFACT_MAX_UNCOMPRESSED_BYTES:
+            raise ValueError("artifact expands beyond limit")
+        document = json.loads(decoded.decode("utf-8"))
+        if (
+            not isinstance(document, dict)
+            or document.get("schema_version") != 1
+            or document.get("market") != market
+            or document.get("symbol") != symbol
+        ):
+            raise ValueError("artifact schema mismatch")
+        _validate_json_value(document)
+        as_of = datetime.date.fromisoformat(str(document["as_of"]))
+        if as_of > generated_at.astimezone(TAIPEI).date():
+            raise ValueError("artifact date is in the future")
+    except (KeyError, OSError, TypeError, UnicodeError, ValueError) as exc:
+        raise RuntimeError(f"artifact is invalid for {market}:{symbol}") from exc
+    return path, compressed, document
+
+
+def publish_market_snapshot(root, market, symbols, generated_at=None):
+    if market not in ("TW", "US"):
+        raise ValueError("unsupported market")
+    symbols = sorted({validate_market_symbol(market, symbol) for symbol in symbols})
+    if not symbols:
+        raise ValueError("market universe is empty")
+    generated_at = generated_at or datetime.datetime.now(TAIPEI)
+    if generated_at.tzinfo is None:
+        generated_at = generated_at.replace(tzinfo=TAIPEI)
+    generated_text = generated_at.astimezone(datetime.timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
+    publish_root = Path(root) / "publish" / "quant" / "v1"
+    object_root = publish_root / "objects"
+    entries = {}
+    market_dates = []
+    for symbol in symbols:
+        _path, compressed, document = _validated_artifact(
+            root, market, symbol, generated_at
+        )
+        digest = hashlib.sha256(compressed).hexdigest()
+        object_path = object_root / f"{digest}.json.gz"
+        if object_path.exists():
+            if (
+                object_path.stat().st_size != len(compressed)
+                or _sha256_path(object_path) != digest
+            ):
+                raise RuntimeError("published object hash mismatch")
+            os.utime(object_path, None)
+        else:
+            _write_bytes_atomic(object_path, compressed)
+        market_dates.append(document["as_of"])
+        entries[symbol] = {
+            "path": f"objects/{digest}.json.gz",
+            "sha256": digest,
+            "size": len(compressed),
+            "as_of": document["as_of"],
+            "model_version": str(document.get("model_version") or "unknown"),
+        }
+
+    manifest = {
+        "schema_version": 1,
+        "market": market,
+        "generated_at": generated_text,
+        "symbol_count": len(entries),
+        "market_as_of": max(market_dates),
+        "symbols": entries,
+    }
+    manifest_bytes = json.dumps(
+        manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    manifest_digest = hashlib.sha256(manifest_bytes).hexdigest()
+    run_id = generated_at.astimezone(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    manifest_name = f"{market}-{run_id}-{manifest_digest[:12]}.json"
+    manifest_path = publish_root / "manifests" / manifest_name
+    if manifest_path.exists():
+        if manifest_path.read_bytes() != manifest_bytes:
+            raise RuntimeError("immutable manifest conflict")
+    else:
+        _write_bytes_atomic(manifest_path, manifest_bytes)
+
+    latest_path = publish_root / f"latest-{market}.json"
+    _write_json_atomic(
+        latest_path,
+        {
+            "schema_version": 1,
+            "market": market,
+            "generated_at": generated_text,
+            "manifest": f"manifests/{manifest_name}",
+            "manifest_sha256": manifest_digest,
+        },
+    )
+    return latest_path
+
+
 def run_market_batch(
     root,
     market,
@@ -321,35 +452,42 @@ def run_market_batch(
         raise ValueError("invalid market batch settings")
     checkpoint = load_checkpoint(root, market=market)
     checked_at = now_fn()
+    same_batch = (
+        checkpoint.get("stage") == "market_batch"
+        and checkpoint.get("market") == market
+    )
     start = (
         checkpoint.get("next_index", 0)
-        if checkpoint.get("stage") == "market_batch"
-        and checkpoint.get("market") == market
+        if same_batch
         else 0
     )
+    symbol_set = {str(symbol) for symbol in symbols}
+    failures = []
+    seen_failures = set()
+    if same_batch:
+        for item in checkpoint.get("failed", []):
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol", ""))
+            if symbol not in symbol_set or symbol in seen_failures:
+                continue
+            failures.append({"symbol": symbol, "error": str(item.get("error") or "Error")})
+            seen_failures.add(symbol)
     if (
         start >= len(symbols)
+        and not failures
         and checkpoint.get("cycle_completed_on") != checked_at.date().isoformat()
+        and (
+            not checkpoint.get("cycle_completed_on")
+            or checkpoint.get("published_cycle_on")
+            == checkpoint.get("cycle_completed_on")
+        )
     ):
         start = 0
     next_index = start
     attempted = completed = 0
-    failures = []
-    for index in range(start, min(len(symbols), start + limit)):
-        if index != start:
-            checked_at = now_fn()
-        if window_phase(checked_at) != "run":
-            break
-        symbol = str(symbols[index])
-        attempted += 1
-        try:
-            payload = analyze_symbol(symbol)
-        except Exception as exc:
-            failures.append({"symbol": symbol, "error": type(exc).__name__})
-        else:
-            write_stock_artifact(root, market, symbol, payload)
-            completed += 1
-        next_index = index + 1
+
+    def save_state():
         state = {
             "stage": "market_batch",
             "market": market,
@@ -357,9 +495,46 @@ def run_market_batch(
             "failed": failures,
             "updated_at": checked_at.isoformat(),
         }
-        if next_index >= len(symbols):
+        if next_index >= len(symbols) and not failures:
             state["cycle_completed_on"] = checked_at.date().isoformat()
         save_checkpoint(root, state, market=market)
+
+    for retry in list(failures):
+        if attempted:
+            checked_at = now_fn()
+        if window_phase(checked_at) != "run":
+            break
+        symbol = retry["symbol"]
+        attempted += 1
+        failures = [item for item in failures if item["symbol"] != symbol]
+        try:
+            payload = analyze_symbol(symbol)
+        except Exception as exc:
+            failures.append({"symbol": symbol, "error": type(exc).__name__})
+        else:
+            write_stock_artifact(root, market, symbol, payload)
+            completed += 1
+        save_state()
+        if delay:
+            sleep_fn(delay)
+
+    while attempted < limit and next_index < len(symbols):
+        if attempted:
+            checked_at = now_fn()
+        if window_phase(checked_at) != "run":
+            break
+        symbol = str(symbols[next_index])
+        attempted += 1
+        try:
+            payload = analyze_symbol(symbol)
+        except Exception as exc:
+            failures = [item for item in failures if item["symbol"] != symbol]
+            failures.append({"symbol": symbol, "error": type(exc).__name__})
+        else:
+            write_stock_artifact(root, market, symbol, payload)
+            completed += 1
+        next_index += 1
+        save_state()
         if delay:
             sleep_fn(delay)
     return {
@@ -590,7 +765,7 @@ def main(argv=None, now=None, free_bytes=None):
                         if market == "TW"
                         else get_us_symbols(root, now=market_now)
                     )
-                    summaries[market] = run_market_batch(
+                    summary = run_market_batch(
                         root,
                         market,
                         symbols,
@@ -601,6 +776,21 @@ def main(argv=None, now=None, free_bytes=None):
                         now_fn=now_fn,
                         delay=args.delay,
                     )
+                    if (
+                        summary.get("next_index", 0) >= len(symbols)
+                        and not summary.get("failed")
+                    ):
+                        publish_market_snapshot(
+                            root, market, symbols, generated_at=market_now
+                        )
+                        checkpoint = load_checkpoint(root, market=market)
+                        cycle_completed_on = checkpoint.get("cycle_completed_on")
+                        if cycle_completed_on:
+                            checkpoint["published_cycle_on"] = cycle_completed_on
+                            checkpoint["published_at"] = market_now.isoformat()
+                            save_checkpoint(root, checkpoint, market=market)
+                        summary["published"] = True
+                    summaries[market] = summary
                 print(json.dumps(summaries, ensure_ascii=False, separators=(",", ":")))
         print(f"local quant phase={phase} free_gb={available / 1024**3:.1f}")
         return 0
