@@ -220,6 +220,15 @@ class LocalQuantTests(unittest.TestCase):
             )()
             with (
                 patch("local_quant.validate_data_root", return_value=root),
+                patch(
+                    "local_quant.cleanup_expired_data",
+                    return_value={
+                        "deleted_files": 1,
+                        "reclaimed_bytes": 10,
+                        "failed": 0,
+                        "skipped_reparse_points": 0,
+                    },
+                ) as cleanup,
                 patch("local_quant.load_stock_pipeline", return_value=pipeline) as loader,
                 patch("local_quant.run_market_batch", return_value={"attempted": 2}) as batch,
             ):
@@ -233,11 +242,17 @@ class LocalQuantTests(unittest.TestCase):
                 )
 
             self.assertEqual(result, 0)
+            cleanup.assert_called_once_with(root, now=at(6, 0))
             loader.assert_called_once_with(root)
             self.assertEqual(batch.call_args.args[2], ["2317", "2330"])
+            status = json.loads(
+                (root / "logs" / "runner-status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(status["cleanup"]["deleted_files"], 1)
 
             with (
                 patch("local_quant.validate_data_root", return_value=root),
+                patch("local_quant.cleanup_expired_data") as closed_cleanup,
                 patch("local_quant.load_stock_pipeline") as closed_loader,
             ):
                 result = main(
@@ -246,6 +261,7 @@ class LocalQuantTests(unittest.TestCase):
                     free_bytes=200 * 1024**3,
                 )
             self.assertEqual(result, 0)
+            closed_cleanup.assert_not_called()
             closed_loader.assert_not_called()
 
 

@@ -434,17 +434,16 @@ def main(argv=None, now=None, free_bytes=None):
         available = check_free_space(root, args.min_free_gb, free_bytes)
         checked_at = now or datetime.datetime.now(TAIPEI)
         phase = window_phase(checked_at)
-        _write_json_atomic(
-            root / "logs" / "runner-status.json",
-            {
-                "checked_at": checked_at.isoformat(),
-                "dry_run": bool(args.dry_run),
-                "run": bool(args.run),
-                "free_gb": round(available / 1024**3, 1),
-                "phase": phase,
-                "root": str(root),
-            },
-        )
+        status = {
+            "checked_at": checked_at.isoformat(),
+            "dry_run": bool(args.dry_run),
+            "run": bool(args.run),
+            "free_gb": round(available / 1024**3, 1),
+            "phase": phase,
+            "root": str(root),
+        }
+        status_path = root / "logs" / "runner-status.json"
+        _write_json_atomic(status_path, status)
         if args.dry_run and args.run:
             raise ValueError("choose either --dry-run or --run")
         if not args.dry_run and not args.run:
@@ -457,6 +456,8 @@ def main(argv=None, now=None, free_bytes=None):
                 )
         elif args.run and phase == "run":
             with acquire_lock(root, now=checked_at):
+                status["cleanup"] = cleanup_expired_data(root, now=checked_at)
+                _write_json_atomic(status_path, status)
                 pipeline = load_stock_pipeline(root)
                 symbols = get_taiwan_symbols(pipeline)
                 now_fn = (
