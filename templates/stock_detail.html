@@ -3,12 +3,12 @@
 {% block head %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>{% endblock %}
 {% block content %}
 <div class="page stock-page" data-stock-code="{{ d.code }}" data-stock-name="{{ d.name }}" data-stock-price="{{ '%.2f'|format(d.price) }}" data-stock-prob="{{ d.prob }}">
-  <header class="stock-hero">
+  <header class="stock-hero" id="summary">
     <div class="hero-copy">
       <a class="back-link" href="{{ url_for('dashboard_page') }}">返回市場首頁</a>
       <p class="eyebrow">{{ d.code }}</p>
       <h1>{{ d.name }}</h1>
-      <p class="muted">最新收盤 {{ '%.2f'|format(d.price) }} · {{ d.trend }}。先看結論，再往下看圖表與新聞。</p>
+      <p class="muted">最新收盤 {{ '%.2f'|format(d.price) }} · 資料日 {{ d.get('as_of', '待更新') }} · {{ d.trend }}。先看結論，再往下看圖表與新聞。</p>
     </div>
     <section class="summary-strip glass-panel" aria-label="預測摘要">
       <article class="summary-card confidence-card"><span>五日上漲機率</span><strong>{{ d.prob }}%</strong><div class="confidence-track"><i style="width:{{ d.prob }}%"></i></div><small>模型機率，不代表保證獲利</small></article>
@@ -18,7 +18,18 @@
     </section>
   </header>
 
-  <section class="panel chart-shell">
+  <nav class="page-jump-nav glass-panel" aria-label="個股分析快速導覽">
+    <a href="#summary">摘要</a><a href="#chart">圖表</a><a href="#calculator">試算</a><a href="#backtest">回測</a><a href="#sentiment">情緒</a><a href="#risk">風險</a>
+  </nav>
+
+  <section class="panel decision-panel" aria-labelledby="decision-title">
+    <div><p class="eyebrow">PAPI VIEW</p><h2 id="decision-title">Papi 判讀</h2></div>
+    {% if d.prob >= 60 and d.trend == '多頭' %}<p>機率與技術趨勢同向，可列入優先觀察；下決定前仍要確認回測、情緒分歧與最大回撤。</p>
+    {% elif d.prob < 45 or d.trend == '空頭' %}<p>目前訊號偏保守，先控制部位並等待趨勢改善，不要只因單一指標搶進。</p>
+    {% else %}<p>目前訊號沒有明顯優勢，適合繼續觀察，並用回測與風險資料確認是否值得承擔波動。</p>{% endif %}
+  </section>
+
+  <section class="panel chart-shell" id="chart">
     <div class="section-heading"><div><p class="eyebrow">PRICE & FORECAST</p><h2>價格與預測軌跡</h2></div><div class="segmented glass-segmented" aria-label="圖表顯示期間"><button type="button" data-chart-range="30" aria-pressed="false">1月</button><button type="button" class="active" data-chart-range="90" aria-pressed="true">3月</button><button type="button" data-chart-range="260" aria-pressed="false">1年</button></div></div>
     <div id="stock-chart" class="stock-chart" aria-label="{{ d.name }}互動式價格圖"></div>
   </section>
@@ -26,9 +37,14 @@
   {% set projection = d.projection %}
   {% set foreign = d.foreign_flow %}
   <div class="analysis-grid">
-    <section class="panel calculator-panel" data-return-calculator data-price="{{ '%.4f'|format(d.price) }}" data-strategy-return="{{ '%.6f'|format(d.bt.strat_cum) }}" data-buyhold-return="{{ '%.6f'|format(d.bt.bh_cum) }}">
+    <section class="panel calculator-panel" id="calculator" data-return-calculator data-price="{{ '%.4f'|format(d.price) }}" data-strategy-return="{{ '%.6f'|format(d.bt.strat_cum) }}" data-buyhold-return="{{ '%.6f'|format(d.bt.bh_cum) }}">
       <div class="section-heading"><div><p class="eyebrow">RETURN CHECK</p><h2>投資金額試算</h2></div></div>
       <label class="amount-field">投入金額<input type="number" min="0" step="1000" value="100000" data-investment-amount></label>
+      <div class="preset-row" aria-label="快速選擇投入金額">
+        <button type="button" data-amount-preset="10000">1 萬</button>
+        <button type="button" data-amount-preset="50000">5 萬</button>
+        <button type="button" data-amount-preset="100000">10 萬</button>
+      </div>
       <div class="indicator-grid">
         <article><span>約可買股數</span><strong data-shares>{{ projection.shares if projection.ok else '—' }}</strong><small>以最新收盤價估算</small></article>
         <article><span>實際投入</span><strong data-deployed>{{ '{:,.0f}'.format(projection.deployed_amount) if projection.ok else '—' }}</strong><small>不含手續費與稅</small></article>
@@ -46,6 +62,18 @@
       </div>
     </section>
   </div>
+
+  <section class="panel backtest-panel" id="backtest">
+    <div class="section-heading"><div><p class="eyebrow">BACKTEST</p><h2>歷史回測摘要</h2></div><span class="muted small">Out-of-Sample，近 {{ d.bt.days }} 日</span></div>
+    <div class="indicator-grid wide-indicator-grid">
+      <article><span>AI 策略報酬</span><strong>{{ '%.2f'|format(d.bt.strat_cum) }}%</strong><small>已扣估計交易成本</small></article>
+      <article><span>買進持有報酬</span><strong>{{ '%.2f'|format(d.bt.bh_cum) }}%</strong><small>同一歷史區間</small></article>
+      <article><span>交易勝率</span><strong>{{ '%.1f'|format(d.bt.win_rate) }}%</strong><small>{{ d.bt.trades }} 次訊號</small></article>
+      <article><span>最大回撤</span><strong>{{ '%.2f'|format(d.bt.mdd) }}%</strong><small>歷史最大資金跌幅</small></article>
+      <article><span>風險效率</span><strong>{{ '%.2f'|format(d.bt.sharpe) }}</strong><small>Sharpe Ratio</small></article>
+      <article><span>機率校準</span><strong>{{ '%.3f'|format(d.bt.brier) }}</strong><small>Brier 越低越好</small></article>
+    </div>
+  </section>
 
   <div class="analysis-grid">
     <section class="panel">
@@ -66,9 +94,21 @@
     </section>
   </div>
 
-  <section class="panel risk-panel"><div><p class="eyebrow">RISK CHECK</p><h2>風險提醒</h2></div><p>{{ d.bt.conclusion }}</p><ul><li>預測期間為五個交易日，短線波動可能偏離模型。</li><li>交易成本與突發事件可能降低實際績效。</li><li>請搭配部位控管，不要只依單一機率下單。</li></ul></section>
+  <section class="panel sentiment-panel" id="sentiment">
+    <div class="section-heading"><div><p class="eyebrow">SENTIMENT DETAIL</p><h2>情緒量化拆解</h2></div><strong>{{ d.s_status }}・{{ '%.0f'|format(d.s_score) }}</strong></div>
+    <div class="indicator-grid wide-indicator-grid">
+      <article><span>情緒動能</span><strong>{% if d.get('news_momentum_data_sufficient') %}{{ '%+.0f'|format(d.get('news_momentum', 0)) }}{% else %}資料不足{% endif %}</strong><small>近 24 小時相對較早消息</small></article>
+      <article><span>情緒波動</span><strong>{{ '%.0f'|format(d.get('news_weighted_volatility', 0)) }}</strong><small>越高代表觀點變化越大</small></article>
+      <article><span>正負分歧</span><strong>{{ '%.0f'|format(d.get('news_disagreement', 0)) }}</strong><small>越高代表市場看法越分散</small></article>
+      <article><span>有效樣本</span><strong>{{ '%.1f'|format(d.get('news_effective_sample_size', 0)) }}</strong><small>校正權重集中後的樣本量</small></article>
+      <article><span>發布者</span><strong>{{ d.get('news_publisher_count', 0) }}</strong><small>去重後新聞來源</small></article>
+      <article><span>資料完整度</span><strong>{% if d.get('news_count', d.news|length) %}{{ '%.0f'|format((1 - d.get('news_missing_metadata_ratio', 0)) * 100) }}%{% else %}資料不足{% endif %}</strong><small>來源與時間欄位完整程度</small></article>
+    </div>
+  </section>
 
-  <section class="panel"><div class="section-heading"><div><p class="eyebrow">NEWS & SENTIMENT</p><h2>近期新聞與輿論</h2></div><span class="muted small">{{ d.get('news_count', d.news|length) }} 則{% if d.get('news_source_count') %}｜{{ d.news_source_count }} 個來源{% endif %}{% if d.get('social_sample_size') %}｜社群 {{ d.social_sample_size }} 則{% endif %}｜正面 {{ (d.get('news_positive_ratio', 0) * 100)|round|int }}%｜負面 {{ (d.get('news_negative_ratio', 0) * 100)|round|int }}%｜情緒不修改模型機率</span></div><div class="news-list">{% for item in d.news %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer"><span>{{ item.normalized_title or item.title }}</span><small class="muted" style="display:block;margin-top:5px">{{ item.source or '來源未知' }} · {{ item.published_at[:10] if item.published_at else '時間未知' }} · {{ '正向' if item.direction == 'positive' else '負向' if item.direction == 'negative' else '中性' }}</small></a>{% else %}<div class="empty-state">目前沒有相關新聞或輿論</div>{% endfor %}</div></section>
+  <section class="panel risk-panel" id="risk"><div><p class="eyebrow">RISK CHECK</p><h2>風險提醒</h2></div><p>{{ d.bt.conclusion }}</p><ul><li>預測期間為五個交易日，短線波動可能偏離模型。</li><li>交易成本與突發事件可能降低實際績效。</li><li>請搭配部位控管，不要只依單一機率下單。</li></ul></section>
+
+  <section class="panel news-panel"><div class="section-heading"><div><p class="eyebrow">NEWS & SENTIMENT</p><h2>近期新聞與輿論</h2></div><span class="muted small">{{ d.get('news_count', d.news|length) }} 則{% if d.get('news_publisher_count') %}｜{{ d.news_publisher_count }} 個發布者{% endif %}{% if d.get('social_sample_size') %}｜社群 {{ d.social_sample_size }} 則{% endif %}｜情緒不修改模型機率</span></div><div class="filter-row" aria-label="新聞情緒篩選"><button type="button" class="active" data-news-filter="all" aria-pressed="true">全部</button><button type="button" data-news-filter="positive" aria-pressed="false">正向</button><button type="button" data-news-filter="negative" aria-pressed="false">負向</button><button type="button" data-news-filter="neutral" aria-pressed="false">中性</button></div><div class="news-list">{% for item in d.news %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer" data-news-direction="{{ item.direction }}"><span>{{ item.normalized_title or item.title }}</span><small class="muted" style="display:block;margin-top:5px">{{ item.source or '來源未知' }} · {{ item.published_at[:10] if item.published_at else '時間未知' }} · {{ '正向' if item.direction == 'positive' else '負向' if item.direction == 'negative' else '中性' }}</small></a>{% else %}<div class="empty-state">目前沒有相關新聞或輿論</div>{% endfor %}<div class="empty-state" data-news-filter-empty hidden>此分類目前沒有新聞。</div></div></section>
 
   <script id="stock-chart-data" type="application/json">{{ {"candles": d.candles, "ma20": d.ma20_line, "prediction": d.pred}|tojson }}</script>
 </div>

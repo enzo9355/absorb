@@ -24,7 +24,7 @@ import google.generativeai as genai
 
 from sklearn.model_selection import TimeSeriesSplit
 from lightgbm import LGBMClassifier
-from flask import Flask, request, abort, render_template, jsonify, redirect
+from flask import Flask, request, abort, render_template, jsonify, redirect, url_for
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -216,6 +216,7 @@ def get_stock_name(code):
 
 def search_stock_code(keyword):
     keyword = keyword.upper().strip()
+    if not keyword: return None, None
     if keyword in ["TAIEX", "加權指數", "台股大盤", "大盤"]: return "TAIEX", "台股大盤"
     if keyword.isdigit(): return keyword, get_stock_name(keyword)
     if is_us_ticker(keyword): return keyword, get_stock_name(keyword)
@@ -2909,13 +2910,29 @@ def build_sector_signal_carousel(category, items):
 
 
 @app.route("/")
-def home():
-    """健康檢查端點：給外部監控服務敲擊，防止 Render 休眠"""
-    return "AI Stock Bot is awake and running!", 200
-
 @app.route("/dashboard")
 def dashboard_page():
-    return render_template("dashboard.html")
+    return render_template(
+        "dashboard.html",
+        search_query=request.args.get("q", "").strip(),
+        search_error=request.args.get("error") == "not-found",
+    )
+
+
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
+
+
+@app.route("/search")
+def search_page():
+    query = request.args.get("q", "").strip()
+    code, _name = search_stock_code(query)
+    if code:
+        return redirect(url_for("stock_page", code=code), code=302)
+    return redirect(
+        url_for("dashboard_page", q=query, error="not-found"), code=302
+    )
 
 @app.route("/watchlist")
 def watchlist_page():
@@ -2936,6 +2953,10 @@ def dashboard_api():
             "price": float(market["price"]),
             "prob": int(market["prob"]),
             "trend": market["trend"],
+            "as_of": str(market.get("as_of") or ""),
+            "sentiment_status": str(market.get("s_status") or "資料不足"),
+            "sentiment_score": round(_safe_float(market.get("s_score")), 1),
+            "confidence": str(market.get("news_confidence") or "低"),
         },
         "opportunities": cached_opportunities(),
         "sector_cards": sector_cards,

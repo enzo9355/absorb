@@ -135,6 +135,35 @@ a{color:inherit}
   border:1px solid rgba(203,185,164,.72);
   font-weight:700;
 }
+.stock-search{margin-top:22px}
+.search-label{display:block;margin-bottom:8px;color:var(--muted);font-size:13px;font-weight:700}
+.search-control{
+  display:flex;
+  gap:10px;
+  padding:8px;
+  border-radius:20px;
+}
+.search-control input{
+  min-width:0;
+  flex:1;
+  min-height:46px;
+  padding:10px 14px;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:var(--text);
+  font:inherit;
+}
+.search-control button{
+  min-height:46px;
+  padding:10px 18px;
+  border:0;
+  border-radius:15px;
+  background:var(--mint);
+  color:#1d1915;
+  font:700 14px/1 var(--font-body);
+  cursor:pointer;
+}
 .pulse-grid,.learn-grid{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
@@ -226,6 +255,7 @@ a{color:inherit}
   color:var(--muted);
 }
 .stock-page{display:grid;gap:16px}
+.stock-page [id]{scroll-margin-top:84px}
 .stock-hero{
   display:grid;
   grid-template-columns:1.05fr .95fr;
@@ -239,6 +269,31 @@ a{color:inherit}
   font-size:13px;
   text-decoration:none;
 }
+.page-jump-nav{
+  position:sticky;
+  z-index:12;
+  top:12px;
+  display:flex;
+  gap:8px;
+  padding:8px;
+  border-radius:20px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.page-jump-nav::-webkit-scrollbar{display:none}
+.page-jump-nav a{
+  flex:0 0 auto;
+  min-height:40px;
+  padding:10px 14px;
+  border-radius:14px;
+  color:var(--muted);
+  text-decoration:none;
+  white-space:nowrap;
+}
+.page-jump-nav a:hover{background:rgba(255,250,244,.82);color:var(--text)}
+.decision-panel{display:grid;grid-template-columns:.35fr 1fr;gap:22px;align-items:center}
+.decision-panel h2{margin:4px 0 0}
+.decision-panel p{margin:0;color:var(--muted);line-height:1.8}
 .summary-strip{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
@@ -308,6 +363,7 @@ a{color:inherit}
   gap:10px;
   margin-top:16px;
 }
+.wide-indicator-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .explain-panel details{
   border-top:1px solid rgba(203,185,164,.58);
   padding:14px 0;
@@ -365,6 +421,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
   color:var(--text);
   font:inherit;
 }
+.preset-row,.filter-row{display:flex;flex-wrap:wrap;gap:8px}
+.preset-row{margin:-4px 0 16px}
+.filter-row{margin-top:16px}
+.preset-row button,.filter-row button{
+  min-height:40px;
+  padding:8px 14px;
+  border:1px solid rgba(203,185,164,.72);
+  border-radius:999px;
+  background:rgba(255,255,255,.62);
+  color:var(--muted);
+  font:700 13px/1 var(--font-body);
+  cursor:pointer;
+}
+.preset-row button:hover,.filter-row button:hover,.filter-row button.active{
+  background:var(--mint);
+  color:#1d1915;
+}
+.backtest-panel,.sentiment-panel{overflow:hidden}
 .calculator-panel .small,.foreign-panel .small{margin-top:12px;line-height:1.7}
 @keyframes pulse{to{background-position:-200% 0}}
 @media(max-width:1100px){
@@ -374,13 +448,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
   .pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid{grid-template-columns:1fr 1fr}
   .summary-strip,.indicator-grid{grid-template-columns:1fr 1fr}
   .section-heading{align-items:flex-start;flex-direction:column}
+  .wide-indicator-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:760px){
   .sidebar{display:none}
   .main-content{margin-left:0}
   .page{padding:22px 16px 92px}
   .hero-search,.summary-strip{padding:20px}
-  .hero-shortcuts,.pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid,.summary-strip,.indicator-grid{grid-template-columns:1fr}
+  .hero-shortcuts,.pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid,.summary-strip,.indicator-grid,.wide-indicator-grid,.decision-panel{grid-template-columns:1fr}
   .mobile-nav{
     position:fixed;
     z-index:20;
@@ -398,6 +473,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
   .panel{padding:18px}
   .page-header h1,.hero-copy h1,.stock-hero h1{font-size:27px}
   .section-heading h2{font-size:20px}
+  .search-control{display:grid}
+  .search-control button{width:100%}
 }
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}

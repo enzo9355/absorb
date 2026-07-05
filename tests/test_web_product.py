@@ -13,6 +13,7 @@ import app as stock_app
 def analysis_data():
     return {
         "name": "台積電", "code": "2330", "price": 100.0, "prob": 63,
+        "as_of": "2026-07-03",
         "trend": "多頭", "rsi": 58.0, "ma20": 98.0, "macd_osc": 0.3,
         "k": 62.0, "d": 54.0, "s_score": 55.0, "s_status": "中性",
         "candles": "[]", "ma20_line": "[]", "prob_h": "[]", "pred": "[]",
@@ -37,6 +38,30 @@ def analysis_data():
 
 
 class WebProductTests(unittest.TestCase):
+    def test_root_renders_dashboard_and_search_redirects_known_stock(self):
+        client = stock_app.app.test_client()
+
+        root = client.get("/")
+        with patch.object(
+            stock_app,
+            "search_stock_code",
+            side_effect=[("2330", "台積電"), (None, None)],
+        ):
+            found = client.get("/search?q=台積電")
+            missing = client.get("/search?q=不存在股票", follow_redirects=True)
+
+        self.assertEqual(root.status_code, 200)
+        self.assertIn("Stock Papi", root.get_data(as_text=True))
+        self.assertEqual(found.status_code, 302)
+        self.assertTrue(found.headers["Location"].endswith("/stock/2330"))
+        self.assertIn("找不到", missing.get_data(as_text=True))
+
+    def test_empty_search_stays_on_dashboard_with_clear_error(self):
+        response = stock_app.app.test_client().get("/search?q=", follow_redirects=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("找不到", response.get_data(as_text=True))
+
     def test_base_shell_uses_stock_papi_brand_and_light_theme(self):
         response = stock_app.app.test_client().get("/dashboard")
         html = response.get_data(as_text=True)
@@ -66,10 +91,32 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('data-top-picks', html)
         self.assertIn('data-watchlist-strip', html)
 
+    def test_dashboard_has_real_search_and_section_navigation(self):
+        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
+
+        for marker in (
+            'action="/search"',
+            'name="q"',
+            'id="market-pulse"',
+            'id="industry-forecast"',
+            'id="top-picks"',
+            'id="learn"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
+
     @patch.object(stock_app, "analyze")
     @patch.object(stock_app, "load_sector_signal_snapshot")
     def test_dashboard_api_returns_sector_cards_and_top_picks(self, load_snapshot, analyze):
-        analyze.return_value = {"price": 23150.0, "prob": 58, "trend": "多頭"}
+        analyze.return_value = {
+            "price": 23150.0,
+            "prob": 58,
+            "trend": "多頭",
+            "as_of": "2026-07-03",
+            "s_status": "偏多",
+            "s_score": 63.0,
+            "news_confidence": "中",
+        }
         load_snapshot.return_value = {
             "sectors": {
                 "半導體": [{
@@ -97,6 +144,8 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["market"]["price"], 23150.0)
+        self.assertEqual(payload["market"]["as_of"], "2026-07-03")
+        self.assertEqual(payload["market"]["sentiment_status"], "偏多")
         self.assertEqual([item["code"] for item in payload["opportunities"]], ["2330", "2317"])
         self.assertEqual(payload["sector_cards"][0]["name"], "半導體")
         self.assertEqual(payload["sector_cards"][0]["leader"]["code"], "2330")
@@ -135,6 +184,27 @@ class WebProductTests(unittest.TestCase):
             self.assertIn(label, html)
         self.assertIn("glass-segmented", html)
         self.assertIn("chart-shell", html)
+
+    @patch.object(stock_app, "analyze", return_value=analysis_data())
+    def test_stock_page_has_guided_analysis_controls(self, _analyze):
+        html = stock_app.app.test_client().get("/stock/2330").get_data(as_text=True)
+
+        for marker in (
+            'class="page-jump-nav',
+            'data-amount-preset="10000"',
+            'data-amount-preset="50000"',
+            'data-amount-preset="100000"',
+            'id="backtest"',
+            'id="sentiment"',
+            'data-news-filter="positive"',
+            "Papi 判讀",
+            "情緒動能",
+            "最大回撤",
+            "資料日 2026-07-03",
+            "資料完整度</span><strong>資料不足",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, html)
 
     def test_web_is_analysis_only_and_old_watchlist_redirects(self):
         client = stock_app.app.test_client()
@@ -220,6 +290,13 @@ class WebProductTests(unittest.TestCase):
         for removed in ["localStorage", "quant-watchlist", "data-alert-open", "data-alert-form"]:
             self.assertNotIn(removed, source)
         self.assertIn("initReturnCalculator", source)
+        self.assertIn("if (!entries.length) return", source)
+
+    def test_health_check_is_separate_from_dashboard(self):
+        response = stock_app.app.test_client().get("/healthz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_data(as_text=True), "ok")
 
     def test_stock_chart_is_clipped_and_resizes_with_its_panel(self):
         css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")

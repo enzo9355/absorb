@@ -3,11 +3,19 @@
 {% block nav_dashboard %}active{% endblock %}
 {% block content %}
 <div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
+  {% if search_error %}<div class="error-banner" role="alert">找不到「{{ search_query }}」，請輸入台股代碼、名稱或美股代碼。</div>{% endif %}
   <section class="hero-search glass-panel">
     <div class="hero-copy">
       <p class="eyebrow">STOCK PAPI</p>
       <h1>今天先看市場，再決定要不要出手。</h1>
-      <p class="muted">LINE 管理關注與提醒，網站只做更完整的分析、圖表與建議。</p>
+      <p class="muted">輸入股票後查看五日機率、互動圖表、歷史回測與新聞情緒。關注與提醒仍在 LINE 管理。</p>
+      <form class="stock-search" action="{{ url_for('search_page') }}" method="get" role="search">
+        <label class="search-label" for="stock-search">搜尋股票</label>
+        <div class="search-control glass-panel">
+          <input id="stock-search" name="q" value="{{ search_query }}" placeholder="輸入 2330、台積電或 AAPL" autocomplete="off" required>
+          <button type="submit">查看分析</button>
+        </div>
+      </form>
     </div>
     <div class="hero-shortcuts" aria-label="常用捷徑">
       <a href="{{ url_for('stock_page', code='2330') }}">台積電</a>
@@ -16,7 +24,7 @@
     </div>
   </section>
 
-  <section class="panel pulse-panel" aria-labelledby="market-title">
+  <section class="panel pulse-panel" id="market-pulse" aria-labelledby="market-title">
     <div class="section-heading">
       <div><p class="eyebrow">MARKET PULSE</p><h2 id="market-title">市場摘要</h2></div>
       <span class="status-dot" aria-live="polite">更新中</span>
@@ -39,14 +47,14 @@
     <div class="forecast-grid" data-sector-grid></div>
   </section>
 
-  <section class="panel picks-panel" aria-labelledby="picks-title">
+  <section class="panel picks-panel" id="top-picks" aria-labelledby="picks-title">
     <div class="section-heading">
       <div><p class="eyebrow">TOP PICKS</p><h2 id="picks-title">精選標的</h2></div>
     </div>
     <div class="top-picks" data-top-picks></div>
   </section>
 
-  <section class="panel learn-panel" aria-labelledby="learn-title">
+  <section class="panel learn-panel" id="learn" aria-labelledby="learn-title">
     <div class="section-heading">
       <div><p class="eyebrow">LEARN</p><h2 id="learn-title">新手投資小辭典</h2></div>
     </div>

@@ -40,8 +40,9 @@
   - 估算約可買股數、AI 策略歷史損益、買進持有歷史損益
 
 - Web 完整分析頁
-  - `/dashboard`：市場摘要、LINE 管理關注說明、產業預測、精選標的、新手投資小辭典
-  - `/stock/<code>`：互動式 K 線圖、五日預測軌跡、技術指標、模型解釋、投資試算、外資買賣超、新聞與風險提示
+  - `/`、`/dashboard`：股票搜尋、市場摘要、LINE 管理關注說明、產業預測、精選標的、新手投資小辭典
+  - 搜尋支援台股代碼／名稱與美股代碼，例如 `2330`、`台積電`、`AAPL`
+  - `/stock/<code>`：快速導覽、Papi 判讀、互動式 K 線圖、五日預測軌跡、技術指標、投資金額快捷試算、歷史回測、外資買賣超、情緒量化拆解、新聞篩選與風險提示
   - `/market`：台股大盤分析
 
 ## 技術架構
@@ -65,14 +66,16 @@ Flask / Gunicorn on Cloud Run
 設計原則：
 
 - LINE 負責快速互動：關注、提醒、強勢訊號、投資試算入口。
-- Web 負責完整分析：圖表、回測、模型解釋、籌碼與風險提示。
+- Web 負責完整分析：搜尋、圖表、回測、模型解釋、籌碼、情緒與風險提示。
 - 避免增加重型 NLP / ML 套件，降低 Cloud Run 冷啟動與記憶體壓力。
 - Webhook 路徑保持輕量，避免 LINE 5 秒 timeout。
 
 ## Web 與 LINE 分工
 
 - LINE：加入關注、提醒管理、產業預測入口
-- Web：完整圖表、新聞／輿論情緒、回測與白話解讀
+- Web：股票搜尋、完整圖表、新聞／輿論情緒拆解、回測與白話解讀
+
+Web 不建立第二套登入、關注清單或提醒狀態。使用者在 LINE 管理個人功能，網站只呈現可分享的詳細分析，避免兩端資料不同步。
 
 ## 核心檔案
 
@@ -81,7 +84,7 @@ Flask / Gunicorn on Cloud Run
 | `app.py` | Flask app、LINE webhook、股票分析、Flex Message、Web routes |
 | `line_state.py` | LINE 使用者狀態、Firestore REST 存取、關注與提醒規則 |
 | `templates/` | Dashboard 與個股分析頁 |
-| `static/app.js` | Dashboard 載入、K 線圖、投資金額即時計算 |
+| `static/app.js` | Dashboard 載入、K 線圖、投資金額即時計算、新聞情緒篩選 |
 | `static/app.css` | Web UI 樣式 |
 | `tests/` | unittest 測試 |
 | `Dockerfile` | Cloud Run 部署映像 |

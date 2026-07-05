@@ -17,12 +17,12 @@ function renderDashboard(data) {
   const market = bySelector("[data-market-summary]");
   if (market) {
     market.innerHTML = `
-      <article class="pulse-card"><span>加權指數</span><strong>${data.market.price.toFixed(2)}</strong><small class="muted">先看盤勢，再決定要不要出手</small></article>
-      <article class="pulse-card"><span>五日上漲機率</span><strong>${data.market.prob}%</strong><small class="muted">用機率取代情緒化追價</small></article>
-      <article class="pulse-card"><span>技術趨勢</span><strong>${data.market.trend}</strong><small class="muted">搭配產業預測一起看</small></article>`;
+      <article class="pulse-card"><span>加權指數</span><strong>${data.market.price.toFixed(2)}</strong><small class="muted">資料日 ${data.market.as_of || "待更新"}</small></article>
+      <article class="pulse-card"><span>五日上漲機率</span><strong>${data.market.prob}%</strong><small class="muted">模型方向機率，情緒可信度${data.market.confidence || "低"}</small></article>
+      <article class="pulse-card"><span>市場判讀</span><strong>${data.market.trend}</strong><small class="muted">情緒 ${data.market.sentiment_status || "資料不足"}，再搭配產業預測</small></article>`;
   }
   const status = bySelector(".status-dot");
-  if (status) status.textContent = "已更新";
+  if (status) status.textContent = data.market.as_of ? `資料日 ${data.market.as_of}` : "已更新";
 
   const watchlist = bySelector("[data-watchlist-strip]");
   if (watchlist) {
@@ -35,9 +35,9 @@ function renderDashboard(data) {
   const forecasts = bySelector("[data-sector-grid]");
   if (forecasts) {
     const cards = data.sector_cards || [];
-    forecasts.innerHTML = cards.length ? cards.map((card) => `
+    forecasts.innerHTML = cards.length ? cards.map((card, index) => `
       <a class="forecast-card" href="${card.leader.code ? `/stock/${card.leader.code}` : '/dashboard'}">
-        <span>${card.name}</span>
+        <span>第 ${index + 1} 名・${card.name}</span>
         <strong>${card.leader.name || "等待更新"}</strong>
         <small>AI 勝率 ${card.leader.prob}%・${card.leader.trend}</small>
         <small>外資5日 ${Number(card.leader.foreign_net_5 || 0).toLocaleString("zh-TW")}・${card.leader.as_of || "快照待更新"}</small>
@@ -123,6 +123,35 @@ function initStockChart() {
 }
 
 document.addEventListener("click", (event) => {
+  const preset = event.target.closest("[data-amount-preset]");
+  if (preset) {
+    const input = bySelector("[data-investment-amount]", preset.closest("[data-return-calculator]"));
+    if (input) {
+      input.value = preset.dataset.amountPreset;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
+  const filter = event.target.closest("[data-news-filter]");
+  if (filter) {
+    const panel = filter.closest(".news-panel");
+    const entries = panel.querySelectorAll("[data-news-direction]");
+    if (!entries.length) return;
+    const direction = filter.dataset.newsFilter;
+    let visible = 0;
+    panel.querySelectorAll("[data-news-filter]").forEach((item) => {
+      const active = item === filter;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", active);
+    });
+    entries.forEach((item) => {
+      item.hidden = direction !== "all" && item.dataset.newsDirection !== direction;
+      if (!item.hidden) visible += 1;
+    });
+    const empty = bySelector("[data-news-filter-empty]", panel);
+    if (empty) empty.hidden = visible > 0;
+  }
+
   const range = event.target.closest("[data-chart-range]");
   if (!range) return;
   document.querySelectorAll("[data-chart-range]").forEach((item) => {
