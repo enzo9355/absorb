@@ -528,7 +528,7 @@ def main(argv=None, now=None, free_bytes=None):
     parser.add_argument("--init", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run", action="store_true")
-    parser.add_argument("--market", choices=("TW",), default="TW")
+    parser.add_argument("--market", choices=("TW", "US", "ALL"), default="TW")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--delay", type=float, default=0.5)
     parser.add_argument("--min-free-gb", type=float, default=100.0)
@@ -568,24 +568,34 @@ def main(argv=None, now=None, free_bytes=None):
                 status["cleanup"] = cleanup_expired_data(root, now=checked_at)
                 _write_json_atomic(status_path, status)
                 pipeline = load_stock_pipeline(root)
-                symbols = get_taiwan_symbols(pipeline)
                 now_fn = (
                     (lambda: checked_at)
                     if now is not None
                     else (lambda: datetime.datetime.now(TAIPEI))
                 )
-                summary = run_market_batch(
-                    root,
-                    args.market,
-                    symbols,
-                    lambda symbol: build_stock_snapshot(
-                        pipeline, args.market, symbol
-                    ),
-                    limit=args.limit,
-                    now_fn=now_fn,
-                    delay=args.delay,
-                )
-                print(json.dumps(summary, ensure_ascii=False, separators=(",", ":")))
+                summaries = {}
+                markets = ("TW", "US") if args.market == "ALL" else (args.market,)
+                for market in markets:
+                    market_now = now_fn()
+                    if window_phase(market_now) != "run":
+                        break
+                    symbols = (
+                        get_taiwan_symbols(pipeline)
+                        if market == "TW"
+                        else get_us_symbols(root, now=market_now)
+                    )
+                    summaries[market] = run_market_batch(
+                        root,
+                        market,
+                        symbols,
+                        lambda symbol, selected=market: build_stock_snapshot(
+                            pipeline, selected, symbol
+                        ),
+                        limit=args.limit,
+                        now_fn=now_fn,
+                        delay=args.delay,
+                    )
+                print(json.dumps(summaries, ensure_ascii=False, separators=(",", ":")))
         print(f"local quant phase={phase} free_gb={available / 1024**3:.1f}")
         return 0
     except (OSError, RuntimeError, TypeError, ValueError) as exc:

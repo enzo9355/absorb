@@ -69,7 +69,7 @@ class LocalQuantTaskTests(unittest.TestCase):
             "$env:PYTHONPATH",
             "--run",
             "--market",
-            "TW",
+            "ALL",
             "--limit",
             "5000",
             "--delay",
@@ -81,6 +81,7 @@ class LocalQuantTaskTests(unittest.TestCase):
         self.assertNotIn("GEMINI_API_KEY", source)
         self.assertNotIn("FINMIND_PASSWORD", source)
         self.assertNotIn("--limit 200", source)
+        self.assertNotIn("--market TW", source)
 
     def test_installer_schedules_wrapper_instead_of_embedding_market_arguments(self):
         source = INSTALLER.read_text(encoding="utf-8")

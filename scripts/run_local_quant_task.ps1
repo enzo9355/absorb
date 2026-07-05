@@ -26,5 +26,5 @@ $env:HF_HOME = Join-Path $CacheRoot 'huggingface'
 $env:PYTHONPYCACHEPREFIX = Join-Path $CacheRoot 'pycache'
 $env:PYTHONPATH = Join-Path $RepoRoot '.deps'
 
-& $PythonExe $Runner --root $DataRoot --run --market TW --limit 5000 --delay 0.5
+& $PythonExe $Runner --root $DataRoot --run --market ALL --limit 5000 --delay 0.5
 exit $LASTEXITCODE

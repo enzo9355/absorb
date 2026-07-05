@@ -264,6 +264,46 @@ class LocalQuantTests(unittest.TestCase):
             closed_cleanup.assert_not_called()
             closed_loader.assert_not_called()
 
+    def test_cli_all_runs_taiwan_then_us_with_independent_batches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            pipeline = type("Pipeline", (), {"industry_map": {"全市場": ["2330"]}})()
+            with (
+                patch("local_quant.validate_data_root", return_value=root),
+                patch(
+                    "local_quant.cleanup_expired_data",
+                    return_value={
+                        "deleted_files": 0,
+                        "reclaimed_bytes": 0,
+                        "failed": 0,
+                        "skipped_reparse_points": 0,
+                    },
+                ),
+                patch("local_quant.load_stock_pipeline", return_value=pipeline) as loader,
+                patch("local_quant.get_us_symbols", return_value=["AAPL"]) as us_symbols,
+                patch(
+                    "local_quant.run_market_batch",
+                    side_effect=[{"attempted": 1}, {"attempted": 1}],
+                ) as batch,
+            ):
+                result = main(
+                    [
+                        "--root", str(root), "--run", "--market", "ALL",
+                        "--limit", "5000", "--delay", "0",
+                    ],
+                    now=at(6, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            loader.assert_called_once_with(root)
+            us_symbols.assert_called_once_with(root, now=at(6, 0))
+            self.assertEqual(
+                [(call.args[1], call.args[2]) for call in batch.call_args_list],
+                [("TW", ["2330"]), ("US", ["AAPL"])],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
