@@ -26,5 +26,15 @@ $env:HF_HOME = Join-Path $CacheRoot 'huggingface'
 $env:PYTHONPYCACHEPREFIX = Join-Path $CacheRoot 'pycache'
 $env:PYTHONPATH = Join-Path $RepoRoot '.deps'
 
-& $PythonExe $Runner --root $DataRoot --run --market ALL --limit 5000 --delay 0.5
+& $PythonExe $Runner --root $DataRoot --run --market TW --limit 5000 --delay 0.5
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$Now = Get-Date
+$UsStart = $Now.Date.AddHours(5).AddMinutes(30)
+if ($Now -lt $UsStart) {
+    $WaitSeconds = [Math]::Ceiling(($UsStart - $Now).TotalSeconds)
+    Start-Sleep -Seconds $WaitSeconds
+}
+
+& $PythonExe $Runner --root $DataRoot --run --market US --limit 5000 --delay 0.5
 exit $LASTEXITCODE

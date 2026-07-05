@@ -16,8 +16,9 @@ class LocalQuantTaskTests(unittest.TestCase):
             "NTFS",
             "$MinimumFreeGB = 100",
             "$MinimumFreeGB * 1GB",
-            "05:30",
+            "02:30",
             "ExecutionTimeLimit",
+            "New-TimeSpan -Hours 7",
             "MultipleInstances IgnoreNew",
             "Priority 7",
             "StartWhenAvailable",
@@ -69,7 +70,6 @@ class LocalQuantTaskTests(unittest.TestCase):
             "$env:PYTHONPATH",
             "--run",
             "--market",
-            "ALL",
             "--limit",
             "5000",
             "--delay",
@@ -81,7 +81,10 @@ class LocalQuantTaskTests(unittest.TestCase):
         self.assertNotIn("GEMINI_API_KEY", source)
         self.assertNotIn("FINMIND_PASSWORD", source)
         self.assertNotIn("--limit 200", source)
-        self.assertNotIn("--market TW", source)
+        self.assertNotIn("--market ALL", source)
+        self.assertEqual(source.count("--limit 5000"), 2)
+        self.assertLess(source.index("--market TW"), source.index("Start-Sleep"))
+        self.assertLess(source.index("Start-Sleep"), source.index("--market US"))
 
     def test_installer_schedules_wrapper_instead_of_embedding_market_arguments(self):
         source = INSTALLER.read_text(encoding="utf-8")

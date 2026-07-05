@@ -25,10 +25,10 @@ if ($Drive.AvailableFreeSpace -lt $MinimumFreeGB * 1GB) {
     throw "D drive must keep at least ${MinimumFreeGB}GB free"
 }
 
-$TriggerTime = '05:30'
+$TriggerTime = '02:30'
 if ($WhatIfPreference) {
     Write-Output "WhatIf: create $DataRoot with private NTFS ACL"
-    Write-Output "WhatIf: register $TaskName daily at $TriggerTime, limit 4 hours"
+    Write-Output "WhatIf: register $TaskName daily at $TriggerTime, limit 7 hours"
     return
 }
 
@@ -80,7 +80,7 @@ $Action = New-ScheduledTaskAction `
 $TriggerAt = [datetime]::ParseExact($TriggerTime, 'HH:mm', $null)
 $Trigger = New-ScheduledTaskTrigger -Daily -At $TriggerAt
 $Settings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 4) `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 7) `
     -MultipleInstances IgnoreNew `
     -Priority 7
 $Settings.StartWhenAvailable = $false

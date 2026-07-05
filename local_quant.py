@@ -15,7 +15,8 @@ from pathlib import Path
 
 
 TAIPEI = datetime.timezone(datetime.timedelta(hours=8), "Asia/Taipei")
-RUN_START = datetime.time(5, 30)
+RUN_START = datetime.time(2, 30)
+US_RUN_START = datetime.time(5, 30)
 DRAIN_START = datetime.time(9, 20)
 CHECKPOINT_START = datetime.time(9, 25)
 RUN_END = datetime.time(9, 30)
@@ -57,6 +58,13 @@ def window_phase(now=None):
     if CHECKPOINT_START <= current < RUN_END:
         return "checkpoint"
     return "closed"
+
+
+def market_run_allowed(market, now):
+    local_time = now.astimezone(TAIPEI).time()
+    return window_phase(now) == "run" and (
+        market != "US" or local_time >= US_RUN_START
+    )
 
 
 def ensure_layout(root):
@@ -543,6 +551,10 @@ def main(argv=None, now=None, free_bytes=None):
         available = check_free_space(root, args.min_free_gb, free_bytes)
         checked_at = now or datetime.datetime.now(TAIPEI)
         phase = window_phase(checked_at)
+        if args.run and args.market == "US" and not market_run_allowed(
+            "US", checked_at
+        ):
+            phase = "closed"
         status = {
             "checked_at": checked_at.isoformat(),
             "dry_run": bool(args.dry_run),
@@ -577,7 +589,7 @@ def main(argv=None, now=None, free_bytes=None):
                 markets = ("TW", "US") if args.market == "ALL" else (args.market,)
                 for market in markets:
                     market_now = now_fn()
-                    if window_phase(market_now) != "run":
+                    if not market_run_allowed(market, market_now):
                         break
                     symbols = (
                         get_taiwan_symbols(pipeline)

@@ -97,8 +97,9 @@ class LocalQuantTests(unittest.TestCase):
                 validate_data_root(Path(invalid))
 
     def test_window_phases_enforce_run_drain_checkpoint_and_closed(self):
-        self.assertEqual(window_phase(at(5, 29)), "closed")
-        self.assertEqual(window_phase(at(5, 30)), "run")
+        self.assertEqual(window_phase(at(2, 29)), "closed")
+        self.assertEqual(window_phase(at(2, 30)), "run")
+        self.assertEqual(window_phase(at(5, 29)), "run")
         self.assertEqual(window_phase(at(9, 19)), "run")
         self.assertEqual(window_phase(at(9, 20)), "drain")
         self.assertEqual(window_phase(at(9, 25)), "checkpoint")
@@ -303,6 +304,29 @@ class LocalQuantTests(unittest.TestCase):
                 [(call.args[1], call.args[2]) for call in batch.call_args_list],
                 [("TW", ["2330"]), ("US", ["AAPL"])],
             )
+
+    def test_cli_refuses_us_market_before_0530(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            with (
+                patch("local_quant.validate_data_root", return_value=root),
+                patch("local_quant.load_stock_pipeline") as loader,
+                patch("local_quant.get_us_symbols") as us_symbols,
+            ):
+                result = main(
+                    ["--root", str(root), "--run", "--market", "US"],
+                    now=at(3, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            loader.assert_not_called()
+            us_symbols.assert_not_called()
+            status = json.loads(
+                (root / "logs" / "runner-status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(status["phase"], "closed")
 
 
 if __name__ == "__main__":
