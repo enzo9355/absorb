@@ -2919,6 +2919,7 @@ def dashboard_page():
     )
 
 
+@app.route("/health")
 @app.route("/healthz")
 def healthz():
     return "ok", 200

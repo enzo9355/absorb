@@ -293,10 +293,13 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("if (!entries.length) return", source)
 
     def test_health_check_is_separate_from_dashboard(self):
-        response = stock_app.app.test_client().get("/healthz")
+        client = stock_app.app.test_client()
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_data(as_text=True), "ok")
+        for path in ("/health", "/healthz"):
+            with self.subTest(path=path):
+                response = client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.get_data(as_text=True), "ok")
 
     def test_stock_chart_is_clipped_and_resizes_with_its_panel(self):
         css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")
