@@ -569,13 +569,7 @@ def main(argv=None, now=None, free_bytes=None):
             raise ValueError("choose either --dry-run or --run")
         if not args.dry_run and not args.run:
             raise ValueError("choose --dry-run or --run")
-        if args.dry_run and phase == "run":
-            with acquire_lock(root, now=checked_at):
-                save_checkpoint(
-                    root,
-                    {"stage": "ready", "checked_at": checked_at.isoformat()},
-                )
-        elif args.run and phase == "run":
+        if args.run and phase == "run":
             with acquire_lock(root, now=checked_at):
                 status["cleanup"] = cleanup_expired_data(root, now=checked_at)
                 _write_json_atomic(status_path, status)

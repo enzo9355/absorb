@@ -166,9 +166,12 @@ class LocalQuantTests(unittest.TestCase):
                 (root / "checkpoints" / "progress.json.tmp").exists()
             )
 
-    def test_cli_initializes_layout_and_records_run_ready_checkpoint(self):
+    def test_cli_initialization_does_not_overwrite_market_checkpoint(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            ensure_layout(root)
+            original = {"stage": "market_batch", "market": "TW", "next_index": 200}
+            save_checkpoint(root, original)
             with patch("local_quant.validate_data_root", return_value=root):
                 result = main(
                     ["--root", str(root), "--init", "--dry-run"],
@@ -177,7 +180,7 @@ class LocalQuantTests(unittest.TestCase):
                 )
 
             self.assertEqual(result, 0)
-            self.assertEqual(load_checkpoint(root)["stage"], "ready")
+            self.assertEqual(load_checkpoint(root), original)
             self.assertFalse((root / "checkpoints" / "runner.lock").exists())
             status = json.loads(
                 (root / "logs" / "runner-status.json").read_text(encoding="utf-8")
