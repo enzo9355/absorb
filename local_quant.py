@@ -363,12 +363,19 @@ def _validated_artifact(root, market, symbol, generated_at):
     return path, compressed, document
 
 
-def publish_market_snapshot(root, market, symbols, generated_at=None):
+def publish_market_snapshot(
+    root, market, symbols, generated_at=None, failed_symbols=()
+):
     if market not in ("TW", "US"):
         raise ValueError("unsupported market")
     symbols = sorted({validate_market_symbol(market, symbol) for symbol in symbols})
     if not symbols:
         raise ValueError("market universe is empty")
+    excluded = {
+        validate_market_symbol(market, symbol) for symbol in failed_symbols
+    }
+    if not excluded.issubset(symbols):
+        raise ValueError("failed symbols must belong to market universe")
     generated_at = generated_at or datetime.datetime.now(TAIPEI)
     if generated_at.tzinfo is None:
         generated_at = generated_at.replace(tzinfo=TAIPEI)
@@ -377,13 +384,48 @@ def publish_market_snapshot(root, market, symbols, generated_at=None):
     )
     publish_root = Path(root) / "publish" / "quant" / "v1"
     object_root = publish_root / "objects"
-    entries = {}
-    market_dates = []
+    candidates = {}
+    errors = []
     for symbol in symbols:
-        _path, compressed, document = _validated_artifact(
-            root, market, symbol, generated_at
+        if symbol in excluded:
+            continue
+        try:
+            path, compressed, document = _validated_artifact(
+                root, market, symbol, generated_at
+            )
+        except RuntimeError as exc:
+            excluded.add(symbol)
+            errors.append(str(exc))
+            continue
+        candidates[symbol] = {
+            "source": path,
+            "sha256": hashlib.sha256(compressed).hexdigest(),
+            "size": len(compressed),
+            "as_of": document["as_of"],
+            "model_version": str(document.get("model_version") or "unknown"),
+        }
+
+    if candidates:
+        market_as_of = max(item["as_of"] for item in candidates.values())
+        for symbol in list(candidates):
+            if candidates[symbol]["as_of"] != market_as_of:
+                excluded.add(symbol)
+                del candidates[symbol]
+    else:
+        market_as_of = None
+    failure_rate = len(excluded) / len(symbols)
+    if failure_rate >= 0.05 or not candidates:
+        detail = f"; {errors[0]}" if errors else ""
+        raise RuntimeError(
+            f"market failure rate {failure_rate:.2%} is not publishable{detail}"
         )
-        digest = hashlib.sha256(compressed).hexdigest()
+
+    entries = {}
+    for symbol, candidate in candidates.items():
+        compressed = candidate["source"].read_bytes()
+        digest = candidate["sha256"]
+        if len(compressed) != candidate["size"] or hashlib.sha256(compressed).hexdigest() != digest:
+            raise RuntimeError(f"artifact changed during publish for {market}:{symbol}")
         object_path = object_root / f"{digest}.json.gz"
         if object_path.exists():
             if (
@@ -394,21 +436,25 @@ def publish_market_snapshot(root, market, symbols, generated_at=None):
             os.utime(object_path, None)
         else:
             _write_bytes_atomic(object_path, compressed)
-        market_dates.append(document["as_of"])
         entries[symbol] = {
             "path": f"objects/{digest}.json.gz",
             "sha256": digest,
             "size": len(compressed),
-            "as_of": document["as_of"],
-            "model_version": str(document.get("model_version") or "unknown"),
+            "as_of": candidate["as_of"],
+            "model_version": candidate["model_version"],
         }
 
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "market": market,
         "generated_at": generated_text,
+        "universe_count": len(symbols),
         "symbol_count": len(entries),
-        "market_as_of": max(market_dates),
+        "failure_count": len(excluded),
+        "failure_rate": failure_rate,
+        "coverage": len(entries) / len(symbols),
+        "failed_symbols": sorted(excluded),
+        "market_as_of": market_as_of,
         "symbols": entries,
     }
     manifest_bytes = json.dumps(
@@ -428,7 +474,7 @@ def publish_market_snapshot(root, market, symbols, generated_at=None):
     _write_json_atomic(
         latest_path,
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "market": market,
             "generated_at": generated_text,
             "manifest": f"manifests/{manifest_name}",
@@ -776,20 +822,31 @@ def main(argv=None, now=None, free_bytes=None):
                         now_fn=now_fn,
                         delay=args.delay,
                     )
-                    if (
-                        summary.get("next_index", 0) >= len(symbols)
-                        and not summary.get("failed")
-                    ):
-                        publish_market_snapshot(
-                            root, market, symbols, generated_at=market_now
-                        )
-                        checkpoint = load_checkpoint(root, market=market)
-                        cycle_completed_on = checkpoint.get("cycle_completed_on")
-                        if cycle_completed_on:
-                            checkpoint["published_cycle_on"] = cycle_completed_on
+                    if summary.get("next_index", 0) >= len(symbols):
+                        failed_symbols = [
+                            item["symbol"] for item in summary.get("failed", [])
+                        ]
+                        try:
+                            publish_market_snapshot(
+                                root,
+                                market,
+                                symbols,
+                                generated_at=market_now,
+                                failed_symbols=failed_symbols,
+                            )
+                        except RuntimeError as exc:
+                            summary["published"] = False
+                            summary["publish_error"] = str(exc)
+                        else:
+                            checkpoint = load_checkpoint(root, market=market)
+                            checkpoint["published_cycle_on"] = (
+                                checkpoint.get("cycle_completed_on")
+                                or market_now.date().isoformat()
+                            )
                             checkpoint["published_at"] = market_now.isoformat()
+                            checkpoint["published_failure_count"] = len(failed_symbols)
                             save_checkpoint(root, checkpoint, market=market)
-                        summary["published"] = True
+                            summary["published"] = True
                     summaries[market] = summary
                 print(json.dumps(summaries, ensure_ascii=False, separators=(",", ":")))
         print(f"local quant phase={phase} free_gb={available / 1024**3:.1f}")

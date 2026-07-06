@@ -15,6 +15,60 @@ from local_quant import (
 
 
 class LocalQuantPublishTests(unittest.TestCase):
+    def test_four_percent_failures_publish_with_coverage_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            symbols = [f"{number:04d}" for number in range(100)]
+            failed = symbols[-4:]
+            for symbol in symbols[:-4]:
+                write_stock_artifact(
+                    root,
+                    "TW",
+                    symbol,
+                    {"as_of": "2026-07-03", "model_version": "lgbm-5d-v1"},
+                )
+
+            latest_path = publish_market_snapshot(
+                root,
+                "TW",
+                symbols,
+                failed_symbols=failed,
+                generated_at=datetime.datetime(2026, 7, 5, 6, tzinfo=TAIPEI),
+            )
+
+            latest = json.loads(latest_path.read_text(encoding="utf-8"))
+            manifest = json.loads(
+                (latest_path.parent / latest["manifest"]).read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["universe_count"], 100)
+            self.assertEqual(manifest["symbol_count"], 96)
+            self.assertEqual(manifest["failure_count"], 4)
+            self.assertEqual(manifest["failed_symbols"], failed)
+            self.assertEqual(manifest["coverage"], 0.96)
+
+    def test_five_percent_failures_preserve_previous_latest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            symbols = [f"{number:04d}" for number in range(100)]
+            for symbol in symbols[:-5]:
+                write_stock_artifact(root, "TW", symbol, {"as_of": "2026-07-03"})
+            latest_path = root / "publish" / "quant" / "v1" / "latest-TW.json"
+            latest_path.parent.mkdir(parents=True)
+            latest_path.write_text('{"previous":true}', encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "failure rate"):
+                publish_market_snapshot(
+                    root,
+                    "TW",
+                    symbols,
+                    failed_symbols=symbols[-5:],
+                    generated_at=datetime.datetime(2026, 7, 5, 6, tzinfo=TAIPEI),
+                )
+
+            self.assertEqual(latest_path.read_text(encoding="utf-8"), '{"previous":true}')
+
     def test_complete_market_publishes_content_addressed_manifest_and_latest(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -29,7 +83,7 @@ class LocalQuantPublishTests(unittest.TestCase):
                 root,
                 "TW",
                 "2317",
-                {"as_of": "2026-07-02", "model_version": "lgbm-5d-v1"},
+                {"as_of": "2026-07-03", "model_version": "lgbm-5d-v1"},
             )
 
             latest_path = publish_market_snapshot(

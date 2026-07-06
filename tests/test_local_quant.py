@@ -353,9 +353,46 @@ class LocalQuantTests(unittest.TestCase):
                 )
 
             self.assertEqual(result, 0)
-            publish.assert_called_once_with(root, "TW", ["2330"], generated_at=at(6, 0))
+            publish.assert_called_once_with(
+                root, "TW", ["2330"], generated_at=at(6, 0), failed_symbols=[]
+            )
             checkpoint = load_checkpoint(root)
             self.assertEqual(checkpoint["published_cycle_on"], "2026-07-04")
+
+    def test_cli_publishes_partial_market_below_failure_threshold(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            symbols = [f"{number:04d}" for number in range(100)]
+            pipeline = type(
+                "Pipeline", (), {"industry_map": {"全市場": symbols}}
+            )()
+            failed = [{"symbol": "0099", "error": "ValueError"}]
+            with (
+                patch("local_quant.validate_data_root", return_value=root),
+                patch("local_quant.cleanup_expired_data", return_value={}),
+                patch("local_quant.load_stock_pipeline", return_value=pipeline),
+                patch(
+                    "local_quant.run_market_batch",
+                    return_value={"failed": failed, "next_index": 100},
+                ),
+                patch("local_quant.publish_market_snapshot") as publish,
+            ):
+                publish.return_value = root / "publish" / "quant" / "v1" / "latest-TW.json"
+                result = main(
+                    ["--root", str(root), "--run", "--market", "TW", "--delay", "0"],
+                    now=at(6, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            publish.assert_called_once_with(
+                root,
+                "TW",
+                symbols,
+                generated_at=at(6, 0),
+                failed_symbols=["0099"],
+            )
 
     def test_cli_refuses_us_market_before_0530(self):
         with tempfile.TemporaryDirectory() as temporary:
