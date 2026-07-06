@@ -38,6 +38,28 @@ def analysis_data():
 
 
 class WebProductTests(unittest.TestCase):
+    def test_build_market_heatmap_orders_strongest_first(self):
+        cards = [
+            {"name": "弱勢", "count": 1, "score": 42, "leader": {"code": "1101", "prob": 42}},
+            {"name": "強勢", "count": 2, "score": 68, "leader": {"code": "2330", "prob": 68}},
+        ]
+
+        result = stock_app.build_market_heatmap(cards)
+
+        self.assertEqual([item["name"] for item in result], ["強勢", "弱勢"])
+        self.assertEqual(result[0]["tone"], "hot")
+        self.assertEqual(result[1]["tone"], "cold")
+
+    def test_find_industry_peers_excludes_current_stock(self):
+        market_map = {
+            "全市場": ["2330", "2454", "2303"],
+            "半導體": ["2330", "2454", "2303"],
+        }
+
+        peers = stock_app.find_industry_peers("2330", market_map, limit=2)
+
+        self.assertEqual(peers, {"category": "半導體", "codes": ["2454", "2303"]})
+
     def test_root_renders_dashboard_and_search_redirects_known_stock(self):
         client = stock_app.app.test_client()
 
@@ -82,7 +104,7 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         analyze.assert_not_called()
         html = response.get_data(as_text=True)
-        for label in ["市場摘要", "產業預測", "精選標的", "新手投資小辭典", "LINE 管理關注"]:
+        for label in ["市場摘要", "今日焦點", "市場熱力圖", "產業預測", "精選標的", "新手投資小辭典", "LINE 管理關注"]:
             self.assertIn(label, html)
         self.assertNotIn("強勢訊號", html)
         for web_only_removed in ["我的關注", "最近提醒", "data-alert-preview", "/watchlist"]:
@@ -149,11 +171,15 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual([item["code"] for item in payload["opportunities"]], ["2330", "2317"])
         self.assertEqual(payload["sector_cards"][0]["name"], "半導體")
         self.assertEqual(payload["sector_cards"][0]["leader"]["code"], "2330")
+        self.assertEqual(payload["heatmap"][0]["name"], "半導體")
+        self.assertEqual(payload["heatmap"][0]["tone"], "hot")
         self.assertEqual(len(payload["top_picks"]), 2)
         self.assertEqual(payload["watchlist_hint"]["title"], "關注與提醒在 LINE 管理")
 
+    @patch.object(stock_app, "find_industry_peers", return_value={"category": "半導體", "codes": ["2454"]})
+    @patch.object(stock_app, "get_stock_name", return_value="聯發科")
     @patch.object(stock_app, "analyze", return_value=analysis_data())
-    def test_stock_page_is_the_core_analysis_workspace(self, _analyze):
+    def test_stock_page_is_the_core_analysis_workspace(self, _analyze, _name, _peers):
         response = stock_app.app.test_client().get("/stock/2330")
 
         self.assertEqual(response.status_code, 200)
@@ -167,6 +193,9 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("data-chart-range", html)
         self.assertIn("<details", html)
         self.assertIn("/static/app.css", html)
+        self.assertIn("產業同儕", html)
+        self.assertIn("聯發科", html)
+        self.assertIn('aria-label="個股分析導覽"', html)
 
     @patch.object(stock_app, "analyze", return_value=analysis_data())
     def test_stock_page_accepts_standard_us_ticker(self, analyze):

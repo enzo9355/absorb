@@ -1584,6 +1584,24 @@ def dashboard_top_picks(cards, limit=3):
         })
     return picks
 
+
+def build_market_heatmap(cards):
+    heatmap = []
+    for card in cards or []:
+        probability = _clamp(
+            _safe_float((card.get("leader") or {}).get("prob"), card.get("score", 50)),
+            0,
+            100,
+        )
+        heatmap.append({
+            "name": str(card.get("name") or "未分類"),
+            "probability": round(probability, 1),
+            "count": int(_safe_float(card.get("count"))),
+            "tone": "hot" if probability >= 60 else "cold" if probability < 45 else "steady",
+            "code": str((card.get("leader") or {}).get("code") or ""),
+        })
+    return sorted(heatmap, key=lambda item: item["probability"], reverse=True)
+
 def market_forecast(): return analyze("TAIEX")
 
 # ==================================================
@@ -2201,6 +2219,20 @@ def build_market_map():
     return {k: v for k, v in market.items() if v}
 
 industry_map = build_market_map()
+
+
+def find_industry_peers(code, market_map=None, limit=5):
+    selected = str(code).upper()
+    for category, codes in (market_map or industry_map).items():
+        if category in {"全市場", "ETF專區"}:
+            continue
+        normalized = [str(item).upper() for item in codes]
+        if selected in normalized:
+            return {
+                "category": category,
+                "codes": [item for item in normalized if item != selected][:limit],
+            }
+    return {"category": "", "codes": []}
 
 def build_category_quick_reply(page=1):
     cats = list(industry_map.keys())
@@ -3149,6 +3181,7 @@ def dashboard_api():
         },
         "opportunities": cached_opportunities(),
         "sector_cards": sector_cards,
+        "heatmap": build_market_heatmap(sector_cards),
         "top_picks": dashboard_top_picks(sector_cards),
         "watchlist_hint": {
             "title": "關注與提醒在 LINE 管理",
@@ -3163,7 +3196,17 @@ def stock_page(code):
     if code not in twstock.codes and not is_us_ticker(code):
         abort(404)
     d = analyze(code)
-    return render_template("stock_detail.html", d=d) if d else "查無資料"
+    peer_group = find_industry_peers(code)
+    peers = [
+        {"code": peer, "name": get_stock_name(peer)}
+        for peer in peer_group["codes"]
+    ]
+    return render_template(
+        "stock_detail.html",
+        d=d,
+        peers=peers,
+        peer_category=peer_group["category"],
+    ) if d else "查無資料"
 
 @app.route("/market")
 def market_page():

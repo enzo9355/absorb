@@ -357,6 +357,32 @@ a{color:inherit}
   grid-template-columns:1.2fr 1fr;
   gap:16px;
 }
+.focus-grid,.heatmap-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-top:16px;
+}
+.focus-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.focus-card,.heatmap-cell,.peer-chip{
+  min-width:0;
+  padding:18px;
+  border:1px solid rgba(203,185,164,.52);
+  border-radius:18px;
+  color:var(--text);
+  text-decoration:none;
+}
+.focus-card{display:grid;gap:6px;background:linear-gradient(135deg,rgba(127,215,196,.24),rgba(184,166,234,.2))}
+.focus-card span,.heatmap-cell span{font-size:13px;color:var(--muted)}
+.focus-card strong,.heatmap-cell strong{font-size:21px}
+.focus-card small,.heatmap-cell small{color:var(--muted)}
+.heatmap-cell{display:grid;gap:5px;background:rgba(255,250,244,.7)}
+.heatmap-cell.hot{background:linear-gradient(145deg,rgba(127,215,196,.48),rgba(255,250,244,.8))}
+.heatmap-cell.cold{background:linear-gradient(145deg,rgba(244,181,138,.42),rgba(255,250,244,.8))}
+.heatmap-cell.steady{background:linear-gradient(145deg,rgba(184,166,234,.34),rgba(255,250,244,.8))}
+.peer-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.peer-chip{display:grid;gap:3px;padding:12px 16px;background:rgba(255,255,255,.58)}
+.peer-chip span{font-size:12px;color:var(--muted)}
 .indicator-grid{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
@@ -445,7 +471,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
   .hero-search,.stock-hero,.analysis-grid,.top-picks{grid-template-columns:1fr}
 }
 @media(max-width:900px){
-  .pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid{grid-template-columns:1fr 1fr}
+  .pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid,.heatmap-grid{grid-template-columns:1fr 1fr}
   .summary-strip,.indicator-grid{grid-template-columns:1fr 1fr}
   .section-heading{align-items:flex-start;flex-direction:column}
   .wide-indicator-grid{grid-template-columns:1fr 1fr}
@@ -455,7 +481,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
   .main-content{margin-left:0}
   .page{padding:22px 16px 92px}
   .hero-search,.summary-strip{padding:20px}
-  .hero-shortcuts,.pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid,.summary-strip,.indicator-grid,.wide-indicator-grid,.decision-panel{grid-template-columns:1fr}
+  .hero-shortcuts,.pulse-grid,.watchlist-strip,.forecast-grid,.learn-grid,.focus-grid,.heatmap-grid,.summary-strip,.indicator-grid,.wide-indicator-grid,.decision-panel{grid-template-columns:1fr}
   .mobile-nav{
     position:fixed;
     z-index:20;

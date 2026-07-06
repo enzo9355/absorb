@@ -32,6 +32,24 @@ function renderDashboard(data) {
     ).join("");
   }
 
+  const focus = bySelector("[data-daily-focus]");
+  if (focus) {
+    const items = data.top_picks || [];
+    focus.innerHTML = items.length ? items.slice(0, 2).map((item) => `
+      <a class="focus-card" href="/stock/${item.code}">
+        <span>${item.headline}</span><strong>${item.name}</strong><small>${item.summary}</small>
+      </a>`).join("") : '<div class="empty-state">今日焦點等待產業快照更新。</div>';
+  }
+
+  const heatmap = bySelector("[data-market-heatmap]");
+  if (heatmap) {
+    const cells = data.heatmap || [];
+    heatmap.innerHTML = cells.length ? cells.map((item) => `
+      <a class="heatmap-cell ${item.tone}" href="${item.code ? `/stock/${item.code}` : '#industry-forecast'}">
+        <span>${item.name}</span><strong>${item.probability}%</strong><small>${item.count} 檔候選</small>
+      </a>`).join("") : '<div class="empty-state">熱力圖等待產業快照更新。</div>';
+  }
+
   const forecasts = bySelector("[data-sector-grid]");
   if (forecasts) {
     const cards = data.sector_cards || [];

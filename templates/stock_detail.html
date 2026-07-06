@@ -18,8 +18,8 @@
     </section>
   </header>
 
-  <nav class="page-jump-nav glass-panel" aria-label="個股分析快速導覽">
-    <a href="#summary">摘要</a><a href="#chart">圖表</a><a href="#calculator">試算</a><a href="#backtest">回測</a><a href="#sentiment">情緒</a><a href="#risk">風險</a>
+  <nav class="page-jump-nav glass-panel" aria-label="個股分析導覽">
+    <a href="#summary">總覽</a><a href="#chart">預測</a><a href="#chips">籌碼</a><a href="#sentiment">情緒</a><a href="#news">新聞</a>
   </nav>
 
   <section class="panel decision-panel" aria-labelledby="decision-title">
@@ -28,6 +28,18 @@
     {% elif d.prob < 45 or d.trend == '空頭' %}<p>目前訊號偏保守，先控制部位並等待趨勢改善，不要只因單一指標搶進。</p>
     {% else %}<p>目前訊號沒有明顯優勢，適合繼續觀察，並用回測與風險資料確認是否值得承擔波動。</p>{% endif %}
   </section>
+
+  {% if peers %}
+  <section class="panel peer-panel" aria-labelledby="peer-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">INDUSTRY PEERS</p><h2 id="peer-title">產業同儕</h2></div>
+      <span class="muted small">{{ peer_category }}</span>
+    </div>
+    <div class="peer-list">
+      {% for peer in peers %}<a class="peer-chip" href="{{ url_for('stock_page', code=peer.code) }}"><strong>{{ peer.name }}</strong><span>{{ peer.code }}</span></a>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   <section class="panel chart-shell" id="chart">
     <div class="section-heading"><div><p class="eyebrow">PRICE & FORECAST</p><h2>價格與預測軌跡</h2></div><div class="segmented glass-segmented" aria-label="圖表顯示期間"><button type="button" data-chart-range="30" aria-pressed="false">1月</button><button type="button" class="active" data-chart-range="90" aria-pressed="true">3月</button><button type="button" data-chart-range="260" aria-pressed="false">1年</button></div></div>
@@ -54,7 +66,7 @@
       <p class="muted small">年化：AI 策略 {{ '%.2f'|format(projection.strategy_annualized) if projection.ok and projection.strategy_annualized is not none else '—' }}%，買進持有 {{ '%.2f'|format(projection.buy_hold_annualized) if projection.ok and projection.buy_hold_annualized is not none else '—' }}%。這是歷史回測換算，不代表未來獲利。</p>
     </section>
 
-    <section class="panel foreign-panel">
+    <section class="panel foreign-panel" id="chips">
       <div class="section-heading"><div><p class="eyebrow">FOREIGN FLOW</p><h2>外資買賣超</h2></div><strong class="{{ 'positive' if foreign.status == '外資偏多' else 'negative' if foreign.status == '外資偏空' else '' }}">{{ foreign.status }}</strong></div>
       <div class="indicator-grid">
         <article><span>近 5 日</span><strong>{{ '{:,.0f}'.format(foreign.net_5) if foreign.available else '—' }}</strong><small>{{ foreign.source }}</small></article>
@@ -108,7 +120,7 @@
 
   <section class="panel risk-panel" id="risk"><div><p class="eyebrow">RISK CHECK</p><h2>風險提醒</h2></div><p>{{ d.bt.conclusion }}</p><ul><li>預測期間為五個交易日，短線波動可能偏離模型。</li><li>交易成本與突發事件可能降低實際績效。</li><li>請搭配部位控管，不要只依單一機率下單。</li></ul></section>
 
-  <section class="panel news-panel"><div class="section-heading"><div><p class="eyebrow">NEWS & SENTIMENT</p><h2>近期新聞與輿論</h2></div><span class="muted small">{{ d.get('news_count', d.news|length) }} 則{% if d.get('news_publisher_count') %}｜{{ d.news_publisher_count }} 個發布者{% endif %}{% if d.get('social_sample_size') %}｜社群 {{ d.social_sample_size }} 則{% endif %}｜情緒不修改模型機率</span></div><div class="filter-row" aria-label="新聞情緒篩選"><button type="button" class="active" data-news-filter="all" aria-pressed="true">全部</button><button type="button" data-news-filter="positive" aria-pressed="false">正向</button><button type="button" data-news-filter="negative" aria-pressed="false">負向</button><button type="button" data-news-filter="neutral" aria-pressed="false">中性</button></div><div class="news-list">{% for item in d.news %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer" data-news-direction="{{ item.direction }}"><span>{{ item.normalized_title or item.title }}</span><small class="muted" style="display:block;margin-top:5px">{{ item.source or '來源未知' }} · {{ item.published_at[:10] if item.published_at else '時間未知' }} · {{ '正向' if item.direction == 'positive' else '負向' if item.direction == 'negative' else '中性' }}</small></a>{% else %}<div class="empty-state">目前沒有相關新聞或輿論</div>{% endfor %}<div class="empty-state" data-news-filter-empty hidden>此分類目前沒有新聞。</div></div></section>
+  <section class="panel news-panel" id="news"><div class="section-heading"><div><p class="eyebrow">NEWS & SENTIMENT</p><h2>近期新聞與輿論</h2></div><span class="muted small">{{ d.get('news_count', d.news|length) }} 則{% if d.get('news_publisher_count') %}｜{{ d.news_publisher_count }} 個發布者{% endif %}{% if d.get('social_sample_size') %}｜社群 {{ d.social_sample_size }} 則{% endif %}｜情緒不修改模型機率</span></div><div class="filter-row" aria-label="新聞情緒篩選"><button type="button" class="active" data-news-filter="all" aria-pressed="true">全部</button><button type="button" data-news-filter="positive" aria-pressed="false">正向</button><button type="button" data-news-filter="negative" aria-pressed="false">負向</button><button type="button" data-news-filter="neutral" aria-pressed="false">中性</button></div><div class="news-list">{% for item in d.news %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer" data-news-direction="{{ item.direction }}"><span>{{ item.normalized_title or item.title }}</span><small class="muted" style="display:block;margin-top:5px">{{ item.source or '來源未知' }} · {{ item.published_at[:10] if item.published_at else '時間未知' }} · {{ '正向' if item.direction == 'positive' else '負向' if item.direction == 'negative' else '中性' }}</small></a>{% else %}<div class="empty-state">目前沒有相關新聞或輿論</div>{% endfor %}<div class="empty-state" data-news-filter-empty hidden>此分類目前沒有新聞。</div></div></section>
 
   <script id="stock-chart-data" type="application/json">{{ {"candles": d.candles, "ma20": d.ma20_line, "prediction": d.pred}|tojson }}</script>
 </div>
