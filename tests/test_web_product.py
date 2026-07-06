@@ -13,7 +13,7 @@ import app as stock_app
 def analysis_data():
     return {
         "name": "台積電", "code": "2330", "price": 100.0, "prob": 63,
-        "as_of": "2026-07-03",
+        "as_of": "2026-07-03", "quant_source": "本地回測快照",
         "trend": "多頭", "rsi": 58.0, "ma20": 98.0, "macd_osc": 0.3,
         "k": 62.0, "d": 54.0, "s_score": 55.0, "s_status": "中性",
         "candles": "[]", "ma20_line": "[]", "prob_h": "[]", "pred": "[]",
@@ -201,6 +201,7 @@ class WebProductTests(unittest.TestCase):
             "情緒動能",
             "最大回撤",
             "資料日 2026-07-03",
+            "本地回測快照",
             "資料完整度</span><strong>資料不足",
         ):
             with self.subTest(marker=marker):

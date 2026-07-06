@@ -8,7 +8,7 @@
       <a class="back-link" href="{{ url_for('dashboard_page') }}">返回市場首頁</a>
       <p class="eyebrow">{{ d.code }}</p>
       <h1>{{ d.name }}</h1>
-      <p class="muted">最新收盤 {{ '%.2f'|format(d.price) }} · 資料日 {{ d.get('as_of', '待更新') }} · {{ d.trend }}。先看結論，再往下看圖表與新聞。</p>
+      <p class="muted">最新收盤 {{ '%.2f'|format(d.price) }} · 資料日 {{ d.get('as_of', '待更新') }} · {{ d.get('quant_source', '即時計算') }} · {{ d.trend }}。先看結論，再往下看圖表與新聞。</p>
     </div>
     <section class="summary-strip glass-panel" aria-label="預測摘要">
       <article class="summary-card confidence-card"><span>五日上漲機率</span><strong>{{ d.prob }}%</strong><div class="confidence-track"><i style="width:{{ d.prob }}%"></i></div><small>模型機率，不代表保證獲利</small></article>

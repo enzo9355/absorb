@@ -1,4 +1,6 @@
 import datetime
+import gzip
+import hashlib
 import json
 import os
 import unittest
@@ -11,6 +13,63 @@ os.environ.setdefault("LINE_CHANNEL_ACCESS_TOKEN", "test")
 os.environ.setdefault("LINE_CHANNEL_SECRET", "test")
 
 import app as stock_app
+
+
+def quant_cloud_payloads(
+    symbol="2330",
+    as_of="2026-07-03",
+    document=None,
+    entry_changes=None,
+    manifest_changes=None,
+    object_bytes=None,
+):
+    market = "TW" if symbol.isdigit() else "US"
+    document = document or {
+        "schema_version": 1,
+        "market": market,
+        "symbol": symbol,
+        "as_of": as_of,
+        "backtest": {},
+        "daily": [],
+    }
+    object_bytes = object_bytes or gzip.compress(
+        json.dumps(document, separators=(",", ":")).encode("utf-8")
+    )
+    object_digest = hashlib.sha256(object_bytes).hexdigest()
+    entry = {
+        "path": f"objects/{object_digest}.json.gz",
+        "sha256": object_digest,
+        "size": len(object_bytes),
+        "as_of": as_of,
+        "model_version": "lgbm-5d-v1",
+    }
+    entry.update(entry_changes or {})
+    manifest = {
+        "schema_version": 2,
+        "market": market,
+        "generated_at": "2026-07-06T01:30:00Z",
+        "universe_count": 1,
+        "symbol_count": 1,
+        "failure_count": 0,
+        "failure_rate": 0.0,
+        "coverage": 1.0,
+        "failed_symbols": [],
+        "market_as_of": as_of,
+        "symbols": {symbol: entry},
+    }
+    manifest.update(manifest_changes or {})
+    manifest_bytes = json.dumps(
+        manifest, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    manifest_digest = hashlib.sha256(manifest_bytes).hexdigest()
+    latest = {
+        "schema_version": 2,
+        "market": market,
+        "generated_at": "2026-07-06T01:30:00Z",
+        "manifest": f"manifests/{market}-20260706T013000Z-{manifest_digest[:12]}.json",
+        "manifest_sha256": manifest_digest,
+    }
+    return json.dumps(latest).encode(), manifest_bytes, object_bytes
 
 
 def sample_analysis_data(news=None):
@@ -49,6 +108,125 @@ def sample_analysis_data(news=None):
 
 
 class PredictionPipelineTests(unittest.TestCase):
+    @patch("app.requests.get")
+    def test_gcs_reader_rejects_oversized_content_before_body_download(self, get):
+        response = Mock(status_code=200, headers={"Content-Length": "101"})
+        get.return_value = response
+        store = Mock(token_provider=Mock(return_value="token"))
+        with (
+            patch.object(stock_app, "line_store", store),
+            patch.object(stock_app, "QUANT_SNAPSHOT_BUCKET", "safe-bucket"),
+        ):
+            result = stock_app._gcs_get_object("quant/v1/latest-TW.json", 100)
+
+        self.assertIsNone(result)
+        self.assertTrue(get.call_args.kwargs["stream"])
+        response.iter_content.assert_not_called()
+
+    @patch("app._gcs_get_object")
+    def test_cloud_quant_snapshot_accepts_verified_artifact(self, get_object):
+        payloads = quant_cloud_payloads()
+        get_object.side_effect = payloads
+        stock_app._QUANT_MANIFEST_CACHE.clear()
+
+        result = stock_app.fetch_published_quant_snapshot(
+            "2330", today=datetime.date(2026, 7, 6)
+        )
+
+        self.assertEqual(result["symbol"], "2330")
+        self.assertEqual(get_object.call_count, 3)
+
+    def test_cloud_quant_snapshot_rejects_untrusted_payloads(self):
+        cases = (
+            ("missing", quant_cloud_payloads(manifest_changes={"symbols": {}})),
+            ("stale", quant_cloud_payloads(as_of="2026-06-20")),
+            (
+                "coverage",
+                quant_cloud_payloads(
+                    manifest_changes={
+                        "universe_count": 100,
+                        "symbol_count": 90,
+                        "failure_count": 10,
+                        "failure_rate": 0.1,
+                        "coverage": 0.9,
+                    }
+                ),
+            ),
+            (
+                "oversized",
+                quant_cloud_payloads(
+                    entry_changes={
+                        "size": stock_app.MAX_QUANT_ARTIFACT_COMPRESSED_BYTES + 1
+                    }
+                ),
+            ),
+            ("bad-sha", quant_cloud_payloads(entry_changes={"sha256": "0" * 64})),
+            ("invalid-gzip", quant_cloud_payloads(object_bytes=b"not-gzip")),
+            (
+                "schema",
+                quant_cloud_payloads(
+                    document={
+                        "schema_version": 9,
+                        "market": "TW",
+                        "symbol": "2330",
+                        "as_of": "2026-07-03",
+                        "backtest": {},
+                        "daily": [],
+                    }
+                ),
+            ),
+        )
+        for name, payloads in cases:
+            with self.subTest(name=name), patch.object(
+                stock_app, "_gcs_get_object", side_effect=payloads
+            ):
+                stock_app._QUANT_MANIFEST_CACHE.clear()
+                self.assertIsNone(
+                    stock_app.fetch_published_quant_snapshot(
+                        "2330", today=datetime.date(2026, 7, 6)
+                    )
+                )
+
+    def test_analyze_uses_snapshot_quant_and_keeps_news_live(self):
+        dates = pd.date_range("2025-01-01", periods=200, freq="B")
+        daily = []
+        for index, date in enumerate(dates):
+            daily.append({
+                "Date": date.isoformat(),
+                "Open": 100.0,
+                "High": 101.0,
+                "Low": 99.0,
+                "Close": 100.0,
+                "MA20": 99.0,
+                "RSI": 55.0,
+                "Volat": 0.02,
+                "MACD_OSC": 0.1,
+                "K": 60.0,
+                "D": 50.0,
+                "AI_P": 55.0 if index == 199 else None,
+                "ForeignNet": 0.0,
+            })
+        snapshot = {
+            "schema_version": 1,
+            "market": "TW",
+            "symbol": "2330",
+            "as_of": "2025-10-07",
+            "backtest": sample_analysis_data()["bt"],
+            "daily": daily,
+        }
+        with (
+            patch.object(stock_app, "fetch_published_quant_snapshot", return_value=snapshot),
+            patch.object(stock_app, "get_data") as get_data,
+            patch.object(stock_app, "run_ai_engine") as run_ai_engine,
+            patch.object(stock_app, "get_news", return_value=[]) as get_news,
+        ):
+            result = stock_app._do_analyze("2330")
+
+        self.assertEqual(result["quant_source"], "本地回測快照")
+        get_data.assert_not_called()
+        run_ai_engine.assert_not_called()
+        get_news.assert_called_once_with("台積電", "2330")
+
     def test_search_stock_code_accepts_standard_us_tickers(self):
         self.assertEqual(stock_app.search_stock_code("aapl"), ("AAPL", "美股 AAPL"))
         self.assertEqual(stock_app._resolve_postback_stock("AAPL"), ("AAPL", "美股 AAPL"))

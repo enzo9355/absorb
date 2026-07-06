@@ -8,7 +8,10 @@ import re
 import threading
 import time
 import datetime
+import gzip
+import hashlib
 import hmac
+import io
 import math
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
@@ -51,6 +54,7 @@ ALERT_TASK_TOKEN = os.getenv("ALERT_TASK_TOKEN")
 OPENALICE_API_URL = os.getenv("OPENALICE_API_URL")
 OPENALICE_API_TOKEN = os.getenv("OPENALICE_API_TOKEN")
 MARKETAUX_API_TOKEN = os.getenv("MARKETAUX_API_TOKEN")
+QUANT_SNAPSHOT_BUCKET = os.getenv("QUANT_SNAPSHOT_BUCKET", "")
 SENTIMENT_WINDOW_DAYS = 30
 LINE_STATE_READ_BUDGET_SECONDS = 0.25
 LINE_STATE_READ_MAX_WORKERS = 4
@@ -107,6 +111,10 @@ _SYSTEM_CACHE = {}
 CACHE_EXPIRY_SECONDS = 3600
 _YFINANCE_CACHE = {}
 YFINANCE_CACHE_SECONDS = 3600
+QUANT_MANIFEST_CACHE_SECONDS = 300
+MAX_QUANT_ARTIFACT_COMPRESSED_BYTES = 5 * 1024 * 1024
+MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
+_QUANT_MANIFEST_CACHE = {}
 
 # ==================================================
 # 2. 資料抓取與清洗模組
@@ -230,6 +238,155 @@ def search_stock_code(keyword):
     for code, info in twstock.codes.items():
         if keyword in info.name.upper(): return code, info.name
     return None, None
+
+
+def _gcs_get_object(object_name, max_bytes):
+    if (
+        not QUANT_SNAPSHOT_BUCKET
+        or line_store is None
+        or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]", QUANT_SNAPSHOT_BUCKET)
+        or not isinstance(object_name, str)
+        or not object_name.startswith("quant/v1/")
+        or type(max_bytes) is not int
+        or max_bytes < 1
+    ):
+        return None
+    response = None
+    try:
+        token = line_store.token_provider()
+        response = requests.get(
+            "https://storage.googleapis.com/storage/v1/b/"
+            f"{QUANT_SNAPSHOT_BUCKET}/o/{urllib.parse.quote(object_name, safe='')}?alt=media",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5,
+            stream=True,
+        )
+        if response.status_code != 200:
+            return None
+        content_length = response.headers.get("Content-Length")
+        if content_length is not None and int(content_length) > max_bytes:
+            return None
+        content = bytearray()
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            content.extend(chunk)
+            if len(content) > max_bytes:
+                return None
+        return bytes(content) if content else None
+    except Exception:
+        return None
+    finally:
+        if response is not None:
+            response.close()
+
+
+def _published_quant_manifest(market, today=None):
+    now = time.time()
+    cached = _QUANT_MANIFEST_CACHE.get(market)
+    if cached and now - cached[1] < QUANT_MANIFEST_CACHE_SECONDS:
+        return cached[0]
+    latest_bytes = _gcs_get_object(f"quant/v1/latest-{market}.json", 100_000)
+    if latest_bytes is None:
+        return None
+    try:
+        latest = json.loads(latest_bytes.decode("utf-8"))
+        manifest_path = str(latest["manifest"])
+        if (
+            latest.get("schema_version") != 2
+            or latest.get("market") != market
+            or re.fullmatch(
+                rf"manifests/{market}-[0-9]{{8}}T[0-9]{{6}}Z-[0-9a-f]{{12}}\.json",
+                manifest_path,
+            ) is None
+        ):
+            return None
+        manifest_bytes = _gcs_get_object(f"quant/v1/{manifest_path}", 5_000_000)
+        if manifest_bytes is None or not hmac.compare_digest(
+            hashlib.sha256(manifest_bytes).hexdigest(),
+            str(latest["manifest_sha256"]),
+        ):
+            return None
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+        market_date = datetime.date.fromisoformat(str(manifest["market_as_of"]))
+        age = (today or datetime.date.today()) - market_date
+        universe_count = manifest.get("universe_count")
+        symbol_count = manifest.get("symbol_count")
+        failure_count = manifest.get("failure_count")
+        coverage = manifest.get("coverage")
+        failure_rate = manifest.get("failure_rate")
+        failed_symbols = manifest.get("failed_symbols")
+        symbols = manifest.get("symbols")
+        if (
+            manifest.get("schema_version") != 2
+            or manifest.get("market") != market
+            or not isinstance(symbols, dict)
+            or type(universe_count) is not int
+            or type(symbol_count) is not int
+            or type(failure_count) is not int
+            or universe_count < 1
+            or symbol_count != len(symbols)
+            or failure_count != universe_count - symbol_count
+            or not isinstance(failed_symbols, list)
+            or len(failed_symbols) != failure_count
+            or type(coverage) not in (int, float)
+            or type(failure_rate) not in (int, float)
+            or coverage <= 0.95
+            or failure_rate >= 0.05
+            or not math.isclose(coverage, symbol_count / universe_count)
+            or not math.isclose(failure_rate, failure_count / universe_count)
+            or not 0 <= age.days <= 7
+        ):
+            return None
+    except (KeyError, TypeError, UnicodeError, ValueError):
+        return None
+    _QUANT_MANIFEST_CACHE[market] = (manifest, now)
+    return manifest
+
+
+def fetch_published_quant_snapshot(code, today=None):
+    market = "US" if is_us_ticker(code) else "TW" if str(code).isdigit() else None
+    if market is None:
+        return None
+    manifest = _published_quant_manifest(market, today=today)
+    entry = (manifest or {}).get("symbols", {}).get(code)
+    if not isinstance(entry, dict):
+        return None
+    try:
+        path = str(entry["path"])
+        digest = str(entry["sha256"])
+        size = entry["size"]
+        if (
+            re.fullmatch(r"objects/[0-9a-f]{64}\.json\.gz", path) is None
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            or type(size) is not int
+            or not 0 < size <= MAX_QUANT_ARTIFACT_COMPRESSED_BYTES
+            or entry.get("as_of") != manifest.get("market_as_of")
+        ):
+            return None
+        compressed = _gcs_get_object(f"quant/v1/{path}", size)
+        if (
+            compressed is None
+            or len(compressed) != size
+            or not hmac.compare_digest(hashlib.sha256(compressed).hexdigest(), digest)
+        ):
+            return None
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as stream:
+            decoded = stream.read(MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES + 1)
+        if len(decoded) > MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES:
+            return None
+        document = json.loads(decoded.decode("utf-8"))
+        if (
+            not isinstance(document, dict)
+            or document.get("schema_version") != 1
+            or document.get("market") != market
+            or document.get("symbol") != code
+            or document.get("as_of") != entry.get("as_of")
+            or not isinstance(document.get("backtest"), dict)
+            or not isinstance(document.get("daily"), list)
+        ):
+            return None
+        return document
+    except (KeyError, OSError, TypeError, UnicodeError, ValueError):
+        return None
 
 def _foreign_flow_mask(frame):
     mask = pd.Series(False, index=frame.index)
@@ -1259,11 +1416,32 @@ def analyze_sentiment(news_list):
     detail = analyze_sentiment_detail(news_list)
     return detail["score"], detail["status"]
 
+def _snapshot_dataframe(snapshot):
+    try:
+        frame = pd.DataFrame(snapshot["daily"])
+        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+        frame = frame.dropna(subset=["Date"]).set_index("Date").sort_index()
+        required = {
+            "Open", "High", "Low", "Close", "MA20", "RSI", "Volat",
+            "MACD_OSC", "K", "D", "AI_P", "ForeignNet",
+        }
+        return frame if len(frame) >= 200 and required.issubset(frame.columns) else None
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _do_analyze(code):
-    df = get_data(code)
-    if df.empty or len(df) < 200: return None
-    df = calc_all(df)
-    bt = run_ai_engine(df)
+    snapshot = fetch_published_quant_snapshot(code)
+    df = _snapshot_dataframe(snapshot) if snapshot else None
+    if df is None:
+        df = get_data(code)
+        if df.empty or len(df) < 200: return None
+        df = calc_all(df)
+        bt = run_ai_engine(df)
+        quant_source = "即時計算"
+    else:
+        bt = snapshot["backtest"]
+        quant_source = "本地回測快照"
     if not bt: return None
     
     last = df.iloc[-1]
@@ -1301,6 +1479,7 @@ def _do_analyze(code):
     result = {
         "code": code, "name": name, "price": last['Close'], "prob": prob,
         "as_of": df.index[-1].date().isoformat(),
+        "quant_source": quant_source,
         "bt": bt, "news": news, "trend": trend,
         "rsi": last['RSI'], "ma20": last['MA20'],
         "macd_osc": last['MACD_OSC'], "k": last['K'], "d": last['D'],
