@@ -14,6 +14,7 @@ if (((Get-Item -LiteralPath $ResolvedRoot).Attributes -band [IO.FileAttributes]:
     throw 'Publish root must not be a reparse point'
 }
 $Gcloud = (Get-Command gcloud -ErrorAction Stop).Source
+$ObjectBatchSize = 100
 
 function Assert-AllowlistedPath {
     param([string]$Path)
@@ -44,6 +45,19 @@ function Invoke-GcloudCopy {
     if ($LASTEXITCODE -ne 0) { throw "gcloud upload failed with exit code $LASTEXITCODE" }
 }
 
+function Invoke-GcloudCopyBatch {
+    param(
+        [string[]]$Sources,
+        [string]$Destination
+    )
+    if (-not $Sources -or $Sources.Count -eq 0) { return }
+    $Arguments = @('storage', 'cp', '--quiet', '--no-clobber')
+    $Arguments += $Sources
+    $Arguments += $Destination
+    & $Gcloud @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "gcloud batch upload failed with exit code $LASTEXITCODE" }
+}
+
 $UploadedMarkets = @()
 foreach ($Market in @('TW', 'US')) {
     $LatestPath = Join-Path $ResolvedRoot "latest-$Market.json"
@@ -66,7 +80,8 @@ foreach ($Market in @('TW', 'US')) {
         throw "Invalid manifest for $Market"
     }
 
-    # Upload objects
+    # Upload objects only after validating every object in this manifest.
+    $ValidatedObjectPaths = @()
     foreach ($Property in $Manifest.symbols.PSObject.Properties) {
         $Entry = $Property.Value
         $ObjectRelative = [string]$Entry.path
@@ -79,7 +94,13 @@ foreach ($Market in @('TW', 'US')) {
         if ((Get-FileHash -LiteralPath $ObjectPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Entry.sha256) {
             throw "Object hash mismatch for $Market"
         }
-        Invoke-GcloudCopy $ObjectPath "gs://$Bucket/quant/v1/$ObjectRelative" -NoClobber
+        $ValidatedObjectPaths += $ObjectPath
+    }
+    for ($Offset = 0; $Offset -lt $ValidatedObjectPaths.Count; $Offset += $ObjectBatchSize) {
+        $Last = [Math]::Min($Offset + $ObjectBatchSize - 1, $ValidatedObjectPaths.Count - 1)
+        Invoke-GcloudCopyBatch `
+            -Sources $ValidatedObjectPaths[$Offset..$Last] `
+            -Destination "gs://$Bucket/quant/v1/objects/"
     }
 
     # Upload manifest

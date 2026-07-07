@@ -41,6 +41,17 @@ class LocalQuantTaskTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+    def test_uploader_batches_content_addressed_objects(self):
+        source = UPLOADER.read_text(encoding="utf-8")
+
+        self.assertIn("$ObjectBatchSize = 100", source)
+        self.assertIn("Invoke-GcloudCopyBatch", source)
+        self.assertIn("$ValidatedObjectPaths", source)
+        self.assertNotIn(
+            'Invoke-GcloudCopy $ObjectPath "gs://$Bucket/quant/v1/$ObjectRelative"',
+            source,
+        )
         self.assertLess(source.index("# Upload objects"), source.index("# Upload manifest"))
         self.assertLess(
             source.index("# Upload manifest"), source.index("# Upload latest pointer")
