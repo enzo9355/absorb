@@ -58,6 +58,29 @@ function Invoke-GcloudCopyBatch {
     if ($LASTEXITCODE -ne 0) { throw "gcloud batch upload failed with exit code $LASTEXITCODE" }
 }
 
+$InsightsUploaded = $false
+$InsightsLatestPath = Join-Path $ResolvedRoot 'latest-insights.json'
+if (Test-Path -LiteralPath $InsightsLatestPath -PathType Leaf) {
+    $InsightsLatestPath = Assert-AllowlistedPath $InsightsLatestPath
+    $Insights = Get-Content -LiteralPath $InsightsLatestPath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ($Insights.schema_version -ne 1 -or $Insights.kind -ne 'market-insights') {
+        throw 'Invalid market-insights latest pointer'
+    }
+    $InsightsObjectRelative = [string]$Insights.path
+    if ($InsightsObjectRelative -notmatch '^objects/[0-9a-f]{64}\.json\.gz$') {
+        throw 'Invalid market-insights object path'
+    }
+    $InsightsObjectPath = Assert-AllowlistedPath (Join-Path $ResolvedRoot $InsightsObjectRelative)
+    $InsightsObject = Get-Item -LiteralPath $InsightsObjectPath
+    if ($InsightsObject.Length -ne [long]$Insights.size) { throw 'Market-insights object size mismatch' }
+    if ((Get-FileHash -LiteralPath $InsightsObjectPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Insights.sha256) {
+        throw 'Market-insights object hash mismatch'
+    }
+    Invoke-GcloudCopy $InsightsObjectPath "gs://$Bucket/quant/v1/$InsightsObjectRelative" -NoClobber
+    Invoke-GcloudCopy $InsightsLatestPath "gs://$Bucket/quant/v1/latest-insights.json"
+    $InsightsUploaded = $true
+}
+
 $UploadedMarkets = @()
 foreach ($Market in @('TW', 'US')) {
     $LatestPath = Join-Path $ResolvedRoot "latest-$Market.json"
@@ -109,29 +132,6 @@ foreach ($Market in @('TW', 'US')) {
     # Upload latest pointer
     Invoke-GcloudCopy $LatestPath "gs://$Bucket/quant/v1/latest-$Market.json"
     $UploadedMarkets += $Market
-}
-
-$InsightsUploaded = $false
-$InsightsLatestPath = Join-Path $ResolvedRoot 'latest-insights.json'
-if (Test-Path -LiteralPath $InsightsLatestPath -PathType Leaf) {
-    $InsightsLatestPath = Assert-AllowlistedPath $InsightsLatestPath
-    $Insights = Get-Content -LiteralPath $InsightsLatestPath -Raw -Encoding utf8 | ConvertFrom-Json
-    if ($Insights.schema_version -ne 1 -or $Insights.kind -ne 'market-insights') {
-        throw 'Invalid market-insights latest pointer'
-    }
-    $InsightsObjectRelative = [string]$Insights.path
-    if ($InsightsObjectRelative -notmatch '^objects/[0-9a-f]{64}\.json\.gz$') {
-        throw 'Invalid market-insights object path'
-    }
-    $InsightsObjectPath = Assert-AllowlistedPath (Join-Path $ResolvedRoot $InsightsObjectRelative)
-    $InsightsObject = Get-Item -LiteralPath $InsightsObjectPath
-    if ($InsightsObject.Length -ne [long]$Insights.size) { throw 'Market-insights object size mismatch' }
-    if ((Get-FileHash -LiteralPath $InsightsObjectPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Insights.sha256) {
-        throw 'Market-insights object hash mismatch'
-    }
-    Invoke-GcloudCopy $InsightsObjectPath "gs://$Bucket/quant/v1/$InsightsObjectRelative" -NoClobber
-    Invoke-GcloudCopy $InsightsLatestPath "gs://$Bucket/quant/v1/latest-insights.json"
-    $InsightsUploaded = $true
 }
 
 $Status = @{

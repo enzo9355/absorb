@@ -57,6 +57,11 @@ class LocalQuantTaskTests(unittest.TestCase):
             source.index("# Upload manifest"), source.index("# Upload latest pointer")
         )
 
+    def test_uploader_sends_market_insights_before_large_market_snapshots(self):
+        source = UPLOADER.read_text(encoding="utf-8")
+
+        self.assertLess(source.index("$InsightsUploaded"), source.index("$UploadedMarkets"))
+
     def test_lifecycle_deletes_cloud_objects_after_thirty_days(self):
         source = LIFECYCLE.read_text(encoding="utf-8")
 

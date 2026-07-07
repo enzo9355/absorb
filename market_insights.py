@@ -169,17 +169,19 @@ def build_industries(theme_map, metrics, limit=5):
             volume = [value for value in volume if value is not None]
             average_prob = round(sum(probabilities) / len(probabilities), 1) if probabilities else 0.0
             average_return = round(sum(returns) / len(returns), 2) if returns else 0.0
+            scored = [row for row in leaders if _number(row.get("prob")) is not None]
             bullish_ratio = round(
-                sum(1 for row in leaders if row.get("trend") == "多頭") / len(leaders) * 100,
+                sum(1 for row in scored if row.get("trend") == "多頭") / len(scored) * 100,
                 1,
-            )
+            ) if scored else 0.0
             industries.append({
                 "name": str(name),
                 "leaders": leaders[:limit],
                 "average_prob": average_prob,
                 "average_return": average_return,
                 "bullish_ratio": bullish_ratio,
-                "coverage": len(leaders),
+                "coverage": len(scored),
+                "candidate_count": len(leaders),
                 "heat_tone": (
                     "surge" if average_return >= 1.5 else "rise" if average_return > 0
                     else "fall" if average_return <= -1.5 else "weak" if average_return < 0
@@ -187,9 +189,9 @@ def build_industries(theme_map, metrics, limit=5):
                 ),
                 "heat_size": "lg" if len(leaders) >= 5 else "md" if len(leaders) >= 3 else "sm",
                 "chips": [
-                    {"label": "法人", "score": _score(5 + (sum(institutional) / len(institutional) * 2 if institutional else 0))},
-                    {"label": "融資", "score": _score(5 + (sum(margin) / len(margin) * 50 if margin else 0))},
-                    {"label": "量能", "score": _score(5 + ((sum(volume) / len(volume) - 1) * 5 if volume else 0))},
+                    {"label": "法人", "score": _score(5 + sum(institutional) / len(institutional) * 2) if institutional else None},
+                    {"label": "融資", "score": _score(5 + sum(margin) / len(margin) * 50) if margin else None},
+                    {"label": "量能", "score": _score(5 + (sum(volume) / len(volume) - 1) * 5) if volume else None},
                 ],
             })
     industries.sort(key=lambda row: row["average_prob"], reverse=True)

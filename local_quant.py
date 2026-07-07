@@ -676,7 +676,17 @@ def build_market_insights_document(root, pipeline, now=None, fetch_json=None, fe
         for _stage, nodes in chain["stages"]
         for symbol, _name, _market in nodes
     )
-    metrics = {}
+    metrics = {
+        str(symbol).upper(): {
+            "name": pipeline.get_stock_name(symbol),
+            "prob": None,
+            "trend": "資料待更新",
+            "as_of": "",
+        }
+        for category, codes in pipeline.industry_map.items()
+        if category not in {"全市場", "ETF專區"}
+        for symbol in codes
+    }
     for symbol in symbols:
         metric = _read_insights_metric(root, symbol)
         if metric:

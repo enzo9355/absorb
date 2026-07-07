@@ -38,6 +38,35 @@ def analysis_data():
 
 
 class WebProductTests(unittest.TestCase):
+    def test_market_insights_fallback_uses_themes_with_five_companies(self):
+        market_map = {
+            "全市場": ["9999"], "ETF專區": ["0050"],
+            "半導體": ["1001", "1002", "1003", "1004", "1005"],
+            "AI伺服器": ["2001", "2002", "2003", "2004", "2005"],
+        }
+        cards = [{
+            "name": "ETF專區",
+            "leader": {"code": "0050", "name": "ETF", "prob": 80, "trend": "多頭", "as_of": ""},
+        }]
+        with (
+            patch.object(stock_app, "fetch_market_insights", return_value=None),
+            patch.object(stock_app, "industry_map", market_map),
+            patch.object(stock_app, "dashboard_sector_cards", return_value=cards),
+            patch.object(stock_app, "get_stock_name", side_effect=lambda code: f"公司{code}"),
+        ):
+            payload = stock_app.market_insights_payload()
+
+        self.assertEqual([item["name"] for item in payload["industries"]], ["半導體", "AI伺服器"])
+        self.assertTrue(all(len(item["leaders"]) == 5 for item in payload["industries"]))
+        self.assertTrue(all(item["coverage"] == 0 for item in payload["industries"]))
+        with patch.object(stock_app, "fetch_market_insights", return_value=payload):
+            html = stock_app.app.test_client().get("/market-map").get_data(as_text=True)
+        self.assertNotIn("None%", html)
+        self.assertNotIn("+0.0%", html)
+
+    def test_every_papi_theme_has_at_least_five_companies(self):
+        self.assertTrue(all(len(names) >= 5 for names in stock_app.PAPI_THEME_SECTORS.values()))
+
     @patch.object(stock_app, "fetch_market_insights")
     def test_market_map_renders_industries_mops_etfs_and_supply_chains(self, fetch):
         fetch.return_value = {

@@ -25,7 +25,7 @@ import numpy as np
 import json
 import google.generativeai as genai
 
-from market_insights import build_supply_chains
+from market_insights import build_industries, build_supply_chains
 
 from sklearn.model_selection import TimeSeriesSplit
 from lightgbm import LGBMClassifier
@@ -86,7 +86,7 @@ PAPI_THEME_SECTORS = {
     "散熱機構": {"雙鴻", "奇鋐", "建準", "勤誠", "營邦", "迎廣"},
     "工業電腦": {"研華", "樺漢", "凌華", "友通", "艾訊"},
     "網通設備": {"智邦", "啟碁", "中磊", "正文", "台揚", "明泰"},
-    "半導體製造": {"台積電", "聯電", "世界", "力積電"},
+    "半導體製造": {"台積電", "聯電", "世界", "力積電", "南亞科", "華邦電"},
     "IC設計ASIC": {"聯發科", "瑞昱", "創意", "世芯-KY", "力旺", "M31"},
     "封測設備": {"日月光投控", "矽格", "京元電子", "辛耘", "弘塑", "家登"},
 }
@@ -3250,20 +3250,21 @@ def market_insights_payload():
     document = fetch_market_insights()
     if document:
         return document
-    cards = dashboard_sector_cards()
+    fallback_metrics = {
+        str(code).upper(): {
+            "name": get_stock_name(code),
+            "prob": None,
+            "trend": "資料待更新",
+            "as_of": "",
+        }
+        for category, codes in industry_map.items()
+        if category not in {"全市場", "ETF專區"}
+        for code in codes
+    }
     return {
         "schema_version": 1,
         "as_of": datetime.date.today().isoformat(),
-        "industries": [
-            {"name": card["name"], "leaders": [{
-                "symbol": card["leader"]["code"],
-                "name": card["leader"]["name"],
-                "prob": card["leader"]["prob"],
-                "trend": card["leader"]["trend"],
-                "as_of": card["leader"]["as_of"],
-            }]}
-            for card in cards
-        ],
+        "industries": build_industries(industry_map, fallback_metrics),
         "mops": [],
         "etfs": [],
         "supply_chains": build_supply_chains({}),

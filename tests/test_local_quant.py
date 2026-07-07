@@ -49,17 +49,24 @@ class LocalQuantTests(unittest.TestCase):
             root = Path(temporary)
             ensure_layout(root)
             pipeline = type("Pipeline", (), {
-                "industry_map": {"全市場": ["9999"], "半導體": ["2330"]}
+                "industry_map": {
+                    "全市場": ["9999"],
+                    "半導體": ["2330", "2303", "2454", "3034", "2379"],
+                },
+                "get_stock_name": staticmethod(lambda symbol: f"公司{symbol}"),
             })()
             with patch("local_quant._read_insights_metric") as read_metric:
                 read_metric.return_value = None
-                build_market_insights_document(
+                document = build_market_insights_document(
                     root, pipeline, now=at(6, 0),
                     fetch_json=lambda _url: [], fetch_etf=lambda _etf: [],
                 )
 
             symbols = {call.args[1] for call in read_metric.call_args_list}
             self.assertNotIn("9999", symbols)
+            self.assertEqual(len(symbols & {"2330", "2303", "2454", "3034", "2379"}), 5)
+            self.assertEqual(len(document["industries"][0]["leaders"]), 5)
+            self.assertEqual(document["industries"][0]["coverage"], 0)
             self.assertIn("2330", symbols)
 
     def test_cli_insights_builds_and_publishes_without_market_batch(self):

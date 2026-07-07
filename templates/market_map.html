@@ -12,9 +12,9 @@
   <section class="map-section" aria-labelledby="key-metrics-title">
     <div class="section-heading"><div><p class="eyebrow">AT A GLANCE</p><h2 id="key-metrics-title">產業關鍵指標</h2></div><span class="muted small">依目前有效樣本彙總</span></div>
     <div class="map-kpi-grid">
-      <article><span>領先產業</span><strong>{{ lead.name if lead else '等待更新' }}</strong><small>{% if lead %}平均 AI 機率 {{ lead.average_prob|default('--') }}%{% else %}尚無有效樣本{% endif %}</small></article>
-      <article><span>領先個股</span><strong>{{ lead.leaders[0].name if lead and lead.leaders else '等待更新' }}</strong><small>{% if lead and lead.leaders %}{{ lead.leaders[0].symbol }} · {{ lead.leaders[0].prob }}%{% else %}尚無有效樣本{% endif %}</small></article>
-      <article><span>多頭廣度</span><strong>{% if lead %}{{ lead.bullish_ratio|default('--') }}%{% else %}--{% endif %}</strong><small>領先產業中，股價高於 MA20 的比例</small></article>
+      <article><span>領先產業</span><strong>{{ lead.name if lead else '等待更新' }}</strong><small>{% if lead and lead.coverage|default(0) %}平均 AI 機率 {{ lead.average_prob }}%{% else %}等待量化快照{% endif %}</small></article>
+      <article><span>領先個股</span><strong>{{ lead.leaders[0].name if lead and lead.leaders else '等待更新' }}</strong><small>{% if lead and lead.leaders %}{{ lead.leaders[0].symbol }} · {% if lead.leaders[0].prob is not none %}{{ lead.leaders[0].prob }}%{% else %}等待更新{% endif %}{% else %}尚無候選{% endif %}</small></article>
+      <article><span>多頭廣度</span><strong>{% if lead and lead.coverage|default(0) %}{{ lead.bullish_ratio }}%{% else %}--{% endif %}</strong><small>領先產業中，股價高於 MA20 的比例</small></article>
       <article><span>資料覆蓋</span><strong>{{ lead.coverage|default(0) if lead else 0 }} 檔</strong><small>已完成本地分析的產業樣本</small></article>
     </div>
   </section>
@@ -25,8 +25,8 @@
       {% for industry in insights.industries %}
       <a class="industry-heat {{ industry.heat_tone|default('flat') }} size-{{ industry.heat_size|default('sm') }}" href="#industry-{{ loop.index }}">
         <span>{{ industry.name }}</span>
-        <strong>{% if industry.average_return is defined %}{{ '%+.1f'|format(industry.average_return) }}%{% else %}--{% endif %}</strong>
-        <small>AI {{ industry.average_prob|default('--') }}% · {{ industry.coverage|default(industry.leaders|length) }} 檔</small>
+        <strong>{% if industry.coverage|default(0) and industry.average_return is defined %}{{ '%+.1f'|format(industry.average_return) }}%{% else %}--{% endif %}</strong>
+        <small>AI {% if industry.coverage|default(0) %}{{ industry.average_prob }}%{% else %}--{% endif %} · {{ industry.candidate_count|default(industry.leaders|length) }} 檔候選</small>
       </a>
       {% else %}<div class="empty-state">產業快照等待更新。</div>{% endfor %}
     </div>
@@ -36,7 +36,7 @@
   <section class="panel" aria-labelledby="chip-title">
     <div class="section-heading"><div><p class="eyebrow">CAPITAL FLOW</p><h2 id="chip-title">籌碼訊號</h2></div><span class="muted small">{{ lead.name if lead else '領先產業' }} · 0 至 10 分，只作相對強弱比較</span></div>
     <div class="chip-signal-list">
-      {% if lead and lead.chips is defined %}{% for chip in lead.chips %}<div class="chip-signal"><strong>{{ chip.label }}</strong><progress max="10" value="{{ chip.score }}">{{ chip.score }}/10</progress><span>{{ chip.score }}/10</span></div>{% endfor %}
+      {% if lead and lead.chips is defined %}{% for chip in lead.chips %}<div class="chip-signal"><strong>{{ chip.label }}</strong>{% if chip.score is not none %}<progress max="10" value="{{ chip.score }}">{{ chip.score }}/10</progress><span>{{ chip.score }}/10</span>{% else %}<progress max="10" value="0">等待更新</progress><span>--</span>{% endif %}</div>{% endfor %}
       {% else %}<div class="empty-state">籌碼快照等待更新。</div>{% endif %}
     </div>
   </section>
@@ -46,12 +46,12 @@
     <div class="industry-detail-list">
       {% for industry in insights.industries %}
       <article class="industry-detail" id="industry-{{ loop.index }}">
-        <header><div><h3>{{ industry.name }}</h3><p>平均 AI {{ industry.average_prob|default('--') }}% · 多頭廣度 {{ industry.bullish_ratio|default('--') }}%</p></div><strong class="return {% if industry.average_return|default(0, true) >= 0 %}up{% else %}down{% endif %}">{% if industry.average_return is defined and industry.average_return is not none %}{{ '%+.1f'|format(industry.average_return) }}%{% else %}--{% endif %}</strong></header>
+        <header><div><h3>{{ industry.name }}</h3><p>平均 AI {% if industry.coverage|default(0) %}{{ industry.average_prob }}% · 多頭廣度 {{ industry.bullish_ratio }}%{% else %}等待量化快照{% endif %}</p></div><strong class="return {% if industry.average_return|default(0, true) >= 0 %}up{% else %}down{% endif %}">{% if industry.coverage|default(0) and industry.average_return is defined and industry.average_return is not none %}{{ '%+.1f'|format(industry.average_return) }}%{% else %}--{% endif %}</strong></header>
         <div class="industry-company-grid">
           {% for leader in industry.leaders %}<a href="{{ url_for('stock_page', code=leader.symbol) }}" class="industry-company">
             <div><strong>{{ leader.name }}</strong><small>{{ leader.symbol }}</small></div>
             <div class="company-quote"><strong>{% if leader.close is defined and leader.close is not none %}{{ '{:,.2f}'.format(leader.close) }}{% else %}--{% endif %}</strong><span class="{% if leader.return_1d|default(0, true) >= 0 %}up{% else %}down{% endif %}">{% if leader.return_1d is defined and leader.return_1d is not none %}{{ '%+.1f'|format(leader.return_1d) }}%{% else %}--{% endif %}</span></div>
-            <div class="signal-tags"><span>{{ leader.trend }}</span><span>AI {{ leader.prob }}%</span>{% for signal in leader.signals|default([]) %}<span>{{ signal }}</span>{% endfor %}</div>
+            <div class="signal-tags"><span>{{ leader.trend }}</span><span>AI {% if leader.prob is not none %}{{ leader.prob }}%{% else %}--{% endif %}</span>{% for signal in leader.signals|default([]) %}<span>{{ signal }}</span>{% endfor %}</div>
           </a>{% endfor %}
         </div>
       </article>

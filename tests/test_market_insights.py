@@ -87,6 +87,28 @@ class MarketInsightsTests(unittest.TestCase):
 
         self.assertEqual(result[0]["average_prob"], 0.0)
 
+    def test_industry_lists_five_candidates_but_counts_only_valid_metrics(self):
+        symbols = ["1001", "1002", "1003", "1004", "1005"]
+        metrics = {
+            symbol: {
+                "name": f"公司{index}",
+                "prob": 60 if index == 1 else None,
+                "trend": "多頭" if index == 1 else "資料待更新",
+            }
+            for index, symbol in enumerate(symbols, 1)
+        }
+
+        result = build_industries({"測試產業": symbols}, metrics)
+
+        self.assertEqual(len(result[0]["leaders"]), 5)
+        self.assertEqual(result[0]["coverage"], 1)
+        self.assertEqual(result[0]["candidate_count"], 5)
+        no_data = build_industries(
+            {"測試產業": symbols},
+            {symbol: {"name": symbol, "prob": None, "trend": "資料待更新"} for symbol in symbols},
+        )
+        self.assertEqual([item["score"] for item in no_data[0]["chips"]], [None, None, None])
+
 
 if __name__ == "__main__":
     unittest.main()
