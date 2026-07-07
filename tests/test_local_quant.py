@@ -10,6 +10,7 @@ from local_quant import (
     LAYOUT_DIRS,
     TAIPEI,
     acquire_lock,
+    build_market_insights_document,
     check_free_space,
     cleanup_expired_data,
     ensure_layout,
@@ -26,6 +27,52 @@ def at(hour, minute):
 
 
 class LocalQuantTests(unittest.TestCase):
+    def test_market_insights_reads_theme_symbols_not_full_universe(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            pipeline = type("Pipeline", (), {
+                "industry_map": {"全市場": ["9999"], "半導體": ["2330"]}
+            })()
+            with patch("local_quant._read_insights_metric") as read_metric:
+                read_metric.return_value = None
+                build_market_insights_document(
+                    root, pipeline, now=at(6, 0),
+                    fetch_json=lambda _url: [], fetch_etf=lambda _etf: [],
+                )
+
+            symbols = {call.args[1] for call in read_metric.call_args_list}
+            self.assertNotIn("9999", symbols)
+            self.assertIn("2330", symbols)
+
+    def test_cli_insights_builds_and_publishes_without_market_batch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            pipeline = type("Pipeline", (), {"industry_map": {"全市場": ["2330"]}})()
+            document = {
+                "schema_version": 1, "as_of": "2026-07-04",
+                "industries": [], "mops": [], "etfs": [], "supply_chains": [], "sources": [],
+            }
+            with (
+                patch("local_quant.validate_data_root", return_value=root),
+                patch("local_quant.cleanup_expired_data", return_value={}),
+                patch("local_quant.load_stock_pipeline", return_value=pipeline),
+                patch("local_quant.build_market_insights_document", return_value=document) as build,
+                patch("local_quant.publish_market_insights") as publish,
+                patch("local_quant.run_market_batch") as batch,
+            ):
+                result = main(
+                    ["--root", str(root), "--insights"],
+                    now=at(6, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 0)
+            build.assert_called_once_with(root, pipeline, now=at(6, 0))
+            publish.assert_called_once_with(root, document, generated_at=at(6, 0))
+            batch.assert_not_called()
+
     def test_cleanup_expired_data_is_allowlisted_and_age_bounded(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

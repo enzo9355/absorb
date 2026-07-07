@@ -25,6 +25,8 @@ import numpy as np
 import json
 import google.generativeai as genai
 
+from market_insights import build_supply_chains
+
 from sklearn.model_selection import TimeSeriesSplit
 from lightgbm import LGBMClassifier
 from flask import Flask, request, abort, render_template, jsonify, redirect, url_for
@@ -115,6 +117,7 @@ QUANT_MANIFEST_CACHE_SECONDS = 300
 MAX_QUANT_ARTIFACT_COMPRESSED_BYTES = 5 * 1024 * 1024
 MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
 _QUANT_MANIFEST_CACHE = {}
+_MARKET_INSIGHTS_CACHE = {}
 
 # ==================================================
 # 2. 資料抓取與清洗模組
@@ -387,6 +390,58 @@ def fetch_published_quant_snapshot(code, today=None):
         return document
     except (KeyError, OSError, TypeError, UnicodeError, ValueError):
         return None
+
+
+def fetch_market_insights(today=None):
+    now = time.time()
+    cached = _MARKET_INSIGHTS_CACHE.get("latest")
+    if cached and now - cached[1] < QUANT_MANIFEST_CACHE_SECONDS:
+        return cached[0]
+    latest_bytes = _gcs_get_object("quant/v1/latest-insights.json", 100_000)
+    if latest_bytes is None:
+        return None
+    try:
+        latest = json.loads(latest_bytes.decode("utf-8"))
+        path = str(latest["path"])
+        digest = str(latest["sha256"])
+        size = latest["size"]
+        snapshot_date = datetime.date.fromisoformat(str(latest["as_of"]))
+        age = (today or datetime.date.today()) - snapshot_date
+        if (
+            latest.get("schema_version") != 1
+            or latest.get("kind") != "market-insights"
+            or re.fullmatch(r"objects/[0-9a-f]{64}\.json\.gz", path) is None
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            or type(size) is not int
+            or not 0 < size <= MAX_QUANT_ARTIFACT_COMPRESSED_BYTES
+            or not 0 <= age.days <= 7
+        ):
+            return None
+        compressed = _gcs_get_object(f"quant/v1/{path}", size)
+        if (
+            compressed is None
+            or len(compressed) != size
+            or not hmac.compare_digest(hashlib.sha256(compressed).hexdigest(), digest)
+        ):
+            return None
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as stream:
+            decoded = stream.read(MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES + 1)
+        if len(decoded) > MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES:
+            return None
+        document = json.loads(decoded.decode("utf-8"))
+        if (
+            not isinstance(document, dict)
+            or document.get("schema_version") != 1
+            or document.get("as_of") != latest.get("as_of")
+            or any(not isinstance(document.get(key), list) for key in (
+                "industries", "mops", "etfs", "supply_chains", "sources"
+            ))
+        ):
+            return None
+    except (KeyError, OSError, TypeError, UnicodeError, ValueError):
+        return None
+    _MARKET_INSIGHTS_CACHE["latest"] = (document, now)
+    return document
 
 def _foreign_flow_mask(frame):
     mask = pd.Series(False, index=frame.index)
@@ -3189,6 +3244,42 @@ def dashboard_api():
         },
         "sectors": sectors,
     })
+
+
+def market_insights_payload():
+    document = fetch_market_insights()
+    if document:
+        return document
+    cards = dashboard_sector_cards()
+    return {
+        "schema_version": 1,
+        "as_of": datetime.date.today().isoformat(),
+        "industries": [
+            {"name": card["name"], "leaders": [{
+                "symbol": card["leader"]["code"],
+                "name": card["leader"]["name"],
+                "prob": card["leader"]["prob"],
+                "trend": card["leader"]["trend"],
+                "as_of": card["leader"]["as_of"],
+            }]}
+            for card in cards
+        ],
+        "mops": [],
+        "etfs": [],
+        "supply_chains": build_supply_chains({}),
+        "sources": ["Stock Papi fallback"],
+        "degraded": True,
+    }
+
+
+@app.route("/api/market-insights")
+def market_insights_api():
+    return jsonify(market_insights_payload())
+
+
+@app.route("/market-map")
+def market_map_page():
+    return render_template("market_map.html", insights=market_insights_payload())
 
 @app.route("/stock/<code>")
 def stock_page(code):

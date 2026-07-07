@@ -72,6 +72,24 @@ def quant_cloud_payloads(
     return json.dumps(latest).encode(), manifest_bytes, object_bytes
 
 
+def insights_cloud_payloads(document=None, latest_changes=None, object_bytes=None):
+    document = document or {
+        "schema_version": 1, "as_of": "2026-07-06",
+        "industries": [], "mops": [], "etfs": [], "supply_chains": [], "sources": [],
+    }
+    object_bytes = object_bytes or gzip.compress(
+        json.dumps(document, separators=(",", ":")).encode("utf-8")
+    )
+    digest = hashlib.sha256(object_bytes).hexdigest()
+    latest = {
+        "schema_version": 1, "kind": "market-insights",
+        "generated_at": "2026-07-06T18:30:00Z", "as_of": document.get("as_of"),
+        "path": f"objects/{digest}.json.gz", "sha256": digest, "size": len(object_bytes),
+    }
+    latest.update(latest_changes or {})
+    return json.dumps(latest).encode(), object_bytes
+
+
 def sample_analysis_data(news=None):
     return {
         "name": "台積電",
@@ -108,6 +126,32 @@ def sample_analysis_data(news=None):
 
 
 class PredictionPipelineTests(unittest.TestCase):
+    @patch("app._gcs_get_object")
+    def test_market_insights_accepts_only_verified_fresh_snapshot(self, get_object):
+        get_object.side_effect = insights_cloud_payloads()
+        stock_app._MARKET_INSIGHTS_CACHE.clear()
+
+        result = stock_app.fetch_market_insights(today=datetime.date(2026, 7, 7))
+
+        self.assertEqual(result["as_of"], "2026-07-06")
+        self.assertEqual(get_object.call_count, 2)
+
+    def test_market_insights_rejects_bad_sha_stale_and_schema(self):
+        cases = (
+            insights_cloud_payloads(latest_changes={"sha256": "0" * 64}),
+            insights_cloud_payloads(document={
+                "schema_version": 1, "as_of": "2026-06-01",
+                "industries": [], "mops": [], "etfs": [], "supply_chains": [], "sources": [],
+            }),
+            insights_cloud_payloads(document={"schema_version": 9, "as_of": "2026-07-06"}),
+        )
+        for payloads in cases:
+            with self.subTest(payloads=payloads), patch.object(
+                stock_app, "_gcs_get_object", side_effect=payloads
+            ):
+                stock_app._MARKET_INSIGHTS_CACHE.clear()
+                self.assertIsNone(stock_app.fetch_market_insights(today=datetime.date(2026, 7, 7)))
+
     @patch("app.requests.get")
     def test_gcs_reader_rejects_oversized_content_before_body_download(self, get):
         response = Mock(status_code=200, headers={"Content-Length": "101"})

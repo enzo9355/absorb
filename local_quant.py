@@ -15,6 +15,15 @@ import sys
 import time
 from pathlib import Path
 
+from market_insights import (
+    ETF_CATALOG,
+    SUPPLY_CHAINS,
+    build_industries,
+    build_supply_chains,
+    normalize_etf_holdings,
+    parse_mops_items,
+)
+
 
 TAIPEI = datetime.timezone(datetime.timedelta(hours=8), "Asia/Taipei")
 RUN_START = datetime.time(2, 30)
@@ -40,6 +49,11 @@ US_EXCHANGES = {"Nasdaq", "NYSE", "CBOE"}
 CRYPTO_SECURITY_TERMS = (
     "bitcoin", "ethereum", "crypto", "solana", "litecoin", "dogecoin",
 )
+MOPS_SOURCES = (
+    ("TWSE", "https://openapi.twse.com.tw/v1/opendata/t187ap04_L"),
+    ("TPEx", "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O"),
+)
+MARKET_INSIGHTS_MAX_BYTES = 5 * 1024 * 1024
 
 
 def validate_data_root(path):
@@ -484,6 +498,186 @@ def publish_market_snapshot(
     return latest_path
 
 
+def publish_market_insights(root, document, generated_at=None):
+    if not isinstance(document, dict) or document.get("schema_version") != 1:
+        raise ValueError("invalid market insights document")
+    as_of = datetime.date.fromisoformat(str(document.get("as_of")))
+    generated_at = generated_at or datetime.datetime.now(TAIPEI)
+    if generated_at.tzinfo is None:
+        generated_at = generated_at.replace(tzinfo=TAIPEI)
+    if as_of > generated_at.astimezone(TAIPEI).date():
+        raise ValueError("market insights date is in the future")
+    _validate_json_value(document)
+    encoded = json.dumps(
+        document, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    compressed = gzip.compress(encoded, compresslevel=6, mtime=0)
+    if len(compressed) > STOCK_ARTIFACT_MAX_COMPRESSED_BYTES:
+        raise RuntimeError("market insights snapshot is too large")
+    digest = hashlib.sha256(compressed).hexdigest()
+    publish_root = Path(root) / "publish" / "quant" / "v1"
+    object_path = publish_root / "objects" / f"{digest}.json.gz"
+    if object_path.exists():
+        if object_path.stat().st_size != len(compressed) or _sha256_path(object_path) != digest:
+            raise RuntimeError("published insights object hash mismatch")
+        os.utime(object_path, None)
+    else:
+        _write_bytes_atomic(object_path, compressed)
+    generated_text = generated_at.astimezone(datetime.timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
+    latest_path = publish_root / "latest-insights.json"
+    _write_json_atomic(latest_path, {
+        "schema_version": 1,
+        "kind": "market-insights",
+        "generated_at": generated_text,
+        "as_of": document["as_of"],
+        "path": f"objects/{digest}.json.gz",
+        "sha256": digest,
+        "size": len(compressed),
+    })
+    return latest_path
+
+
+def _fetch_json_list(url):
+    import requests
+
+    response = requests.get(
+        url,
+        headers={"User-Agent": "StockPapi/1.0 (public market research)"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    if int(response.headers.get("Content-Length") or 0) > MARKET_INSIGHTS_MAX_BYTES:
+        raise RuntimeError("market insights response is too large")
+    content = response.content
+    if len(content) > MARKET_INSIGHTS_MAX_BYTES:
+        raise RuntimeError("market insights response is too large")
+    document = json.loads(content)
+    if not isinstance(document, list):
+        raise ValueError("market insights response must be a list")
+    return document
+
+
+def _fetch_yfinance_holdings(etf):
+    import yfinance as yf
+
+    frame = yf.Ticker(etf["ticker"]).funds_data.top_holdings
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    rows = []
+    for symbol, row in frame.iterrows():
+        rows.append({
+            "symbol": str(symbol),
+            "name": row.get("Name") or row.get("name") or str(symbol),
+            "weight": row.get("Holding Percent") if "Holding Percent" in row else row.get("holdingPercent"),
+        })
+    return rows
+
+
+def _read_insights_metric(root, symbol):
+    symbol = str(symbol).upper()
+    market = "TW" if re.fullmatch(r"\d{4,6}", symbol) else "US"
+    if market == "US" and not re.fullmatch(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)?", symbol):
+        return None
+    try:
+        _path, _compressed, document = _validated_artifact(
+            root, market, symbol, datetime.datetime.now(TAIPEI)
+        )
+        latest = document["latest"]
+        probability = max(0, min(100, int(round(float(latest["AI_P"])))))
+        close = float(latest["Close"])
+        ma20 = float(latest["MA20"])
+        return {
+            "name": str(document.get("name") or symbol),
+            "prob": probability,
+            "trend": "多頭" if close > ma20 else "空頭",
+            "as_of": str(document["as_of"]),
+        }
+    except (KeyError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _load_local_market_insights(root):
+    try:
+        publish_root = Path(root) / "publish" / "quant" / "v1"
+        latest = json.loads((publish_root / "latest-insights.json").read_text(encoding="utf-8"))
+        path = str(latest["path"])
+        if (
+            latest.get("schema_version") != 1
+            or latest.get("kind") != "market-insights"
+            or re.fullmatch(r"objects/[0-9a-f]{64}\.json\.gz", path) is None
+        ):
+            return None
+        compressed = (publish_root / path).read_bytes()
+        if len(compressed) != latest["size"] or hashlib.sha256(compressed).hexdigest() != latest["sha256"]:
+            return None
+        decoded = gzip.decompress(compressed)
+        if len(decoded) > STOCK_ARTIFACT_MAX_UNCOMPRESSED_BYTES:
+            return None
+        document = json.loads(decoded)
+        return document if document.get("schema_version") == 1 else None
+    except (KeyError, OSError, TypeError, ValueError):
+        return None
+
+
+def build_market_insights_document(root, pipeline, now=None, fetch_json=None, fetch_etf=None):
+    checked_at = now or datetime.datetime.now(TAIPEI)
+    previous = _load_local_market_insights(root) or {}
+    fetch_json = fetch_json or _fetch_json_list
+    fetch_etf = fetch_etf or _fetch_yfinance_holdings
+
+    mops = []
+    successful_mops_sources = 0
+    for source, url in MOPS_SOURCES:
+        try:
+            mops.extend(parse_mops_items(fetch_json(url), source))
+            successful_mops_sources += 1
+        except Exception:
+            continue
+    if not successful_mops_sources:
+        mops = list(previous.get("mops") or [])
+    mops.sort(key=lambda row: row.get("published_at", ""), reverse=True)
+
+    previous_etfs = {item.get("ticker"): item for item in previous.get("etfs") or []}
+    etfs = []
+    for etf in ETF_CATALOG:
+        try:
+            normalized = normalize_etf_holdings(fetch_etf(etf), etf)
+        except Exception:
+            normalized = previous_etfs.get(etf["ticker"])
+        if normalized and normalized.get("holdings"):
+            etfs.append(normalized)
+
+    symbols = {
+        str(symbol).upper()
+        for category, codes in pipeline.industry_map.items()
+        if category not in {"全市場", "ETF專區"}
+        for symbol in codes
+    }
+    symbols.update(
+        symbol
+        for chain in SUPPLY_CHAINS
+        for _stage, nodes in chain["stages"]
+        for symbol, _name, _market in nodes
+    )
+    metrics = {}
+    for symbol in symbols:
+        metric = _read_insights_metric(root, symbol)
+        if metric:
+            metrics[symbol] = metric
+
+    return {
+        "schema_version": 1,
+        "as_of": checked_at.astimezone(TAIPEI).date().isoformat(),
+        "industries": build_industries(pipeline.industry_map, metrics),
+        "mops": mops[:200],
+        "etfs": etfs,
+        "supply_chains": build_supply_chains(metrics),
+        "sources": [source for source, _url in MOPS_SOURCES] + ["yfinance", "Stock Papi local artifacts"],
+    }
+
+
 def run_market_batch(
     root,
     market,
@@ -757,6 +951,7 @@ def main(argv=None, now=None, free_bytes=None):
     parser.add_argument("--init", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run", action="store_true")
+    parser.add_argument("--insights", action="store_true")
     parser.add_argument("--market", choices=("TW", "US", "ALL"), default="TW")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--delay", type=float, default=0.5)
@@ -780,16 +975,28 @@ def main(argv=None, now=None, free_bytes=None):
             "checked_at": checked_at.isoformat(),
             "dry_run": bool(args.dry_run),
             "run": bool(args.run),
+            "insights": bool(args.insights),
             "free_gb": round(available / 1024**3, 1),
             "phase": phase,
             "root": str(root),
         }
         status_path = root / "logs" / "runner-status.json"
         _write_json_atomic(status_path, status)
-        if args.dry_run and args.run:
-            raise ValueError("choose either --dry-run or --run")
-        if not args.dry_run and not args.run:
-            raise ValueError("choose --dry-run or --run")
+        if sum((bool(args.dry_run), bool(args.run), bool(args.insights))) != 1:
+            raise ValueError("choose one of --dry-run, --run or --insights")
+        if args.insights and phase == "run":
+            with acquire_lock(root, now=checked_at):
+                status["cleanup"] = cleanup_expired_data(root, now=checked_at)
+                pipeline = load_stock_pipeline(root)
+                document = build_market_insights_document(root, pipeline, now=checked_at)
+                publish_market_insights(root, document, generated_at=checked_at)
+                status["market_insights"] = {
+                    "as_of": document["as_of"],
+                    "mops": len(document["mops"]),
+                    "etfs": len(document["etfs"]),
+                }
+                _write_json_atomic(status_path, status)
+                print(json.dumps(status["market_insights"], ensure_ascii=False, separators=(",", ":")))
         if args.run and phase == "run":
             with acquire_lock(root, now=checked_at):
                 status["cleanup"] = cleanup_expired_data(root, now=checked_at)

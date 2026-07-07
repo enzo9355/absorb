@@ -9,12 +9,38 @@ from pathlib import Path
 from local_quant import (
     TAIPEI,
     ensure_layout,
+    publish_market_insights,
     publish_market_snapshot,
     write_stock_artifact,
 )
 
 
 class LocalQuantPublishTests(unittest.TestCase):
+    def test_market_insights_publish_content_addressed_gzip_and_latest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            document = {
+                "schema_version": 1,
+                "as_of": "2026-07-06",
+                "industries": [], "mops": [], "etfs": [], "supply_chains": [],
+                "sources": ["TWSE"],
+            }
+
+            latest_path = publish_market_insights(
+                root,
+                document,
+                generated_at=datetime.datetime(2026, 7, 7, 2, 30, tzinfo=TAIPEI),
+            )
+
+            latest = json.loads(latest_path.read_text(encoding="utf-8"))
+            object_path = latest_path.parent / latest["path"]
+            self.assertEqual(latest["schema_version"], 1)
+            self.assertEqual(latest["kind"], "market-insights")
+            self.assertEqual(hashlib.sha256(object_path.read_bytes()).hexdigest(), latest["sha256"])
+            with gzip.open(object_path, "rt", encoding="utf-8") as stream:
+                self.assertEqual(json.load(stream), document)
+
     def test_four_percent_failures_publish_with_coverage_manifest(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

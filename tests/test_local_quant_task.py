@@ -23,6 +23,8 @@ class LocalQuantTaskTests(unittest.TestCase):
             "objects/[0-9a-f]{64}",
             "manifests/",
             '"latest-$Market.json"',
+            'latest-insights.json',
+            'market-insights',
             "gcloud",
             "storage",
             "cp",
@@ -137,6 +139,7 @@ class LocalQuantTaskTests(unittest.TestCase):
             "$env:PYTHONPYCACHEPREFIX",
             "$env:PYTHONPATH",
             "--run",
+            "--insights",
             "--market",
             "--limit",
             "5000",
@@ -151,6 +154,7 @@ class LocalQuantTaskTests(unittest.TestCase):
         self.assertNotIn("--limit 200", source)
         self.assertNotIn("--market ALL", source)
         self.assertEqual(source.count("--limit 5000"), 2)
+        self.assertLess(source.index("--insights"), source.index("--market TW"))
         self.assertLess(source.index("--market TW"), source.index("Start-Sleep"))
         self.assertLess(source.index("Start-Sleep"), source.index("--market US"))
 

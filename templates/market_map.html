@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}產業地圖｜Stock Papi{% endblock %}
+{% block content %}
+<div class="page market-map-page">
+  <header class="map-hero glass-panel">
+    <div><p class="eyebrow">MARKET INTELLIGENCE</p><h1>產業地圖</h1></div>
+    <p class="muted">資料日 {{ insights.as_of }}。重運算由本地夜間批次完成，網站只讀取驗證後快照。</p>
+    {% if insights.degraded %}<p class="map-notice">本地洞察快照尚未上傳，目前顯示既有產業訊號與供應鏈架構。</p>{% endif %}
+  </header>
+
+  <section class="panel" aria-labelledby="industry-map-title">
+    <div class="section-heading"><div><p class="eyebrow">INDUSTRIES</p><h2 id="industry-map-title">產業強弱地圖</h2></div></div>
+    <div class="industry-map-grid">
+      {% for industry in insights.industries %}
+      <article class="industry-map-card"><h3>{{ industry.name }}</h3><div class="map-leaders">
+        {% for leader in industry.leaders %}<a href="{{ url_for('stock_page', code=leader.symbol) }}"><span>{{ leader.name }}</span><strong>{{ leader.prob }}%</strong><small>{{ leader.trend }}</small></a>{% endfor %}
+      </div></article>
+      {% else %}<div class="empty-state">產業快照等待更新。</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="supply-chain-title">
+    <div class="section-heading"><div><p class="eyebrow">TW · US · JP</p><h2 id="supply-chain-title">台美日供應鏈</h2></div><span class="muted small">角色分類，不代表已驗證的客戶或供應契約</span></div>
+    {% for chain in insights.supply_chains %}<article class="supply-chain"><h3>{{ chain.name }}</h3><div class="supply-stages">
+      {% for stage in chain.stages %}<section><h4>{{ stage.name }}</h4><div class="supply-nodes">
+        {% for node in stage.nodes %}{% if node.market != 'JP' %}<a href="{{ url_for('stock_page', code=node.symbol) }}" class="supply-node">{% else %}<div class="supply-node">{% endif %}<span>{{ node.market }}</span><strong>{{ node.name }}</strong><small>{{ node.symbol }}{% if node.prob is not none %} · {{ node.prob }}%{% endif %}</small>{% if node.market != 'JP' %}</a>{% else %}</div>{% endif %}{% endfor %}
+      </div></section>{% endfor %}
+    </div></article>{% endfor %}
+  </section>
+
+  <section class="panel" aria-labelledby="mops-title">
+    <div class="section-heading"><div><p class="eyebrow">DISCLOSURES</p><h2 id="mops-title">重大資訊 MOPS</h2></div><span class="muted small">TWSE／TPEx 每日重大訊息</span></div>
+    <div class="mops-list">{% for item in insights.mops[:30] %}<a href="{{ url_for('stock_page', code=item.code) }}"><strong>{{ item.code }} {{ item.name }}</strong><span>{{ item.title }}</span><small>{{ item.source }} · {{ item.published_at[:10] }}</small></a>{% else %}<div class="empty-state">MOPS 快照等待下一次夜間批次。</div>{% endfor %}</div>
+  </section>
+
+  <section class="panel" aria-labelledby="etf-title">
+    <div class="section-heading"><div><p class="eyebrow">FUND HOLDINGS</p><h2 id="etf-title">ETF 持倉</h2></div><span class="muted small">僅顯示資料源可取得的前十大持倉</span></div>
+    <div class="etf-grid">{% for etf in insights.etfs %}<article class="etf-card"><h3>{{ etf.name }}</h3><p>{{ etf.market }} · {{ etf.ticker }}</p><ol>{% for holding in etf.holdings %}<li><span>{{ holding.name }}</span><strong>{{ holding.weight }}%</strong></li>{% endfor %}</ol></article>{% else %}<div class="empty-state">ETF 持倉快照等待下一次夜間批次。</div>{% endfor %}</div>
+  </section>
+</div>
+{% endblock %}

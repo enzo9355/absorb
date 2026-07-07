@@ -38,6 +38,23 @@ def analysis_data():
 
 
 class WebProductTests(unittest.TestCase):
+    @patch.object(stock_app, "fetch_market_insights")
+    def test_market_map_renders_industries_mops_etfs_and_supply_chains(self, fetch):
+        fetch.return_value = {
+            "schema_version": 1, "as_of": "2026-07-06",
+            "industries": [{"name": "半導體", "leaders": []}],
+            "mops": [{"code": "2330", "name": "台積電", "title": "重大投資", "published_at": "2026-07-06T09:00:00+08:00", "source": "TWSE"}],
+            "etfs": [{"ticker": "0050.TW", "name": "元大台灣50", "market": "TW", "holdings": []}],
+            "supply_chains": [{"id": "semiconductor", "name": "半導體供應鏈", "stages": []}],
+            "sources": ["TWSE"],
+        }
+
+        response = stock_app.app.test_client().get("/market-map")
+        html = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        for label in ("產業地圖", "重大資訊 MOPS", "ETF 持倉", "台美日供應鏈", "重大投資"):
+            self.assertIn(label, html)
     def test_build_market_heatmap_orders_strongest_first(self):
         cards = [
             {"name": "弱勢", "count": 1, "score": 42, "leader": {"code": "1101", "prob": 42}},
@@ -313,6 +330,7 @@ class WebProductTests(unittest.TestCase):
             self.assertIn(marker, html)
         for rule in [":focus-visible", "prefers-reduced-motion", "min-height:44px"]:
             self.assertIn(rule, css)
+        self.assertIn("grid-template-columns:repeat(3,1fr)", css)
 
     def test_browser_bundle_has_no_local_watchlist_storage(self):
         source = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
