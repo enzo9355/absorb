@@ -12,23 +12,19 @@ import gzip
 import hashlib
 import hmac
 import io
+import importlib
 import math
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 from html import escape
 import requests
-import pandas as pd
 import twstock
 from defusedxml import ElementTree as ET
 import urllib.parse
-import numpy as np
 import json
-import google.generativeai as genai
 
 from market_insights import build_industries, build_supply_chains
 
-from sklearn.model_selection import TimeSeriesSplit
-from lightgbm import LGBMClassifier
 from flask import Flask, request, abort, render_template, jsonify, redirect, url_for
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -40,6 +36,40 @@ from line_state import (
     FirestoreStore, StateError, StoreError, add_alert, add_watch,
     consume_pending, evaluate_alert, remove_watch, start_pending, top_signals,
 )
+
+
+class _LazyModule:
+    def __init__(self, name):
+        self._name = name
+        self._module = None
+        self._lock = threading.Lock()
+
+    def __getattr__(self, name):
+        if self._module is None:
+            with self._lock:
+                if self._module is None:
+                    self._module = importlib.import_module(self._name)
+        return getattr(self._module, name)
+
+
+class _LazyGeminiModel:
+    def __init__(self, api_key):
+        self._api_key = api_key
+        self._model = None
+        self._lock = threading.Lock()
+
+    def generate_content(self, *args, **kwargs):
+        if self._model is None:
+            with self._lock:
+                if self._model is None:
+                    genai = importlib.import_module("google.generativeai")
+                    genai.configure(api_key=self._api_key)
+                    self._model = genai.GenerativeModel("gemini-2.5-flash")
+        return self._model.generate_content(*args, **kwargs)
+
+
+pd = _LazyModule("pandas")
+np = _LazyModule("numpy")
 
 # ==================================================
 # 1. 基本設定與系統快取
@@ -68,11 +98,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 line_store = FirestoreStore(GCP_PROJECT_ID) if GCP_PROJECT_ID else None
 
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel('gemini-2.5-flash')
-else:
-    gemini_model = None
+gemini_model = _LazyGeminiModel(GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 finmind_token = None
 _FINMIND_BLOCKED_UNTIL = 0
@@ -1087,6 +1113,8 @@ def add_prediction_target(df):
     return result
 
 def build_time_splits(n_samples):
+    from sklearn.model_selection import TimeSeriesSplit
+
     splitter = TimeSeriesSplit(n_splits=5, gap=PREDICTION_HORIZON)
     return list(splitter.split(np.arange(n_samples)))
 
@@ -1127,6 +1155,8 @@ def score_oos_predictions(future_returns, probabilities):
 
 def run_ai_engine(df):
     try:
+        from lightgbm import LGBMClassifier
+
         training = add_prediction_target(df).dropna(
             subset=MODEL_FEATURES + ["FUTURE_RET_5", "T"]
         )

@@ -9,15 +9,13 @@
 - 冷啟動請求耗時 13.61 秒。
 - 部署映像為 346 MB。
 - `pandas`、`numpy`、`scikit-learn`、`lightgbm`、`google.generativeai` 在 `app.py` 匯入時立即載入。
-- 不需要個人狀態的 LINE 指令仍會等待最多 0.25 秒的 Firestore 讀取。
 
 ## 設計
 
 1. 使用標準函式與鎖延遲載入 Pandas、NumPy 與 Gemini；不新增依賴。
 2. 將 `TimeSeriesSplit` 與 `LGBMClassifier` 匯入移到實際回測函式內。
-3. 只有依賴關注、提醒或 pending 狀態的指令才讀 Firestore；其餘流程與輸出不變。
-4. Docker 建置保留必要編譯能力，但最終執行映像不保留 `build-essential`。
-5. 保留 1 worker、8 threads、startup CPU boost 與 scale-to-zero。
+3. Docker 建置保留必要編譯能力，但最終執行映像不保留 `build-essential`。
+4. 保留 pending 提醒讀取、1 worker、8 threads、startup CPU boost 與 scale-to-zero。
 
 ## 安全邊界
 
@@ -30,5 +28,4 @@
 
 - 啟動後尚未載入五個重型套件。
 - 量化分析與 Gemini 呼叫時仍可正常載入既有實作。
-- 不需要狀態的 LINE 選單不讀 Firestore。
 - scale-to-zero 後的實測冷啟動顯著低於 13.61 秒；以低於 5 秒為目標，不預先保證。

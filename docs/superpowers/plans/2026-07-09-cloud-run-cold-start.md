@@ -4,7 +4,7 @@
 
 **Goal:** 保留全部既有服務行為，縮短 LINE webhook 冷啟動。
 
-**Architecture:** 重型分析套件改為執行時載入；FireStore 讀取限制在需要狀態的指令；建置工具不進入最終映像。
+**Architecture:** 重型分析套件改為執行時載入；既有 LINE 狀態流程不變；建置工具不進入最終映像。
 
 **Tech Stack:** Python 3.10、Flask、Gunicorn、Cloud Run、unittest。
 
@@ -18,11 +18,9 @@
 
 **Files:**
 - Create: `tests/test_cold_start.py`
-- Modify: `tests/test_line_flow.py`
 
 - [ ] 新增子行程測試，確認單純 `import app` 不載入 Pandas、NumPy、sklearn、LightGBM、Gemini。
-- [ ] 新增 LINE 測試，確認靜態選單不讀 Firestore。
-- [ ] 執行測試並確認因現行立即載入／讀取而失敗。
+- [ ] 執行測試並確認因現行立即載入而失敗。
 
 ### Task 2: 最小化啟動路徑
 
@@ -31,7 +29,6 @@
 
 - [ ] 使用標準庫延遲載入 Pandas、NumPy 與 Gemini。
 - [ ] 將 sklearn、LightGBM 匯入移入實際使用函式。
-- [ ] 將 Firestore 狀態讀取移到需要狀態的指令路徑。
 - [ ] 執行新增測試與完整測試。
 
 ### Task 3: 縮小執行映像並驗證部署
