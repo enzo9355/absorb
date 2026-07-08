@@ -47,6 +47,6 @@ Run focused tests, then `python -m unittest discover -s tests -v`、Python compi
 
 Expected: 兩個回歸測試與完整測試全部 PASS，語法檢查 exit 0。
 
-- [ ] **Step 5: Review, register and publish**
+- [x] **Step 5: Review, register and publish**
 
 執行 ShellWard 與 agy 唯讀審查；只提交本次檔案並推送。用既有 installer 重註冊兩個工作排程，確認仍為 02:30、05:30 門檻與 09:35 上傳。白天只測試官方清單讀取，不手動執行市場批次。
