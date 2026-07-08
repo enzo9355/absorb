@@ -69,6 +69,7 @@ class LocalQuantBatchTests(unittest.TestCase):
             stale = get_us_symbols(
                 root,
                 fetch_json=lambda: (_ for _ in ()).throw(TimeoutError("offline")),
+                fetch_nasdaq=lambda: (_ for _ in ()).throw(TimeoutError("offline")),
                 now=datetime.datetime(2026, 7, 6, 6, tzinfo=TAIPEI),
             )
 
@@ -89,8 +90,49 @@ class LocalQuantBatchTests(unittest.TestCase):
                 get_us_symbols(
                     root,
                     fetch_json=lambda: (_ for _ in ()).throw(TimeoutError("secret")),
+                    fetch_nasdaq=lambda: (_ for _ in ()).throw(TimeoutError("secret")),
                     now=datetime.datetime(2026, 7, 5, 6, tzinfo=TAIPEI),
                 )
+
+    def test_nasdaq_us_universe_filters_test_crypto_and_unsafe_symbols(self):
+        listed = """Symbol|Security Name|Market Category|Test Issue|ETF
+AAPL|Apple Inc. Common Stock|Q|N|N
+TEST|Test Security|Q|Y|N
+BTCX|Example Bitcoin Trust|G|N|Y
+BAD/WS|Unsafe Warrant|S|N|N
+File Creation Time: 07082026||||
+"""
+        other = """ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Test Issue|NASDAQ Symbol
+BRK.B|Berkshire Hathaway Class B|N|BRK.B|N|N|BRK.B
+FAKE|Test Security|A|FAKE|N|Y|FAKE
+File Creation Time: 07082026||||||
+"""
+
+        self.assertEqual(
+            local_quant.parse_nasdaq_us_universe(listed, other),
+            ["AAPL", "BRK-B"],
+        )
+
+    def test_us_universe_falls_back_to_nasdaq_without_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            listed = "Symbol|Security Name|Test Issue\nAAPL|Apple Inc.|N\n"
+            other = "ACT Symbol|Security Name|Test Issue|NASDAQ Symbol\n"
+
+            symbols = get_us_symbols(
+                root,
+                fetch_json=lambda: (_ for _ in ()).throw(PermissionError("403")),
+                fetch_nasdaq=lambda: (listed, other),
+                now=datetime.datetime(2026, 7, 8, 6, tzinfo=TAIPEI),
+            )
+
+            self.assertEqual(symbols, ["AAPL"])
+            cache = json.loads(
+                (root / "raw" / "us-universe.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(cache["symbols"], ["AAPL"])
+            self.assertIn("nasdaqtrader.com", cache["source"])
 
     def test_stock_artifact_is_atomic_gzip_json_with_fixed_schema(self):
         with tempfile.TemporaryDirectory() as temporary:

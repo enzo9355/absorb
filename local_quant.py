@@ -43,6 +43,10 @@ RETENTION_DAYS = {
 }
 SEC_US_UNIVERSE_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 SEC_US_UNIVERSE_MAX_BYTES = 5 * 1024 * 1024
+NASDAQ_US_UNIVERSE_URLS = (
+    "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
+    "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
+)
 STOCK_ARTIFACT_MAX_COMPRESSED_BYTES = 5 * 1024 * 1024
 STOCK_ARTIFACT_MAX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
 US_EXCHANGES = {"Nasdaq", "NYSE", "CBOE"}
@@ -888,6 +892,62 @@ def fetch_sec_us_universe_json():
     return json.loads(content)
 
 
+def parse_nasdaq_us_universe(listed_text, other_text):
+    symbols = set()
+    for text, fields in (
+        (listed_text, ("Symbol",)),
+        (other_text, ("NASDAQ Symbol", "ACT Symbol")),
+    ):
+        lines = str(text or "").splitlines()
+        if not lines:
+            raise ValueError("Nasdaq universe document is empty")
+        header = [item.strip() for item in lines[0].split("|")]
+        if "Security Name" not in header or "Test Issue" not in header:
+            raise ValueError("Nasdaq universe fields are incomplete")
+        symbol_field = next((field for field in fields if field in header), None)
+        if symbol_field is None:
+            raise ValueError("Nasdaq universe symbol field is missing")
+        positions = {name: header.index(name) for name in (symbol_field, "Security Name", "Test Issue")}
+        for line in lines[1:]:
+            values = [item.strip() for item in line.split("|")]
+            if len(values) != len(header) or values[positions["Test Issue"]] != "N":
+                continue
+            name = values[positions["Security Name"]].lower()
+            if any(term in name for term in CRYPTO_SECURITY_TERMS):
+                continue
+            symbol = values[positions[symbol_field]].upper().replace(".", "-")
+            try:
+                symbols.add(validate_market_symbol("US", symbol))
+            except ValueError:
+                continue
+    if not symbols:
+        raise ValueError("Nasdaq universe is empty")
+    return sorted(symbols)
+
+
+def fetch_nasdaq_us_universe_texts():
+    import requests
+
+    documents = []
+    for url in NASDAQ_US_UNIVERSE_URLS:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "StockPapi/1.0"},
+            timeout=15,
+            allow_redirects=False,
+        )
+        if response.status_code != 200:
+            raise RuntimeError("Nasdaq universe request failed")
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > SEC_US_UNIVERSE_MAX_BYTES:
+            raise RuntimeError("Nasdaq universe response is too large")
+        content = response.content
+        if len(content) > SEC_US_UNIVERSE_MAX_BYTES:
+            raise RuntimeError("Nasdaq universe response is too large")
+        documents.append(content.decode("utf-8-sig"))
+    return tuple(documents)
+
+
 def _read_us_universe_cache(path):
     try:
         cached = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -899,23 +959,30 @@ def _read_us_universe_cache(path):
         return None
 
 
-def get_us_symbols(root, fetch_json=None, now=None):
+def get_us_symbols(root, fetch_json=None, now=None, fetch_nasdaq=None):
     checked_at = now or datetime.datetime.now(TAIPEI)
     cache_path = Path(root) / "raw" / "us-universe.json"
     cached = _read_us_universe_cache(cache_path) if cache_path.exists() else None
     if cached and cached["as_of"] == checked_at.date().isoformat():
         return cached["symbols"]
+    source = SEC_US_UNIVERSE_URL
     try:
         symbols = parse_sec_us_universe((fetch_json or fetch_sec_us_universe_json)())
-    except Exception as exc:
-        if cached:
-            return cached["symbols"]
-        raise RuntimeError("US universe is unavailable") from exc
+    except Exception:
+        try:
+            symbols = parse_nasdaq_us_universe(
+                *(fetch_nasdaq or fetch_nasdaq_us_universe_texts)()
+            )
+            source = "|".join(NASDAQ_US_UNIVERSE_URLS)
+        except Exception as nasdaq_exc:
+            if cached:
+                return cached["symbols"]
+            raise RuntimeError("US universe is unavailable") from nasdaq_exc
     _write_json_atomic(
         cache_path,
         {
             "as_of": checked_at.date().isoformat(),
-            "source": SEC_US_UNIVERSE_URL,
+            "source": source,
             "symbols": symbols,
         },
     )
