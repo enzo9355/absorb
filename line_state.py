@@ -1,4 +1,6 @@
 import copy
+import logging
+import threading
 import json
 import math
 import re
@@ -9,6 +11,8 @@ from urllib.parse import quote, unquote
 
 import requests
 
+
+logger = logging.getLogger("line_state")
 
 MAX_WATCHLIST = 12
 MAX_ALERTS = 20
@@ -39,6 +43,7 @@ class FirestoreStore:
         self.token_provider = token_provider if token_provider is not None else self._access_token
         self._cached_token = None
         self._token_expires_at = 0
+        self._lock = threading.Lock()
 
     @property
     def collection_url(self):
@@ -52,33 +57,38 @@ class FirestoreStore:
         if self._cached_token and now < self._token_expires_at:
             return self._cached_token
 
-        try:
-            response = self.session.get(
-                METADATA_TOKEN_URL,
-                headers={"Metadata-Flavor": "Google"},
-                timeout=3,
-            )
-            if response.status_code != 200:
-                raise ValueError("metadata status")
-            payload = response.json()
-            token = payload["access_token"]
-            expires_in = payload["expires_in"]
-            if isinstance(expires_in, bool):
-                raise ValueError("metadata fields")
-            expires_in = float(expires_in)
-            if (
-                not isinstance(token, str)
-                or not token
-                or not math.isfinite(expires_in)
-                or expires_in <= 0
-            ):
-                raise ValueError("metadata fields")
-        except Exception:
-            raise StoreError("Metadata token request failed") from None
+        with self._lock:
+            if self._cached_token and now < self._token_expires_at:
+                return self._cached_token
 
-        self._cached_token = token
-        self._token_expires_at = now + max(0, expires_in - 60)
-        return token
+            try:
+                response = self.session.get(
+                    METADATA_TOKEN_URL,
+                    headers={"Metadata-Flavor": "Google"},
+                    timeout=3,
+                )
+                if response.status_code != 200:
+                    raise ValueError("metadata status")
+                payload = response.json()
+                token = payload["access_token"]
+                expires_in = payload["expires_in"]
+                if isinstance(expires_in, bool):
+                    raise ValueError("metadata fields")
+                expires_in = float(expires_in)
+                if (
+                    not isinstance(token, str)
+                    or not token
+                    or not math.isfinite(expires_in)
+                    or expires_in <= 0
+                ):
+                    raise ValueError("metadata fields")
+            except Exception as exc:
+                logger.error(f"Metadata token request failed: {exc}", exc_info=True)
+                raise StoreError("Metadata token request failed") from None
+
+            self._cached_token = token
+            self._token_expires_at = now + max(0, expires_in - 60)
+            return token
 
     def _headers(self):
         try:
@@ -92,18 +102,38 @@ class FirestoreStore:
         return {"Authorization": f"Bearer {token}"}
 
     def _request(self, method, url, timeout, **kwargs):
-        try:
-            return self.session.request(
-                method,
-                url,
-                headers=self._headers(),
-                timeout=timeout,
-                **kwargs,
-            )
-        except StoreError:
-            raise
-        except Exception:
-            raise StoreError("Firestore request failed") from None
+        max_retries = 3
+        backoff = 0.5
+        for attempt in range(max_retries):
+            try:
+                headers = self._headers()
+                response = self.session.request(
+                    method,
+                    url,
+                    headers=headers,
+                    timeout=timeout,
+                    **kwargs,
+                )
+                if response.status_code >= 500 and attempt < max_retries - 1:
+                    logger.warning(f"Transient HTTP {response.status_code} from Firestore, retrying in {backoff}s... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                return response
+            except StoreError as exc:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Transient StoreError in Firestore request, retrying in {backoff}s... (Attempt {attempt + 1}/{max_retries}): {exc}")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                raise
+            except Exception as exc:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Transient exception in Firestore request, retrying in {backoff}s... (Attempt {attempt + 1}/{max_retries}): {exc}")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                raise StoreError("Firestore request failed") from None
 
     @staticmethod
     def _document_state(document):
@@ -117,19 +147,30 @@ class FirestoreStore:
         return f"{self.collection_url}/{quote(user_id, safe='')}"
 
     def load(self, user_id):
-        response = self._request("GET", self._document_url(user_id), timeout=5)
-        if response.status_code == 404:
-            return empty_state(), None
-        if response.status_code != 200:
-            raise StoreError(f"Firestore read failed with status {response.status_code}")
+        logger.info(f"Firestore load starting for user {user_id}")
         try:
-            document = response.json()
-            update_time = document.get("updateTime")
-        except Exception:
-            raise StoreError("Firestore read response was invalid") from None
-        return self._document_state(document), update_time
+            response = self._request("GET", self._document_url(user_id), timeout=5)
+            if response.status_code == 404:
+                logger.info(f"Firestore load document not found for user {user_id}")
+                return empty_state(), None
+            if response.status_code != 200:
+                logger.error(f"Firestore load failed with status {response.status_code} for user {user_id}")
+                raise StoreError(f"Firestore read failed with status {response.status_code}")
+            try:
+                document = response.json()
+                update_time = document.get("updateTime")
+            except Exception as exc:
+                logger.error(f"Firestore load response invalid for user {user_id}: {exc}", exc_info=True)
+                raise StoreError("Firestore read response was invalid") from None
+            logger.info(f"Firestore load successful for user {user_id}")
+            return self._document_state(document), update_time
+        except Exception as exc:
+            if not isinstance(exc, StoreError):
+                logger.error(f"Firestore load error for user {user_id}: {type(exc).__name__} - {exc}", exc_info=True)
+            raise
 
     def save(self, user_id, state, update_time):
+        logger.info(f"Firestore save starting for user {user_id}")
         params = {"updateMask.fieldPaths": "state"}
         if update_time:
             params["currentDocument.updateTime"] = update_time
@@ -141,43 +182,56 @@ class FirestoreStore:
             separators=(",", ":"),
         )
         body = {"fields": {"state": {"stringValue": serialized}}}
-        response = self._request(
-            "PATCH",
-            self._document_url(user_id),
-            timeout=5,
-            params=params,
-            json=body,
-        )
-        if response.status_code in {409, 412}:
-            raise StoreConflict("Firestore write conflict")
-        if response.status_code == 400:
-            try:
-                payload = response.json()
-                error = payload.get("error", {})
-                if error.get("status") == "FAILED_PRECONDITION":
-                    raise StoreConflict("Firestore write conflict")
-            except StoreConflict:
-                raise
-            except Exception:
-                pass
-        if response.status_code != 200:
-            raise StoreError(f"Firestore write failed with status {response.status_code}")
         try:
-            update_time = response.json()["updateTime"]
-            if not isinstance(update_time, str) or not update_time:
-                raise ValueError("invalid updateTime")
-            return update_time
-        except Exception:
-            raise StoreError("Firestore write response was invalid") from None
+            response = self._request(
+                "PATCH",
+                self._document_url(user_id),
+                timeout=5,
+                params=params,
+                json=body,
+            )
+            if response.status_code in {409, 412}:
+                logger.warning(f"Firestore save conflict (409/412) for user {user_id}")
+                raise StoreConflict("Firestore write conflict")
+            if response.status_code == 400:
+                try:
+                    payload = response.json()
+                    error = payload.get("error", {})
+                    if error.get("status") == "FAILED_PRECONDITION":
+                        logger.warning(f"Firestore save conflict (FAILED_PRECONDITION) for user {user_id}")
+                        raise StoreConflict("Firestore write conflict")
+                except StoreConflict:
+                    raise
+                except Exception:
+                    pass
+            if response.status_code != 200:
+                logger.error(f"Firestore save failed with status {response.status_code} for user {user_id}")
+                raise StoreError(f"Firestore write failed with status {response.status_code}")
+            try:
+                update_time = response.json()["updateTime"]
+                if not isinstance(update_time, str) or not update_time:
+                    raise ValueError("invalid updateTime")
+                logger.info(f"Firestore save successful for user {user_id}")
+                return update_time
+            except Exception as exc:
+                logger.error(f"Firestore save response invalid for user {user_id}: {exc}", exc_info=True)
+                raise StoreError("Firestore write response was invalid") from None
+        except Exception as exc:
+            if not isinstance(exc, (StoreError, StoreConflict)):
+                logger.error(f"Firestore save error for user {user_id}: {type(exc).__name__} - {exc}", exc_info=True)
+            raise
 
     def update(self, user_id, mutate):
+        logger.info(f"Firestore update starting for user {user_id}")
         for attempt in range(2):
-            state, update_time = self.load(user_id)
-            mutate(state)
             try:
+                state, update_time = self.load(user_id)
+                mutate(state)
                 self.save(user_id, state, update_time)
+                logger.info(f"Firestore update successful for user {user_id} on attempt {attempt + 1}")
                 return state
-            except StoreConflict:
+            except StoreConflict as exc:
+                logger.warning(f"Firestore update conflict on attempt {attempt + 1} for user {user_id}")
                 if attempt == 1:
                     raise
         raise StoreConflict("Firestore write conflict")

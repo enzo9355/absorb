@@ -10,3 +10,8 @@ yfinance
 lightgbm
 scikit-learn
 google-generativeai
+google-auth>=2.25.0
+google-api-core>=2.15.0
+grpcio>=1.60.0
+grpcio-status>=1.60.0
+google-cloud-firestore>=2.14.0

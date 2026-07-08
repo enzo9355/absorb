@@ -100,6 +100,34 @@ line_store = FirestoreStore(GCP_PROJECT_ID) if GCP_PROJECT_ID else None
 
 gemini_model = _LazyGeminiModel(GEMINI_API_KEY) if GEMINI_API_KEY else None
 
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("app")
+
+# Pre-warming credentials and tokens at startup to prevent concurrent refresh races
+try:
+    if line_store:
+        logger.info("Pre-warming Firestore token provider...")
+        line_store._access_token()
+        logger.info("Firestore token provider pre-warmed successfully.")
+except Exception as e:
+    logger.warning(f"Failed to pre-warm Firestore token on startup: {e}")
+
+try:
+    logger.info("Pre-warming Application Default Credentials...")
+    import google.auth
+    import google.auth.transport.requests
+    credentials, project = google.auth.default()
+    if credentials:
+        auth_request = google.auth.transport.requests.Request()
+        credentials.refresh(auth_request)
+        logger.info("Application Default Credentials pre-warmed successfully.")
+except Exception as e:
+    logger.warning(f"Failed to pre-warm default credentials on startup: {e}")
+
 finmind_token = None
 _FINMIND_BLOCKED_UNTIL = 0
 CATEGORY_PAGE_SIZE = 12
@@ -2170,11 +2198,23 @@ def call_papi_gemini_fallback(prompt):
         {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
     ]
 
-    response = gemini_model.generate_content(_build_papi_prompt(prompt), safety_settings=safety)
-    summary = (getattr(response, "text", "") or "").strip()
-    if not summary:
-        return None
-    return summary
+    max_retries = 3
+    backoff = 0.5
+    for attempt in range(max_retries):
+        try:
+            response = gemini_model.generate_content(_build_papi_prompt(prompt), safety_settings=safety)
+            summary = (getattr(response, "text", "") or "").strip()
+            if not summary:
+                return None
+            return summary
+        except Exception as exc:
+            logger.warning(f"Gemini API call failed (attempt {attempt + 1}/{max_retries}): {exc}")
+            if attempt < max_retries - 1:
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            logger.error(f"Gemini API call failed after {max_retries} attempts: {exc}", exc_info=True)
+            raise
 
 
 def sector_signal_score(data):
@@ -2367,6 +2407,7 @@ def get_line_state_bounded(user_id, timeout=LINE_STATE_READ_BUDGET_SECONDS):
     result = queue.Queue(maxsize=1)
     slots = _line_state_read_slots
     if not slots.acquire(blocking=False):
+        logger.warning(f"Firestore read slots exhausted (MAX_WORKERS={LINE_STATE_READ_MAX_WORKERS}) for user {user_id}")
         raise StoreError("關注功能讀取忙碌")
 
     def load_state():
@@ -2374,8 +2415,8 @@ def get_line_state_bounded(user_id, timeout=LINE_STATE_READ_BUDGET_SECONDS):
             value = (False, None)
             try:
                 value = (True, store.load(user_id)[0])
-            except BaseException:
-                pass
+            except BaseException as exc:
+                logger.error(f"Firestore load exception for user {user_id}: {type(exc).__name__} - {exc}", exc_info=True)
             try:
                 result.put_nowait(value)
             except BaseException:
@@ -3434,6 +3475,16 @@ def _resolve_postback_stock(code):
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
+    try:
+        _handle_postback_impl(event)
+    except Exception as e:
+        logger.error(f"Unexpected error in handle_postback: {e}", exc_info=True)
+        try:
+            _reply_text(event, "系統暫時忙碌中，請稍後再試 🙏")
+        except Exception as reply_err:
+            logger.error(f"Failed to send fallback reply in postback: {reply_err}", exc_info=True)
+
+def _handle_postback_impl(event):
     user_id = getattr(getattr(event, "source", None), "user_id", None)
     if not user_id:
         _reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
@@ -3567,6 +3618,16 @@ def handle_postback(event):
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    try:
+        _handle_message_impl(event)
+    except Exception as e:
+        logger.error(f"Unexpected error in handle_message: {e}", exc_info=True)
+        try:
+            _reply_text(event, "系統暫時忙碌中，請稍後再試 🙏")
+        except Exception as reply_err:
+            logger.error(f"Failed to send fallback reply in message: {reply_err}", exc_info=True)
+
+def _handle_message_impl(event):
     msg = event.message.text.strip()
     web_root = request.host_url.replace("http://", "https://").rstrip("/")
     user_id = getattr(getattr(event, "source", None), "user_id", None)
