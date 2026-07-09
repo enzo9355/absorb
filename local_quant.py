@@ -742,17 +742,22 @@ def run_market_batch(
                 continue
             failures.append({"symbol": symbol, "error": str(item.get("error") or "Error")})
             seen_failures.add(symbol)
+    is_new_day = False
+    if checkpoint.get("updated_at"):
+        try:
+            updated_date_str = checkpoint["updated_at"].split("T", 1)[0]
+            updated_date = datetime.date.fromisoformat(updated_date_str)
+            if checked_at.date() > updated_date:
+                is_new_day = True
+        except (ValueError, IndexError, TypeError):
+            pass
+
     if (
         start >= len(symbols)
-        and not failures
-        and checkpoint.get("cycle_completed_on") != checked_at.date().isoformat()
-        and (
-            not checkpoint.get("cycle_completed_on")
-            or checkpoint.get("published_cycle_on")
-            == checkpoint.get("cycle_completed_on")
-        )
+        and (not failures or is_new_day)
     ):
         start = 0
+        failures = []
     next_index = start
     attempted = completed = 0
 
