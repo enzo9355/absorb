@@ -1,6 +1,7 @@
 import datetime
 
 from stock_papi.shared.formatting import format_sentiment_summary as _format_sentiment_summary
+from stock_papi.services.recommendation_engine import recommend_analysis
 
 
 def build_stock_flex_message(code, name, data, url, watched=False):
@@ -36,6 +37,34 @@ def build_stock_flex_message(code, name, data, url, watched=False):
             })
     except Exception:
         pass
+
+    recommendation = data.get("recommendation")
+    if not isinstance(recommendation, dict):
+        try:
+            recommendation = recommend_analysis(
+                data,
+                current_date=datetime.date.fromisoformat(str(data.get("as_of"))),
+            ).to_dict()
+        except (TypeError, ValueError):
+            recommendation = recommend_analysis(data).to_dict()
+    body_contents.extend([
+        {
+            "type": "text",
+            "text": str(recommendation["action"]),
+            "color": "#0f172a",
+            "size": "xl",
+            "weight": "bold",
+            "wrap": True,
+        },
+        {
+            "type": "text",
+            "text": str(recommendation["headline"]),
+            "color": "#475569",
+            "size": "sm",
+            "wrap": True,
+        },
+        {"type": "separator", "margin": "md", "color": "#cbd5e1"},
+    ])
 
     body_contents.extend([
         {
@@ -539,4 +568,3 @@ def build_tutorial_flex():
             ]
         }
     }
-

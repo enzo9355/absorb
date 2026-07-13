@@ -1,5 +1,7 @@
 """Stock analysis orchestration without Flask or LINE dependencies."""
 
+from stock_papi.services.recommendation_engine import recommend_analysis
+
 
 def snapshot_dataframe(snapshot, *, pd):
     try:
@@ -72,6 +74,9 @@ def analyze_uncached(
         "quant_source": quant_source,
         "bt": backtest, "news": news, "trend": trend,
         "rsi": last["RSI"], "ma20": last["MA20"],
+        "volume_ratio": last.get("VOL_RATIO"),
+        "volatility": last.get("Volat"),
+        "data_quality_warning": bool(last.get("DATA_PRICE_WARNING", 0)),
         "macd_osc": last["MACD_OSC"], "k": last["K"], "d": last["D"],
         "foreign_flow": foreign_flow,
         "s_score": sentiment["score"], "s_status": sentiment["status"],
@@ -98,6 +103,7 @@ def analyze_uncached(
         "pred": json.dumps(prediction),
     }
     result["projection"] = calculate_projection(100000, result)
+    result["recommendation"] = recommend_analysis(result).to_dict()
     return result
 
 
