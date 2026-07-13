@@ -46,6 +46,23 @@ printf "%s" "YOUR_ALERT_TASK_TOKEN_HERE" | \
 gcloud secrets versions add stock-papi-alert-task-token --data-file=- --project=line-stock-bot-498908
 ```
 
+### 7. 更新 LINE Login Channel Secret
+```bash
+printf "%s" "YOUR_LINE_LOGIN_CHANNEL_SECRET_HERE" | \
+gcloud secrets versions add stock-papi-line-login-channel-secret --data-file=- --project=line-stock-bot-498908
+```
+
+### 8. 建立或輪替 Web Session Secret
+
+Session secret 必須是獨立的高熵隨機值，不可重用 LINE Channel Secret、API key 或密碼。以下命令直接產生並送入 Secret Manager，不把值寫入檔案：
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48), end='')" | \
+gcloud secrets versions add stock-papi-session-secret --data-file=- --project=line-stock-bot-498908
+```
+
+輪替 `stock-papi-session-secret` 會讓現有 Web session cookie 失效，使用者需要重新登入；請安排維護窗口。LINE Messaging API 與 LINE Login 使用不同 channel secret，不可接錯。
+
 ---
 
 ## 🔍 驗證金鑰是否乾淨
@@ -58,3 +75,5 @@ gcloud secrets versions access latest --secret=stock-papi-line-channel-access-to
 
 > [!IMPORTANT]
 > 乾淨的金鑰尾端**不應該**出現 `0d0a` (即 `\r\n`) 或 `0a` (即 `\n`)。
+
+驗證時會讀出 secret；只在受控終端執行，且不要把輸出貼到 issue、聊天或 CI log。正式部署只應引用 secret 名稱與版本，不應讀出值。

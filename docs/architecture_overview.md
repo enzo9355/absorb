@@ -4,6 +4,8 @@
 
 Cloud Run 提供 Flask、LINE webhook 與 Web 查詢；全市場資料取得、特徵、回測與發布都在 Windows 本機批次完成。Cloud Run 不在 webhook 路徑中訓練模型或重跑全市場。
 
+公開 Web 不依賴登入；需要個人狀態時只使用 LINE Login。OAuth attempt、server-side session 與 profile 分別存於 `oauth_attempts`、`web_sessions`、`users`，並以已驗證的 LINE `sub` 直接讀寫既有 `line_users` 關注／提醒文件。個人 API 禁止接受 client-controlled user ID，且固定 `private, no-store`。
+
 ```mermaid
 flowchart LR
   A["市場資料與發布時間"] --> B["Data Layer"]
@@ -54,3 +56,5 @@ flowchart LR
 - GCS object 必須先驗證大小、SHA-256、gzip、schema、日期與市場覆蓋率。
 - 本機資料根目錄固定為 `D:\StockPapiData`，排程使用 Limited run level 與私有 ACL。
 - Cloud Run 僅讀取已驗證快照；失敗時沿用既有即時計算或中性降級，不改寫 GCS。
+- HTML 日報只讀取與 index 雜湊綁定的 metadata；PDF 保留在 private storage，不存在公開 bytes route。
+- OAuth callback 使用 state、nonce、PKCE 與 LINE 官方 ID token verify endpoint；應用 session cookie 不包含 LINE token 或完整 profile。

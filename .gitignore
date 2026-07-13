@@ -1,4 +1,7 @@
 .worktrees/
+.env
+.env.*
+!.env.example
 .deps/
 .report-deps/
 __pycache__/
