@@ -175,6 +175,13 @@ node --check static/app.js
 git diff --check
 ```
 
+### 漸進式模組化重構狀態
+
+- 根目錄 `app.py` 已由 4,153 行縮減為 18 行，只保留 Gunicorn 入口與舊測試相容門面。
+- 既有 20 個公開 route 的 URL、endpoint 與 HTTP method 維持不變；Flask application factory 可建立彼此獨立的 instance。
+- Web、LINE、資料存取、外部整合、量化與共用工具已依責任移入 `stock_papi/`，重型分析套件仍採延遲載入。
+- 目前 Windows Application Control 會阻擋 NumPy 與 PDF 測試所需的原生模組；本機測試結果為 358 項中 355 項通過。不要為了測試停用系統安全控制，完整驗證應改在允許這些已核准相依套件的 CI、Linux 或受控環境執行。
+
 新增 route 時，先在 `stock_papi/web/routes/` 建立 registration function，再由 `stock_papi/web/route_registration.py` 明確註冊，並固定 endpoint name。新增業務協調放入 `stock_papi/services/`；外部 I/O 放入 `repositories/` 或 `integrations/`，不要再擴充 `stock_papi/application.py`。
 
 `stock_papi/**/__init__.py` 必須保持輕量。pandas、numpy、sklearn、LightGBM、matplotlib、reportlab、pypdf 與 Gemini 只能在實際執行路徑延遲載入；可用下列命令檢查 cold start：
