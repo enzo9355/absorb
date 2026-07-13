@@ -47,6 +47,13 @@ class IndustryReportBacktestTests(unittest.TestCase):
             self.assertAlmostEqual(
                 result.win_rate, result.winning_periods / result.entry_periods
             )
+            self.assertIsNotNone(result.expected_return)
+            self.assertIsNotNone(result.average_profit)
+            self.assertIn("current_cost", result.cost_sensitivity)
+            self.assertEqual(
+                result.cost_sensitivity["current_cost"], result.cumulative_return
+            )
+            self.assertTrue(result.yearly_returns)
 
     def test_insufficient_samples_return_none_metrics_not_zero(self):
         from reporting.config import ReportConfig
@@ -82,6 +89,10 @@ class IndustryReportBacktestTests(unittest.TestCase):
         self.assertIsNone(result.cumulative_return)
         self.assertIsNone(result.sharpe)
         self.assertIsNone(result.win_rate)
+        self.assertIsNone(result.expected_return)
+        self.assertIsNone(result.profit_factor)
+        self.assertEqual(result.longest_winning_streak, 0)
+        self.assertEqual(result.cost_sensitivity["current_cost"], 0.0)
         self.assertEqual(result.strategy_status, "全程空手")
 
     def test_sample_quality_bands_mark_low_sample_metrics(self):

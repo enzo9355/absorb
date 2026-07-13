@@ -366,6 +366,10 @@ class PredictionPipelineTests(unittest.TestCase):
         ) * 100
         self.assertAlmostEqual(metrics["strat_cum"], expected, places=8)
         self.assertEqual(metrics["trades"], 2)
+        self.assertAlmostEqual(metrics["average_profit"], 0.02 - stock_app.ROUND_TRIP_COST)
+        self.assertIsNone(metrics["average_loss"])
+        self.assertEqual(metrics["longest_winning_streak"], 2)
+        self.assertAlmostEqual(metrics["cost_sensitivity"]["current_cost"] * 100, expected)
 
     def test_missing_chip_data_falls_back_to_neutral_features(self):
         close = np.linspace(50, 80, 100) + np.sin(np.arange(100))

@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from .config import ReportConfig
 from .schemas import IndustryBacktestResult, StockSnapshot, finite_number
+from stock_papi.quant.backtest import summarize_trade_returns
 
 
 def _date(row: dict) -> datetime.date | None:
@@ -88,6 +89,7 @@ def backtest_industry(
     market_returns: list[float] = []
     rebalance_dates: list[datetime.date] = []
     positions: list[int] = []
+    gross_period_returns: list[float | None] = []
     valid_signals = 0
     observed_oos = False
     coverage_values = []
@@ -127,6 +129,9 @@ def backtest_industry(
             if selected_returns
             else 0.0
         )
+        gross_period_returns.append(
+            statistics.fmean(selected_returns) if selected_returns else None
+        )
         period_returns.append(strategy_return)
         buy_hold_returns.append(statistics.fmean(benchmark_returns))
         market_returns.append(_market_forward_return(dates, index, horizon, factor_rows))
@@ -159,6 +164,18 @@ def backtest_industry(
     average_positions = statistics.fmean(positions) if positions else None
     cash_ratio = positions.count(0) / periods if periods else None
     coverage = statistics.fmean(coverage_values) if coverage_values else None
+    trade_summary = summarize_trade_returns(
+        entry_returns,
+        gross_period_returns=gross_period_returns,
+        round_trip_cost=settings.round_trip_cost,
+        total_periods=periods,
+    )
+    yearly_periods: dict[int, list[float]] = defaultdict(list)
+    for day, value in zip(rebalance_dates, period_returns):
+        yearly_periods[day.year].append(value)
+    yearly_returns = {
+        year: _compound(values) for year, values in sorted(yearly_periods.items())
+    }
 
     if sufficient:
         buy_hold = _compound(buy_hold_returns)
@@ -229,4 +246,13 @@ def backtest_industry(
         low_sample_warning=12 <= periods < 24,
         all_cash=all_cash,
         strategy_status=("全程空手" if all_cash else "有進場" if entry_periods else "資料不足"),
+        average_profit=trade_summary["average_profit"],
+        average_loss=trade_summary["average_loss"],
+        expected_return=trade_summary["expected_return"],
+        payoff_ratio=trade_summary["payoff_ratio"],
+        profit_factor=trade_summary["profit_factor"],
+        longest_winning_streak=trade_summary["longest_winning_streak"],
+        longest_losing_streak=trade_summary["longest_losing_streak"],
+        cost_sensitivity=trade_summary["cost_sensitivity"],
+        yearly_returns=yearly_returns,
     )

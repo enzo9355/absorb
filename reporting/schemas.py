@@ -161,6 +161,15 @@ class IndustryBacktestResult:
     low_sample_warning: bool
     all_cash: bool
     strategy_status: str
+    average_profit: float | None
+    average_loss: float | None
+    expected_return: float | None
+    payoff_ratio: float | None
+    profit_factor: float | None
+    longest_winning_streak: int
+    longest_losing_streak: int
+    cost_sensitivity: dict[str, float | None]
+    yearly_returns: dict[int, float]
     annualization_periods: float = 252 / 5
 
 
