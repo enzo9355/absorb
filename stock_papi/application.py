@@ -316,10 +316,11 @@ np = _LazyModule("numpy")
 finmind_token = None
 _line_state_read_slots = threading.BoundedSemaphore(LINE_STATE_READ_MAX_WORKERS)
 
-app = Flask("app", root_path=os.path.dirname(os.path.dirname(__file__)))
-app.config["MAX_CONTENT_LENGTH"] = 1_000_000
+APPLICATION_ROOT = os.path.dirname(os.path.dirname(__file__))
 SAMPLE_REPORT_FILENAME = "stock-papi-tw-industry-daily-SAMPLE.pdf"
-SAMPLE_REPORT_PATH = os.path.join(app.root_path, "static", "samples", SAMPLE_REPORT_FILENAME)
+SAMPLE_REPORT_PATH = os.path.join(
+    APPLICATION_ROOT, "static", "samples", SAMPLE_REPORT_FILENAME
+)
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 supabase_client = None
@@ -1639,22 +1640,6 @@ def build_sector_signal_carousel(category, items):
     }
 
 
-register_dashboard_page(app)
-register_system_routes(app, search_stock=lambda query: search_stock_code(query))
-
-
-register_report_routes(
-    app,
-    load_index=lambda: _published_report_index(),
-    load_pdf=lambda item: load_report_pdf(
-        item, load_object=_gcs_get_report_object
-    ),
-    sample_report_path=SAMPLE_REPORT_PATH,
-    sample_report_filename=SAMPLE_REPORT_FILENAME,
-    max_pdf_bytes=REPORT_PDF_MAX_BYTES,
-)
-
-
 def market_insights_payload():
     document = fetch_market_insights()
     if document:
@@ -1680,40 +1665,6 @@ def market_insights_payload():
         "sources": ["Stock Papi fallback"],
         "degraded": True,
     }
-
-
-register_market_routes(
-    app,
-    analyze=lambda code: analyze(code),
-    dashboard_sector_cards=lambda: dashboard_sector_cards(),
-    cached_opportunities=lambda: cached_opportunities(),
-    build_market_heatmap=build_market_heatmap,
-    dashboard_top_picks=dashboard_top_picks,
-    industry_map=lambda: industry_map,
-    market_insights_payload=lambda: market_insights_payload(),
-    twstock_codes=lambda: twstock.codes,
-    is_us_ticker=is_us_ticker,
-    find_industry_peers=lambda code: find_industry_peers(code),
-    get_stock_name=lambda code: get_stock_name(code),
-)
-
-
-register_line_routes(
-    app,
-    handler=handler,
-    get_line_bot_api=lambda: line_bot_api,
-    get_line_store=lambda: line_store,
-    get_broadcast_token=lambda: BROADCAST_TOKEN,
-    get_alert_task_token=lambda: ALERT_TASK_TOKEN,
-    analyze=lambda code: analyze(code),
-    get_broadcast_insight=lambda name, data, bt, news: get_ai_insight_for_broadcast(
-        name, data, bt, news
-    ),
-    refresh_sector_signals=lambda store: refresh_sector_signals(store),
-    run_alert_checks=lambda store, analyze_fn, push, today, root: run_alert_checks(
-        store, analyze_fn, push, today, root
-    ),
-)
 
 
 def _reply_text(event, text):
@@ -1818,5 +1769,63 @@ def _handle_message_impl(event):
         "web_root": request.host_url.replace("http://", "https://").rstrip("/"),
         "request_host_url": request.host_url,
     })
+
+
+def build_app(config=None):
+    flask_app = Flask("app", root_path=APPLICATION_ROOT)
+    flask_app.config["MAX_CONTENT_LENGTH"] = 1_000_000
+    if config:
+        flask_app.config.update(config)
+
+    register_dashboard_page(flask_app)
+    register_system_routes(
+        flask_app, search_stock=lambda query: search_stock_code(query)
+    )
+    register_report_routes(
+        flask_app,
+        load_index=lambda: _published_report_index(),
+        load_pdf=lambda item: load_report_pdf(
+            item, load_object=_gcs_get_report_object
+        ),
+        sample_report_path=SAMPLE_REPORT_PATH,
+        sample_report_filename=SAMPLE_REPORT_FILENAME,
+        max_pdf_bytes=REPORT_PDF_MAX_BYTES,
+    )
+    register_market_routes(
+        flask_app,
+        analyze=lambda code: analyze(code),
+        dashboard_sector_cards=lambda: dashboard_sector_cards(),
+        cached_opportunities=lambda: cached_opportunities(),
+        build_market_heatmap=build_market_heatmap,
+        dashboard_top_picks=dashboard_top_picks,
+        industry_map=lambda: industry_map,
+        market_insights_payload=lambda: market_insights_payload(),
+        twstock_codes=lambda: twstock.codes,
+        is_us_ticker=is_us_ticker,
+        find_industry_peers=lambda code: find_industry_peers(code),
+        get_stock_name=lambda code: get_stock_name(code),
+    )
+    register_line_routes(
+        flask_app,
+        handler=handler,
+        get_line_bot_api=lambda: line_bot_api,
+        get_line_store=lambda: line_store,
+        get_broadcast_token=lambda: BROADCAST_TOKEN,
+        get_alert_task_token=lambda: ALERT_TASK_TOKEN,
+        analyze=lambda code: analyze(code),
+        get_broadcast_insight=lambda name, data, bt, news: get_ai_insight_for_broadcast(
+            name, data, bt, news
+        ),
+        refresh_sector_signals=lambda store: refresh_sector_signals(store),
+        run_alert_checks=lambda store, analyze_fn, push, today, root: run_alert_checks(
+            store, analyze_fn, push, today, root
+        ),
+    )
+    return flask_app
+
+
+app = build_app()
+
+
 if __name__ == "__main__":
     app.run(host=LOCAL_HOST, port=int(os.environ.get("PORT", 5000)))

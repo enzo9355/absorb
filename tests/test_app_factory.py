@@ -11,13 +11,23 @@ from stock_papi.web.app_factory import create_app
 
 class AppFactoryTests(unittest.TestCase):
     def test_factory_returns_configured_flask_app(self):
-        original = stock_app.app.config["TESTING"]
-        try:
-            flask_app = create_app({"TESTING": True})
-            self.assertIs(flask_app, stock_app.app)
-            self.assertTrue(flask_app.config["TESTING"])
-        finally:
-            stock_app.app.config["TESTING"] = original
+        flask_app = create_app({"TESTING": True})
+
+        self.assertIsNot(flask_app, stock_app.app)
+        self.assertTrue(flask_app.config["TESTING"])
+        self.assertFalse(stock_app.app.config["TESTING"])
+
+    def test_factory_returns_independent_instances(self):
+        first = create_app({"TESTING": True, "INSTANCE_MARKER": "first"})
+        second = create_app({"TESTING": False})
+
+        self.assertIsNot(first, second)
+        self.assertEqual(first.config["INSTANCE_MARKER"], "first")
+        self.assertNotIn("INSTANCE_MARKER", second.config)
+        self.assertEqual(
+            [(rule.rule, rule.endpoint) for rule in first.url_map.iter_rules()],
+            [(rule.rule, rule.endpoint) for rule in second.url_map.iter_rules()],
+        )
 
     def test_root_facade_exports_factory(self):
         self.assertIs(stock_app.create_app, create_app)
