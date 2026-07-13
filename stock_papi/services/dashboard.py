@@ -32,3 +32,57 @@ def build_market_heatmap(cards):
         })
     return sorted(heatmap, key=lambda item: item["probability"], reverse=True)
 
+
+
+def cached_opportunities(cache, now, expiry_seconds, limit=5):
+    timestamp_now = now()
+    items = []
+    for code, (data, timestamp) in cache.items():
+        if code == "TAIEX" or timestamp_now - timestamp >= expiry_seconds:
+            continue
+        if all(key in data for key in ("name", "prob")):
+            items.append({"code": code, "name": data["name"], "prob": data["prob"]})
+    return sorted(items, key=lambda item: item["prob"], reverse=True)[:limit]
+
+
+def dashboard_sector_cards(load_snapshot, line_store, fallback_items, safe_float, limit=6):
+    try:
+        snapshot = load_snapshot(line_store)
+    except Exception:
+        snapshot = {}
+    cards = []
+    for name, items in (snapshot or {}).get("sectors", {}).items():
+        if not items:
+            continue
+        leader = items[0]
+        cards.append({
+            "name": name,
+            "count": len(items),
+            "score": round(safe_float(leader.get("score")), 1),
+            "leader": {
+                "code": str(leader.get("code") or ""),
+                "name": str(leader.get("name") or ""),
+                "prob": int(safe_float(leader.get("prob"))),
+                "trend": str(leader.get("trend") or "中性"),
+                "foreign_net_5": int(safe_float(leader.get("foreign_net_5"))),
+                "as_of": str(leader.get("as_of") or ""),
+            },
+        })
+    if cards:
+        return sorted(cards, key=lambda item: item["score"], reverse=True)[:limit]
+    fallback = []
+    for item in fallback_items(limit):
+        fallback.append({
+            "name": "熱門觀察",
+            "count": 1,
+            "score": float(item["prob"]),
+            "leader": {
+                "code": item["code"],
+                "name": item["name"],
+                "prob": int(item["prob"]),
+                "trend": "等待更新",
+                "foreign_net_5": 0,
+                "as_of": "",
+            },
+        })
+    return fallback

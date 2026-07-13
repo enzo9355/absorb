@@ -171,7 +171,12 @@ from stock_papi.services.sentiment import (
     analyze_sentiment_detail,
     score_news_item,
 )
-from stock_papi.services.dashboard import build_market_heatmap, dashboard_top_picks
+from stock_papi.services.dashboard import (
+    build_market_heatmap,
+    cached_opportunities as _dashboard_cached_opportunities,
+    dashboard_sector_cards as _dashboard_sector_cards,
+    dashboard_top_picks,
+)
 from stock_papi.services.market import (
     build_market_map as _build_market_map,
     build_sector_signal_snapshot as _build_sector_signal_snapshot,
@@ -702,56 +707,18 @@ def analyze(code):
     )
 
 def cached_opportunities(limit=5):
-    now = time.time()
-    items = []
-    for code, (data, timestamp) in _SYSTEM_CACHE.items():
-        if code == "TAIEX" or now - timestamp >= CACHE_EXPIRY_SECONDS:
-            continue
-        if all(key in data for key in ("name", "prob")):
-            items.append({"code": code, "name": data["name"], "prob": data["prob"]})
-    return sorted(items, key=lambda item: item["prob"], reverse=True)[:limit]
+    return _dashboard_cached_opportunities(
+        _SYSTEM_CACHE, time.time, CACHE_EXPIRY_SECONDS, limit=limit
+    )
 
 def dashboard_sector_cards(limit=6):
-    try:
-        snapshot = load_sector_signal_snapshot(line_store)
-    except Exception:
-        snapshot = {}
-    cards = []
-    for name, items in (snapshot or {}).get("sectors", {}).items():
-        if not items:
-            continue
-        leader = items[0]
-        cards.append({
-            "name": name,
-            "count": len(items),
-            "score": round(_safe_float(leader.get("score")), 1),
-            "leader": {
-                "code": str(leader.get("code") or ""),
-                "name": str(leader.get("name") or ""),
-                "prob": int(_safe_float(leader.get("prob"))),
-                "trend": str(leader.get("trend") or "中性"),
-                "foreign_net_5": int(_safe_float(leader.get("foreign_net_5"))),
-                "as_of": str(leader.get("as_of") or ""),
-            },
-        })
-    if cards:
-        return sorted(cards, key=lambda item: item["score"], reverse=True)[:limit]
-    fallback = []
-    for item in cached_opportunities(limit):
-        fallback.append({
-            "name": "熱門觀察",
-            "count": 1,
-            "score": float(item["prob"]),
-            "leader": {
-                "code": item["code"],
-                "name": item["name"],
-                "prob": int(item["prob"]),
-                "trend": "等待更新",
-                "foreign_net_5": 0,
-                "as_of": "",
-            },
-        })
-    return fallback
+    return _dashboard_sector_cards(
+        load_sector_signal_snapshot,
+        line_store,
+        cached_opportunities,
+        _safe_float,
+        limit=limit,
+    )
 
 
 
