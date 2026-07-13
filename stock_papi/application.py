@@ -23,11 +23,10 @@ import json
 
 from market_insights import build_industries, build_supply_chains
 
-from flask import Flask, request, abort, render_template, jsonify, redirect, url_for
+from flask import request
 from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
-    MessageEvent, PostbackEvent, TextMessage, TextSendMessage, FlexSendMessage,
+    MessageEvent, PostbackEvent, TextMessage, TextSendMessage,
     QuickReply, QuickReplyButton, MessageAction
 )
 from line_state import (
@@ -176,10 +175,6 @@ from stock_papi.services.stock_analysis import (
     analyze_uncached as _analyze_uncached,
     snapshot_dataframe as _build_snapshot_dataframe,
 )
-from stock_papi.web.routes.reports import register_report_routes
-from stock_papi.web.routes.dashboard import register_dashboard_page
-from stock_papi.web.routes.system import register_system_routes
-from stock_papi.web.routes.market import register_market_routes
 from stock_papi.web.legacy_html import render_web
 
 
@@ -1533,61 +1528,37 @@ def _handle_message_impl(event):
     })
 
 
-def build_app(config=None):
-    flask_app = Flask("app", root_path=APPLICATION_ROOT)
-    flask_app.config["MAX_CONTENT_LENGTH"] = 1_000_000
-    if config:
-        flask_app.config.update(config)
-
-    register_dashboard_page(flask_app)
-    register_system_routes(
-        flask_app, search_stock=lambda query: search_stock_code(query)
-    )
-    register_report_routes(
-        flask_app,
-        load_index=lambda: _published_report_index(),
-        load_pdf=lambda item: load_report_pdf(
+def route_dependencies():
+    return {
+        "search_stock": lambda query: search_stock_code(query),
+        "load_report_index": lambda: _published_report_index(),
+        "load_report_pdf": lambda item: load_report_pdf(
             item, load_object=_gcs_get_report_object
         ),
-        sample_report_path=SAMPLE_REPORT_PATH,
-        sample_report_filename=SAMPLE_REPORT_FILENAME,
-        max_pdf_bytes=REPORT_PDF_MAX_BYTES,
-    )
-    register_market_routes(
-        flask_app,
-        analyze=lambda code: analyze(code),
-        dashboard_sector_cards=lambda: dashboard_sector_cards(),
-        cached_opportunities=lambda: cached_opportunities(),
-        build_market_heatmap=build_market_heatmap,
-        dashboard_top_picks=dashboard_top_picks,
-        industry_map=lambda: industry_map,
-        market_insights_payload=lambda: market_insights_payload(),
-        twstock_codes=lambda: twstock.codes,
-        is_us_ticker=is_us_ticker,
-        find_industry_peers=lambda code: find_industry_peers(code),
-        get_stock_name=lambda code: get_stock_name(code),
-    )
-    register_line_routes(
-        flask_app,
-        handler=handler,
-        get_line_bot_api=lambda: line_bot_api,
-        get_line_store=lambda: line_store,
-        get_broadcast_token=lambda: BROADCAST_TOKEN,
-        get_alert_task_token=lambda: ALERT_TASK_TOKEN,
-        analyze=lambda code: analyze(code),
-        get_broadcast_insight=lambda name, data, bt, news: get_ai_insight_for_broadcast(
+        "sample_report_path": SAMPLE_REPORT_PATH,
+        "sample_report_filename": SAMPLE_REPORT_FILENAME,
+        "max_pdf_bytes": REPORT_PDF_MAX_BYTES,
+        "analyze": lambda code: analyze(code),
+        "dashboard_sector_cards": lambda: dashboard_sector_cards(),
+        "cached_opportunities": lambda: cached_opportunities(),
+        "build_market_heatmap": build_market_heatmap,
+        "dashboard_top_picks": dashboard_top_picks,
+        "industry_map": lambda: industry_map,
+        "market_insights_payload": lambda: market_insights_payload(),
+        "twstock_codes": lambda: twstock.codes,
+        "is_us_ticker": is_us_ticker,
+        "find_industry_peers": lambda code: find_industry_peers(code),
+        "get_stock_name": lambda code: get_stock_name(code),
+        "handler": handler,
+        "get_line_bot_api": lambda: line_bot_api,
+        "get_line_store": lambda: line_store,
+        "get_broadcast_token": lambda: BROADCAST_TOKEN,
+        "get_alert_task_token": lambda: ALERT_TASK_TOKEN,
+        "get_broadcast_insight": lambda name, data, bt, news: get_ai_insight_for_broadcast(
             name, data, bt, news
         ),
-        refresh_sector_signals=lambda store: refresh_sector_signals(store),
-        run_alert_checks=lambda store, analyze_fn, push, today, root: run_alert_checks(
+        "refresh_sector_signals": lambda store: refresh_sector_signals(store),
+        "run_alert_checks": lambda store, analyze_fn, push, today, root: run_alert_checks(
             store, analyze_fn, push, today, root
         ),
-    )
-    return flask_app
-
-
-app = build_app()
-
-
-if __name__ == "__main__":
-    app.run(host=LOCAL_HOST, port=int(os.environ.get("PORT", 5000)))
+    }
