@@ -29,6 +29,38 @@ from stock_papi.integrations.line.flex import (
 )
 
 
+def require_same_pending(state, expected_pending):
+    if state.get("pending") != expected_pending:
+        raise StateError("提醒設定已變更，請重新操作。")
+
+
+def find_matching_alert(alerts, code, kind, value):
+    return next(
+        (
+            alert
+            for alert in alerts
+            if alert.get("code") == code
+            and (
+                alert.get("kind") == kind
+                or {alert.get("kind"), kind} <= {"price", "price_above"}
+            )
+            and alert.get("value") == value
+        ),
+        None,
+    )
+
+
+def resolve_postback_stock(code, search_stock_code):
+    resolved_code, name = search_stock_code(code)
+    if (
+        resolved_code != code
+        or not name
+        or (name == code and code != "TAIEX")
+    ):
+        return None, None
+    return resolved_code, name
+
+
 def handle_postback_impl(event, deps):
     reply_text = deps["reply_text"]
     update_line_state = deps["update_line_state"]

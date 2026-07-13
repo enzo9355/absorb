@@ -84,8 +84,11 @@ from stock_papi.integrations.line.flex import (
 from stock_papi.integrations.line.notifications import run_alert_checks
 from stock_papi.integrations.line.webhook import register_line_routes
 from stock_papi.integrations.line.handlers import (
+    find_matching_alert as _line_find_matching_alert,
     handle_message_impl as _line_handle_message_impl,
     handle_postback_impl as _line_handle_postback_impl,
+    require_same_pending as _line_require_same_pending,
+    resolve_postback_stock as _line_resolve_postback_stock,
 )
 from stock_papi.integrations.line.presentation import (
     _build_sector_signal_row as _line_build_sector_signal_row,
@@ -806,34 +809,15 @@ def _current_web_root():
 
 
 def _require_same_pending(state, expected_pending):
-    if state.get("pending") != expected_pending:
-        raise StateError("提醒設定已變更，請重新操作。")
+    return _line_require_same_pending(state, expected_pending)
 
 
 def _find_matching_alert(alerts, code, kind, value):
-    return next(
-        (
-            alert for alert in alerts
-            if alert.get("code") == code
-            and (
-                alert.get("kind") == kind
-                or {alert.get("kind"), kind} <= {"price", "price_above"}
-            )
-            and alert.get("value") == value
-        ),
-        None,
-    )
+    return _line_find_matching_alert(alerts, code, kind, value)
 
 
 def _resolve_postback_stock(code):
-    resolved_code, name = search_stock_code(code)
-    if (
-        resolved_code != code
-        or not name
-        or (name == code and code != "TAIEX")
-    ):
-        return None, None
-    return resolved_code, name
+    return _line_resolve_postback_stock(code, search_stock_code)
 
 
 @handler.add(PostbackEvent)
