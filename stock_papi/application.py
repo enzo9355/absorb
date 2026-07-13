@@ -111,6 +111,38 @@ from stock_papi.quant.projection import (
     _annualized_percent,
     calculate_investment_projection,
 )
+from stock_papi.quant.constants import (
+    DATA_QUALITY_FEATURES,
+    ENTRY_THRESHOLD,
+    MARKET_FEATURES,
+    MODEL_FEATURES,
+    OPTION_FEATURES,
+    PREDICTION_HORIZON,
+    PRICE_DIFF_WARNING_THRESHOLD,
+    ROUND_TRIP_COST,
+)
+from stock_papi.quant.data import (
+    add_market_context_features as _add_market_context_features,
+    add_option_context_features as _add_option_context_features,
+    add_price_quality_features as _add_price_quality_features,
+    clean_df as _clean_quant_df,
+    foreign_flow_mask as _quant_foreign_flow_mask,
+    get_data as _get_quant_data,
+    market_feature_frame as _quant_market_feature_frame,
+    merge_chip_data as _merge_chip_data,
+    neutral_market_features as _neutral_quant_market_features,
+    option_close_frame as _quant_option_close_frame,
+    summarize_foreign_flow as _summarize_foreign_flow,
+)
+from stock_papi.quant.features import (
+    add_prediction_target as _add_prediction_target,
+    calc_all as _calc_all,
+)
+from stock_papi.quant.backtest import (
+    build_time_splits as _build_time_splits,
+    score_oos_predictions as _score_oos_predictions,
+)
+from stock_papi.quant.model import run_ai_engine as _run_ai_engine
 from stock_papi.services.sentiment import (
     NEWS_MAJOR_EVENTS,
     NEWS_NEGATIONS,
@@ -340,25 +372,6 @@ PAPI_THEME_SECTORS = {
     "IC設計ASIC": {"聯發科", "瑞昱", "創意", "世芯-KY", "力旺", "M31"},
     "封測設備": {"日月光投控", "矽格", "京元電子", "辛耘", "弘塑", "家登"},
 }
-PREDICTION_HORIZON = 5
-ROUND_TRIP_COST = 0.00585
-ENTRY_THRESHOLD = 0.60
-MARKET_FEATURES = [
-    "MARKET_RET_1", "MARKET_RET_5", "MARKET_RET_20", "MARKET_VOL_20",
-    "ETF50_RET_5", "STOCK_VS_MARKET_5",
-]
-OPTION_FEATURES = [
-    "OPTION_IV_LEVEL", "OPTION_IV_CHG_1", "OPTION_IV_CHG_5",
-    "OPTION_IV_TERM_9D_3M", "OPTION_DATA_MISSING",
-]
-DATA_QUALITY_FEATURES = ["DATA_PRICE_DIFF_PCT", "DATA_PRICE_WARNING"]
-PRICE_DIFF_WARNING_THRESHOLD = 0.02
-MODEL_FEATURES = [
-    "MA_5", "MA20", "RET_1", "RET_5", "RET_20", "RSI", "Volat",
-    "RANGE_PCT", "VOL_RATIO", "VOL_CHG", "INST_NET_RATIO", "MARGIN_CHG",
-    "SHORT_CHG", "MACD_OSC", "K", "D",
-] + MARKET_FEATURES + OPTION_FEATURES + DATA_QUALITY_FEATURES
-
 _SYSTEM_CACHE = {}
 CACHE_EXPIRY_SECONDS = 3600
 _YFINANCE_CACHE = {}
@@ -568,220 +581,39 @@ def fetch_market_insights(today=None):
 
 
 def _foreign_flow_mask(frame):
-    mask = pd.Series(False, index=frame.index)
-    for column in ("name", "institutional_investor", "institutional_investors", "type"):
-        if column in frame:
-            mask |= frame[column].astype(str).str.contains("Foreign|外資", case=False, regex=True, na=False)
-    return mask
+    return _quant_foreign_flow_mask(frame, pd=pd)
 
 
 def merge_chip_data(price, institutional=None, margin=None):
-    result = price.copy()
-    if institutional is not None and not institutional.empty:
-        flows = institutional.copy()
-        flows["Date"] = pd.to_datetime(flows["date"], errors="coerce")
-        flows["buy"] = pd.to_numeric(flows["buy"], errors="coerce").fillna(0)
-        flows["sell"] = pd.to_numeric(flows["sell"], errors="coerce").fillna(0)
-        flows["InstitutionalNet"] = flows["buy"] - flows["sell"]
-        foreign_mask = _foreign_flow_mask(flows)
-        foreign = flows.loc[foreign_mask] if foreign_mask.any() else flows
-        foreign = foreign.groupby("Date", as_index=False)["InstitutionalNet"].sum()
-        foreign = foreign.rename(columns={"InstitutionalNet": "ForeignNet"})
-        flows = flows.groupby("Date", as_index=False)["InstitutionalNet"].sum()
-        result = result.merge(flows, on="Date", how="left")
-        result = result.merge(foreign, on="Date", how="left")
-    if margin is not None and not margin.empty:
-        balances = margin.copy()
-        balances["Date"] = pd.to_datetime(balances["date"], errors="coerce")
-        balances = balances.rename(
-            columns={
-                "MarginPurchaseTodayBalance": "MarginBalance",
-                "ShortSaleTodayBalance": "ShortBalance",
-            }
-        )
-        balances = balances[["Date", "MarginBalance", "ShortBalance"]]
-        balances[["MarginBalance", "ShortBalance"]] = balances[
-            ["MarginBalance", "ShortBalance"]
-        ].apply(pd.to_numeric, errors="coerce")
-        balances = balances.groupby("Date", as_index=False).last()
-        result = result.merge(balances, on="Date", how="left")
-    for column in ["InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance"]:
-        if column not in result:
-            result[column] = 0.0
-        result[column] = result[column].fillna(0.0)
-    return result
+    return _merge_chip_data(price, institutional, margin, pd=pd)
 
 
 def _neutral_market_features(frame):
-    result = frame.copy()
-    for column in MARKET_FEATURES:
-        result[column] = 0.0
-    return result
+    return _neutral_quant_market_features(frame)
 
 
 def _market_feature_frame(market, prefix):
-    if market is None or market.empty or "Date" not in market or "Close" not in market:
-        return pd.DataFrame()
-    frame = market[["Date", "Close"]].copy()
-    frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
-    close = pd.to_numeric(frame["Close"], errors="coerce")
-    daily_return = close.pct_change(fill_method=None)
-    frame[f"{prefix}_RET_1"] = daily_return
-    frame[f"{prefix}_RET_5"] = close.pct_change(5, fill_method=None)
-    frame[f"{prefix}_RET_20"] = close.pct_change(20, fill_method=None)
-    frame[f"{prefix}_VOL_20"] = daily_return.rolling(20).std()
-    return frame.drop(columns=["Close"]).dropna(subset=["Date"])
+    return _quant_market_feature_frame(market, prefix, pd=pd)
 
 
 def add_market_context_features(price, market=None, etf50=None):
-    if price is None or price.empty:
-        return price
-
-    result = price.copy()
-    if "Date" not in result:
-        return _neutral_market_features(result)
-
-    result["Date"] = pd.to_datetime(result["Date"], errors="coerce")
-    market_frame = _market_feature_frame(market, "MARKET")
-    if not market_frame.empty:
-        result = result.merge(market_frame, on="Date", how="left")
-
-    etf_frame = _market_feature_frame(etf50, "ETF50")
-    if not etf_frame.empty and "ETF50_RET_5" in etf_frame:
-        result = result.merge(etf_frame[["Date", "ETF50_RET_5"]], on="Date", how="left")
-
-    if "Close" in result:
-        stock_ret_5 = pd.to_numeric(result["Close"], errors="coerce").pct_change(5, fill_method=None)
-    else:
-        stock_ret_5 = pd.Series(0.0, index=result.index)
-    if "MARKET_RET_5" in result:
-        market_ret_5 = pd.to_numeric(result["MARKET_RET_5"], errors="coerce")
-    else:
-        market_ret_5 = pd.Series(0.0, index=result.index)
-    result["STOCK_VS_MARKET_5"] = stock_ret_5 - market_ret_5
-
-    for column in MARKET_FEATURES:
-        if column not in result:
-            result[column] = 0.0
-        result[column] = (
-            pd.to_numeric(result[column], errors="coerce")
-            .replace([np.inf, -np.inf], 0)
-            .fillna(0.0)
-        )
-    return result
+    return _add_market_context_features(price, market, etf50, pd=pd, np=np)
 
 
 def _option_close_frame(frame, column):
-    if frame is None or frame.empty or "Date" not in frame or "Close" not in frame:
-        return pd.DataFrame(columns=["Date", column])
-    result = frame[["Date", "Close"]].copy()
-    result["Date"] = pd.to_datetime(result["Date"], errors="coerce").astype(
-        "datetime64[ns]"
-    )
-    result[column] = pd.to_numeric(result["Close"], errors="coerce")
-    return (
-        result.drop(columns=["Close"])
-        .dropna(subset=["Date"])
-        .sort_values("Date")
-        .drop_duplicates("Date", keep="last")
-    )
+    return _quant_option_close_frame(frame, column, pd=pd)
 
 
 def add_option_context_features(price, vix=None, vix9d=None, vix3m=None):
-    if price is None or price.empty:
-        return price
-
-    result = price.copy()
-    for column in OPTION_FEATURES[:-1]:
-        result[column] = 0.0
-    result["OPTION_DATA_MISSING"] = 1.0
-    if "Date" not in result:
-        return result
-
-    option = _option_close_frame(vix, "VIX")
-    if option.empty:
-        return result
-    option["OPTION_IV_LEVEL"] = option["VIX"] / 100.0
-    option["OPTION_IV_CHG_1"] = option["VIX"].pct_change(fill_method=None)
-    option["OPTION_IV_CHG_5"] = option["VIX"].pct_change(5, fill_method=None)
-
-    for frame, column in ((vix9d, "VIX9D"), (vix3m, "VIX3M")):
-        extra = _option_close_frame(frame, column)
-        if not extra.empty:
-            option = option.merge(extra, on="Date", how="left")
-    if "VIX9D" not in option:
-        option["VIX9D"] = np.nan
-    if "VIX3M" not in option:
-        option["VIX3M"] = np.nan
-    option["OPTION_IV_TERM_9D_3M"] = option["VIX9D"] / option["VIX3M"] - 1.0
-    option["OPTION_DATA_MISSING"] = 0.0
-    option = option[["Date"] + OPTION_FEATURES].sort_values("Date")
-
-    result["Date"] = pd.to_datetime(result["Date"], errors="coerce").astype(
-        "datetime64[ns]"
-    )
-    result = result.drop(columns=OPTION_FEATURES).sort_values("Date")
-    result = pd.merge_asof(
-        result,
-        option,
-        on="Date",
-        direction="backward",
-        tolerance=pd.Timedelta(days=4),
-    )
-    for column in OPTION_FEATURES[:-1]:
-        result[column] = (
-            pd.to_numeric(result[column], errors="coerce")
-            .replace([np.inf, -np.inf], 0.0)
-            .fillna(0.0)
-        )
-    result["OPTION_DATA_MISSING"] = (
-        pd.to_numeric(result["OPTION_DATA_MISSING"], errors="coerce")
-        .fillna(1.0)
-    )
-    return result
+    return _add_option_context_features(price, vix, vix9d, vix3m, pd=pd, np=np)
 
 
 def add_price_quality_features(price, yf_price=None):
-    result = price.copy()
-    result["YF_CLOSE"] = 0.0
-    result["DATA_PRICE_DIFF_PCT"] = 0.0
-    result["DATA_PRICE_WARNING"] = 0.0
-    if yf_price is None or yf_price.empty or "Date" not in yf_price or "Close" not in yf_price:
-        return result
-
-    left = result[["Date", "Close"]].copy()
-    left["Date"] = pd.to_datetime(left["Date"], errors="coerce")
-    right = yf_price[["Date", "Close"]].copy()
-    right["Date"] = pd.to_datetime(right["Date"], errors="coerce")
-    right = right.rename(columns={"Close": "YF_CLOSE"})
-    merged = left.merge(right, on="Date", how="left")
-
-    yf_close = pd.to_numeric(merged["YF_CLOSE"], errors="coerce")
-    close = pd.to_numeric(merged["Close"], errors="coerce")
-    diff = ((yf_close - close).abs() / (close.abs() + 1e-9)).replace([np.inf, -np.inf], np.nan)
-    result["YF_CLOSE"] = yf_close.fillna(0.0).to_numpy()
-    result["DATA_PRICE_DIFF_PCT"] = diff.fillna(0.0).to_numpy()
-    result["DATA_PRICE_WARNING"] = (
-        result["DATA_PRICE_DIFF_PCT"] > PRICE_DIFF_WARNING_THRESHOLD
-    ).astype(float)
-    return result
+    return _add_price_quality_features(price, yf_price, pd=pd, np=np)
 
 
 def _clean_df(df):
-    df[['Open', 'High', 'Low', 'Close']] = df[['Open', 'High', 'Low', 'Close']].replace(0, np.nan)
-    numeric_columns = [
-        "Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance",
-    ] + MARKET_FEATURES + OPTION_FEATURES + DATA_QUALITY_FEATURES
-    for column in numeric_columns:
-        if column not in df:
-            df[column] = 0.0
-        df[column] = (
-            pd.to_numeric(df[column], errors="coerce")
-            .replace([np.inf, -np.inf], 0)
-            .fillna(0.0)
-        )
-    df = df.dropna(subset=['Date', 'Close'])
-    return df.sort_values('Date').drop_duplicates(subset=['Date'], keep='last').set_index("Date")
+    return _clean_quant_df(df, pd=pd, np=np)
 
 
 
@@ -789,88 +621,25 @@ def _clean_df(df):
 
 
 def summarize_foreign_flow(df):
-    if "ForeignNet" not in df or df["ForeignNet"].abs().sum() == 0:
-        return {"available": False, "net_5": 0.0, "net_20": 0.0, "status": "資料不足", "source": "外資"}
-    net = pd.to_numeric(df["ForeignNet"], errors="coerce").fillna(0)
-    net_5 = float(net.tail(5).sum())
-    net_20 = float(net.tail(20).sum())
-    if net_5 > 0 and net_20 > 0:
-        status = "外資偏多"
-    elif net_5 < 0 and net_20 < 0:
-        status = "外資偏空"
-    else:
-        status = "外資中性"
-    return {"available": True, "net_5": net_5, "net_20": net_20, "status": status, "source": "外資"}
+    return _summarize_foreign_flow(df, pd=pd)
 
 def get_data(code, days=730):
-    start_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
-    end_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    if is_us_ticker(code):
-        price = fetch_yfinance_price_history(code, start_date, end_date)
-        if price.empty:
-            return pd.DataFrame()
-        price = add_price_quality_features(price)
-        market = fetch_yfinance_price_history("^GSPC", start_date, end_date)
-        spy = fetch_yfinance_price_history("SPY", start_date, end_date)
-        price = add_market_context_features(price, market, spy)
-        price = add_option_context_features(
-            price, *fetch_option_context_history(start_date, end_date)
-        )
-        return _clean_df(merge_chip_data(price))
-
-    yf_price = pd.DataFrame()
-    if code != "TAIEX":
-        info = twstock.codes.get(code)
-        suffix = ".TWO" if getattr(info, "data_source", "") == "tpex" else ".TW"
-        yf_price = fetch_yfinance_price_history([f"{code}{suffix}"], start_date, end_date)
-
-    raw = fetch_finmind_dataset(
-        "TaiwanStockPrice", code, start_date, end_date
+    return _get_quant_data(
+        code,
+        days,
+        datetime=datetime,
+        pd=pd,
+        is_us_ticker=is_us_ticker,
+        twstock_codes=twstock.codes,
+        fetch_yfinance=fetch_yfinance_price_history,
+        fetch_finmind=fetch_finmind_dataset,
+        fetch_option_context=fetch_option_context_history,
+        add_price_quality=add_price_quality_features,
+        add_market_context=add_market_context_features,
+        add_option_context=add_option_context_features,
+        merge_chip=merge_chip_data,
+        clean=_clean_df,
     )
-    price = None
-    if not raw.empty:
-        price = pd.DataFrame(
-            {
-                "Date": pd.to_datetime(raw["date"], errors="coerce"),
-                "Open": pd.to_numeric(raw["open"], errors="coerce"),
-                "High": pd.to_numeric(raw["max"], errors="coerce"),
-                "Low": pd.to_numeric(raw["min"], errors="coerce"),
-                "Close": pd.to_numeric(raw["close"], errors="coerce"),
-                "Volume": pd.to_numeric(raw.get("Trading_Volume", 0), errors="coerce"),
-            }
-        )
-    if price is None:
-        price = (
-            fetch_yfinance_price_history("^TWII", start_date, end_date)
-            if code == "TAIEX"
-            else yf_price
-        )
-    if price is None or price.empty:
-        return pd.DataFrame()
-
-    price = add_price_quality_features(price, yf_price)
-    market = fetch_yfinance_price_history("^TWII", start_date, end_date)
-    etf50 = fetch_yfinance_price_history("0050.TW", start_date, end_date)
-    price = add_market_context_features(price, market, etf50)
-    price = add_option_context_features(
-        price, *fetch_option_context_history(start_date, end_date)
-    )
-
-    institutional = margin = None
-    if code != "TAIEX":
-        institutional = fetch_finmind_dataset(
-            "TaiwanStockInstitutionalInvestorsBuySell",
-            code,
-            start_date,
-            end_date,
-        )
-        margin = fetch_finmind_dataset(
-            "TaiwanStockMarginPurchaseShortSale",
-            code,
-            start_date,
-            end_date,
-        )
-    return _clean_df(merge_chip_data(price, institutional, margin))
 
 # ==================================================
 # 3. 核心運算模組 (LGBM)
@@ -927,198 +696,27 @@ def get_news(name, code=None):
     return news[:4 if social else 5] + social[:1]
 
 def calc_all(df):
-    df = df.copy()
-    numeric_columns = [
-        "Volume", "InstitutionalNet", "ForeignNet", "MarginBalance", "ShortBalance",
-    ] + MARKET_FEATURES + OPTION_FEATURES + DATA_QUALITY_FEATURES
-    for column in numeric_columns:
-        if column not in df:
-            df[column] = 0.0
-        df[column] = (
-            pd.to_numeric(df[column], errors="coerce")
-            .replace([np.inf, -np.inf], 0)
-            .fillna(0.0)
-        )
-    c = df["Close"]
-    df['MA_5'], df['MA20'], df['RET_1'] = c.rolling(5).mean(), c.rolling(20).mean(), c.pct_change(fill_method=None)
-    df['RET_5'], df['RET_20'] = c.pct_change(5, fill_method=None), c.pct_change(20, fill_method=None)
-    df['RANGE_PCT'] = (df['High'] - df['Low']) / (c.abs() + 1e-9)
-    df['VOL_RATIO'] = df['Volume'].rolling(5).mean() / (df['Volume'].rolling(20).mean() + 1e-9)
-    df['VOL_CHG'] = df['Volume'].pct_change(fill_method=None).replace([np.inf, -np.inf], 0).fillna(0).clip(-5, 5)
-    df['INST_NET_RATIO'] = (df['InstitutionalNet'] / (df['Volume'] + 1e-9)).clip(-5, 5)
-    df['MARGIN_CHG'] = df['MarginBalance'].replace(0, np.nan).pct_change(fill_method=None).replace([np.inf, -np.inf], 0).fillna(0).clip(-1, 1)
-    df['SHORT_CHG'] = df['ShortBalance'].replace(0, np.nan).pct_change(fill_method=None).replace([np.inf, -np.inf], 0).fillna(0).clip(-1, 1)
-    d = c.diff()
-    g, l = d.clip(lower=0).rolling(14).mean(), -d.clip(upper=0).rolling(14).mean()
-    df["RSI"] = 100 - (100 / (1 + (g / (l + 1e-9))))
-    df['Volat'] = df['RET_1'].rolling(20).std()
-    
-    # MACD
-    ema12 = c.ewm(span=12, adjust=False).mean()
-    ema26 = c.ewm(span=26, adjust=False).mean()
-    df['MACD_DIF'] = ema12 - ema26
-    df['MACD'] = df['MACD_DIF'].ewm(span=9, adjust=False).mean()
-    df['MACD_OSC'] = df['MACD_DIF'] - df['MACD']
-    
-    # KD
-    high9 = df['High'].rolling(9).max()
-    low9 = df['Low'].rolling(9).min()
-    rsv = (c - low9) / (high9 - low9 + 1e-9) * 100
-    df['K'] = rsv.ewm(com=2, adjust=False).mean()
-    df['D'] = df['K'].ewm(com=2, adjust=False).mean()
-    
-    # Bollinger Bands
-    std20 = c.rolling(20).std()
-    df['BB_UP'] = df['MA20'] + 2 * std20
-    df['BB_DN'] = df['MA20'] - 2 * std20
-    
-    return df.dropna()
+    return _calc_all(df, pd=pd, np=np)
 
 def add_prediction_target(df):
-    result = df.copy()
-    future = result["Close"].shift(-PREDICTION_HORIZON) / result["Close"] - 1
-    result["FUTURE_RET_5"] = future
-    result["T"] = np.where(future.notna(), (future > 0).astype(float), np.nan)
-    return result
+    return _add_prediction_target(df, np=np)
 
 def build_time_splits(n_samples):
-    from sklearn.model_selection import TimeSeriesSplit
-
-    splitter = TimeSeriesSplit(n_splits=5, gap=PREDICTION_HORIZON)
-    return list(splitter.split(np.arange(n_samples)))
+    return _build_time_splits(n_samples, np=np)
 
 def score_oos_predictions(future_returns, probabilities):
-    frame = pd.DataFrame({"future": future_returns, "prob": probabilities}).dropna()
-    target = (frame["future"] > 0).astype(int)
-    sampled = frame.iloc[::PREDICTION_HORIZON]
-    entries = sampled["prob"] >= ENTRY_THRESHOLD
-    strategy_returns = np.where(
-        entries,
-        sampled["future"] - ROUND_TRIP_COST,
-        0.0,
-    )
-    cumulative = np.cumprod(1 + strategy_returns)
-    buy_hold = np.cumprod(1 + sampled["future"].to_numpy())
-    active = sampled.loc[entries, "future"] - ROUND_TRIP_COST
-    mdd = (
-        (cumulative / np.maximum.accumulate(cumulative) - 1).min() * 100
-        if len(cumulative)
-        else 0.0
-    )
-    std = np.std(strategy_returns)
-    return {
-        "days": len(frame),
-        "accuracy": ((frame["prob"] >= 0.5).astype(int) == target).mean() * 100,
-        "brier": np.mean((frame["prob"] - target) ** 2),
-        "strat_cum": (cumulative[-1] - 1) * 100 if len(cumulative) else 0.0,
-        "bh_cum": (buy_hold[-1] - 1) * 100 if len(buy_hold) else 0.0,
-        "win_rate": (active > 0).mean() * 100 if len(active) else 0.0,
-        "trades": int(entries.sum()),
-        "mdd": mdd,
-        "sharpe": (
-            np.mean(strategy_returns) / std * np.sqrt(252 / PREDICTION_HORIZON)
-            if std
-            else 0.0
-        ),
-    }
+    return _score_oos_predictions(future_returns, probabilities, pd=pd, np=np)
 
 def run_ai_engine(df):
-    try:
-        from lightgbm import LGBMClassifier
-
-        training = add_prediction_target(df).dropna(
-            subset=MODEL_FEATURES + ["FUTURE_RET_5", "T"]
-        )
-        if len(training) < 100 or training["T"].nunique() < 2:
-            return None
-
-        oos_prob = pd.Series(np.nan, index=training.index, dtype=float)
-        for train_index, test_index in build_time_splits(len(training)):
-            fold = training.iloc[train_index]
-            if fold["T"].nunique() < 2:
-                continue
-            model = LGBMClassifier(
-                n_estimators=80,
-                learning_rate=0.05,
-                max_depth=4,
-                random_state=42,
-                verbose=-1,
-            )
-            model.fit(fold[MODEL_FEATURES], fold["T"].astype(int))
-            oos_prob.iloc[test_index] = model.predict_proba(
-                training.iloc[test_index][MODEL_FEATURES]
-            )[:, 1]
-
-        valid = oos_prob.notna()
-        if valid.sum() < 30:
-            return None
-        metrics = score_oos_predictions(
-            training.loc[valid, "FUTURE_RET_5"],
-            oos_prob.loc[valid],
-        )
-
-        final_model = LGBMClassifier(
-            n_estimators=80,
-            learning_rate=0.05,
-            max_depth=4,
-            random_state=42,
-            verbose=-1,
-        )
-        final_model.fit(training[MODEL_FEATURES], training["T"].astype(int))
-        latest_probability = final_model.predict_proba(
-            df.iloc[[-1]][MODEL_FEATURES]
-        )[0, 1]
-
-        df["AI_P"] = np.nan
-        df.loc[oos_prob.loc[valid].index, "AI_P"] = oos_prob.loc[valid] * 100
-        df.loc[df.index[-1], "AI_P"] = latest_probability * 100
-
-        feature_names = {
-            "MA_5": "5日均線動能", "MA20": "月線趨勢支撐",
-            "RET_1": "單日反轉動能", "RET_5": "5日價格動能",
-            "RET_20": "月報酬動能", "RSI": "RSI 強弱度",
-            "Volat": "波動收斂度", "RANGE_PCT": "日內振幅",
-            "VOL_RATIO": "成交量趨勢", "VOL_CHG": "成交量變化",
-            "INST_NET_RATIO": "法人買賣超", "MARGIN_CHG": "融資變化",
-            "SHORT_CHG": "融券變化", "MACD_OSC": "MACD 柱狀體動能",
-            "K": "KD K值", "D": "KD D值",
-            "MARKET_RET_1": "大盤單日動能",
-            "MARKET_RET_5": "大盤5日動能",
-            "MARKET_RET_20": "大盤月動能",
-            "MARKET_VOL_20": "大盤波動度",
-            "ETF50_RET_5": "0050五日動能",
-            "STOCK_VS_MARKET_5": "個股相對大盤強度",
-            "DATA_PRICE_DIFF_PCT": "資料源價差",
-            "DATA_PRICE_WARNING": "資料品質警示",
-        }
-        importances = final_model.feature_importances_
-        total_importance = max(float(importances.sum()), 1.0)
-        metrics["top_features"] = [
-            f"{feature_names.get(feature, feature)} (貢獻度: {importance / total_importance * 100:.1f}%)"
-            for feature, importance in sorted(
-                zip(MODEL_FEATURES, importances),
-                key=lambda item: item[1],
-                reverse=True,
-            )[:3]
-        ]
-        if metrics["trades"] == 0:
-            metrics["conclusion"] = "⏸️ 訊號空窗：模型未發現高勝率進場點，選擇空手觀望。"
-        elif metrics["strat_cum"] > metrics["bh_cum"]:
-            metrics["conclusion"] = (
-                "✅ 策略優勢：高報酬且風險控制優異。"
-                if metrics["sharpe"] > 1
-                else "✅ 擊敗大盤：能創造超額報酬。"
-            )
-        else:
-            metrics["conclusion"] = (
-                "🛡️ 下檔保護：大跌時具備避險作用。"
-                if metrics["mdd"] > -15
-                else "⚠️ 模型失真：容易追高殺低。"
-            )
-        return metrics
-    except Exception as e:
-        logger.error("回測引擎錯誤: %s", e)
-        return None
+    return _run_ai_engine(
+        df,
+        add_prediction_target=add_prediction_target,
+        build_time_splits=build_time_splits,
+        score_oos_predictions=score_oos_predictions,
+        pd=pd,
+        np=np,
+        logger=logger,
+    )
 
 def get_ai_insight_for_broadcast(name, data, bt, news):
     if not gemini_model: return "未設定 API Key，無法生成觀點。"
