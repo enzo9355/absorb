@@ -1,6 +1,7 @@
 import math
 
 from stock_papi.settings import SENTIMENT_WINDOW_DAYS
+from stock_papi.shared.validation import safe_external_https_url
 
 
 NEWS_NEGATIONS = ("不", "未", "無", "難")
@@ -20,6 +21,7 @@ NEWS_SENTIMENT_RULES = (
 
 def score_news_item(news):
     item = dict(news)
+    item["link"] = safe_external_https_url(item.get("link"))
     title = str(item.get("normalized_title") or item.get("title") or "")
     is_social = item.get("provider") == "stocktwits"
     matched_phrases = []
@@ -229,4 +231,3 @@ def analyze_sentiment_detail(news_list):
 def analyze_sentiment(news_list):
     detail = analyze_sentiment_detail(news_list)
     return detail["score"], detail["status"]
-

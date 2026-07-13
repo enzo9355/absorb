@@ -2,8 +2,27 @@
 {% block title %}{{ d.name }}（{{ d.code }}）｜Stock Papi{% endblock %}
 {% block head %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>{% endblock %}
 {% block content %}
-{% set recommendation = d.recommendation %}
-{% set interpretation = d.backtest_interpretation %}
+{% set recommendation = d.get('recommendation') or {
+  'action': '等待確認',
+  'level': 'insufficient',
+  'headline': '新版建議資料尚未完成，請先查看原始指標',
+  'suggested_action': '等待資料更新，不依單一訊號採取行動。',
+  'invalidation_conditions': ['資料品質尚未確認'],
+  'confidence': '可信度低',
+  'supporting_reasons': [],
+  'risk_reasons': ['新版建議欄位缺失'],
+  'unheld_guidance': '等待完整資料',
+  'held_guidance': '先依既有風險計畫控管部位'
+} %}
+{% set interpretation = d.get('backtest_interpretation') or {
+  'advantage': '資料不足：無法比較策略與買進持有。',
+  'cumulative_return': '資料不足：無法換算歷史累積報酬。',
+  'maximum_drawdown': '資料不足：無法判斷最差資金跌幅。',
+  'win_rate': '資料不足：無法判斷歷史交易勝率。',
+  'cash_ratio': '資料不足：無法判斷空手比例。',
+  'sharpe': '資料不足：無法判斷承擔波動後的歷史報酬。',
+  'brier': '資料不足：無法判斷模型機率可信度。'
+} %}
 <div class="page stock-page" data-stock-code="{{ d.code }}" data-stock-name="{{ d.name }}" data-stock-price="{{ '%.2f'|format(d.price) }}" data-stock-prob="{{ d.prob }}">
   <header class="stock-hero" id="summary">
     <div class="hero-copy">
@@ -143,7 +162,19 @@
 
   <section class="panel risk-panel" id="risk"><div><p class="eyebrow">RISK CHECK</p><h2>風險提醒</h2></div><p>{{ d.bt.conclusion }}</p><ul><li>預測期間為五個交易日，短線波動可能偏離模型。</li><li>交易成本與突發事件可能降低實際績效。</li><li>請搭配部位控管，不要只依單一機率下單。</li></ul></section>
 
-  <section class="panel news-panel" id="news"><div class="section-heading"><div><p class="eyebrow">NEWS & SENTIMENT</p><h2>近期新聞與輿論</h2></div><span class="muted small">{{ d.get('news_count', d.news|length) }} 則{% if d.get('news_publisher_count') %}｜{{ d.news_publisher_count }} 個發布者{% endif %}{% if d.get('social_sample_size') %}｜社群 {{ d.social_sample_size }} 則{% endif %}｜情緒不修改模型機率</span></div><div class="filter-row" aria-label="新聞情緒篩選"><button type="button" class="active" data-news-filter="all" aria-pressed="true">全部</button><button type="button" data-news-filter="positive" aria-pressed="false">正向</button><button type="button" data-news-filter="negative" aria-pressed="false">負向</button><button type="button" data-news-filter="neutral" aria-pressed="false">中性</button></div><div class="news-list">{% for item in d.news %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer" data-news-direction="{{ item.direction }}"><span>{{ item.normalized_title or item.title }}</span><small class="muted news-meta">{{ item.source or '來源未知' }} · {{ item.published_at[:10] if item.published_at else '時間未知' }} · {{ '正向' if item.direction == 'positive' else '負向' if item.direction == 'negative' else '中性' }}</small></a>{% else %}<div class="empty-state">目前沒有相關新聞或輿論</div>{% endfor %}<div class="empty-state" data-news-filter-empty hidden>此分類目前沒有新聞。</div></div></section>
+  <section class="panel news-panel" id="news">
+    <div class="section-heading"><div><p class="eyebrow">NEWS & SENTIMENT</p><h2>近期新聞與輿論</h2></div><span class="muted small">{{ d.get('news_count', d.news|length) }} 則{% if d.get('news_publisher_count') %}｜{{ d.news_publisher_count }} 個發布者{% endif %}{% if d.get('social_sample_size') %}｜社群 {{ d.social_sample_size }} 則{% endif %}｜情緒不修改模型機率</span></div>
+    <div class="filter-row" aria-label="新聞情緒篩選"><button type="button" class="active" data-news-filter="all" aria-pressed="true">全部</button><button type="button" data-news-filter="positive" aria-pressed="false">正向</button><button type="button" data-news-filter="negative" aria-pressed="false">負向</button><button type="button" data-news-filter="neutral" aria-pressed="false">中性</button></div>
+    <div class="news-list">
+      {% for item in d.news %}
+        {% set news_url = item.link|safe_external_url %}
+        {% if news_url %}<a href="{{ news_url }}" target="_blank" rel="noopener noreferrer" data-news-direction="{{ item.direction }}">{% else %}<article data-news-direction="{{ item.direction }}">{% endif %}
+          <span>{{ item.normalized_title or item.title }}</span><small class="muted news-meta">{{ item.source or '來源未知' }} · {{ item.published_at[:10] if item.published_at else '時間未知' }} · {{ '正向' if item.direction == 'positive' else '負向' if item.direction == 'negative' else '中性' }}</small>
+        {% if news_url %}</a>{% else %}</article>{% endif %}
+      {% else %}<div class="empty-state">目前沒有相關新聞或輿論</div>{% endfor %}
+      <div class="empty-state" data-news-filter-empty hidden>此分類目前沒有新聞。</div>
+    </div>
+  </section>
 
   <script id="stock-chart-data" type="application/json">{{ {"candles": d.candles, "ma20": d.ma20_line, "prediction": d.pred}|tojson }}</script>
 </div>

@@ -5,6 +5,7 @@ from flask import Flask
 
 from stock_papi.web.route_registration import register_routes
 from stock_papi.services.content import AI_QUANT_DISCLOSURE
+from stock_papi.shared.validation import safe_external_https_url
 
 
 def create_app(config: Mapping[str, Any] | None = None) -> Flask:
@@ -15,6 +16,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     if config:
         flask_app.config.update(config)
     flask_app.jinja_env.globals["AI_QUANT_DISCLOSURE"] = AI_QUANT_DISCLOSURE
+    flask_app.jinja_env.filters["safe_external_url"] = safe_external_https_url
 
     @flask_app.after_request
     def security_headers(response):

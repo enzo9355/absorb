@@ -332,6 +332,23 @@ class WebProductTests(unittest.TestCase):
 
         self.assertNotIn(".innerHTML", script)
 
+    def test_stock_page_does_not_render_unsafe_news_links(self):
+        data = analysis_data()
+        data["news"] = [{
+            "title": "不安全來源仍保留文字",
+            "normalized_title": "不安全來源仍保留文字",
+            "link": "javascript:alert(1)",
+            "source": "未知來源",
+            "published_at": "2026-07-11T09:00:00+08:00",
+            "direction": "neutral",
+        }]
+
+        with patch.object(stock_app, "analyze", return_value=data):
+            html = stock_app.app.test_client().get("/stock/2330").get_data(as_text=True)
+
+        self.assertIn("不安全來源仍保留文字", html)
+        self.assertNotIn('href="javascript:', html)
+
     @patch.object(stock_app, "analyze", return_value=analysis_data())
     def test_stock_page_accepts_standard_us_ticker(self, analyze):
         response = stock_app.app.test_client().get("/stock/AAPL")

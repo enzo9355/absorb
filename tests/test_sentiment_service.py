@@ -42,6 +42,23 @@ class SentimentServiceTests(unittest.TestCase):
             },
         )
 
+    def test_news_links_allow_only_origin_clean_https_urls(self):
+        safe = sentiment.score_news_item({
+            "title": "安全連結", "link": "https://news.example.com/story?id=1"
+        })
+        self.assertEqual(safe["link"], "https://news.example.com/story?id=1")
+
+        for unsafe in (
+            "javascript:alert(1)",
+            "data:text/html,unsafe",
+            "http://news.example.com/story",
+            "https://user:password@news.example.com/story",
+            "//news.example.com/story",
+        ):
+            with self.subTest(unsafe=unsafe):
+                scored = sentiment.score_news_item({"title": "不安全連結", "link": unsafe})
+                self.assertIsNone(scored["link"])
+
 
 if __name__ == "__main__":
     unittest.main()
