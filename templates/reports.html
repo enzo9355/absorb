@@ -11,20 +11,7 @@
     </div>
   </header>
 
-  <section class="panel glass-panel" aria-labelledby="sample-report-title">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">SAMPLE / TEST DATA</p>
-        <h2 id="sample-report-title">範例日報</h2>
-        <p>僅供展示報告版面與下載功能；不得作為正式投資或模型結果。</p>
-      </div>
-      <div class="report-actions" aria-label="SAMPLE 報告操作">
-        <a class="button button-secondary" href="{{ url_for('sample_report_download') }}">下載 SAMPLE PDF</a>
-      </div>
-    </div>
-  </section>
-
-  <section class="panel glass-panel" aria-labelledby="report-history-title">
+  <section class="panel" aria-labelledby="report-history-title">
     <div class="section-heading">
       <div>
         <p class="eyebrow">TW INDUSTRY</p>
@@ -38,18 +25,17 @@
             <div>
               <p class="eyebrow">報告交易日</p>
               <h3>{{ report.report_date }}</h3>
+              <p class="action-label">{{ report.get('market_action', '等待確認') }}</p>
+              <p class="report-headline">{{ report.get('headline', '此歷史報告尚未包含新版公開摘要，請進入報告查看。') }}</p>
               <dl class="report-meta">
                 <div><dt>資料截止日</dt><dd>{{ report.data_as_of }}</dd></div>
-                <div><dt>模型版本</dt><dd>{{ report.model_versions.keys()|join('、') }}</dd></div>
                 <div><dt>資料覆蓋率</dt><dd>{{ '%.1f%%'|format(report.coverage * 100) }}</dd></div>
-                <div><dt>檔案大小</dt><dd>{{ '%.2f MB'|format(report.pdf_size / 1048576) }}</dd></div>
-                <div><dt>頁數</dt><dd>{{ report.page_count }}</dd></div>
-                <div><dt>產生時間</dt><dd>{{ report.generated_at }}</dd></div>
+                <div><dt>重點產業</dt><dd>{{ report.get('key_industries', [])|join('、') or '資料不足' }}</dd></div>
               </dl>
+              <details class="report-technical"><summary>技術資訊</summary><p>模型版本：{{ report.model_versions.keys()|join('、') }}｜內部存檔 {{ report.page_count }} 頁｜產生時間 {{ report.generated_at }}</p></details>
             </div>
             <div class="report-actions" aria-label="{{ report.report_date }} 報告操作">
-              <a class="button" href="{{ url_for('report_preview', report_date=report.report_date) }}" target="_blank" rel="noopener">預覽</a>
-              <a class="button button-secondary" href="{{ url_for('report_download', report_date=report.report_date) }}">下載</a>
+              <a class="button" href="{{ url_for('report_page', report_date=report.report_date) }}">閱讀完整報告</a>
             </div>
           </article>
         {% endfor %}

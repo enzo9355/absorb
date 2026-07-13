@@ -7,6 +7,7 @@ from pathlib import Path
 from . import REPORT_GENERATOR_VERSION, REPORT_SCHEMA_VERSION, git_commit_sha
 from .config import ReportConfig
 from .exceptions import ReportPublishError
+from .public_report import build_public_report
 from .schemas import DailyIndustryReport, LoadedReportSource, ReportGenerationResult
 from .web import validate_report_index
 
@@ -137,6 +138,7 @@ def publish_report(
         _write_atomic(pdf_path, pdf_bytes)
 
     manifest = report.source.manifest
+    public_report = build_public_report(report)
     metadata = {
         "schema_version": 1,
         "report_schema_version": REPORT_SCHEMA_VERSION,
@@ -162,6 +164,7 @@ def publish_report(
         "page_count": result.page_count,
         "summary": report.summary,
         "warnings": result.warnings,
+        "public_report": public_report,
     }
     metadata_bytes = _json_bytes(metadata)
     metadata_sha = hashlib.sha256(metadata_bytes).hexdigest()
@@ -183,6 +186,11 @@ def publish_report(
         "pdf_sha256": result.sha256,
         "pdf_size": result.file_size,
         "page_count": result.page_count,
+        "market_action": public_report["market_recommendation"]["action"],
+        "headline": public_report["market_recommendation"]["headline"],
+        "key_industries": [
+            item["name"] for item in public_report["industries"][:3]
+        ],
         "metadata": metadata_relative,
         "metadata_sha256": metadata_sha,
     }

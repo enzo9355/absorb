@@ -12,14 +12,12 @@ from .charts import (
 )
 from .config import ReportConfig
 from .industry_analytics import ROTATION_LABELS
+from .public_report import build_public_report
 from .schemas import DailyIndustryReport, ReportGenerationResult
+from stock_papi.services.content import AI_QUANT_DISCLOSURE
 
 
-DISCLAIMER = (
-    "本報告內容僅供量化研究、資訊整理與教育參考，不構成任何證券買賣建議、投資顧問服務、邀約或收益保證。"
-    "模型與回測結果均基於歷史資料，過去績效不代表未來結果。實際交易可能受到市場流動性、滑價、交易成本、"
-    "資料延遲及模型失效等因素影響，使用者應自行評估投資風險。"
-)
+DISCLAIMER = AI_QUANT_DISCLOSURE
 
 
 def _pct(value, digits=2, missing="資料不足"):
@@ -298,6 +296,8 @@ class DailyIndustryReportGenerator:
             return [paragraph(f"{label}：{_pct(value, 1)}", small), drawing]
 
         manifest = report.source.manifest
+        public_report = build_public_report(report)
+        market_recommendation = public_report["market_recommendation"]
         story = [Spacer(1, 18 * mm)]
         if is_sample:
             story += [
@@ -331,7 +331,16 @@ class DailyIndustryReportGenerator:
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ]))
-        story += [cover_table, Spacer(1, 6 * mm), paragraph("每日研究摘要", heading)]
+        story += [
+            cover_table,
+            Spacer(1, 6 * mm),
+            paragraph(f"AI 量化解方：{market_recommendation['action']}", heading),
+            paragraph(market_recommendation["headline"]),
+            paragraph("建議做法：" + market_recommendation["suggested_action"], small),
+            paragraph("主要風險：" + "；".join(market_recommendation["risk_reasons"]), small),
+            Spacer(1, 3 * mm),
+            paragraph("每日研究摘要", heading),
+        ]
         story += [paragraph(f"• {item}") for item in report.summary]
         story += [
             paragraph(

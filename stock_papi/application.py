@@ -139,7 +139,11 @@ from stock_papi.repositories.quant_snapshots import (
     fetch_quant_snapshot,
     published_quant_manifest,
 )
-from stock_papi.repositories.report_store import load_report_index, load_report_pdf
+from stock_papi.repositories.report_store import (
+    load_report_index,
+    load_report_metadata,
+    load_report_pdf,
+)
 from stock_papi.quant.projection import (
     _annualized_percent,
     calculate_investment_projection,
@@ -890,6 +894,9 @@ def route_dependencies():
         "search_stock": lambda query: search_stock_code(query),
         "load_report_index": lambda: _published_report_index(),
         "load_report_pdf": lambda item: load_report_pdf(
+            item, load_object=_gcs_get_report_object
+        ),
+        "load_report_metadata": lambda item: load_report_metadata(
             item, load_object=_gcs_get_report_object
         ),
         "sample_report_path": SAMPLE_REPORT_PATH,

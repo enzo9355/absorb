@@ -13,10 +13,7 @@ def register_routes(app, dependencies):
     register_report_routes(
         app,
         load_index=dependencies["load_report_index"],
-        load_pdf=dependencies["load_report_pdf"],
-        sample_report_path=dependencies["sample_report_path"],
-        sample_report_filename=dependencies["sample_report_filename"],
-        max_pdf_bytes=dependencies["max_pdf_bytes"],
+        load_metadata=dependencies["load_report_metadata"],
     )
     register_market_routes(
         app,

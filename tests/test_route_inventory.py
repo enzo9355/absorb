@@ -15,6 +15,7 @@ EXPECTED_ROUTES = {
     ("/market", "market_page", frozenset({"GET"})),
     ("/market-map", "market_map_page", frozenset({"GET"})),
     ("/reports", "reports_page", frozenset({"GET"})),
+    ("/reports/<report_date>", "report_page", frozenset({"GET"})),
     ("/reports/<report_date>/download", "report_download", frozenset({"GET"})),
     ("/reports/<report_date>/preview", "report_preview", frozenset({"GET"})),
     ("/reports/sample/download", "sample_report_download", frozenset({"GET"})),

@@ -46,9 +46,18 @@ class DailyReportPublishTests(unittest.TestCase):
             self.assertEqual(metadata["report_generator_version"], "2.0.0")
             self.assertRegex(metadata["git_commit_sha"], r"^[0-9a-f]{7,40}$|^unknown$")
             self.assertFalse(metadata["sample_data"])
+            self.assertEqual(metadata["public_report"]["schema_version"], 1)
+            self.assertIn(
+                metadata["public_report"]["market_recommendation"]["action"],
+                {"積極選股", "逢回布局", "控制追價", "提高防守"},
+            )
             self.assertTrue((publish / metadata["pdf_path"]).is_file())
             index = json.loads((publish / "index-TW.json").read_text(encoding="utf-8"))
             self.assertEqual(index["reports"][0]["report_date"], "2026-07-03")
+            self.assertEqual(
+                index["reports"][0]["market_action"],
+                metadata["public_report"]["market_recommendation"]["action"],
+            )
             mirror = root / "reports" / "TW" / "stock-papi-tw-industry-daily-2026-07-03.pdf"
             self.assertEqual(mirror.read_bytes(), pdf.read_bytes())
             self.assertEqual(

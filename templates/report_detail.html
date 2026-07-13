@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ report.report_date }} 每日報告｜Stock Papi{% endblock %}
+{% block nav_reports %}active{% endblock %}
+{% block content %}
+<article class="page report-detail-page">
+  <header class="report-hero panel">
+    <a class="back-link" href="{{ url_for('reports_page') }}">返回每日報告</a>
+    <p class="eyebrow">{{ report.report_date }} · TW INDUSTRY</p>
+    <h1>Stock Papi 台股產業量化分析日報</h1>
+    <p class="muted">資料截止日 {{ report.data_as_of }} · 資料覆蓋率 {{ '%.1f%%'|format(report.coverage * 100) }}</p>
+  </header>
+
+  {% if public_report %}
+    {% set market = public_report.market_recommendation %}
+    <section class="panel report-conclusion" aria-labelledby="quick-conclusion">
+      <p class="eyebrow">30 SECOND VIEW</p>
+      <h2 id="quick-conclusion">30 秒市場結論</h2>
+      <p class="action-label action-{{ market.level }}">{{ market.action }}</p>
+      <p class="decision-headline">{{ market.headline }}</p>
+      <div class="reason-columns">
+        <section><h3>支持理由</h3><ul>{% for reason in market.supporting_reasons %}<li>{{ reason }}</li>{% else %}<li>資料不足</li>{% endfor %}</ul></section>
+        <section><h3>主要風險</h3><ul>{% for reason in market.risk_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></section>
+      </div>
+      <p><strong>建議做法：</strong>{{ market.suggested_action }}</p>
+      <p class="muted small">結論可信度：{{ market.confidence }}｜判斷失效：{{ market.invalidation_conditions|join('；') }}</p>
+    </section>
+
+    <section class="panel" aria-labelledby="key-points">
+      <h2 id="key-points">今天最重要的三件事</h2>
+      <ol class="report-key-points">{% for point in public_report.key_points %}<li>{{ point }}</li>{% else %}<li>今日摘要資料不足。</li>{% endfor %}</ol>
+    </section>
+
+    <section class="panel" aria-labelledby="industry-actions">
+      <h2 id="industry-actions">優先產業與避開產業</h2>
+      <p class="muted">每張卡同時顯示行動、原因與風險；產業偏多不代表所有成分股都適合買進。</p>
+      <div class="report-card-grid">
+        {% for industry in public_report.industries %}
+          <article class="report-insight-card">
+            <p class="eyebrow">{{ industry.name }}</p>
+            <h3>{{ industry.action }}</h3>
+            <p>{{ industry.headline }}</p>
+            <dl><div><dt>五日上漲機率</dt><dd>{{ '%.1f%%'|format(industry.probability) if industry.probability is not none else '資料不足' }}</dd></div><div><dt>產業強弱位置</dt><dd>{{ industry.rotation }}</dd></div><div><dt>主要風險</dt><dd>{{ industry.risk }}</dd></div><div><dt>結論可信度</dt><dd>{{ industry.confidence }}</dd></div></dl>
+          </article>
+        {% else %}<div class="empty-state">產業資料不足。</div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="stock-actions">
+      <h2 id="stock-actions">今日股票解方</h2>
+      <div class="report-card-grid">
+        {% for stock in public_report.stocks %}
+          <article class="report-insight-card">
+            <p class="eyebrow">{{ stock.symbol }}</p><h3>{{ stock.name }}｜{{ stock.action }}</h3>
+            <p>{{ stock.headline }}</p>
+            <p><strong>五日上漲機率：</strong>{{ '%.1f%%'|format(stock.probability) if stock.probability is not none else '資料不足' }}</p>
+            <p><strong>主要風險：</strong>{{ stock.risks|join('；') }}</p>
+            <p class="muted small">{{ stock.confidence }}</p>
+            <a class="button button-secondary" href="{{ url_for('stock_page', code=stock.symbol) }}">前往個股頁</a>
+          </article>
+        {% else %}<div class="empty-state">今日沒有足夠資料形成股票解方。</div>{% endfor %}
+      </div>
+    </section>
+
+    {% set backtest = public_report.backtest %}
+    {% set interpretation = backtest.get('interpretation', {}) %}
+    <section class="panel" aria-labelledby="backtest-trust">
+      <h2 id="backtest-trust">回測是否值得相信</h2>
+      <p class="backtest-verdict">{{ interpretation.get('advantage', backtest.get('advantage', '資料不足：無法比較策略與買進持有。')) }}</p>
+      <div class="plain-metric-grid">
+        {% for key in ['cumulative_return', 'maximum_drawdown', 'win_rate', 'cash_ratio'] %}{% if interpretation.get(key) %}<p>{{ interpretation[key] }}</p>{% endif %}{% endfor %}
+      </div>
+      <p class="muted small">代表產業：{{ backtest.get('industry') or '資料不足' }}｜再平衡樣本 {{ backtest.get('periods', 0) }}｜{{ backtest.get('sample_quality', '可信度低') }}</p>
+    </section>
+
+    <section class="panel" aria-labelledby="chart-explanation">
+      <h2 id="chart-explanation">市場與產業圖表怎麼讀</h2>
+      <p>本頁以文字保留主要結論，不依賴圖片才能理解。完整產業強弱位置與標的分布可前往<a href="{{ url_for('market_map_page') }}">產業地圖</a>查看。</p>
+    </section>
+
+    <details class="panel professional-details">
+      <summary>查看完整專業數據</summary>
+      <div class="report-professional-grid">
+        <section><h3>模型品質</h3><dl><div><dt>未參與訓練的歷史樣本</dt><dd>{{ public_report.model_quality.get('samples', '資料不足') }}</dd></div><div><dt>歷史方向準確率</dt><dd>{{ public_report.model_quality.get('direction_accuracy', '資料不足') }}</dd></div><div><dt>機率可信度（Brier Score）</dt><dd>{{ public_report.model_quality.get('brier_score', '資料不足') }}</dd></div></dl></section>
+        <section><h3>內部存檔</h3><p>PDF 僅供後端驗證、稽核與內部留存，不提供公開下載。模型版本：{{ report.model_versions.keys()|join('、') }}。</p></section>
+      </div>
+    </details>
+  {% else %}
+    <section class="panel" role="status">
+      <h2>此歷史報告使用舊版摘要格式</h2>
+      <p>仍可閱讀已驗證的文字摘要，但不會補造新版推薦或回測數字。</p>
+      <ol>{% for point in metadata.summary %}<li>{{ point }}</li>{% else %}<li>摘要資料不足。</li>{% endfor %}</ol>
+    </section>
+  {% endif %}
+
+  <section class="panel risk-panel" aria-labelledby="methodology-limitations">
+    <h2 id="methodology-limitations">方法論、限制與 AI 聲明</h2>
+    <p>所有結果來自已驗證的 point-in-time 資料、未參與訓練的歷史測試與非重疊五日持有規則。歷史結果不代表未來。</p>
+    {% if metadata.warnings %}<ul>{% for warning in metadata.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+    <p>{{ AI_QUANT_DISCLOSURE }}</p>
+  </section>
+</article>
+{% endblock %}

@@ -1,37 +1,36 @@
-"""Daily report page, preview, and download routes."""
+"""公開 HTML 日報與舊 PDF 路由相容轉址。"""
 
 import datetime
 
-from flask import Response, abort, render_template
+from flask import abort, make_response, redirect, render_template, url_for
 
 from reporting.exceptions import ReportWebError
 from reporting.web import find_report
 
 
-def register_report_routes(
-    app,
-    *,
-    load_index,
-    load_pdf,
-    sample_report_path,
-    sample_report_filename,
-    max_pdf_bytes,
-):
+def _valid_report_date(report_date):
+    try:
+        parsed = datetime.date.fromisoformat(report_date)
+    except ValueError:
+        return False
+    return parsed.isoformat() == report_date
+
+
+def register_report_routes(app, *, load_index, load_metadata):
     def reports_page():
         try:
             reports = load_index()
         except ReportWebError:
             reports = None
-        return render_template(
+        response = make_response(render_template(
             "reports.html", reports=reports or [], unavailable=reports is None
-        )
+        ))
+        response.headers["Cache-Control"] = "public, max-age=300"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
 
-    def report_pdf_response(report_date, disposition):
-        try:
-            parsed = datetime.date.fromisoformat(report_date)
-        except ValueError:
-            abort(404)
-        if parsed.isoformat() != report_date:
+    def report_page(report_date):
+        if not _valid_report_date(report_date):
             abort(404)
         try:
             reports = load_index()
@@ -42,50 +41,37 @@ def register_report_routes(
         item = find_report(reports, report_date)
         if item is None:
             abort(404)
-        content = load_pdf(item)
-        if content is None:
-            return "報告檔案暫時無法使用", 503
-        filename = f"stock-papi-tw-industry-daily-{report_date}.pdf"
-        response = Response(content, mimetype="application/pdf")
-        response.headers["Content-Disposition"] = (
-            f'{disposition}; filename="{filename}"'
-        )
-        response.headers["ETag"] = f'"{item["pdf_sha256"]}"'
-        response.headers["Cache-Control"] = "public, max-age=3600, immutable"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        return response
-
-    def sample_report_response():
         try:
-            with open(sample_report_path, "rb") as stream:
-                content = stream.read(max_pdf_bytes + 1)
-        except OSError:
-            return "SAMPLE 報告暫時無法使用", 503
-        if not content.startswith(b"%PDF") or len(content) > max_pdf_bytes:
-            return "SAMPLE 報告暫時無法使用", 503
-        response = Response(content, mimetype="application/pdf")
-        response.headers["Content-Disposition"] = (
-            f'attachment; filename="{sample_report_filename}"'
-        )
-        response.headers["Cache-Control"] = "public, max-age=3600, immutable"
+            metadata = load_metadata(item)
+        except ReportWebError:
+            return "報告內容暫時無法使用", 503
+        if metadata is None:
+            return "報告內容暫時無法使用", 503
+        response = make_response(render_template(
+            "report_detail.html",
+            report=item,
+            metadata=metadata,
+            public_report=metadata.get("public_report"),
+        ))
+        response.headers["Cache-Control"] = "public, max-age=300"
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
-    def report_preview(report_date):
-        return report_pdf_response(report_date, "inline")
-
-    def report_download(report_date):
-        return report_pdf_response(report_date, "attachment")
+    def legacy_report_redirect(report_date):
+        if not _valid_report_date(report_date):
+            abort(404)
+        return redirect(url_for("report_page", report_date=report_date), code=302)
 
     def sample_report_download():
-        return sample_report_response()
+        return redirect(url_for("reports_page"), code=302)
 
     app.add_url_rule("/reports", "reports_page", reports_page)
+    app.add_url_rule("/reports/<report_date>", "report_page", report_page)
     app.add_url_rule(
-        "/reports/<report_date>/preview", "report_preview", report_preview
+        "/reports/<report_date>/preview", "report_preview", legacy_report_redirect
     )
     app.add_url_rule(
-        "/reports/<report_date>/download", "report_download", report_download
+        "/reports/<report_date>/download", "report_download", legacy_report_redirect
     )
     app.add_url_rule(
         "/reports/sample/download", "sample_report_download", sample_report_download

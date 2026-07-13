@@ -24,7 +24,7 @@
         <a class="nav-link" href="{{ url_for('dashboard_page') }}#top-picks">精選標的</a>
         <a class="nav-link {% block nav_reports %}{% endblock %}" href="{{ url_for('reports_page') }}">每日報告</a>
       </nav>
-      <p class="sidebar-note">資料僅供研究參考，不構成投資建議。</p>
+      <details class="sidebar-disclosure"><summary>AI 量化解方聲明</summary><p>{{ AI_QUANT_DISCLOSURE }}</p></details>
     </aside>
     <main class="main-content" id="main-content" tabindex="-1">{% block content %}{% endblock %}</main>
   </div>
