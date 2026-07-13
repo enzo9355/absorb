@@ -32,18 +32,20 @@ def quant_cloud_payloads(
         "backtest": {},
         "daily": [],
     }
-    object_bytes = object_bytes or gzip.compress(
-        json.dumps(document, separators=(",", ":")).encode("utf-8")
-    )
+    document_bytes = json.dumps(document, separators=(",", ":")).encode("utf-8")
+    object_bytes = object_bytes or gzip.compress(document_bytes)
     object_digest = hashlib.sha256(object_bytes).hexdigest()
     entry = {
         "path": f"objects/{object_digest}.json.gz",
         "sha256": object_digest,
         "size": len(object_bytes),
+        "uncompressed_size": len(document_bytes),
         "as_of": as_of,
         "model_version": "lgbm-5d-v1",
     }
     entry.update(entry_changes or {})
+    if entry.pop("_drop_uncompressed_size", False):
+        entry.pop("uncompressed_size")
     manifest = {
         "schema_version": 2,
         "market": market,
@@ -205,6 +207,20 @@ class PredictionPipelineTests(unittest.TestCase):
                 ),
             ),
             ("bad-sha", quant_cloud_payloads(entry_changes={"sha256": "0" * 64})),
+            (
+                "missing-uncompressed-size",
+                quant_cloud_payloads(entry_changes={"_drop_uncompressed_size": True}),
+            ),
+            (
+                "oversized-uncompressed-size",
+                quant_cloud_payloads(entry_changes={
+                    "uncompressed_size": stock_app.MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES + 1
+                }),
+            ),
+            (
+                "uncompressed-size-mismatch",
+                quant_cloud_payloads(entry_changes={"uncompressed_size": 1}),
+            ),
             ("invalid-gzip", quant_cloud_payloads(object_bytes=b"not-gzip")),
             (
                 "schema",

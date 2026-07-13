@@ -135,6 +135,9 @@ class LocalQuantPublishTests(unittest.TestCase):
                 self.assertEqual(
                     hashlib.sha256(object_path.read_bytes()).hexdigest(), entry["sha256"]
                 )
+                with gzip.open(object_path, "rb") as stream:
+                    decoded = stream.read()
+                self.assertEqual(entry["uncompressed_size"], len(decoded))
                 with gzip.open(object_path, "rt", encoding="utf-8") as stream:
                     self.assertEqual(json.load(stream)["schema_version"], 1)
 

@@ -2,6 +2,7 @@
 .gitignore
 .gcloudignore
 .deps/
+.report-deps/
 __pycache__/
 *.py[cod]
 .env
@@ -15,3 +16,10 @@ local-quant-data/
 0.26.0
 deliverables/
 scripts/build_competition_doc.py
+output/pdf/
+*.pdf
+!static/samples/
+!static/samples/stock-papi-tw-industry-daily-SAMPLE.pdf
+*.pdf.tmp
+*.ttf
+*.ttc

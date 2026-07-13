@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}每日報告｜Stock Papi{% endblock %}
+{% block nav_reports %}active{% endblock %}
+{% block content %}
+<div class="page reports-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">DAILY QUANT REPORTS</p>
+      <h1>每日報告</h1>
+      <p class="page-intro">已完成並通過雜湊驗證的台股產業量化分析日報。</p>
+    </div>
+  </header>
+
+  <section class="panel glass-panel" aria-labelledby="sample-report-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">SAMPLE / TEST DATA</p>
+        <h2 id="sample-report-title">範例日報</h2>
+        <p>僅供展示報告版面與下載功能；不得作為正式投資或模型結果。</p>
+      </div>
+      <div class="report-actions" aria-label="SAMPLE 報告操作">
+        <a class="button button-secondary" href="{{ url_for('sample_report_download') }}">下載 SAMPLE PDF</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel glass-panel" aria-labelledby="report-history-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">TW INDUSTRY</p>
+        <h2 id="report-history-title">歷史報告</h2>
+      </div>
+    </div>
+    {% if reports %}
+      <div class="report-list">
+        {% for report in reports %}
+          <article class="report-card">
+            <div>
+              <p class="eyebrow">報告交易日</p>
+              <h3>{{ report.report_date }}</h3>
+              <dl class="report-meta">
+                <div><dt>資料截止日</dt><dd>{{ report.data_as_of }}</dd></div>
+                <div><dt>模型版本</dt><dd>{{ report.model_versions.keys()|join('、') }}</dd></div>
+                <div><dt>資料覆蓋率</dt><dd>{{ '%.1f%%'|format(report.coverage * 100) }}</dd></div>
+                <div><dt>檔案大小</dt><dd>{{ '%.2f MB'|format(report.pdf_size / 1048576) }}</dd></div>
+                <div><dt>頁數</dt><dd>{{ report.page_count }}</dd></div>
+                <div><dt>產生時間</dt><dd>{{ report.generated_at }}</dd></div>
+              </dl>
+            </div>
+            <div class="report-actions" aria-label="{{ report.report_date }} 報告操作">
+              <a class="button" href="{{ url_for('report_preview', report_date=report.report_date) }}" target="_blank" rel="noopener">預覽</a>
+              <a class="button button-secondary" href="{{ url_for('report_download', report_date=report.report_date) }}">下載</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" role="status">
+        <h3>目前沒有可用的每日報告</h3>
+        <p>{% if unavailable %}報告服務暫時無法讀取，請稍後再試。{% else %}本地量化流程完成發布後，報告會顯示在這裡。{% endif %}</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

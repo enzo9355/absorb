@@ -62,6 +62,29 @@ class LocalQuantTaskTests(unittest.TestCase):
 
         self.assertLess(source.index("$InsightsUploaded"), source.index("$UploadedMarkets"))
 
+    def test_uploader_validates_and_uploads_report_latest_last_without_blocking_quant(self):
+        source = UPLOADER.read_text(encoding="utf-8")
+
+        for required in (
+            r"publish\reports\v1",
+            "ReportUploadError",
+            "metadata/[0-9a-f]{64}",
+            "objects/[0-9a-f]{64}",
+            "index-TW.json",
+            "reports/v1/",
+            "日報上傳失敗",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, source)
+        self.assertLess(
+            source.index('"gs://$Bucket/reports/v1/$ReportPdfRelative"'),
+            source.index('"gs://$Bucket/reports/v1/index-TW.json"'),
+        )
+        self.assertLess(
+            source.index('"gs://$Bucket/reports/v1/index-TW.json"'),
+            source.index('"gs://$Bucket/reports/v1/latest-TW.json"'),
+        )
+
     def test_lifecycle_deletes_cloud_objects_after_thirty_days(self):
         source = LIFECYCLE.read_text(encoding="utf-8")
 
@@ -173,6 +196,17 @@ class LocalQuantTaskTests(unittest.TestCase):
         self.assertLess(source.index("--insights"), source.index("--market TW"))
         self.assertLess(source.index("--market TW"), source.index("Start-Sleep"))
         self.assertLess(source.index("Start-Sleep"), source.index("--market US"))
+
+    def test_wrapper_generates_report_only_after_a_new_tw_manifest_and_continues_on_failure(self):
+        source = WRAPPER.read_text(encoding="utf-8")
+
+        self.assertIn("$TwLatestBefore", source)
+        self.assertIn("$TwLatestAfter", source)
+        self.assertIn("-m reporting.cli", source)
+        self.assertIn("日報生成失敗", source)
+        self.assertLess(source.index("--market TW"), source.index("-m reporting.cli"))
+        self.assertLess(source.index("-m reporting.cli"), source.index("--market US"))
+        self.assertNotIn("exit $ReportExitCode", source)
 
     def test_installer_schedules_wrapper_instead_of_embedding_market_arguments(self):
         source = INSTALLER.read_text(encoding="utf-8")

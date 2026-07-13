@@ -387,7 +387,8 @@ class WebProductTests(unittest.TestCase):
             self.assertIn(marker, html)
         for rule in [":focus-visible", "prefers-reduced-motion", "min-height:44px"]:
             self.assertIn(rule, css)
-        self.assertIn("grid-template-columns:repeat(3,1fr)", css)
+        self.assertIn("grid-template-columns:repeat(4,1fr)", css)
+        self.assertIn('href="/reports">每日報告</a>', html)
 
     def test_browser_bundle_has_no_local_watchlist_storage(self):
         source = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")

@@ -13,7 +13,25 @@ import shutil
 import stat
 import sys
 import time
+import csv
 from pathlib import Path
+
+def safe_print(*args, **kwargs):
+    file = kwargs.get("file", sys.stdout)
+    sep = kwargs.get("sep", " ")
+    end = kwargs.get("end", "\n")
+
+    text = sep.join(str(arg) for arg in args) + end
+    try:
+        encoding = getattr(file, "encoding", None) or "utf-8"
+        file.write(text.encode(encoding, errors="replace").decode(encoding))
+        file.flush()
+    except Exception:
+        try:
+            file.write(text)
+            file.flush()
+        except Exception:
+            pass
 
 from market_insights import (
     ETF_CATALOG,
@@ -378,7 +396,7 @@ def _validated_artifact(root, market, symbol, generated_at):
             raise ValueError("artifact date is in the future")
     except (KeyError, OSError, TypeError, UnicodeError, ValueError) as exc:
         raise RuntimeError(f"artifact is invalid for {market}:{symbol}") from exc
-    return path, compressed, document
+    return path, compressed, document, len(decoded)
 
 
 def publish_market_snapshot(
@@ -408,7 +426,7 @@ def publish_market_snapshot(
         if symbol in excluded:
             continue
         try:
-            path, compressed, document = _validated_artifact(
+            path, compressed, document, uncompressed_size = _validated_artifact(
                 root, market, symbol, generated_at
             )
         except RuntimeError as exc:
@@ -419,20 +437,30 @@ def publish_market_snapshot(
             "source": path,
             "sha256": hashlib.sha256(compressed).hexdigest(),
             "size": len(compressed),
+            "uncompressed_size": uncompressed_size,
             "as_of": document["as_of"],
             "model_version": str(document.get("model_version") or "unknown"),
         }
 
     if candidates:
         market_as_of = max(item["as_of"] for item in candidates.values())
-        for symbol in list(candidates):
-            if candidates[symbol]["as_of"] != market_as_of:
-                excluded.add(symbol)
-                del candidates[symbol]
+        if market == "TW":
+            for symbol in list(candidates):
+                if candidates[symbol]["as_of"] != market_as_of:
+                    excluded.add(symbol)
+                    del candidates[symbol]
+        else: # US market - allow rolling 3 days
+            target_date = generated_at.astimezone(TAIPEI).date()
+            for symbol in list(candidates):
+                candidate_date = datetime.date.fromisoformat(candidates[symbol]["as_of"])
+                if (target_date - candidate_date).days > 3:
+                    excluded.add(symbol)
+                    del candidates[symbol]
     else:
         market_as_of = None
     failure_rate = len(excluded) / len(symbols)
-    if failure_rate >= 0.05 or not candidates:
+    threshold = 0.05 if market == "TW" else 0.25
+    if failure_rate >= threshold or not candidates:
         detail = f"; {errors[0]}" if errors else ""
         raise RuntimeError(
             f"market failure rate {failure_rate:.2%} is not publishable{detail}"
@@ -458,6 +486,7 @@ def publish_market_snapshot(
             "path": f"objects/{digest}.json.gz",
             "sha256": digest,
             "size": len(compressed),
+            "uncompressed_size": candidate["uncompressed_size"],
             "as_of": candidate["as_of"],
             "model_version": candidate["model_version"],
         }
@@ -707,6 +736,100 @@ def build_market_insights_document(root, pipeline, now=None, fetch_json=None, fe
     }
 
 
+def load_exclusion_list(root, market):
+    csv_path = Path(root) / "checkpoints" / f"exclusion_list-{market}.csv"
+    pending = set()
+    excluded = set()
+    rows = []
+    invalid_actions_count = 0
+
+    if not csv_path.is_file():
+        return pending, excluded, rows, invalid_actions_count
+
+    try:
+        with open(csv_path, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                symbol = row.get("Symbol", "").strip()
+                if not symbol:
+                    continue
+                action = row.get("OperatorAction", "").strip()
+                state = row.get("State", "").strip()
+
+                norm_action = action.strip().capitalize() if action else ""
+                if norm_action not in ("", "Approve", "Reinstate"):
+                    safe_print(f"Warning: Invalid action '{action}' for symbol '{symbol}' ignored.")
+                    invalid_actions_count += 1
+                    norm_action = ""
+
+                if norm_action == "Reinstate":
+                    continue
+                elif norm_action == "Approve":
+                    state = "Excluded"
+                    row["State"] = state
+                    row["OperatorAction"] = ""
+
+                if state == "Excluded":
+                    excluded.add(symbol)
+                else:
+                    pending.add(symbol)
+
+                rows.append(row)
+    except Exception as e:
+        safe_print(f"Warning: Failed to read exclusion list: {e}")
+
+    return pending, excluded, rows, invalid_actions_count
+
+def save_exclusion_list(root, market, rows):
+    csv_dir = Path(root) / "checkpoints"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = csv_dir / f"exclusion_list-{market}.csv"
+    tmp_path = csv_dir / f"exclusion_list-{market}.csv.tmp"
+
+    fields = ["Symbol", "Name", "ExclusionDate", "ConsecutiveFailures", "State", "Type", "Reason", "OperatorAction"]
+
+    try:
+        with open(tmp_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            for row in rows:
+                filtered_row = {k: row.get(k, "") for k in fields}
+                writer.writerow(filtered_row)
+        os.replace(tmp_path, csv_path)
+        return "SUCCESS"
+    except (PermissionError, OSError) as e:
+        safe_print(f"Warning: Exclusion list write failed (file may be locked): {type(e).__name__}")
+        if tmp_path.exists():
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+        return "FAILED (file locked)"
+    except Exception as e:
+        safe_print(f"Warning: Exclusion list write failed due to unknown error.")
+        return "FAILED"
+
+def load_consecutive_failures(root, market):
+    path = Path(root) / "checkpoints" / f"consecutive_failures-{market}.json"
+    if path.is_file():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_consecutive_failures(root, market, data):
+    path = Path(root) / "checkpoints" / f"consecutive_failures-{market}.json"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(".json.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(tmp_path, path)
+    except Exception:
+        pass
+
 def run_market_batch(
     root,
     market,
@@ -742,6 +865,7 @@ def run_market_batch(
                 continue
             failures.append({"symbol": symbol, "error": str(item.get("error") or "Error")})
             seen_failures.add(symbol)
+
     is_new_day = False
     if checkpoint.get("updated_at"):
         try:
@@ -752,14 +876,28 @@ def run_market_batch(
         except (ValueError, IndexError, TypeError):
             pass
 
+    pending_symbols, excluded_symbols, exclusion_rows, invalid_actions = load_exclusion_list(root, market)
+    csv_write_status = "SUCCESS"
+    if exclusion_rows:
+        csv_write_status = save_exclusion_list(root, market, exclusion_rows)
+        pending_symbols, excluded_symbols, exclusion_rows, invalid_actions = load_exclusion_list(root, market)
+
+    is_published = (
+        checkpoint.get("published_cycle_on") == checkpoint.get("cycle_completed_on")
+        or bool(checkpoint.get("published_at"))
+    )
+
     if (
         start >= len(symbols)
         and (not failures or is_new_day)
+        and checkpoint.get("cycle_completed_on") != checked_at.date().isoformat()
+        and is_published
     ):
         start = 0
         failures = []
     next_index = start
     attempted = completed = 0
+    consecutive_failures = load_consecutive_failures(root, market)
 
     def save_state():
         state = {
@@ -773,49 +911,135 @@ def run_market_batch(
             state["cycle_completed_on"] = checked_at.date().isoformat()
         save_checkpoint(root, state, market=market)
 
+    # Retry failures
     for retry in list(failures):
         if attempted:
             checked_at = now_fn()
         if window_phase(checked_at) != "run":
             break
         symbol = retry["symbol"]
+        if symbol in pending_symbols or symbol in excluded_symbols:
+            failures = [item for item in failures if item["symbol"] != symbol]
+            continue
         attempted += 1
         failures = [item for item in failures if item["symbol"] != symbol]
         try:
             payload = analyze_symbol(symbol)
         except Exception as exc:
+            exc_str = str(exc)
+            import yfinance as yf
+            yf_shared = getattr(yf, "shared", None)
+            yf_err = getattr(yf_shared, "_ERRORS", {}).get(symbol) if yf_shared else None
+            if yf_err:
+                exc_str += f" | yfinance: {yf_err}"
+
+            exc_str_lower = exc_str.lower()
+            if "delisted" in exc_str_lower or "not found" in exc_str_lower or "no data found" in exc_str_lower:
+                err_type = "delisted"
+            elif "429" in exc_str_lower or "rate limit" in exc_str_lower or "too many requests" in exc_str_lower:
+                err_type = "rate_limited"
+            elif "timeout" in exc_str_lower or "timed out" in exc_str_lower:
+                err_type = "timeout"
+            else:
+                err_type = "unknown"
+
             failures.append({"symbol": symbol, "error": type(exc).__name__})
+
+            if err_type == "delisted":
+                consecutive_failures[symbol] = consecutive_failures.get(symbol, 0) + 1
+                if consecutive_failures[symbol] >= 5:
+                    if symbol not in pending_symbols and symbol not in excluded_symbols:
+                        new_row = {
+                            "Symbol": symbol,
+                            "Name": symbol,
+                            "ExclusionDate": checked_at.date().isoformat(),
+                            "ConsecutiveFailures": consecutive_failures[symbol],
+                            "State": "Pending",
+                            "Type": "delisted",
+                            "Reason": exc_str,
+                            "OperatorAction": ""
+                        }
+                        exclusion_rows.append(new_row)
+                        save_exclusion_list(root, market, exclusion_rows)
+                        pending_symbols.add(symbol)
         else:
             write_stock_artifact(root, market, symbol, payload)
             completed += 1
+            consecutive_failures[symbol] = 0
         save_state()
         if delay:
             sleep_fn(delay)
 
+    # Main loop
     while attempted < limit and next_index < len(symbols):
         if attempted:
             checked_at = now_fn()
         if window_phase(checked_at) != "run":
             break
         symbol = str(symbols[next_index])
+        if symbol in pending_symbols or symbol in excluded_symbols:
+            next_index += 1
+            continue
         attempted += 1
         try:
             payload = analyze_symbol(symbol)
         except Exception as exc:
+            exc_str = str(exc)
+            import yfinance as yf
+            yf_shared = getattr(yf, "shared", None)
+            yf_err = getattr(yf_shared, "_ERRORS", {}).get(symbol) if yf_shared else None
+            if yf_err:
+                exc_str += f" | yfinance: {yf_err}"
+
+            exc_str_lower = exc_str.lower()
+            if "delisted" in exc_str_lower or "not found" in exc_str_lower or "no data found" in exc_str_lower:
+                err_type = "delisted"
+            elif "429" in exc_str_lower or "rate limit" in exc_str_lower or "too many requests" in exc_str_lower:
+                err_type = "rate_limited"
+            elif "timeout" in exc_str_lower or "timed out" in exc_str_lower:
+                err_type = "timeout"
+            else:
+                err_type = "unknown"
+
             failures = [item for item in failures if item["symbol"] != symbol]
             failures.append({"symbol": symbol, "error": type(exc).__name__})
+
+            if err_type == "delisted":
+                consecutive_failures[symbol] = consecutive_failures.get(symbol, 0) + 1
+                if consecutive_failures[symbol] >= 5:
+                    if symbol not in pending_symbols and symbol not in excluded_symbols:
+                        new_row = {
+                            "Symbol": symbol,
+                            "Name": symbol,
+                            "ExclusionDate": checked_at.date().isoformat(),
+                            "ConsecutiveFailures": consecutive_failures[symbol],
+                            "State": "Pending",
+                            "Type": "delisted",
+                            "Reason": exc_str,
+                            "OperatorAction": ""
+                        }
+                        exclusion_rows.append(new_row)
+                        save_exclusion_list(root, market, exclusion_rows)
+                        pending_symbols.add(symbol)
         else:
             write_stock_artifact(root, market, symbol, payload)
             completed += 1
+            consecutive_failures[symbol] = 0
         next_index += 1
         save_state()
         if delay:
             sleep_fn(delay)
+
+    save_consecutive_failures(root, market, consecutive_failures)
     return {
         "attempted": attempted,
         "completed": completed,
         "failed": failures,
         "next_index": next_index,
+        "pending": list(pending_symbols),
+        "excluded": list(excluded_symbols),
+        "invalid_actions": invalid_actions,
+        "csv_write_status": csv_write_status,
     }
 
 
@@ -1093,7 +1317,7 @@ def main(argv=None, now=None, free_bytes=None):
                     "etfs": len(document["etfs"]),
                 }
                 _write_json_atomic(status_path, status)
-                print(json.dumps(status["market_insights"], ensure_ascii=False, separators=(",", ":")))
+                safe_print(json.dumps(status["market_insights"], ensure_ascii=False, separators=(",", ":")))
         if args.run and phase == "run":
             with acquire_lock(root, now=checked_at):
                 status["cleanup"] = cleanup_expired_data(root, now=checked_at)
@@ -1127,9 +1351,11 @@ def main(argv=None, now=None, free_bytes=None):
                         delay=args.delay,
                     )
                     if summary.get("next_index", 0) >= len(symbols):
-                        failed_symbols = [
-                            item["symbol"] for item in summary.get("failed", [])
-                        ]
+                        failed_symbols = (
+                            [item["symbol"] for item in summary.get("failed", [])]
+                            + summary.get("pending", [])
+                            + summary.get("excluded", [])
+                        )
                         try:
                             publish_market_snapshot(
                                 root,
@@ -1151,12 +1377,58 @@ def main(argv=None, now=None, free_bytes=None):
                             checkpoint["published_failure_count"] = len(failed_symbols)
                             save_checkpoint(root, checkpoint, market=market)
                             summary["published"] = True
+
+                    published_count = len(symbols) - len(failed_symbols) if summary.get("published", False) else 0
+                    stale_count = 0
+                    if summary.get("published", False):
+                        latest_path = Path(root) / "publish" / "quant" / "v1" / f"latest-{market}.json"
+                        if latest_path.is_file():
+                            try:
+                                with open(latest_path, "r", encoding="utf-8") as f:
+                                    lat = json.load(f)
+                                with open(Path(root) / "publish" / "quant" / "v1" / lat["manifest"], "r", encoding="utf-8") as f:
+                                    man = json.load(f)
+                                published_count = man.get("symbol_count", 0)
+                                stale_count = max(0, man.get("failure_count", 0) - len(failed_symbols))
+                            except Exception:
+                                pass
+
+                    delisted_candidates = 0
+                    invalid_candidates = 0
+                    for item in summary.get("failed", []):
+                        err_str = str(item.get("error", "")).lower()
+                        if "delisted" in err_str:
+                            delisted_candidates += 1
+                        elif "not found" in err_str or "404" in err_str:
+                            invalid_candidates += 1
+
+                    summary_report = f"""
+==================================================
+📊 {market} MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: {market_now.strftime('%Y-%m-%d %H:%M:%S')}
+* Total Symbols Scanned: {len(symbols)}
+* Published Symbols Count: {published_count}
+* Stale Filtered Count: {stale_count}
+* Pending Exclusion Count: {len(summary.get("pending", []))}
+* Permanently Excluded Count: {len(summary.get("excluded", []))}
+* Temporary Failure Count: {len(summary.get("failed", [])) - delisted_candidates - invalid_candidates}
+* Delisted Candidates Count: {delisted_candidates}
+* Invalid Symbols Candidates Count: {invalid_candidates}
+* Failure Threshold: {"5%" if market == "TW" else "25%"}
+* Final Publish Ratio: {published_count / len(symbols):.2%}
+* Publish Success: {summary.get("published", False)}
+* CSV Write Status: {summary.get("csv_write_status", "SUCCESS")}
+* Invalid Operator Actions: {summary.get("invalid_actions", 0)}
+==================================================
+"""
+                    safe_print(summary_report)
                     summaries[market] = summary
-                print(json.dumps(summaries, ensure_ascii=False, separators=(",", ":")))
-        print(f"local quant phase={phase} free_gb={available / 1024**3:.1f}")
+                safe_print(json.dumps(summaries, ensure_ascii=False, separators=(",", ":")))
+        safe_print(f"local quant phase={phase} free_gb={available / 1024**3:.1f}")
         return 0
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        print(f"local quant refused: {exc}", file=sys.stderr)
+        safe_print(f"local quant refused: {exc}", file=sys.stderr)
         return 2
 
 

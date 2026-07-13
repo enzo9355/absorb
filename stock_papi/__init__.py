@@ -1,0 +1,1 @@
+"""Stock-Papi application package."""

@@ -282,6 +282,98 @@ class FirestoreStore:
                 return
 
 
+class SupabaseStore:
+    def __init__(self, client):
+        self.client = client
+
+    def load(self, user_id):
+        logger.info(f"Supabase load starting for user {user_id}")
+        try:
+            res = self.client.table("line_users").select("state, update_time").eq("user_id", user_id).execute()
+            if not res.data:
+                logger.info(f"Supabase load document not found for user {user_id}")
+                return empty_state(), None
+            row = res.data[0]
+            raw_state = row.get("state")
+            if isinstance(raw_state, str):
+                state = json.loads(raw_state)
+            else:
+                state = raw_state or {}
+            logger.info(f"Supabase load successful for user {user_id}")
+            return normalize_state(state), row.get("update_time")
+        except Exception as exc:
+            logger.error(f"Supabase load error for user {user_id}: {exc}", exc_info=True)
+            raise StoreError(f"Supabase read failed: {exc}") from exc
+
+    def save(self, user_id, state, update_time):
+        logger.info(f"Supabase save starting for user {user_id}")
+        try:
+            serialized_state = normalize_state(state)
+            new_update_time = str(int(time.time() * 1000))
+
+            if update_time:
+                res = self.client.table("line_users").update({
+                    "state": serialized_state,
+                    "update_time": new_update_time
+                }).eq("user_id", user_id).eq("update_time", update_time).execute()
+                if not res.data:
+                    logger.warning(f"Supabase save conflict for user {user_id}")
+                    raise StoreConflict("Supabase write conflict")
+            else:
+                res = self.client.table("line_users").upsert({
+                    "user_id": user_id,
+                    "state": serialized_state,
+                    "update_time": new_update_time
+                }).execute()
+                if not res.data:
+                    raise StoreError("Supabase write failed")
+            logger.info(f"Supabase save successful for user {user_id}")
+            return new_update_time
+        except StoreConflict:
+            raise
+        except Exception as exc:
+            logger.error(f"Supabase save error for user {user_id}: {exc}", exc_info=True)
+            raise StoreError(f"Supabase write failed: {exc}") from exc
+
+    def update(self, user_id, mutate):
+        logger.info(f"Supabase update starting for user {user_id}")
+        for attempt in range(2):
+            try:
+                state, update_time = self.load(user_id)
+                mutate(state)
+                self.save(user_id, state, update_time)
+                logger.info(f"Supabase update successful for user {user_id} on attempt {attempt + 1}")
+                return state
+            except StoreConflict:
+                logger.warning(f"Supabase update conflict on attempt {attempt + 1} for user {user_id}")
+                if attempt == 1:
+                    raise
+        raise StoreConflict("Supabase write conflict")
+
+    def iter_users(self):
+        try:
+            limit = 1000
+            offset = 0
+            while True:
+                res = self.client.table("line_users").select("user_id, state, update_time").range(offset, offset + limit - 1).execute()
+                if not res.data:
+                    break
+                for row in res.data:
+                    user_id = row.get("user_id")
+                    raw_state = row.get("state")
+                    if isinstance(raw_state, str):
+                        state = json.loads(raw_state)
+                    else:
+                        state = raw_state or {}
+                    yield user_id, normalize_state(state), row.get("update_time")
+                if len(res.data) < limit:
+                    break
+                offset += limit
+        except Exception as exc:
+            raise StoreError(f"Supabase list failed: {exc}") from exc
+
+
+
 def _is_valid_code(code):
     return (
         isinstance(code, str)

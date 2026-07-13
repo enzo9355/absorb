@@ -22,6 +22,7 @@
         <a class="nav-link" href="{{ url_for('dashboard_page') }}#industry-forecast">產業預測</a>
         <a class="nav-link" href="{{ url_for('market_map_page') }}">產業地圖</a>
         <a class="nav-link" href="{{ url_for('dashboard_page') }}#top-picks">精選標的</a>
+        <a class="nav-link {% block nav_reports %}{% endblock %}" href="{{ url_for('reports_page') }}">每日報告</a>
       </nav>
       <p class="sidebar-note">資料僅供研究參考，不構成投資建議。</p>
     </aside>
@@ -31,6 +32,7 @@
     <a href="{{ url_for('dashboard_page') }}">市場首頁</a>
     <a href="{{ url_for('market_page') }}">大盤分析</a>
     <a href="{{ url_for('market_map_page') }}">產業地圖</a>
+    <a href="{{ url_for('reports_page') }}">每日報告</a>
   </nav>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   {% block scripts %}{% endblock %}
