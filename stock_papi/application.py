@@ -130,6 +130,11 @@ from stock_papi.services.market import (
     sector_signal_item as _sector_signal_item,
     sector_signal_score,
 )
+from stock_papi.services.stock_analysis import (
+    analyze_cached as _analyze_cached,
+    analyze_uncached as _analyze_uncached,
+    snapshot_dataframe as _build_snapshot_dataframe,
+)
 from stock_papi.web.routes.reports import register_report_routes
 from stock_papi.web.routes.dashboard import register_dashboard_page
 from stock_papi.web.routes.system import register_system_routes
@@ -1148,108 +1153,35 @@ def get_ai_insight_for_broadcast(name, data, bt, news):
 
 
 def _snapshot_dataframe(snapshot):
-    try:
-        frame = pd.DataFrame(snapshot["daily"])
-        frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
-        frame = frame.dropna(subset=["Date"]).set_index("Date").sort_index()
-        required = {
-            "Open", "High", "Low", "Close", "MA20", "RSI", "Volat",
-            "MACD_OSC", "K", "D", "AI_P", "ForeignNet",
-        }
-        return frame if len(frame) >= 200 and required.issubset(frame.columns) else None
-    except (KeyError, TypeError, ValueError):
-        return None
+    return _build_snapshot_dataframe(snapshot, pd=pd)
 
 
 def _do_analyze(code):
-    snapshot = fetch_published_quant_snapshot(code)
-    df = _snapshot_dataframe(snapshot) if snapshot else None
-    if df is None:
-        df = get_data(code)
-        if df.empty or len(df) < 200: return None
-        df = calc_all(df)
-        bt = run_ai_engine(df)
-        quant_source = "即時計算"
-    else:
-        bt = snapshot["backtest"]
-        quant_source = "本地回測快照"
-    if not bt: return None
-    
-    last = df.iloc[-1]
-    name = get_stock_name(code)
-    news = get_news(name, code)
-
-    sentiment = analyze_sentiment_detail(news)
-    news = sentiment["items"]
-    s_score, s_status = sentiment["score"], sentiment["status"]
-    prob = last['AI_P']
-    prob = int(max(0, min(100, prob)))
-
-    trend = "多頭" if last['Close'] > last['MA20'] else "空頭"
-    foreign_flow = summarize_foreign_flow(df)
-
-    tv_df = df.copy().reset_index()
-    tv_df['Date'] = tv_df['Date'].dt.strftime('%Y-%m-%d')
-    tv_df['Open'] = tv_df['Open'].fillna(tv_df['Close'])
-    tv_df['High'] = tv_df['High'].fillna(tv_df['Close'])
-    tv_df['Low'] = tv_df['Low'].fillna(tv_df['Close'])
-    tv_df['High_corr'] = tv_df[['Open', 'High', 'Low', 'Close']].max(axis=1)
-    tv_df['Low_corr'] = tv_df[['Open', 'High', 'Low', 'Close']].min(axis=1)
-    
-    last_vol = df['Volat'].iloc[-1] if pd.notna(df['Volat'].iloc[-1]) else 0.02
-    drift = ((prob - 50) / 50.0) * (last_vol * last['Close'])
-    pred = [{'time': tv_df['Date'].iloc[-1], 'value': last['Close']}]
-    curr_d = df.index[-1]
-    curr_p = last['Close']
-    for _ in range(5):
-        curr_d += datetime.timedelta(days=1)
-        while curr_d.weekday() >= 5: curr_d += datetime.timedelta(days=1)
-        curr_p += drift
-        pred.append({'time': curr_d.strftime('%Y-%m-%d'), 'value': round(curr_p, 2)})
-
-    result = {
-        "code": code, "name": name, "price": last['Close'], "prob": prob,
-        "as_of": df.index[-1].date().isoformat(),
-        "quant_source": quant_source,
-        "bt": bt, "news": news, "trend": trend,
-        "rsi": last['RSI'], "ma20": last['MA20'],
-        "macd_osc": last['MACD_OSC'], "k": last['K'], "d": last['D'],
-        "foreign_flow": foreign_flow,
-        "s_score": s_score, "s_status": s_status,
-        "news_count": sentiment["count"],
-        "news_positive_ratio": sentiment["positive_ratio"],
-        "news_negative_ratio": sentiment["negative_ratio"],
-        "news_neutral_ratio": sentiment["neutral_ratio"],
-        "news_confidence_score": sentiment["confidence_score"],
-        "news_confidence": sentiment["confidence"],
-        "news_source_count": sentiment["source_count"],
-        "news_publisher_count": sentiment["publisher_count"],
-        "social_sample_size": sentiment["social_sample_size"],
-        "news_weighted_volatility": sentiment["weighted_volatility"],
-        "news_momentum": sentiment["momentum"],
-        "news_momentum_data_sufficient": sentiment["momentum_data_sufficient"],
-        "news_disagreement": sentiment["disagreement"],
-        "news_effective_sample_size": sentiment["effective_sample_size"],
-        "news_missing_metadata_ratio": sentiment["missing_metadata_ratio"],
-        "news_extreme_score_flag": sentiment["extreme_score_flag"],
-        "sentiment_window_days": sentiment["window_days"],
-        "candles": json.dumps(tv_df[['Date','Open','High_corr','Low_corr','Close']].rename(columns={'Date':'time','Open':'open','High_corr':'high','Low_corr':'low','Close':'close'}).to_dict('records')),
-        "ma20_line": json.dumps(tv_df[['Date','MA20']].dropna().rename(columns={'Date':'time','MA20':'value'}).to_dict('records')),
-        "prob_h": json.dumps(tv_df[['Date','AI_P']].dropna().rename(columns={'Date':'time','AI_P':'value'}).to_dict('records')),
-        "pred": json.dumps(pred)
-    }
-    result["projection"] = calculate_investment_projection(100000, result)
-    return result
+    return _analyze_uncached(
+        code,
+        fetch_snapshot=fetch_published_quant_snapshot,
+        build_snapshot_frame=_snapshot_dataframe,
+        get_data=get_data,
+        calc_all=calc_all,
+        run_ai_engine=run_ai_engine,
+        get_stock_name=get_stock_name,
+        get_news=get_news,
+        analyze_sentiment_detail=analyze_sentiment_detail,
+        summarize_foreign_flow=summarize_foreign_flow,
+        calculate_projection=calculate_investment_projection,
+        pd=pd,
+        json=json,
+        datetime=datetime,
+    )
 
 def analyze(code):
-    now = time.time()
-    if code in _SYSTEM_CACHE:
-        cached_data, timestamp = _SYSTEM_CACHE[code]
-        if now - timestamp < CACHE_EXPIRY_SECONDS:
-            return cached_data
-    data = _do_analyze(code)
-    if data: _SYSTEM_CACHE[code] = (data, now)
-    return data
+    return _analyze_cached(
+        code,
+        cache=_SYSTEM_CACHE,
+        expiry_seconds=CACHE_EXPIRY_SECONDS,
+        now=time.time,
+        analyze_fn=_do_analyze,
+    )
 
 def cached_opportunities(limit=5):
     now = time.time()
