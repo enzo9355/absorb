@@ -83,6 +83,11 @@ from stock_papi.integrations.line.flex import (
     build_welcome_flex,
 )
 from stock_papi.integrations.line.notifications import run_alert_checks
+from stock_papi.integrations.line.webhook import register_line_routes
+from stock_papi.integrations.line.handlers import (
+    handle_message_impl as _line_handle_message_impl,
+    handle_postback_impl as _line_handle_postback_impl,
+)
 from stock_papi.integrations.market_data.tw_exchange import fetch_market_activity
 from stock_papi.integrations.news.provider import (
     fetch_marketaux_news as _fetch_marketaux_news,
@@ -1336,25 +1341,6 @@ def build_category_quick_reply(page=1):
 # ==================================================
 # 7. 自動化發報引擎
 # ==================================================
-@app.route("/broadcast_weekly", methods=["GET"])
-def broadcast_weekly():
-    if not BROADCAST_TOKEN:
-        return "廣播功能未設定", 503
-    if not hmac.compare_digest(request.args.get("token", ""), BROADCAST_TOKEN):
-        return "身份驗證失敗", 403
-    d = analyze("TAIEX")
-    if not d: return "分析失敗", 500
-    
-    insight = get_ai_insight_for_broadcast("台股大盤", {"price": d['price'], "prob": d['prob']}, d['bt'], d['news'])
-    
-    url = f"{request.host_url}market".replace("http://", "https://")
-    msg = f"🌞 周一 AI 投資晨報\n\n📊 大盤分析：\n{insight}\n\n🔗 點擊查看 AI 預測軌跡：\n{url}"
-    try:
-        line_bot_api.broadcast(TextSendMessage(text=msg))
-        return f"廣播成功：{datetime.datetime.now()}", 200
-    except Exception as e:
-        return f"發送失敗：{str(e)}", 500
-
 # ==================================================
 # 8. 路由與 LINE 基礎指令 (💡 確保名稱不重複版)
 # ==================================================
@@ -1712,62 +1698,22 @@ register_market_routes(
 )
 
 
-@app.route("/callback", methods=["POST"])
-def callback():
-    try: handler.handle(request.get_data(as_text=True), request.headers.get("X-Line-Signature", ""))
-    except InvalidSignatureError: abort(400)
-    return "OK"
-
-
-@app.route("/tasks/refresh-sector-signals", methods=["POST"])
-def refresh_sector_signals_task():
-    if not ALERT_TASK_TOKEN:
-        return "產業預測排程尚未設定", 503
-    if not hmac.compare_digest(
-        request.headers.get("Authorization", ""),
-        f"Bearer {ALERT_TASK_TOKEN}",
-    ):
-        return "身份驗證失敗", 403
-    if line_store is None:
-        return "關注功能尚未設定", 503
-    try:
-        snapshot = refresh_sector_signals(line_store)
-    except Exception:
-        return "產業預測排程執行失敗", 500
-    return f"產業預測排程執行完成：{snapshot.get('as_of')}", 200
-
-
-@app.route("/tasks/check-alerts", methods=["POST"])
-def check_alerts_task():
-    if not ALERT_TASK_TOKEN:
-        return "提醒排程尚未設定", 503
-    if not hmac.compare_digest(
-        request.headers.get("Authorization", ""),
-        f"Bearer {ALERT_TASK_TOKEN}",
-    ):
-        return "身份驗證失敗", 403
-    if line_store is None:
-        return "關注功能尚未設定", 503
-
-    def push(user_id, contents):
-        messages = contents if isinstance(contents, list) else [contents]
-        messages = [
-            FlexSendMessage(alt_text="股票提醒已觸發", contents=message)
-            for message in messages
-        ]
-        line_bot_api.push_message(user_id, messages[0] if len(messages) == 1 else messages)
-
-    try:
-        run_alert_checks(
-            line_store,
-            analyze,
-            push,
-            datetime.date.today().isoformat(),
-            request.host_url.replace("http://", "https://").rstrip("/"),
-        )
-    except Exception:
-        return "提醒排程執行失敗", 500
-    return "提醒排程執行完成", 200
+register_line_routes(
+    app,
+    handler=handler,
+    get_line_bot_api=lambda: line_bot_api,
+    get_line_store=lambda: line_store,
+    get_broadcast_token=lambda: BROADCAST_TOKEN,
+    get_alert_task_token=lambda: ALERT_TASK_TOKEN,
+    analyze=lambda code: analyze(code),
+    get_broadcast_insight=lambda name, data, bt, news: get_ai_insight_for_broadcast(
+        name, data, bt, news
+    ),
+    refresh_sector_signals=lambda store: refresh_sector_signals(store),
+    run_alert_checks=lambda store, analyze_fn, push, today, root: run_alert_checks(
+        store, analyze_fn, push, today, root
+    ),
+)
 
 
 def _reply_text(event, text):
@@ -1821,135 +1767,17 @@ def handle_postback(event):
             logger.error(f"Failed to send fallback reply in postback: {reply_err}", exc_info=True)
 
 def _handle_postback_impl(event):
-    user_id = getattr(getattr(event, "source", None), "user_id", None)
-    if not user_id:
-        _reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
-        return
-
-    payload = getattr(getattr(event, "postback", None), "data", "")
-    stock_match = re.fullmatch(r"(?:watch:(?:add|remove)|alert:menu|calc:menu|calc:custom):([A-Za-z0-9-]+)", payload)
-    calc_amount_match = re.fullmatch(r"calc:amount:([A-Za-z0-9-]+):([0-9]+(?:\.[0-9]+)?)", payload)
-    alert_start_match = re.fullmatch(
-        r"alert:start:([A-Za-z0-9-]+):(price|price_above|price_below|probability)",
-        payload,
-    )
-    alert_trend_match = re.fullmatch(
-        r"alert:trend:([A-Za-z0-9-]+):(多頭|空頭)",
-        payload,
-    )
-    alert_remove_match = re.fullmatch(r"alert:remove:([0-9a-fA-F]{32})", payload)
-
-    if not any((stock_match, calc_amount_match, alert_start_match, alert_trend_match, alert_remove_match)):
-        _reply_text(event, "無效的操作，請重新開啟功能選單。")
-        return
-
-    if alert_remove_match:
-        alert_id = alert_remove_match.group(1)
-        found = {"value": False}
-
-        def delete_alert(state):
-            alerts = state.get("alerts", [])
-            found["value"] = any(item.get("id") == alert_id for item in alerts)
-            state["alerts"] = [item for item in alerts if item.get("id") != alert_id]
-
-        try:
-            update_line_state(user_id, delete_alert)
-            _reply_text(event, "提醒已移除。" if found["value"] else "找不到這筆提醒，可能已經移除。")
-        except StoreError:
-            _reply_text(event, _store_error_text())
-        return
-
-    match = stock_match or calc_amount_match or alert_start_match or alert_trend_match
-    code, name = _resolve_postback_stock(match.group(1))
-    if not code:
-        _reply_text(event, "找不到這檔股票，請重新查詢後再操作。")
-        return
-
-    if payload == f"alert:menu:{code}":
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(
-                alt_text=f"設定 {name} 提醒",
-                contents=build_alert_menu_flex(code, name),
-            ),
-        )
-        return
-
-    if payload == f"calc:menu:{code}":
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(
-                alt_text=f"{name} 投資試算",
-                contents=build_calculator_menu_flex(code, name),
-            ),
-        )
-        return
-
-    if payload == f"calc:custom:{code}":
-        _reply_text(event, f"請輸入：試算 {code} 100000\n把 100000 換成你的投入金額。")
-        return
-
-    if calc_amount_match:
-        data = analyze(code)
-        if not data:
-            _reply_text(event, "查無資料，請稍後再試。")
-            return
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(
-                alt_text=f"{name} 投資試算",
-                contents=build_projection_flex(code, name, data, calc_amount_match.group(2), _current_web_root()),
-            ),
-        )
-        return
-
-    try:
-        if payload == f"watch:add:{code}":
-            update_line_state(user_id, lambda state: add_watch(state, code, name))
-            reply = f"已將 {name} ({code}) 加入關注。"
-        elif payload == f"watch:remove:{code}":
-            update_line_state(user_id, lambda state: remove_watch(state, code))
-            reply = f"已將 {name} ({code}) 移除關注，相關提醒也已移除。"
-        elif alert_start_match:
-            kind = alert_start_match.group(2)
-
-            def begin_alert(state):
-                add_watch(state, code, name)
-                start_pending(state, code, name, kind)
-
-            update_line_state(user_id, begin_alert)
-            label = {
-                "price": "收盤價站上",
-                "price_above": "收盤價站上",
-                "price_below": "收盤價跌破",
-            }.get(kind, "AI 勝率（1 到 99）")
-            reply = f"請輸入 {name} 的{label}門檻數字，或輸入「取消」。"
-        elif alert_trend_match:
-            trend = alert_trend_match.group(2)
-            created = {"value": False}
-
-            def create_trend_alert(state):
-                created["value"] = False
-                add_watch(state, code, name)
-                if _find_matching_alert(state.get("alerts", []), code, "trend", trend):
-                    return
-                add_alert(state, code, name, "trend", trend)
-                created["value"] = True
-
-            update_line_state(user_id, create_trend_alert)
-            reply = (
-                f"已建立 {name} 趨勢為{trend}時的提醒。"
-                if created["value"]
-                else f"{name} 趨勢為{trend}時的提醒已存在。"
-            )
-        else:
-            _reply_text(event, "無效的操作，請重新開啟功能選單。")
-            return
-        _reply_text(event, reply)
-    except StateError as error:
-        _reply_text(event, str(error))
-    except StoreError:
-        _reply_text(event, _store_error_text())
+    return _line_handle_postback_impl(event, {
+        "reply_text": _reply_text,
+        "update_line_state": update_line_state,
+        "store_error_text": _store_error_text,
+        "resolve_stock": _resolve_postback_stock,
+        "line_bot_api": line_bot_api,
+        "analyze": analyze,
+        "build_projection_flex": build_projection_flex,
+        "current_web_root": _current_web_root,
+        "find_matching_alert": _find_matching_alert,
+    })
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -1964,242 +1792,31 @@ def handle_message(event):
             logger.error(f"Failed to send fallback reply in message: {reply_err}", exc_info=True)
 
 def _handle_message_impl(event):
-    msg = event.message.text.strip()
-    web_root = request.host_url.replace("http://", "https://").rstrip("/")
-    user_id = getattr(getattr(event, "source", None), "user_id", None)
-    current_state = None
-    state_load_failed = False
-
-    if line_store is not None and user_id:
-        try:
-            current_state = get_line_state_bounded(user_id)
-        except StoreError:
-            state_load_failed = True
-
-    if current_state and current_state.get("pending"):
-        expected_pending = dict(current_state["pending"])
-        try:
-            if msg == "取消":
-                def cancel_pending(state):
-                    _require_same_pending(state, expected_pending)
-                    state["pending"] = None
-
-                update_line_state(user_id, cancel_pending)
-                _reply_text(event, "已取消提醒設定。")
-            else:
-                outcome = {"alert": None, "created": False, "expired": False}
-
-                def finish_pending(state):
-                    outcome.update(alert=None, created=False, expired=False)
-                    _require_same_pending(state, expected_pending)
-                    now = time.time()
-                    if expected_pending["expires_at"] <= now:
-                        state["pending"] = None
-                        outcome["expired"] = True
-                        return
-                    preview_state = {
-                        "pending": dict(expected_pending),
-                        "alerts": [],
-                    }
-                    preview = consume_pending(preview_state, msg, now=now)
-                    duplicate = _find_matching_alert(
-                        state.get("alerts", []),
-                        preview["code"],
-                        preview["kind"],
-                        preview["value"],
-                    )
-                    if duplicate:
-                        state["pending"] = None
-                        outcome["alert"] = duplicate
-                        return
-                    alert = consume_pending(state, msg, now=now)
-                    outcome["alert"] = alert
-                    outcome["created"] = True
-
-                update_line_state(user_id, finish_pending)
-                if outcome["expired"]:
-                    _reply_text(event, "提醒設定已逾時，請重新設定。")
-                else:
-                    alert = outcome["alert"]
-                    label = {
-                        "price": "收盤價站上",
-                        "price_above": "收盤價站上",
-                        "price_below": "收盤價跌破",
-                    }.get(alert["kind"], "AI 勝率")
-                    reply = (
-                        f"已建立 {alert['name']} 的{label}提醒。"
-                        if outcome["created"]
-                        else f"{alert['name']} 的{label}提醒已存在。"
-                    )
-                    _reply_text(event, reply)
-        except StateError as error:
-            _reply_text(event, str(error))
-        except StoreError:
-            _reply_text(event, _store_error_text())
-        return
-
-    papi_match = re.fullmatch(r"(?i)papi\s*(.+)", msg)
-    if papi_match:
-        prompt = papi_match.group(1).strip()
-        if _is_crypto_query(prompt):
-            _reply_text(event, "Papi 分析目前不支援虛擬貨幣。")
-        elif OPENALICE_API_URL and OPENALICE_API_TOKEN:
-            try:
-                _reply_text(event, call_openalice(prompt))
-            except (requests.RequestException, ValueError, TypeError):
-                _reply_text(event, "Papi 分析服務暫時無法回應，請稍後再試。")
-        else:
-            try:
-                reply = call_papi_gemini_fallback(prompt)
-                _reply_text(event, reply or "Papi 分析服務尚未設定。")
-            except Exception as exc:
-                logger.error("Papi Gemini fallback failed: %s", exc)
-                _reply_text(event, "Papi AI 摘要暫時失敗；你仍可直接輸入股票代號查看完整量化分析。")
-        return
-
-    calc_text = re.fullmatch(r"試算\s+([A-Za-z0-9-]+)\s+([0-9]+(?:\.[0-9]+)?)", msg)
-    if calc_text:
-        code, name = search_stock_code(calc_text.group(1))
-        if not code:
-            _reply_text(event, "找不到這檔股票，請重新查詢後再操作。")
-            return
-        data = analyze(code)
-        if not data:
-            _reply_text(event, "查無資料，請稍後再試。")
-            return
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(
-                alt_text=f"{name} 投資試算",
-                contents=build_projection_flex(code, name, data, calc_text.group(2), web_root),
-            ),
-        )
-        return
-    if msg.startswith("試算"):
-        _reply_text(event, "請用：試算 2330 100000，或先查詢股票後點選「投資試算」。")
-        return
-
-    if msg in ("大盤預測", "大盤", "今日盤勢"):
-        data = analyze("TAIEX")
-        if not data:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="大盤資料暫時無法取得，請稍後再試。"))
-            return
-        url = f"{web_root}/market"
-        flex_content = build_stock_flex_message("TAIEX", "台股大盤 (加權指數)", data, url)
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="📊 台股大盤預測出爐，點擊查看！", contents=flex_content))
-        
-    elif msg in ("預測", "熱門產業"):
-        qr, _ = build_category_quick_reply(1)
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="請選擇產業板塊", contents=build_welcome_flex(), quick_reply=qr))
-
-    elif msg == "我的關注":
-        if line_store is None:
-            _reply_text(event, _store_error_text())
-        elif not user_id:
-            _reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
-        elif state_load_failed:
-            _reply_text(event, _store_error_text())
-        else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                FlexSendMessage(
-                    alt_text="我的關注",
-                    contents=build_watchlist_flex(current_state, web_root),
-                ),
-            )
-
-    elif msg == "強勢訊號":
-        if line_store is None:
-            _reply_text(event, _store_error_text())
-        elif not user_id:
-            _reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
-        elif state_load_failed:
-            _reply_text(event, _store_error_text())
-        else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                FlexSendMessage(
-                    alt_text="強勢訊號",
-                    contents=build_strong_signals_flex(current_state, web_root),
-                ),
-            )
-
-    elif msg == "提醒管理":
-        if line_store is None:
-            _reply_text(event, _store_error_text())
-        elif not user_id:
-            _reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
-        elif state_load_failed:
-            _reply_text(event, _store_error_text())
-        else:
-            line_bot_api.reply_message(
-                event.reply_token,
-                FlexSendMessage(
-                    alt_text="提醒管理",
-                    contents=build_alerts_flex(current_state),
-                ),
-            )
-
-    elif msg == "完整分析":
-        card = build_line_summary_card("量化分析總覽", ["從市場摘要、強勢訊號與產業雷達開始判讀。"], "開啟完整分析", f"{web_root}/dashboard")
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="開啟完整分析", contents=card))
-
-    elif msg == "投資試算":
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="投資試算", contents=build_calculator_help_flex()))
-
-    elif msg == "功能選單":
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="Stock Papi 功能選單", contents=build_line_navigation_flex(web_root)))
-        
-    elif msg.startswith("分類第_") and msg.endswith("頁"):
-        try: p = int(msg.replace("分類第_", "").replace("頁", ""))
-        except: p = 1
-        qr, _ = build_category_quick_reply(p)
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="請選擇產業板塊", contents=build_welcome_flex(), quick_reply=qr))
-        
-    elif msg == "產業列表":
-        lines = ["📚 產業分類總表\n"] + [f"{i}. {c}" for i, c in enumerate(industry_map.keys(), 1)]
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="\n".join(lines[:120])))
-        
-    elif msg.startswith("選產業_"):
-        cat = msg.replace("選產業_", "")
-        try:
-            snapshot = load_sector_signal_snapshot(line_store) if line_store else None
-        except StoreError:
-            snapshot = None
-        items = (snapshot or {}).get("sectors", {}).get(cat, [])
-        if items:
-            line_bot_api.reply_message(
-                event.reply_token,
-                FlexSendMessage(
-                    alt_text=f"{cat} 每日產業預測",
-                    contents=build_sector_signal_carousel(cat, items),
-                ),
-            )
-        else:
-            _reply_text(event, "產業資料尚未更新，請稍後再試。你也可以直接輸入股票代碼查詢個股。")
-        
-    elif msg == "免責聲明":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="本系統資訊僅供研究參考，不構成投資建議，投資盈虧請自負。"))
-
-    elif msg == "新手教學":
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="🎓 新手快速上手指南", contents=build_tutorial_flex()))
-        
-    else:
-        code, name = search_stock_code(msg)
-        if code:
-            data = analyze(code)
-            if not data:
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="查無資料，請稍後再試。"))
-                return
-            url = f"{request.host_url}stock/{code}".replace("http://", "https://")
-            watched = bool(
-                current_state
-                and any(item.get("code") == code for item in current_state.get("watchlist", []))
-            )
-            flex_content = build_stock_flex_message(code, name, data, url, watched=watched)
-            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"📊 {name} ({code}) 預測出爐，點擊查看！", contents=flex_content))
-        elif getattr(getattr(event, "source", None), "type", "user") == "user":
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="請輸入股票代碼，或輸入：今日盤勢 / 我的關注 / 提醒管理 / 完整分析"))
-
+    return _line_handle_message_impl(event, {
+        "reply_text": _reply_text,
+        "line_store": line_store,
+        "line_bot_api": line_bot_api,
+        "get_line_state_bounded": get_line_state_bounded,
+        "update_line_state": update_line_state,
+        "require_same_pending": _require_same_pending,
+        "find_matching_alert": _find_matching_alert,
+        "store_error_text": _store_error_text,
+        "now": time.time,
+        "is_crypto_query": _is_crypto_query,
+        "openalice_url": OPENALICE_API_URL,
+        "openalice_token": OPENALICE_API_TOKEN,
+        "call_openalice": call_openalice,
+        "call_papi_fallback": call_papi_gemini_fallback,
+        "logger": logger,
+        "search_stock_code": search_stock_code,
+        "analyze": analyze,
+        "build_projection_flex": build_projection_flex,
+        "build_category_quick_reply": build_category_quick_reply,
+        "industry_map": industry_map,
+        "load_sector_signal_snapshot": load_sector_signal_snapshot,
+        "build_sector_signal_carousel": build_sector_signal_carousel,
+        "web_root": request.host_url.replace("http://", "https://").rstrip("/"),
+        "request_host_url": request.host_url,
+    })
 if __name__ == "__main__":
     app.run(host=LOCAL_HOST, port=int(os.environ.get("PORT", 5000)))
