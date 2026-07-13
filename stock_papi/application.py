@@ -204,6 +204,9 @@ from stock_papi.services.stock_analysis import (
 )
 from stock_papi.services.papi import PapiService
 from stock_papi.services.news import get_news as _get_news
+from stock_papi.services.market_insights import (
+    market_insights_payload as _market_insights_payload,
+)
 from stock_papi.web.legacy_html import render_web
 
 
@@ -796,30 +799,14 @@ def build_sector_signal_carousel(category, items):
 
 
 def market_insights_payload():
-    document = fetch_market_insights()
-    if document:
-        return document
-    fallback_metrics = {
-        str(code).upper(): {
-            "name": get_stock_name(code),
-            "prob": None,
-            "trend": "資料待更新",
-            "as_of": "",
-        }
-        for category, codes in industry_map.items()
-        if category not in {"全市場", "ETF專區"}
-        for code in codes
-    }
-    return {
-        "schema_version": 1,
-        "as_of": datetime.date.today().isoformat(),
-        "industries": build_industries(industry_map, fallback_metrics),
-        "mops": [],
-        "etfs": [],
-        "supply_chains": build_supply_chains({}),
-        "sources": ["Stock Papi fallback"],
-        "degraded": True,
-    }
+    return _market_insights_payload(
+        fetch_market_insights,
+        get_stock_name,
+        industry_map,
+        datetime.date.today,
+        build_industries,
+        build_supply_chains,
+    )
 
 
 def _reply_text(event, text):
