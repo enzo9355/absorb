@@ -85,6 +85,31 @@ class LocalQuantTaskTests(unittest.TestCase):
             source.index('"gs://$Bucket/reports/v1/latest-TW.json"'),
         )
 
+    def test_uploader_validates_v2_and_uploads_immutable_content_before_pointers(self):
+        source = UPLOADER.read_text(encoding="utf-8")
+        start = source.index("function Publish-ReportsV2")
+        section = source[start : source.index("\ntry {", start)]
+
+        for required in (
+            r"publish\reports\v2",
+            "stock-papi-report-index",
+            "stock-papi-report",
+            "source_manifest_sha256",
+            "Report v2 content hash mismatch",
+            "Pre-market report v2 must not contain PDF",
+            "--no-clobber",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, source)
+        self.assertLess(
+            section.index('"gs://$Bucket/reports/v2/$MetadataRelative"'),
+            section.index('"gs://$Bucket/reports/v2/index-TW.json"'),
+        )
+        self.assertLess(
+            section.index('"gs://$Bucket/reports/v2/index-TW.json"'),
+            section.index('"gs://$Bucket/reports/v2/$LatestName"'),
+        )
+
     def test_lifecycle_deletes_cloud_objects_after_thirty_days(self):
         source = LIFECYCLE.read_text(encoding="utf-8")
 

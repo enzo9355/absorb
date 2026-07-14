@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$DataRoot = 'D:\StockPapiData',
-    [string]$Bucket = 'line-stock-bot-498908-quant-snapshots'
+    [string]$Bucket = 'line-stock-bot-498908-quant-snapshots',
+    [switch]$RequireReportV2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -102,6 +103,136 @@ function Invoke-GcloudCopyBatch {
     $env:PYTHONPATH = $OldPythonPath
 
     if ($LASTEXITCODE -ne 0) { throw "gcloud batch upload failed with exit code $LASTEXITCODE" }
+}
+
+function Get-GcloudJson {
+    param([string]$Uri)
+    $OldPythonPath = $env:PYTHONPATH
+    try {
+        $env:PYTHONPATH = $null
+        $Text = (& $Gcloud storage cat $Uri | Out-String)
+        if ($LASTEXITCODE -ne 0) { throw "gcloud read-back failed with exit code $LASTEXITCODE" }
+        return $Text | ConvertFrom-Json
+    } finally {
+        $env:PYTHONPATH = $OldPythonPath
+    }
+}
+
+function Publish-ReportsV2 {
+    param([string]$Root)
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return @() }
+    $Resolved = (Resolve-Path -LiteralPath $Root).Path
+    if (((Get-Item -LiteralPath $Resolved).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'Report v2 publish root must not be a reparse point'
+    }
+    function Assert-V2Path {
+        param([string]$Path)
+        $Candidate = (Resolve-Path -LiteralPath $Path).Path
+        if (-not $Candidate.StartsWith($Resolved + [IO.Path]::DirectorySeparatorChar)) {
+            throw 'Report v2 upload path escaped publish root'
+        }
+        $Current = Get-Item -LiteralPath $Candidate
+        while ($Current.FullName -ne $Resolved) {
+            if (($Current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw 'Report v2 upload path contains a reparse point'
+            }
+            $Current = $Current.Parent
+        }
+        return $Candidate
+    }
+
+    $IndexPath = Assert-V2Path (Join-Path $Resolved 'index-TW.json')
+    $IndexFile = Get-Item -LiteralPath $IndexPath
+    if ($IndexFile.Length -le 0 -or $IndexFile.Length -gt 1MB) { throw 'Invalid report v2 index size' }
+    $Index = Get-Content -LiteralPath $IndexPath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ($Index.schema_version -ne 2 -or $Index.kind -ne 'stock-papi-report-index' -or $Index.market -ne 'TW') {
+        throw 'Invalid report v2 index'
+    }
+    $Reports = @($Index.reports)
+    if ($Reports.Count -gt 180) { throw 'Report v2 index contains too many entries' }
+    $Seen = @{}
+    foreach ($Entry in $Reports) {
+        $Type = [string]$Entry.report_type
+        if ($Type -notin @('post_close', 'pre_market', 'weekly_model')) { throw 'Invalid report v2 type' }
+        $LogicalKey = "$Type|$($Entry.source_market_date)|$($Entry.applicable_trading_date)"
+        if ($Seen.ContainsKey($LogicalKey)) { throw 'Duplicate report v2 logical key' }
+        $Seen[$LogicalKey] = $true
+        $MetadataRelative = [string]$Entry.metadata
+        if ($MetadataRelative -notmatch '^metadata/[0-9a-f]{64}\.json$') { throw 'Invalid report v2 metadata path' }
+        $MetadataPath = Assert-V2Path (Join-Path $Resolved $MetadataRelative)
+        $MetadataHash = (Get-FileHash -LiteralPath $MetadataPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($MetadataHash -ne [string]$Entry.metadata_sha256) { throw 'Report v2 metadata hash mismatch' }
+        $Metadata = Get-Content -LiteralPath $MetadataPath -Raw -Encoding utf8 | ConvertFrom-Json
+        if (
+            $Metadata.schema_version -ne 2 -or $Metadata.kind -ne 'stock-papi-report' -or
+            $Metadata.market -ne 'TW' -or [string]$Metadata.report_type -ne $Type -or
+            [string]$Metadata.source_market_date -ne [string]$Entry.source_market_date -or
+            [string]$Metadata.applicable_trading_date -ne [string]$Entry.applicable_trading_date
+        ) { throw 'Report v2 metadata identity mismatch' }
+        $SourceManifest = [string]$Metadata.source_manifest
+        if ($SourceManifest -notmatch '^quant/v1/manifests/TW-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}\.json$') {
+            throw 'Invalid report v2 source manifest path'
+        }
+        $SourceRelative = $SourceManifest.Substring('quant/v1/'.Length)
+        $SourcePath = Assert-AllowlistedPath (Join-Path $ResolvedRoot $SourceRelative)
+        if ((Get-FileHash -LiteralPath $SourcePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$Metadata.source_manifest_sha256) {
+            throw 'Report v2 source manifest hash mismatch'
+        }
+        $ContentHash = [string]$Metadata.content_sha256
+        if ($ContentHash -notmatch '^[0-9a-f]{64}$' -or $ContentHash -ne [string]$Entry.content_sha256) {
+            throw 'Report v2 content hash mismatch'
+        }
+        $HasPdf = $null -ne $Metadata.pdf_path
+        if ($Type -eq 'pre_market' -and $HasPdf) { throw 'Pre-market report v2 must not contain PDF' }
+        if ($HasPdf) {
+            $PdfRelative = [string]$Metadata.pdf_path
+            if ($PdfRelative -notmatch '^objects/[0-9a-f]{64}\.pdf$' -or [long]$Metadata.pdf_size -le 0 -or [long]$Metadata.pdf_size -gt 15MB) {
+                throw 'Invalid report v2 PDF metadata'
+            }
+            $PdfPath = Assert-V2Path (Join-Path $Resolved $PdfRelative)
+            $Pdf = Get-Item -LiteralPath $PdfPath
+            if ($Pdf.Length -ne [long]$Metadata.pdf_size) { throw 'Report v2 PDF size mismatch' }
+            $PdfHash = (Get-FileHash -LiteralPath $PdfPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($PdfHash -ne [string]$Metadata.pdf_sha256 -or $PdfRelative -ne "objects/$PdfHash.pdf") {
+                throw 'Report v2 PDF hash mismatch'
+            }
+            Invoke-GcloudCopy $PdfPath "gs://$Bucket/reports/v2/$PdfRelative" -NoClobber
+        }
+        Invoke-GcloudCopy $MetadataPath "gs://$Bucket/reports/v2/$MetadataRelative" -NoClobber
+    }
+
+    # All immutable objects and metadata are verified and uploaded before mutable pointers.
+    Invoke-GcloudCopy $IndexPath "gs://$Bucket/reports/v2/index-TW.json"
+    $RemoteIndex = Get-GcloudJson "gs://$Bucket/reports/v2/index-TW.json"
+    if ($RemoteIndex.schema_version -ne 2 -or $RemoteIndex.market -ne 'TW' -or @($RemoteIndex.reports).Count -ne $Reports.Count) {
+        throw 'Report v2 remote index read-back mismatch'
+    }
+    $Uploaded = New-Object System.Collections.Generic.List[string]
+    foreach ($Type in @('post_close', 'pre_market', 'weekly_model')) {
+        $LatestName = "latest-TW-$Type.json"
+        $LatestCandidate = Join-Path $Resolved $LatestName
+        if (-not (Test-Path -LiteralPath $LatestCandidate -PathType Leaf)) { continue }
+        $LatestPath = Assert-V2Path $LatestCandidate
+        $Latest = Get-Content -LiteralPath $LatestPath -Raw -Encoding utf8 | ConvertFrom-Json
+        if ($Latest.schema_version -ne 2 -or $Latest.kind -ne 'stock-papi-report' -or $Latest.market -ne 'TW' -or [string]$Latest.report_type -ne $Type) {
+            throw 'Invalid report v2 latest pointer'
+        }
+        $Match = @($Reports | Where-Object {
+            [string]$_.report_type -eq $Type -and
+            [string]$_.metadata -eq [string]$Latest.metadata -and
+            [string]$_.metadata_sha256 -eq [string]$Latest.metadata_sha256
+        })
+        if ($Match.Count -ne 1) { throw 'Report v2 latest pointer is not present in index' }
+        Invoke-GcloudCopy $LatestPath "gs://$Bucket/reports/v2/$LatestName"
+        $RemoteLatest = Get-GcloudJson "gs://$Bucket/reports/v2/$LatestName"
+        if (
+            [string]$RemoteLatest.report_type -ne $Type -or
+            [string]$RemoteLatest.metadata -ne [string]$Latest.metadata -or
+            [string]$RemoteLatest.metadata_sha256 -ne [string]$Latest.metadata_sha256
+        ) { throw 'Report v2 remote latest read-back mismatch' }
+        $Uploaded.Add($Type) | Out-Null
+    }
+    return $Uploaded.ToArray()
 }
 
 
@@ -279,15 +410,30 @@ try {
         }
     }
 
+    $ReportV2UploadedTypes = @()
+    $ReportV2UploadError = $null
+    try {
+        $ReportV2UploadedTypes = @(Publish-ReportsV2 (Join-Path $DataRoot 'publish\reports\v2'))
+    } catch {
+        $ReportV2UploadError = $_.Exception.Message
+        Write-Warning "報告 v2 上傳失敗：$ReportV2UploadError"
+        Send-ReportUploadFailureNotification "報告 v2 上傳失敗：$ReportV2UploadError"
+    }
+
     $Status = @{
         uploaded_at = [DateTimeOffset]::Now.ToString('o')
         markets = $UploadedMarkets
         market_insights = $InsightsUploaded
         report_uploaded = $ReportUploaded
         report_error = $ReportUploadError
+        report_v2_uploaded_types = $ReportV2UploadedTypes
+        report_v2_error = $ReportV2UploadError
         bucket = $Bucket
     } | ConvertTo-Json -Compress
     Set-Content -LiteralPath (Join-Path $DataRoot 'logs\upload-status.json') -Value $Status -Encoding utf8
+    if ($RequireReportV2 -and ($ReportV2UploadError -or $ReportV2UploadedTypes.Count -eq 0)) {
+        throw 'Required report v2 upload or remote verification failed'
+    }
     Write-Output "Uploaded quant snapshots: $($UploadedMarkets -join ',')"
 
 } catch {
