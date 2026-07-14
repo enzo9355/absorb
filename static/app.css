@@ -235,6 +235,39 @@ a{color:inherit}
   gap:14px;
   margin-top:16px;
 }
+.top-picks.count-1{
+  grid-template-columns:1fr;
+}
+.top-picks.count-2{
+  grid-template-columns:1fr 1fr;
+}
+.top-picks.count-3{
+  grid-template-columns:2fr 1fr 1fr;
+}
+.sub-section-title {
+  margin-top: 24px;
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.badge-stock, .badge-etf {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+.badge-stock {
+  background: rgba(127,215,196,.2);
+  color: #1f9a72;
+}
+.badge-etf {
+  background: rgba(184,166,234,.2);
+  color: #725bb2;
+}
 .top-picks .pick-card:first-child{
   background:linear-gradient(135deg,rgba(127,215,196,.28),rgba(255,255,255,.76));
 }

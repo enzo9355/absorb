@@ -1207,7 +1207,7 @@ class PredictionPipelineTests(unittest.TestCase):
         rendered = html + json.dumps(flex, ensure_ascii=False)
 
         self.assertIn("五日上漲機率", rendered)
-        self.assertIn("五日方向準確率", html)
+        self.assertIn("歷史方向準確率", html)
         self.assertIn("Brier Score", html)
         self.assertNotIn("AI 勝率", rendered)
 

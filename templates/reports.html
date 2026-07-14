@@ -29,7 +29,7 @@
               <p class="report-headline">{{ report.get('headline', '此歷史報告尚未包含新版公開摘要，請進入報告查看。') }}</p>
               <dl class="report-meta">
                 <div><dt>資料截止日</dt><dd>{{ report.data_as_of }}</dd></div>
-                <div><dt>資料覆蓋率</dt><dd>{{ '%.1f%%'|format(report.coverage * 100) }}</dd></div>
+                <div><dt>資料覆蓋率</dt><dd>{{ '%.1f%%'|format(report.coverage * 100) if report.coverage is not none else '資料不足' }}</dd></div>
                 <div><dt>重點產業</dt><dd>{{ report.get('key_industries', [])|join('、') or '資料不足' }}</dd></div>
               </dl>
               <details class="report-technical"><summary>技術資訊</summary><p>模型版本：{{ report.model_versions.keys()|join('、') }}｜內部存檔 {{ report.page_count }} 頁｜產生時間 {{ report.generated_at }}</p></details>

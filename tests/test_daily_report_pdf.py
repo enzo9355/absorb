@@ -66,7 +66,7 @@ class DailyReportPdfTests(unittest.TestCase):
             self.assertIn("不得正式發布", text)
             self.assertIn("不得作為正式投資或模型結果", text)
             self.assertIn("台股產業量化分析日報", text)
-            self.assertIn("本報告內容僅供量化研究", text)
+            self.assertIn("量化研究與教育參考", text)
             self.assertIn("產業五日上漲機率排名", text)
             self.assertIn("排名依產業有效成分股最新五日上漲機率等權平均", text)
             self.assertIn("接近分界", text)

@@ -96,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         "不得正式發布",
         "不得作為正式投資或模型結果",
         "台股產業量化分析日報",
-        "本報告內容僅供量化研究",
+        "量化研究與教育參考",
     )
     if not all(text in extracted for text in required):
         raise RuntimeError("sample PDF text extraction validation failed")

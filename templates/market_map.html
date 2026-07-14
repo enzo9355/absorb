@@ -15,7 +15,7 @@
       <article><span>領先產業</span><strong>{{ lead.name if lead else '等待更新' }}</strong><small>{% if lead and lead.coverage|default(0) %}平均 AI 機率 {{ lead.average_prob }}%{% else %}等待量化快照{% endif %}</small></article>
       <article><span>領先個股</span><strong>{{ lead.leaders[0].name if lead and lead.leaders else '等待更新' }}</strong><small>{% if lead and lead.leaders %}{{ lead.leaders[0].symbol }} · {% if lead.leaders[0].prob is not none %}{{ lead.leaders[0].prob }}%{% else %}等待更新{% endif %}{% else %}尚無候選{% endif %}</small></article>
       <article><span>多頭廣度</span><strong>{% if lead and lead.coverage|default(0) %}{{ lead.bullish_ratio }}%{% else %}--{% endif %}</strong><small>領先產業中，股價高於 MA20 的比例</small></article>
-      <article><span>資料覆蓋</span><strong>{{ lead.coverage|default(0) if lead else 0 }} 檔</strong><small>已完成本地分析的產業樣本</small></article>
+      <article><span>資料覆蓋</span><strong>{% if lead and lead.coverage is not none and lead.coverage != "" %}{{ lead.coverage }} 檔{% else %}資料不足{% endif %}</strong><small>已完成本地分析的產業樣本</small></article>
     </div>
   </section>
 
@@ -33,13 +33,31 @@
     <div class="heat-legend" aria-label="熱力圖圖例"><span>跌</span><i class="fall"></i><i class="weak"></i><i class="flat"></i><i class="rise"></i><i class="surge"></i><span>漲</span></div>
   </section>
 
+  {% set ns = namespace(has_chips=false) %}
+  {% if lead and lead.chips is defined %}
+    {% for chip in lead.chips %}
+      {% if chip.score is not none and chip.score != "" %}
+        {% set ns.has_chips = true %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+  {% if ns.has_chips %}
   <section class="panel" aria-labelledby="chip-title">
     <div class="section-heading"><div><p class="eyebrow">CAPITAL FLOW</p><h2 id="chip-title">籌碼訊號</h2></div><span class="muted small">{{ lead.name if lead else '領先產業' }} · 0 至 10 分，只作相對強弱比較</span></div>
     <div class="chip-signal-list">
-      {% if lead and lead.chips is defined %}{% for chip in lead.chips %}<div class="chip-signal"><strong>{{ chip.label }}</strong>{% if chip.score is not none %}<progress max="10" value="{{ chip.score }}">{{ chip.score }}/10</progress><span>{{ chip.score }}/10</span>{% else %}<progress max="10" value="0">等待更新</progress><span>--</span>{% endif %}</div>{% endfor %}
-      {% else %}<div class="empty-state">籌碼快照等待更新。</div>{% endif %}
+      {% for chip in lead.chips %}
+        {% if chip.score is not none and chip.score != "" %}
+        <div class="chip-signal">
+          <strong>{{ chip.label }}</strong>
+          <progress max="10" value="{{ chip.score }}">{{ chip.score }}/10</progress>
+          <span>{{ chip.score }}/10</span>
+        </div>
+        {% endif %}
+      {% endfor %}
     </div>
   </section>
+  {% endif %}
 
   <section class="panel" aria-labelledby="industry-map-title">
     <div class="section-heading"><div><p class="eyebrow">COMPANY ROLES</p><h2 id="industry-map-title">產業角色分群</h2></div><span class="muted small">依平均 AI 機率排序；點選公司查看完整分析</span></div>

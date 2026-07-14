@@ -1,6 +1,7 @@
 """Papi prompt construction and external summary orchestration."""
 
 import re
+from stock_papi.shared.symbol import get_instrument_type
 
 
 def get_ai_insight_for_broadcast(name, data, bt, news, gemini_model):
@@ -162,7 +163,7 @@ class PapiService:
         return (
             f"▸ {data.get('name', '?')} ({data.get('code', '?')})："
             f"收盤 {data['price']:.2f}，"
-            f"AI 勝率 {data['prob']}%，"
+            f"五日上漲機率 {data['prob']}%，"
             f"趨勢 {data['trend']}，"
             f"RSI {data['rsi']:.1f}，"
             f"{'紅柱' if data['macd_osc'] > 0 else '綠柱'}，"
@@ -173,7 +174,7 @@ class PapiService:
             f"情緒波動 {data.get('news_weighted_volatility', 0):.0f}，"
             f"{foreign_str}，"
             f"回測策略報酬 {bt.get('strat_cum', 0):.1f}%，"
-            f"勝率 {bt.get('win_rate', 0):.0f}%，"
+            f"策略交易勝率 {bt.get('win_rate', 0):.0f}%，"
             f"夏普 {bt.get('sharpe', 0):.2f}"
         )
 
@@ -228,11 +229,14 @@ class PapiService:
         items.sort(key=lambda pair: self.safe_float(pair[1].get("score")), reverse=True)
         lines = []
         for category, item in items[:limit]:
+            code = item.get('code')
+            is_etf = get_instrument_type(code) == "ETF"
+            foreign_str = f"，外資5日 {int(self.safe_float(item.get('foreign_net_5'))):,}" if not is_etf and item.get('foreign_net_5') is not None else ""
             lines.append(
-                f"- {item.get('name')} ({item.get('code')})：{category}，"
-                f"AI 勝率 {int(self.safe_float(item.get('prob')))}%，"
-                f"{item.get('trend', '中性')}，"
-                f"外資5日 {int(self.safe_float(item.get('foreign_net_5'))):,}"
+                f"- {item.get('name')} ({code})：{category}，"
+                f"五日上漲機率 {int(self.safe_float(item.get('prob')))}%，"
+                f"{item.get('trend', '中性')}"
+                + foreign_str
             )
         if not lines:
             return ""
@@ -319,7 +323,7 @@ class PapiService:
     * 不得捏造系統或模型故障原因。沒有量化資料時，只能說目前資料不足或暫時無法取得。
 
     指標新手翻譯對照表：
-    * AI 勝率 (prob)：AI 預測「未來 5 個交易日上漲的機率」。>58% 代表短線動能偏多；<45% 代表短線動能極弱。
+    * 五日上漲機率 (prob)：AI 預測「未來 5 個交易日上漲的機率」。>58% 代表短線動能偏多；<45% 代表短線動能極弱。
     * RSI 強弱指標 (rsi)：>70 視為「短線買氣超買過熱，追高風險升高」；<30 視為「超賣，可能醞釀反彈」。
     * KD 隨機指標：黃金交叉為「短線價格轉折向上，是止跌或發動的初期訊號」；死亡交叉為「短線價格轉折向下，動能轉弱」。
     * MACD 柱體：紅柱為「多頭氣勢擴大，價格容易續強」；綠柱為「多頭動能減弱或空頭修正中」。
@@ -327,9 +331,9 @@ class PapiService:
     * 回測策略報酬/夏普值：模型歷史回測的表現。夏普值 > 1.5 代表該策略歷史走勢非常穩健，波動度較可控。
 
     多指標決策優先順序（由高至低）：
-    1. 第一優先（風險煞車）：只要 RSI > 70（超買過熱）或 KD 出現死亡交叉，無論 AI 勝率多高，一律判定為「風險偏高」或「先等等」，並警告追高風險。
-    2. 第二優先（大戶避險）：若 AI 勝率偏多（>58%），但外資5日淨額為負（大戶賣超），必須判定為「先等等」，提醒新手雖有動能但大戶在撤退。
-    3. 第三優先（同向支持）：AI 勝率偏多（>58%）＋ KD 黃金交叉 ＋ MACD 紅柱 ＋ 外資買超，可判定為「可觀察」。
+    1. 第一優先（風險煞車）：只要 RSI > 70（超買過熱）或 KD 出現死亡交叉，無論五日上漲機率多高，一律判定為「風險偏高」或「先等等」，並警告追高風險。
+    2. 第二優先（大戶避險）：若五日上漲機率偏多（>58%），但外資5日淨額為負（大戶賣超），必須判定為「先等等」，提醒新手雖有動能但大戶在撤退。
+    3. 第三優先（同向支持）：五日上漲機率偏多（>58%）＋ KD 黃金交叉 ＋ MACD 紅柱 ＋ 外資買超，可判定為「可觀察」。
 
     回答格式：
     * 使用繁體中文與全形標點。

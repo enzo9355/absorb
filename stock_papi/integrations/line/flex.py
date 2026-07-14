@@ -270,7 +270,7 @@ def _alert_condition_text(alert):
     if alert["kind"] == "price_below":
         return f"收盤價跌破 {float(alert['value']):g}"
     if alert["kind"] == "probability":
-        return f"AI 勝率達到 {float(alert['value']):g}%"
+        return f"五日上漲機率達到 {float(alert['value']):g}%"
     return f"趨勢為{alert['value']}"
 
 
@@ -306,7 +306,7 @@ def build_alert_menu_flex(code, name):
     choices = [
         ("站上收盤價", f"alert:start:{code}:price_above"),
         ("跌破收盤價", f"alert:start:{code}:price_below"),
-        ("AI 勝率門檻", f"alert:start:{code}:probability"),
+        ("上漲機率門檻", f"alert:start:{code}:probability"),
         ("趨勢為多頭", f"alert:trend:{code}:多頭"),
         ("趨勢為空頭", f"alert:trend:{code}:空頭"),
     ]
@@ -400,8 +400,8 @@ def build_alert_push_flex(hits, base_url):
             condition = f"條件：收盤價跌破 {float(alert['value']):g}"
             current = f"今日收盤價：{quote['price']:.2f}"
         elif alert["kind"] == "probability":
-            condition = f"條件：AI 勝率達到 {float(alert['value']):g}%"
-            current = f"目前 AI 勝率：{quote['prob']}%"
+            condition = f"條件：五日上漲機率達到 {float(alert['value']):g}%"
+            current = f"目前五日上漲機率：{quote['prob']}%"
         else:
             condition = f"條件：趨勢為{alert['value']}"
             current = f"目前趨勢：{quote['trend']}"

@@ -120,7 +120,7 @@
         <article><span>AI 策略報酬</span><strong>{{ '%.2f'|format(d.bt.strat_cum) }}%</strong><small>已扣估計交易成本</small></article>
         <article><span>買進持有報酬</span><strong>{{ '%.2f'|format(d.bt.bh_cum) }}%</strong><small>同一歷史區間</small></article>
         <article><span>歷史方向準確率</span><strong>{{ '%.1f'|format(d.bt.accuracy) }}%</strong><small>不等同交易勝率</small></article>
-        <article><span>交易勝率</span><strong>{{ '%.1f'|format(d.bt.win_rate) }}%</strong><small>{{ d.bt.trades }} 次訊號</small></article>
+        <article><span>策略交易勝率</span><strong>{{ '%.1f'|format(d.bt.win_rate) }}%</strong><small>{{ d.bt.trades }} 次訊號</small></article>
         <article><span>最大回撤（最差資金跌幅）</span><strong>{{ '%.2f'|format(d.bt.mdd) }}%</strong><small>歷史最差資金壓力</small></article>
         <article><span>報酬效率（Sharpe Ratio）</span><strong>{{ '%.2f'|format(d.bt.sharpe) }}</strong><small>{{ interpretation.sharpe }}</small></article>
         <article><span>機率可信度（Brier Score）</span><strong>{{ '%.3f'|format(d.bt.brier) }}</strong><small>{{ interpretation.brier }}</small></article>

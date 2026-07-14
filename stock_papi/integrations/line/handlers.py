@@ -163,7 +163,7 @@ def handle_postback_impl(event, deps):
             label = {
                 "price": "收盤價站上", "price_above": "收盤價站上",
                 "price_below": "收盤價跌破",
-            }.get(kind, "AI 勝率（1 到 99）")
+            }.get(kind, "五日上漲機率（1 到 99）")
             reply = f"請輸入 {name} 的{label}門檻數字，或輸入「取消」。"
         elif alert_trend_match:
             trend = alert_trend_match.group(2)
@@ -267,7 +267,7 @@ def handle_message_impl(event, deps):
                     label = {
                         "price": "收盤價站上", "price_above": "收盤價站上",
                         "price_below": "收盤價跌破",
-                    }.get(alert["kind"], "AI 勝率")
+                    }.get(alert["kind"], "五日上漲機率")
                     reply = (
                         f"已建立 {alert['name']} 的{label}提醒。"
                         if outcome["created"] else f"{alert['name']} 的{label}提醒已存在。"

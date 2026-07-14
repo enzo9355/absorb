@@ -89,9 +89,14 @@ function renderDashboard(data) {
   const heatmap = bySelector("[data-market-heatmap]");
   if (heatmap) {
     const cells = data.heatmap || [];
+    if (cells.length > 0 && cells.length < 3) {
+      heatmap.style.gridTemplateColumns = `repeat(${cells.length}, minmax(0, 1fr))`;
+    } else {
+      heatmap.style.gridTemplateColumns = "";
+    }
     replaceContent(heatmap, cells.length ? cells.map((item) =>
       card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [["span", "", item.name], ["strong", "", `${item.probability}%`], ["small", "", `${item.count} 檔候選`]], item.code ? stockHref(item.code, "#industry-forecast") : "#industry-forecast")
-    ) : [emptyState("熱力圖等待產業快照更新。")]);
+    ) : [emptyState("今日產業樣本尚未完成，暫不提供產業熱力圖。")]);
   }
 
   const forecasts = bySelector("[data-sector-grid]");
@@ -112,16 +117,49 @@ function renderDashboard(data) {
   const picks = bySelector("[data-top-picks]");
   if (picks) {
     const items = data.top_picks || [];
-    replaceContent(picks, items.length ? items.map((item) => {
-      const recommendation = item.recommendation || {};
-      return card("a", "pick-card", [
-        ["span", "", `${item.name} · ${item.code}`],
-        ["strong", "", recommendation.action || "等待確認"],
-        ["p", "", item.headline],
-        ["p", "", item.summary],
-        ["small", "", `主要風險：${(recommendation.risk_reasons || ["資料不足"])[0]}`],
-      ], stockHref(item.code));
-    }) : [emptyState("目前沒有足夠的精選標的資料。")]);
+    const stocks = items.filter(item => !item.is_etf);
+    const etfs = items.filter(item => item.is_etf);
+    
+    const elements = [];
+    
+    // Stocks Section
+    elements.push(element("h3", "sub-section-title", "精選個股"));
+    const stocksGrid = element("div", `top-picks count-${Math.min(3, stocks.length || 1)}`);
+    if (stocks.length) {
+      stocks.forEach(item => {
+        const rec = item.recommendation || {};
+        stocksGrid.append(card("a", "pick-card", [
+          ["span", "badge-stock", `[個股] ${item.name} · ${item.code}`],
+          ["strong", "", rec.action || "等待確認"],
+          ["p", "", item.headline],
+          ["p", "", item.summary],
+          ["small", "", `主要風險：${(rec.risk_reasons || ["資料不足"])[0]}`],
+        ], stockHref(item.code)));
+      });
+    } else {
+      stocksGrid.append(emptyState("目前沒有足夠的精選個股資料。"));
+    }
+    elements.push(stocksGrid);
+    
+    // ETFs Section
+    elements.push(element("h3", "sub-section-title", "ETF 觀察"));
+    const etfsGrid = element("div", `top-picks count-${Math.min(3, etfs.length || 1)}`);
+    if (etfs.length) {
+      etfs.forEach(item => {
+        const rec = item.recommendation || {};
+        etfsGrid.append(card("a", "pick-card", [
+          ["span", "badge-etf", `[ETF] ${item.name} · ${item.code}`],
+          ["strong", "", rec.action || "等待確認"],
+          ["p", "", item.headline],
+          ["p", "", item.summary],
+        ], stockHref(item.code)));
+      });
+    } else {
+      etfsGrid.append(emptyState("目前沒有足夠的 ETF 觀察資料。"));
+    }
+    elements.push(etfsGrid);
+    
+    replaceContent(picks, elements);
   }
 }
 

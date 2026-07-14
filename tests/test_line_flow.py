@@ -388,7 +388,7 @@ class LineBuilderTests(unittest.TestCase):
         self.assertTrue(all(action["type"] == "postback" for action in actions))
         self.assertEqual(
             [action["label"] for action in actions],
-            ["站上收盤價", "跌破收盤價", "AI 勝率門檻", "趨勢為多頭", "趨勢為空頭"],
+            ["站上收盤價", "跌破收盤價", "上漲機率門檻", "趨勢為多頭", "趨勢為空頭"],
         )
         self.assertNotIn("趨勢轉", str(card))
 
@@ -683,7 +683,7 @@ class MessageFlowTests(unittest.TestCase):
         post.assert_called_once()
         openalice_prompt = post.call_args.kwargs["json"]["prompt"]
         self.assertIn("你是 Papi", openalice_prompt)
-        self.assertIn("AI 勝率 62%", openalice_prompt)
+        self.assertIn("五日上漲機率 62%", openalice_prompt)
         self.assertIn("使用者問題：分析 2330", openalice_prompt)
         text = line_api.reply_message.call_args.args[1].text
         self.assertIn("台積電短線偏多", text)
@@ -707,8 +707,8 @@ class MessageFlowTests(unittest.TestCase):
             prompt = stock_app._build_papi_prompt("最近有什麼股票可以觀察")
 
         self.assertIn("每日產業預測可舉例標的", prompt)
-        self.assertIn("廣達 (2382)：AI伺服器，AI 勝率 71%", prompt)
-        self.assertIn("台積電 (2330)：半導體，AI 勝率 64%", prompt)
+        self.assertIn("廣達 (2382)：AI伺服器，五日上漲機率 71%", prompt)
+        self.assertIn("台積電 (2330)：半導體，五日上漲機率 64%", prompt)
         self.assertIn("最多提出 2 到 3 檔", prompt)
         self.assertIn("可分成 2 到 3 段", prompt)
 

@@ -102,13 +102,14 @@ def build_market_map(codes, theme_sectors):
     market = {"全市場": [], "ETF專區": []}
     for theme in theme_sectors:
         market[theme] = []
+    from stock_papi.shared.symbol import get_instrument_type
     for code, info in codes.items():
         if len(code) not in [4, 5]:
             continue
         group = getattr(info, "group", None) or getattr(info, "type", None)
         if group and isinstance(group, str) and group.strip():
             market["全市場"].append(code)
-            if code.startswith("00"):
+            if get_instrument_type(code) == "ETF":
                 market["ETF專區"].append(code)
             for theme, names in theme_sectors.items():
                 if info.name in names and code not in market[theme]:
