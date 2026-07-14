@@ -1,0 +1,125 @@
+"""以固定 immutable manifest 執行可續跑的逐檔完整回測。"""
+
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+
+
+def _write_atomic(path, document):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    encoded = json.dumps(
+        document,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    with temporary.open("wb") as stream:
+        stream.write(encoded)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Stock Papi resumable full backtest")
+    parser.add_argument("--root", type=Path, default=Path(r"D:\StockPapiData"))
+    parser.add_argument("--max-items", type=int, default=25)
+    args = parser.parse_args(argv)
+
+    from local_quant import load_stock_pipeline
+    from reporting.source_loader import load_report_source
+    from stock_papi.batch.backtest_worker import FullBacktestWorker
+    from stock_papi.batch.runtime import job_namespace
+    from stock_papi.batch.status import PipelineStatusWriter
+
+    source = load_report_source(args.root, market="TW")
+    manifest = source.manifest
+    versions = {stock.model_version for stock in source.stocks}
+    if len(versions) != 1:
+        raise ValueError("full backtest requires one source model version")
+    model_version = next(iter(versions))
+    items = tuple(stock.symbol for stock in source.stocks)
+    worker = FullBacktestWorker(
+        args.root,
+        dataset_manifest=f"quant/v1/{manifest.manifest_path}",
+        dataset_sha256=manifest.manifest_sha256,
+        model_version=model_version,
+        feature_schema_version=1,
+        cutoff=manifest.market_as_of,
+        items=items,
+    )
+    pipeline = load_stock_pipeline(args.root)
+    namespace = job_namespace(args.root, "full_backtest")
+    result_root = namespace.output / manifest.manifest_sha256 / "symbols"
+    writer = PipelineStatusWriter(
+        args.root,
+        job_type="full_backtest",
+        run_id=f"{manifest.market_as_of.strftime('%Y%m%d')}T000000Z-{manifest.manifest_sha256[:8]}",
+        target_date=manifest.market_as_of,
+    )
+
+    def run_item(symbol):
+        result_path = result_root / f"{symbol}.json"
+        if result_path.exists():
+            existing = json.loads(result_path.read_text(encoding="utf-8"))
+            if (
+                existing.get("dataset_sha256") == manifest.manifest_sha256
+                and existing.get("symbol") == symbol
+                and existing.get("model_version") == model_version
+            ):
+                return
+            raise ValueError("full backtest result identity mismatch")
+        frame = pipeline.get_data(symbol, 730)
+        if frame is None or frame.empty:
+            raise ValueError("price history is unavailable")
+        frame = pipeline.calc_all(frame)
+        if frame is None or frame.empty:
+            raise ValueError("calculated history is unavailable")
+        backtest = pipeline.run_ai_engine(frame)
+        if not isinstance(backtest, dict):
+            raise ValueError("full backtest result is unavailable")
+        _write_atomic(
+            result_path,
+            {
+                "schema_version": 1,
+                "market": "TW",
+                "symbol": symbol,
+                "cutoff": manifest.market_as_of.isoformat(),
+                "dataset_manifest": f"quant/v1/{manifest.manifest_path}",
+                "dataset_sha256": manifest.manifest_sha256,
+                "model_version": model_version,
+                "generated_at": datetime.datetime.now(datetime.timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "backtest": backtest,
+            },
+        )
+
+    writer.record("backtest", details={"processed": 0}, now=datetime.datetime.now(datetime.timezone.utc))
+    try:
+        result = worker.run(run_item, max_items=args.max_items)
+    except Exception as exc:
+        writer.record(
+            "failed",
+            details={"processed": 0},
+            error=exc,
+            now=datetime.datetime.now(datetime.timezone.utc),
+        )
+        raise
+    final_stage = result["status"] if result["status"] in {"completed", "yielded"} else "backtest"
+    writer.record(
+        final_stage,
+        details={"processed": result["next_index"]},
+        now=datetime.datetime.now(datetime.timezone.utc),
+    )
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import datetime
 import gzip
 import hashlib
@@ -879,14 +880,26 @@ def run_market_batch(
     now_fn=lambda: datetime.datetime.now(TAIPEI),
     delay=0.5,
     sleep_fn=time.sleep,
+    enforce_window=True,
+    batch_identity=None,
 ):
-    if market not in ("TW", "US") or limit < 1 or delay < 0:
+    if (
+        market not in ("TW", "US")
+        or limit < 1
+        or delay < 0
+        or type(enforce_window) is not bool
+        or (batch_identity is not None and not isinstance(batch_identity, dict))
+    ):
         raise ValueError("invalid market batch settings")
     checkpoint = load_checkpoint(root, market=market)
     checked_at = now_fn()
     same_batch = (
         checkpoint.get("stage") == "market_batch"
         and checkpoint.get("market") == market
+        and (
+            batch_identity is None
+            or checkpoint.get("batch_identity") == batch_identity
+        )
     )
     start = (
         checkpoint.get("next_index", 0)
@@ -947,6 +960,8 @@ def run_market_batch(
             "failed": failures,
             "updated_at": checked_at.isoformat(),
         }
+        if batch_identity is not None:
+            state["batch_identity"] = batch_identity
         if next_index >= len(symbols) and not failures:
             state["cycle_completed_on"] = checked_at.date().isoformat()
         save_checkpoint(root, state, market=market)
@@ -955,7 +970,7 @@ def run_market_batch(
     for retry in list(failures):
         if attempted:
             checked_at = now_fn()
-        if window_phase(checked_at) != "run":
+        if enforce_window and window_phase(checked_at) != "run":
             break
         symbol = retry["symbol"]
         if symbol in pending_symbols or symbol in excluded_symbols:
@@ -1014,7 +1029,7 @@ def run_market_batch(
     while attempted < limit and next_index < len(symbols):
         if attempted:
             checked_at = now_fn()
-        if window_phase(checked_at) != "run":
+        if enforce_window and window_phase(checked_at) != "run":
             break
         symbol = str(symbols[next_index])
         if symbol in pending_symbols or symbol in excluded_symbols:
@@ -1348,11 +1363,13 @@ def main(argv=None, now=None, free_bytes=None):
     parser.add_argument("--init", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run", action="store_true")
+    parser.add_argument("--post-close", action="store_true")
     parser.add_argument("--insights", action="store_true")
     parser.add_argument("--market", choices=("TW", "US", "ALL"), default="TW")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--delay", type=float, default=0.5)
     parser.add_argument("--min-free-gb", type=float, default=100.0)
+    parser.add_argument("--target-market-date", type=datetime.date.fromisoformat)
     args = parser.parse_args(argv)
 
     try:
@@ -1364,6 +1381,10 @@ def main(argv=None, now=None, free_bytes=None):
         available = check_free_space(root, args.min_free_gb, free_bytes)
         checked_at = now or datetime.datetime.now(TAIPEI)
         phase = window_phase(checked_at)
+        if args.post_close:
+            if args.market != "TW" or args.target_market_date is None:
+                raise ValueError("--post-close requires TW and --target-market-date")
+            phase = "run"
         if args.run and args.market == "US" and not market_run_allowed(
             "US", checked_at
         ):
@@ -1372,6 +1393,7 @@ def main(argv=None, now=None, free_bytes=None):
             "checked_at": checked_at.isoformat(),
             "dry_run": bool(args.dry_run),
             "run": bool(args.run),
+            "post_close": bool(args.post_close),
             "insights": bool(args.insights),
             "free_gb": round(available / 1024**3, 1),
             "phase": phase,
@@ -1379,8 +1401,15 @@ def main(argv=None, now=None, free_bytes=None):
         }
         status_path = root / "logs" / "runner-status.json"
         _write_json_atomic(status_path, status)
-        if sum((bool(args.dry_run), bool(args.run), bool(args.insights))) != 1:
-            raise ValueError("choose one of --dry-run, --run or --insights")
+        if sum(
+            (
+                bool(args.dry_run),
+                bool(args.run),
+                bool(args.post_close),
+                bool(args.insights),
+            )
+        ) != 1:
+            raise ValueError("choose one of --dry-run, --run, --post-close or --insights")
         if args.insights and phase == "run":
             with acquire_lock(root, now=checked_at):
                 status["cleanup"] = cleanup_expired_data(root, now=checked_at)
@@ -1394,8 +1423,30 @@ def main(argv=None, now=None, free_bytes=None):
                 }
                 _write_json_atomic(status_path, status)
                 safe_print(json.dumps(status["market_insights"], ensure_ascii=False, separators=(",", ":")))
-        if args.run and phase == "run":
-            with acquire_lock(root, now=checked_at):
+        if (args.run or args.post_close) and phase == "run":
+            promoted_backtest = None
+            daily_lock = contextlib.nullcontext()
+            if args.post_close:
+                from stock_papi.batch.backtest_store import BacktestStore
+                from stock_papi.batch.runtime import acquire_job_lock
+
+                promoted_backtest = BacktestStore(root, "TW").load_latest()
+                if promoted_backtest is None:
+                    raise ValueError("promoted TW backtest is unavailable")
+                batch_identity = {
+                    "target_market_date": args.target_market_date.isoformat(),
+                    "model_version": promoted_backtest["model_version"],
+                    "backtest_candidate_sha256": promoted_backtest[
+                        "candidate_sha256"
+                    ],
+                }
+                daily_lock = acquire_job_lock(
+                    root,
+                    "daily_prediction",
+                    args.target_market_date,
+                    now=checked_at,
+                )
+            with daily_lock, acquire_lock(root, now=checked_at):
                 status["cleanup"] = cleanup_expired_data(root, now=checked_at)
                 _write_json_atomic(status_path, status)
                 pipeline = load_stock_pipeline(root)
@@ -1405,10 +1456,12 @@ def main(argv=None, now=None, free_bytes=None):
                     else (lambda: datetime.datetime.now(TAIPEI))
                 )
                 summaries = {}
+                if not args.post_close:
+                    batch_identity = None
                 markets = ("TW", "US") if args.market == "ALL" else (args.market,)
                 for market in markets:
                     market_now = now_fn()
-                    if not market_run_allowed(market, market_now):
+                    if not args.post_close and not market_run_allowed(market, market_now):
                         break
                     symbols = (
                         get_taiwan_symbols(pipeline)
@@ -1420,11 +1473,17 @@ def main(argv=None, now=None, free_bytes=None):
                         market,
                         symbols,
                         lambda symbol, selected=market: build_stock_snapshot(
-                            pipeline, selected, symbol
+                            pipeline,
+                            selected,
+                            symbol,
+                            target_market_date=args.target_market_date,
+                            promoted_backtest=promoted_backtest,
                         ),
                         limit=args.limit,
                         now_fn=now_fn,
                         delay=args.delay,
+                        enforce_window=not args.post_close,
+                        batch_identity=batch_identity,
                     )
                     if summary.get("next_index", 0) >= len(symbols):
                         failed_symbols = (

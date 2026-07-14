@@ -254,6 +254,40 @@ File Creation Time: 07082026||||||
             self.assertEqual(checkpoint["next_index"], 3)
             self.assertEqual(checkpoint["failed"], [])
 
+    def test_market_batch_restarts_when_explicit_target_identity_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 1,
+                    "failed": [],
+                    "updated_at": "2026-07-14T17:00:00+08:00",
+                    "batch_identity": {"target_market_date": "2026-07-14"},
+                },
+            )
+            calls = []
+            identity = {"target_market_date": "2026-07-15"}
+
+            result = run_market_batch(
+                root,
+                "TW",
+                ["2330", "2317"],
+                lambda symbol: calls.append(symbol) or {"as_of": "2026-07-15"},
+                limit=1,
+                now_fn=lambda: datetime.datetime(2026, 7, 15, 17, tzinfo=TAIPEI),
+                delay=0,
+                enforce_window=False,
+                batch_identity=identity,
+            )
+
+            self.assertEqual(calls, ["2330"])
+            self.assertEqual(result["next_index"], 1)
+            self.assertEqual(load_checkpoint(root)["batch_identity"], identity)
+
     def test_market_batch_keeps_one_copy_of_a_failed_retry(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
