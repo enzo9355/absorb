@@ -11,6 +11,57 @@ import app as stock_app
 
 
 class ReportWebTests(unittest.TestCase):
+    def test_v2_trading_day_pre_market_and_weekly_routes_use_verified_metadata(self):
+        entries = []
+        objects = {}
+        for report_type, suffix in (("post_close", "post"), ("pre_market", "pre"), ("weekly_model", "week")):
+            content = {
+                "core": {"probability": 61.0},
+                "overnight_overlay": {"status": "mixed", "message": "隔夜訊號分歧"},
+                "week_id": "2026-W29",
+            }
+            content_bytes = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+            document = {
+                "schema_version": 2, "kind": "stock-papi-report", "market": "TW",
+                "report_type": report_type, "source_market_date": "2026-07-14",
+                "applicable_trading_date": "2026-07-15" if report_type != "weekly_model" else "2026-07-14",
+                "published_at": f"2026-07-14T1{len(entries)}:00:00Z", "forecast_start_date": "2026-07-15",
+                "forecast_end_date": "2026-07-21", "backtest_as_of": "2026-07-14",
+                "data_as_of": "2026-07-14", "source_manifest": "quant/v1/manifests/TW-20260714T090000Z-aaaaaaaaaaaa.json",
+                "source_manifest_sha256": "a" * 64, "model_versions": {"lgbm-5d-v1": 1},
+                "title": suffix, "summary": [suffix], "warnings": [], "content": content,
+                "content_sha256": hashlib.sha256(content_bytes).hexdigest(),
+            }
+            metadata_bytes = json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+            digest = hashlib.sha256(metadata_bytes).hexdigest()
+            entry = {
+                "report_type": report_type, "source_market_date": document["source_market_date"],
+                "applicable_trading_date": document["applicable_trading_date"], "published_at": document["published_at"],
+                "data_as_of": document["data_as_of"], "model_versions": document["model_versions"],
+                "title": document["title"], "summary": document["summary"], "content_sha256": document["content_sha256"],
+                "metadata": f"metadata/{digest}.json", "metadata_sha256": digest,
+            }
+            if report_type == "weekly_model":
+                entry["week_id"] = "2026-W29"
+            entries.append(entry)
+            objects[f"reports/v2/metadata/{digest}.json"] = metadata_bytes
+        index = {"schema_version": 2, "kind": "stock-papi-report-index", "market": "TW", "updated_at": "2026-07-14T12:00:00Z", "reports": entries}
+        objects["reports/v2/index-TW.json"] = json.dumps(index).encode()
+
+        with patch.object(stock_app, "_gcs_get_report_v2_object", side_effect=lambda path, _size: objects.get(path), create=True):
+            client = stock_app.app.test_client()
+            trading_day = client.get("/reports/trading-day/2026-07-15")
+            pre_market = client.get("/reports/2026-07-15/pre-market")
+            weekly = client.get("/reports/weekly/2026-W29")
+
+        self.assertEqual(trading_day.status_code, 200)
+        self.assertIn("盤後分析", trading_day.get_data(as_text=True))
+        self.assertIn("盤前更新", trading_day.get_data(as_text=True))
+        self.assertEqual(pre_market.status_code, 200)
+        self.assertIn("隔夜訊號分歧", pre_market.get_data(as_text=True))
+        self.assertEqual(weekly.status_code, 200)
+        self.assertIn("模型驗證週報", weekly.get_data(as_text=True))
+
     def setUp(self):
         self.pdf = b"%PDF-1.4 verified report bytes"
         self.digest = hashlib.sha256(self.pdf).hexdigest()

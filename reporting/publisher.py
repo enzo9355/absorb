@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 from . import REPORT_GENERATOR_VERSION, REPORT_SCHEMA_VERSION, git_commit_sha
@@ -130,6 +131,11 @@ def publish_report_v2(
         "metadata": metadata_relative,
         "metadata_sha256": metadata_sha,
     }
+    if document["report_type"] == "weekly_model":
+        week_id = document["content"].get("week_id")
+        if not isinstance(week_id, str) or re.fullmatch(r"[0-9]{4}-W[0-9]{2}", week_id) is None:
+            raise ReportPublishError("weekly report week_id is invalid")
+        entry["week_id"] = week_id
     if pdf_bytes is not None:
         entry.update(
             pdf_path=document["pdf_path"],

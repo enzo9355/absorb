@@ -60,6 +60,15 @@ def analysis_data():
 
 
 class WebProductTests(unittest.TestCase):
+    def test_dashboard_starts_with_today_trading_preparation_cards(self):
+        response = stock_app.app.test_client().get("/")
+        html = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("今日交易準備", html)
+        self.assertIn("盤後分析", html)
+        self.assertIn("盤前更新", html)
+
     def test_market_insights_fallback_uses_themes_with_five_companies(self):
         market_map = {
             "全市場": ["9999"], "ETF專區": ["0050"],

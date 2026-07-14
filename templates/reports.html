@@ -18,6 +18,27 @@
         <h2 id="report-history-title">歷史報告</h2>
       </div>
     </div>
+    {% if reports_v2 %}
+      <div class="report-list">
+        {% for report in reports_v2 %}
+          <article class="report-card">
+            <div>
+              <p class="eyebrow">{{ {'post_close': '盤後分析', 'pre_market': '盤前更新', 'weekly_model': '模型驗證週報'}.get(report.report_type, report.report_type) }}</p>
+              <h3>{{ report.title }}</h3>
+              <p>{{ report.summary|join('；') }}</p>
+              <p class="muted small">資料日 {{ report.source_market_date }}｜適用交易日 {{ report.applicable_trading_date }}</p>
+            </div>
+            <div class="report-actions">
+              {% if report.report_type == 'weekly_model' %}
+                <a class="button" href="{{ url_for('weekly_report_page', week_id=report.week_id) }}">閱讀週報</a>
+              {% else %}
+                <a class="button" href="{{ url_for('trading_day_report_page', trading_date=report.applicable_trading_date) }}">閱讀報告</a>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
     {% if reports %}
       <div class="report-list">
         {% for report in reports %}

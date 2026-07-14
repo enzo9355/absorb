@@ -396,6 +396,11 @@ def _gcs_get_report_object(object_name, max_bytes):
     return _gcs_get_allowed_object(object_name, max_bytes, "reports/v1/")
 
 
+def _gcs_get_report_v2_object(object_name, max_bytes):
+    """只允許讀取 reports/v2 私有物件。"""
+    return _gcs_get_allowed_object(object_name, max_bytes, "reports/v2/")
+
+
 def _published_report_index():
     return load_report_index(
         load_object=_gcs_get_report_object,
@@ -555,6 +560,14 @@ def run_ai_engine(df):
         pd=pd,
         np=np,
         logger=logger,
+    )
+
+
+def _published_report_index_v2():
+    return load_report_index(
+        load_object=_gcs_get_report_v2_object,
+        max_bytes=REPORT_INDEX_MAX_BYTES,
+        version="v2",
     )
 
 
@@ -911,11 +924,15 @@ def route_dependencies():
     return {
         "search_stock": lambda query: search_stock_code(query),
         "load_report_index": lambda: _published_report_index(),
+        "load_report_index_v2": lambda: _published_report_index_v2(),
         "load_report_pdf": lambda item: load_report_pdf(
             item, load_object=_gcs_get_report_object
         ),
         "load_report_metadata": lambda item: load_report_metadata(
             item, load_object=_gcs_get_report_object
+        ),
+        "load_report_metadata_v2": lambda item: load_report_metadata(
+            item, load_object=_gcs_get_report_v2_object, version="v2"
         ),
         "sample_report_path": SAMPLE_REPORT_PATH,
         "sample_report_filename": SAMPLE_REPORT_FILENAME,

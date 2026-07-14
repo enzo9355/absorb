@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }}｜Stock Papi{% endblock %}
+{% block nav_reports %}active{% endblock %}
+{% block content %}
+<article class="page report-detail-page">
+  <header class="report-hero panel">
+    <a class="back-link" href="{{ url_for('reports_page') }}">返回每日報告</a>
+    <p class="eyebrow">VERIFIED REPORT</p>
+    <h1>{{ heading }}</h1>
+  </header>
+  {% for bundle in bundles %}
+    {% set report = bundle.item %}
+    {% set metadata = bundle.metadata %}
+    {% set content = metadata.content %}
+    <section class="panel" aria-labelledby="report-section-{{ loop.index }}">
+      <p class="eyebrow">{{ {'post_close': '盤後分析', 'pre_market': '盤前更新', 'weekly_model': '模型驗證週報'}.get(report.report_type) }}</p>
+      <h2 id="report-section-{{ loop.index }}">{{ metadata.title }}</h2>
+      <p class="muted">資料日 {{ metadata.source_market_date }}｜適用交易日 {{ metadata.applicable_trading_date }}｜發布 {{ metadata.published_at }}</p>
+      <ul>{% for line in metadata.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+      {% if report.report_type == 'pre_market' %}
+        {% set overlay = content.overnight_overlay %}
+        <h3>隔夜風險：{{ overlay.status }}</h3><p>{{ overlay.message }}</p>
+        <p class="muted small">盤前資訊只疊加風險，不改寫盤後模型機率與證據。</p>
+      {% elif report.report_type == 'weekly_model' %}
+        {% set probability_model = content.get('probability_model', {}) %}
+        {% set strategy = content.get('strategy', {}) %}
+        <h3>機率模型</h3>
+        <dl class="report-meta"><div><dt>Ledger 方向準確率</dt><dd>{{ probability_model.get('ledger_direction_accuracy', '資料不足') }}</dd></div><div><dt>策略勝率</dt><dd>{{ strategy.get('win_rate', '資料不足') }}</dd></div><div><dt>Brier Score</dt><dd>{{ probability_model.get('brier_score', '資料不足') }}</dd></div></dl>
+      {% else %}
+        <p>完整盤後核心內容已通過 metadata hash 驗證。</p>
+      {% endif %}
+      {% if metadata.warnings %}<ul>{% for warning in metadata.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+    </section>
+  {% endfor %}
+  <section class="panel risk-panel"><h2>方法限制</h2><p>{{ AI_QUANT_DISCLOSURE }}</p></section>
+</article>
+{% endblock %}

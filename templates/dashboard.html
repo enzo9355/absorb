@@ -4,6 +4,28 @@
 {% block content %}
 <div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
   {% if search_error %}<div class="error-banner" role="alert">找不到「{{ search_query }}」，請輸入台股代碼、名稱或美股代碼。</div>{% endif %}
+  <section class="panel trading-prep-panel" aria-labelledby="trading-prep-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">TRADING PREPARATION</p><h1 id="trading-prep-title">今日交易準備</h1></div>
+    </div>
+    <div class="report-card-grid">
+      {% for report_type, label in [('post_close', '盤後分析'), ('pre_market', '盤前更新')] %}
+        {% set card = daily_cards.get(report_type) %}
+        <article class="report-insight-card">
+          <p class="eyebrow">{{ label }}</p>
+          {% if card %}
+            <h2>{{ card.title }}</h2>
+            <p>{{ card.summary|join('；') }}</p>
+            <p class="muted small">適用交易日 {{ card.applicable_trading_date }}｜資料日 {{ card.source_market_date }}</p>
+            <a class="button button-secondary" href="{{ url_for('trading_day_report_page', trading_date=card.applicable_trading_date) }}">查看報告</a>
+          {% else %}
+            <h2>尚未發布</h2>
+            <p class="muted">完成驗證後會顯示在這裡，不以假資料補位。</p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
   <section class="hero-search market-entry-panel">
     <div class="hero-copy" data-market-hero aria-live="polite">
       <div class="skeleton tall"></div>

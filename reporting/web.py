@@ -123,6 +123,7 @@ def _validate_report_index_v2(document: dict, settings: ReportConfig) -> list[di
         except (KeyError, TypeError, ValueError) as exc:
             raise ReportWebError("報告索引 v2 項目不完整") from exc
         report_type = item.get("report_type")
+        week_id = item.get("week_id")
         logical_key = (report_type, source, applicable)
         pdf_keys = {"pdf_path", "pdf_sha256", "pdf_size", "page_count"}
         present_pdf_keys = pdf_keys & set(item)
@@ -133,6 +134,14 @@ def _validate_report_index_v2(document: dict, settings: ReportConfig) -> list[di
             or source > datetime.date.today()
             or applicable > datetime.date.today() + datetime.timedelta(days=10)
             or logical_key in logical_keys
+            or (
+                report_type == "weekly_model"
+                and (
+                    not isinstance(week_id, str)
+                    or re.fullmatch(r"[0-9]{4}-W[0-9]{2}", week_id) is None
+                )
+            )
+            or (report_type != "weekly_model" and week_id is not None)
             or re.fullmatch(r"metadata/[0-9a-f]{64}\.json", metadata) is None
             or re.fullmatch(r"[0-9a-f]{64}", metadata_sha) is None
             or metadata != f"metadata/{metadata_sha}.json"
@@ -260,6 +269,8 @@ def _validate_report_metadata_v2(document: dict, item: dict) -> dict:
     content = document.get("content")
     if not isinstance(content, dict):
         raise ReportWebError("報告 metadata v2 content 不合法")
+    if item.get("report_type") == "weekly_model" and content.get("week_id") != item.get("week_id"):
+        raise ReportWebError("報告 metadata v2 week_id 與索引不一致")
     encoded = json.dumps(
         content, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False
     ).encode("utf-8")

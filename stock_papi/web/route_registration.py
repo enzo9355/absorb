@@ -9,12 +9,16 @@ from stock_papi.integrations.line.webhook import register_line_routes
 
 
 def register_routes(app, dependencies):
-    register_dashboard_page(app)
+    register_dashboard_page(
+        app, load_report_index_v2=dependencies["load_report_index_v2"]
+    )
     register_system_routes(app, search_stock=dependencies["search_stock"])
     register_report_routes(
         app,
         load_index=dependencies["load_report_index"],
         load_metadata=dependencies["load_report_metadata"],
+        load_index_v2=dependencies["load_report_index_v2"],
+        load_metadata_v2=dependencies["load_report_metadata_v2"],
     )
     register_market_routes(
         app,
