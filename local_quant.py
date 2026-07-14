@@ -1258,7 +1258,13 @@ def get_us_symbols(root, fetch_json=None, now=None, fetch_nasdaq=None):
     return symbols
 
 
-def build_stock_snapshot(pipeline, market, symbol, target_market_date=None):
+def build_stock_snapshot(
+    pipeline,
+    market,
+    symbol,
+    target_market_date=None,
+    promoted_backtest=None,
+):
     if target_market_date is not None and type(target_market_date) is not datetime.date:
         raise TypeError("target_market_date must be a date")
     symbol = validate_market_symbol(market, symbol)
@@ -1268,9 +1274,33 @@ def build_stock_snapshot(pipeline, market, symbol, target_market_date=None):
     frame = pipeline.calc_all(frame)
     if frame is None or frame.empty:
         raise ValueError("calculated history is unavailable")
-    backtest = pipeline.run_ai_engine(frame)
-    if not isinstance(backtest, dict):
-        raise ValueError("backtest is unavailable")
+    compatibility = None
+    if promoted_backtest is None:
+        backtest = pipeline.run_ai_engine(frame)
+        if not isinstance(backtest, dict):
+            raise ValueError("backtest is unavailable")
+        model_version = f"lgbm-{int(getattr(pipeline, 'PREDICTION_HORIZON', 5))}d-v1"
+    else:
+        if not isinstance(promoted_backtest, dict):
+            raise TypeError("promoted_backtest must be a dictionary")
+        infer = getattr(pipeline, "run_latest_inference", None)
+        if not callable(infer):
+            raise ValueError("latest inference is unavailable")
+        inference = infer(frame)
+        if not isinstance(inference, dict) or not isinstance(
+            inference.get("model_version"), str
+        ):
+            raise ValueError("latest inference is unavailable")
+        from stock_papi.batch.backtest_store import assess_backtest_compatibility
+
+        model_version = inference["model_version"]
+        compatibility = assess_backtest_compatibility(
+            promoted_backtest,
+            expected_model_version=model_version,
+        )
+        if compatibility["reason"] == "backtest_not_promoted":
+            raise ValueError("backtest is not promoted")
+        backtest = promoted_backtest
 
     daily = json.loads(
         frame.reset_index().to_json(
@@ -1285,16 +1315,18 @@ def build_stock_snapshot(pipeline, market, symbol, target_market_date=None):
         raise ValueError("latest market date is unavailable")
     if target_market_date is not None and as_of != target_market_date.isoformat():
         raise ValueError("target market date mismatch")
-    horizon = int(getattr(pipeline, "PREDICTION_HORIZON", 5))
-    return {
+    result = {
         "as_of": as_of,
         "name": pipeline.get_stock_name(symbol),
         "rows": len(daily),
-        "model_version": f"lgbm-{horizon}d-v1",
+        "model_version": model_version,
         "latest": latest,
         "backtest": backtest,
         "daily": daily,
     }
+    if compatibility is not None:
+        result["backtest_compatibility"] = compatibility
+    return result
 
 
 def load_checkpoint(root, market="TW"):

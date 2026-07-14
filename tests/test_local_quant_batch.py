@@ -457,6 +457,58 @@ File Creation Time: 07082026||||||
                 target_market_date=datetime.date(2026, 7, 17),
             )
 
+    def test_taiwan_snapshot_fast_lane_uses_promoted_backtest_without_walk_forward(self):
+        frame = pd.DataFrame(
+            {"Close": [100.0], "AI_P": [None]},
+            index=pd.to_datetime(["2026-07-16"]),
+        )
+        frame.index.name = "Date"
+        calls = []
+
+        def latest_inference(data):
+            calls.append("latest")
+            data.loc[data.index[-1], "AI_P"] = 64.5
+            return {"model_version": "lgbm-5d-v1", "probability": 64.5}
+
+        pipeline = SimpleNamespace(
+            get_data=lambda _symbol, _days: frame.copy(),
+            calc_all=lambda data: data,
+            run_latest_inference=latest_inference,
+            run_ai_engine=lambda _data: self.fail("walk-forward must not run"),
+            get_stock_name=lambda symbol: symbol,
+            PREDICTION_HORIZON=5,
+        )
+        promoted = {
+            "model_version": "lgbm-5d-v1",
+            "accuracy": 55.0,
+            "candidate_sha256": "a" * 64,
+            "promoted_at": "2026-07-16T10:00:00Z",
+            "gates": {
+                gate: True
+                for gate in (
+                    "parity",
+                    "leakage",
+                    "calibration",
+                    "schema",
+                    "security",
+                    "quality",
+                )
+            },
+        }
+
+        payload = build_stock_snapshot(
+            pipeline,
+            "TW",
+            "2330",
+            target_market_date=datetime.date(2026, 7, 16),
+            promoted_backtest=promoted,
+        )
+
+        self.assertEqual(calls, ["latest"])
+        self.assertEqual(payload["latest"]["AI_P"], 64.5)
+        self.assertEqual(payload["backtest"], promoted)
+        self.assertTrue(payload["backtest_compatibility"]["strong_action_allowed"])
+
     def test_us_snapshot_reuses_existing_pipeline(self):
         frame = pd.DataFrame(
             {"Close": [100.0], "AI_P": [63.0]},

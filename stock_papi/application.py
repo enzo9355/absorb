@@ -180,7 +180,10 @@ from stock_papi.quant.backtest import (
     build_time_splits as _build_time_splits,
     score_oos_predictions as _score_oos_predictions,
 )
-from stock_papi.quant.model import run_ai_engine as _run_ai_engine
+from stock_papi.quant.model import (
+    run_ai_engine as _run_ai_engine,
+    run_latest_inference as _run_latest_inference,
+)
 from stock_papi.services.sentiment import (
     NEWS_MAJOR_EVENTS,
     NEWS_NEGATIONS,
@@ -549,6 +552,16 @@ def run_ai_engine(df):
         add_prediction_target=add_prediction_target,
         build_time_splits=build_time_splits,
         score_oos_predictions=score_oos_predictions,
+        pd=pd,
+        np=np,
+        logger=logger,
+    )
+
+
+def run_latest_inference(df):
+    return _run_latest_inference(
+        df,
+        add_prediction_target=add_prediction_target,
         pd=pd,
         np=np,
         logger=logger,
