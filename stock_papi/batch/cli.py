@@ -143,6 +143,21 @@ def run_notification(args):
     return 0 if all(item.get("status") == "sent" for item in receipts) else 1
 
 
+def run_calendar_check(args):
+    from stock_papi.batch.calendar import TradingCalendarSet
+
+    documents = [_load_json(path) for path in args.calendar_artifact]
+    calendars = TradingCalendarSet.from_documents(documents)
+    is_session = calendars.is_session(args.date)
+    print(
+        json.dumps(
+            {"date": args.date.isoformat(), "is_session": is_session},
+            ensure_ascii=False,
+        )
+    )
+    return 0 if is_session else 3
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Stock Papi batch operations")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -168,6 +183,11 @@ def main(argv=None):
     notify.add_argument(
         "--audience", choices=("admin", "broadcast"), action="append", required=True
     )
+    calendar = subparsers.add_parser(
+        "calendar-check", help="以已驗證 TWSE artifact 判斷交易日"
+    )
+    calendar.add_argument("--calendar-artifact", type=Path, action="append", required=True)
+    calendar.add_argument("--date", type=datetime.date.fromisoformat, required=True)
     args = parser.parse_args(argv)
     if args.command == "status":
         print(render_status(Path(args.root)))
@@ -176,6 +196,8 @@ def main(argv=None):
         return run_pre_market(args)
     if args.command == "notify":
         return run_notification(args)
+    if args.command == "calendar-check":
+        return run_calendar_check(args)
     return 2
 
 

@@ -26,6 +26,8 @@ class PipelineSchedulerTests(unittest.TestCase):
                 self.assertIn(wrapper, script)
         self.assertIn("Task wrapper not found", script)
         self.assertIn("New-ScheduledTaskTrigger -Weekly", script)
+        post_close = (scripts / "run_tw_post_close_pipeline.ps1").read_text(encoding="utf-8")
+        self.assertLess(post_close.index("calendar-check"), post_close.index("--post-close"))
 
 
 if __name__ == "__main__": unittest.main()
