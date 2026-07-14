@@ -8,7 +8,12 @@ from . import REPORT_GENERATOR_VERSION, REPORT_SCHEMA_VERSION, git_commit_sha
 from .config import ReportConfig
 from .exceptions import ReportPublishError
 from .public_report import build_public_report
-from .schemas import DailyIndustryReport, LoadedReportSource, ReportGenerationResult
+from .schemas import (
+    DailyIndustryReport,
+    LoadedReportSource,
+    ReportGenerationResult,
+    ReportMetadataV2,
+)
 from .web import validate_report_index
 
 
@@ -53,6 +58,147 @@ def _restore_atomic(path: Path, previous: bytes | None) -> None:
         path.unlink(missing_ok=True)
     else:
         _write_atomic(path, previous)
+
+
+def publish_report_v2(
+    root: Path,
+    metadata: dict,
+    *,
+    pdf_path: Path | None = None,
+    page_count: int | None = None,
+    config: ReportConfig | None = None,
+) -> Path:
+    """發布 v2 post-close、pre-market 或 weekly report；latest 永遠最後寫。"""
+    settings = config or ReportConfig(root=Path(root))
+    try:
+        schema = ReportMetadataV2.from_document(metadata)
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
+    if schema.report_type == "pre_market" and pdf_path is not None:
+        raise ValueError("pre_market report must not include PDF")
+    if pdf_path is None and page_count is not None:
+        raise ValueError("page_count requires PDF")
+
+    pdf_bytes = None
+    pdf_sha = None
+    if pdf_path is not None:
+        if type(page_count) is not int or page_count < 1:
+            raise ValueError("PDF page_count is invalid")
+        try:
+            pdf_bytes = Path(pdf_path).read_bytes()
+        except OSError as exc:
+            raise ReportPublishError("report v2 PDF is unavailable") from exc
+        if not 0 < len(pdf_bytes) <= settings.max_pdf_bytes:
+            raise ReportPublishError("report v2 PDF size is invalid")
+        pdf_sha = hashlib.sha256(pdf_bytes).hexdigest()
+
+    document = schema.to_document()
+    document["content_sha256"] = hashlib.sha256(
+        _json_bytes(document["content"])
+    ).hexdigest()
+    if pdf_bytes is not None:
+        document.update(
+            pdf_path=f"objects/{pdf_sha}.pdf",
+            pdf_sha256=pdf_sha,
+            pdf_size=len(pdf_bytes),
+            page_count=page_count,
+        )
+    metadata_bytes = _json_bytes(document)
+    metadata_sha = hashlib.sha256(metadata_bytes).hexdigest()
+    metadata_relative = f"metadata/{metadata_sha}.json"
+    publish = Path(root) / "publish" / "reports" / "v2"
+    index_path = publish / "index-TW.json"
+    previous_index = index_path.read_bytes() if index_path.exists() else None
+    if previous_index is not None:
+        try:
+            reports = validate_report_index(previous_index, settings)
+        except Exception as exc:
+            raise ReportPublishError("existing v2 report index is invalid") from exc
+    else:
+        reports = []
+
+    entry = {
+        "report_type": document["report_type"],
+        "source_market_date": document["source_market_date"],
+        "applicable_trading_date": document["applicable_trading_date"],
+        "published_at": document["published_at"],
+        "data_as_of": document["data_as_of"],
+        "model_versions": document["model_versions"],
+        "title": document["title"],
+        "summary": document["summary"],
+        "content_sha256": document["content_sha256"],
+        "metadata": metadata_relative,
+        "metadata_sha256": metadata_sha,
+    }
+    if pdf_bytes is not None:
+        entry.update(
+            pdf_path=document["pdf_path"],
+            pdf_sha256=pdf_sha,
+            pdf_size=len(pdf_bytes),
+            page_count=page_count,
+        )
+    logical_key = (
+        entry["report_type"],
+        entry["source_market_date"],
+        entry["applicable_trading_date"],
+    )
+    existing = [
+        item
+        for item in reports
+        if (
+            item["report_type"],
+            item["source_market_date"],
+            item["applicable_trading_date"],
+        )
+        == logical_key
+    ]
+    if existing and existing != [entry]:
+        raise ReportPublishError("conflicting report v2 content")
+
+    if pdf_bytes is not None:
+        object_path = publish / document["pdf_path"]
+        if object_path.exists() and object_path.read_bytes() != pdf_bytes:
+            raise ReportPublishError("immutable report v2 PDF conflict")
+        if not object_path.exists():
+            _write_atomic(object_path, pdf_bytes)
+    metadata_path = publish / metadata_relative
+    if metadata_path.exists() and metadata_path.read_bytes() != metadata_bytes:
+        raise ReportPublishError("immutable report v2 metadata conflict")
+    if not metadata_path.exists():
+        _write_atomic(metadata_path, metadata_bytes)
+
+    if not existing:
+        reports.append(entry)
+    reports.sort(key=lambda item: item["published_at"], reverse=True)
+    index = {
+        "schema_version": 2,
+        "kind": "stock-papi-report-index",
+        "market": "TW",
+        "updated_at": document["published_at"],
+        "reports": reports[: settings.index_history_days * 3],
+    }
+    index_bytes = _json_bytes(index)
+    if len(index_bytes) > settings.max_index_bytes:
+        raise ReportPublishError("report v2 index exceeds size limit")
+    latest = {
+        "schema_version": 2,
+        "kind": "stock-papi-report",
+        "market": "TW",
+        "report_type": document["report_type"],
+        "source_market_date": document["source_market_date"],
+        "applicable_trading_date": document["applicable_trading_date"],
+        "published_at": document["published_at"],
+        "metadata": metadata_relative,
+        "metadata_sha256": metadata_sha,
+    }
+    latest_path = publish / f"latest-TW-{document['report_type']}.json"
+    _write_atomic(index_path, index_bytes)
+    try:
+        _write_atomic(latest_path, _json_bytes(latest))
+    except OSError:
+        _restore_atomic(index_path, previous_index)
+        raise
+    return latest_path
 
 
 def _write_local_mirror(

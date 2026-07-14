@@ -5,6 +5,23 @@ from stock_papi.repositories.report_store import load_report_index, load_report_
 
 
 class ReportRepositoryTests(unittest.TestCase):
+    def test_v2_index_uses_fixed_allowlisted_prefix(self):
+        calls = []
+        self.assertIsNone(
+            load_report_index(
+                load_object=lambda path, size: calls.append((path, size)) or None,
+                max_bytes=1234,
+                version="v2",
+            )
+        )
+        self.assertEqual(calls, [("reports/v2/index-TW.json", 1234)])
+        with self.assertRaises(ValueError):
+            load_report_index(
+                load_object=lambda *_: None,
+                max_bytes=1234,
+                version="../../secret",
+            )
+
     def test_verified_pdf_is_returned_and_bad_hash_fails_closed(self):
         pdf = b"%PDF verified"
         item = {

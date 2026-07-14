@@ -9,7 +9,7 @@ from .config import ReportConfig
 from .exceptions import ReportWebError
 
 
-def validate_report_index(content: bytes, config: ReportConfig | None = None) -> list[dict]:
+def _validate_report_index_v1(content: bytes, config: ReportConfig | None = None) -> list[dict]:
     """驗證雲端報告 index，回傳可信且已排序的摘要。"""
     settings = config or ReportConfig()
     if not isinstance(content, bytes) or not 0 < len(content) <= settings.max_index_bytes:
@@ -85,9 +85,107 @@ def validate_report_index(content: bytes, config: ReportConfig | None = None) ->
         ):
             raise ReportWebError("報告索引項目驗證失敗")
         seen_dates.add(report_date)
-        validated.append(dict(item))
+        mapped = dict(item)
+        mapped.update(
+            report_type="post_close",
+            source_market_date=item["report_date"],
+            applicable_trading_date=item["report_date"],
+        )
+        validated.append(mapped)
     validated.sort(key=lambda item: item["report_date"], reverse=True)
     return validated
+
+
+def _validate_report_index_v2(document: dict, settings: ReportConfig) -> list[dict]:
+    reports = document.get("reports")
+    if (
+        document.get("schema_version") != 2
+        or document.get("kind") != "stock-papi-report-index"
+        or document.get("market") != "TW"
+        or not isinstance(reports, list)
+        or len(reports) > settings.index_history_days * 3
+    ):
+        raise ReportWebError("報告索引 v2 schema 不合法")
+    validated = []
+    logical_keys = set()
+    for item in reports:
+        try:
+            source = datetime.date.fromisoformat(str(item["source_market_date"]))
+            applicable = datetime.date.fromisoformat(str(item["applicable_trading_date"]))
+            published = datetime.datetime.fromisoformat(
+                str(item["published_at"]).replace("Z", "+00:00")
+            )
+            metadata = str(item["metadata"])
+            metadata_sha = str(item["metadata_sha256"])
+            content_sha = str(item["content_sha256"])
+            model_versions = item["model_versions"]
+            summary = item["summary"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ReportWebError("報告索引 v2 項目不完整") from exc
+        report_type = item.get("report_type")
+        logical_key = (report_type, source, applicable)
+        pdf_keys = {"pdf_path", "pdf_sha256", "pdf_size", "page_count"}
+        present_pdf_keys = pdf_keys & set(item)
+        if (
+            report_type not in {"post_close", "pre_market", "weekly_model"}
+            or source > applicable
+            or published.tzinfo is None
+            or source > datetime.date.today()
+            or applicable > datetime.date.today() + datetime.timedelta(days=10)
+            or logical_key in logical_keys
+            or re.fullmatch(r"metadata/[0-9a-f]{64}\.json", metadata) is None
+            or re.fullmatch(r"[0-9a-f]{64}", metadata_sha) is None
+            or metadata != f"metadata/{metadata_sha}.json"
+            or re.fullmatch(r"[0-9a-f]{64}", content_sha) is None
+            or not isinstance(model_versions, dict)
+            or not all(
+                isinstance(key, str) and type(value) is int and value >= 0
+                for key, value in model_versions.items()
+            )
+            or not isinstance(item.get("title"), str)
+            or not 1 <= len(item["title"]) <= 200
+            or not isinstance(summary, list)
+            or len(summary) > 20
+            or not all(isinstance(value, str) and len(value) <= 500 for value in summary)
+            or (report_type == "pre_market" and present_pdf_keys)
+            or (present_pdf_keys and present_pdf_keys != pdf_keys)
+        ):
+            raise ReportWebError("報告索引 v2 項目驗證失敗")
+        if present_pdf_keys:
+            pdf_path = str(item["pdf_path"])
+            pdf_sha = str(item["pdf_sha256"])
+            if (
+                re.fullmatch(r"objects/[0-9a-f]{64}\.pdf", pdf_path) is None
+                or re.fullmatch(r"[0-9a-f]{64}", pdf_sha) is None
+                or pdf_path != f"objects/{pdf_sha}.pdf"
+                or type(item["pdf_size"]) is not int
+                or not 0 < item["pdf_size"] <= settings.max_pdf_bytes
+                or type(item["page_count"]) is not int
+                or item["page_count"] < 1
+            ):
+                raise ReportWebError("報告索引 v2 PDF 驗證失敗")
+        logical_keys.add(logical_key)
+        validated.append(dict(item))
+    validated.sort(key=lambda item: item["published_at"], reverse=True)
+    return validated
+
+
+def validate_report_index(content: bytes, config: ReportConfig | None = None) -> list[dict]:
+    """同時接受嚴格驗證的 v1 與 v2 index。"""
+    settings = config or ReportConfig()
+    if not isinstance(content, bytes) or not 0 < len(content) <= settings.max_index_bytes:
+        raise ReportWebError("報告索引大小不合法")
+    try:
+        document = json.loads(content.decode("utf-8"))
+    except (UnicodeError, ValueError) as exc:
+        raise ReportWebError("報告索引格式不合法") from exc
+    if not isinstance(document, dict):
+        raise ReportWebError("報告索引必須是 JSON object")
+    if document.get("schema_version") == 1:
+        return _validate_report_index_v1(content, settings)
+    if document.get("schema_version") == 2:
+        return _validate_report_index_v2(document, settings)
+    raise ReportWebError("報告索引 schema 不支援")
 
 
 def find_report(reports: list[dict], report_date: str) -> dict | None:
@@ -113,6 +211,8 @@ def validate_report_metadata(content: bytes, item: dict) -> dict:
         raise ReportWebError("報告 metadata 格式不合法") from exc
     if not isinstance(document, dict):
         raise ReportWebError("報告 metadata 必須是 JSON object")
+    if document.get("schema_version") == 2:
+        return _validate_report_metadata_v2(document, item)
     expected = {
         "schema_version": 1,
         "kind": "daily-industry-report",
@@ -137,6 +237,44 @@ def validate_report_metadata(content: bytes, item: dict) -> dict:
     public_report = document.get("public_report")
     if public_report is not None:
         _validate_public_report(public_report)
+    return document
+
+
+def _validate_report_metadata_v2(document: dict, item: dict) -> dict:
+    expected = {
+        "schema_version": 2,
+        "kind": "stock-papi-report",
+        "market": "TW",
+        "report_type": item["report_type"],
+        "source_market_date": item["source_market_date"],
+        "applicable_trading_date": item["applicable_trading_date"],
+        "published_at": item["published_at"],
+        "data_as_of": item["data_as_of"],
+        "model_versions": item["model_versions"],
+        "title": item["title"],
+        "summary": item["summary"],
+        "content_sha256": item["content_sha256"],
+    }
+    if any(document.get(key) != value for key, value in expected.items()):
+        raise ReportWebError("報告 metadata v2 與索引不一致")
+    content = document.get("content")
+    if not isinstance(content, dict):
+        raise ReportWebError("報告 metadata v2 content 不合法")
+    encoded = json.dumps(
+        content, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False
+    ).encode("utf-8")
+    if not hmac.compare_digest(hashlib.sha256(encoded).hexdigest(), item["content_sha256"]):
+        raise ReportWebError("報告 metadata v2 content 雜湊不符")
+    if not isinstance(document.get("warnings"), list) or not all(
+        isinstance(value, str) and len(value) <= 500 for value in document["warnings"]
+    ):
+        raise ReportWebError("報告 metadata v2 警示不合法")
+    pdf_keys = ("pdf_path", "pdf_sha256", "pdf_size", "page_count")
+    if any(key in item for key in pdf_keys):
+        if any(document.get(key) != item.get(key) for key in pdf_keys):
+            raise ReportWebError("報告 metadata v2 PDF 與索引不一致")
+    elif any(key in document for key in pdf_keys):
+        raise ReportWebError("報告 metadata v2 不得包含未索引 PDF")
     return document
 
 
