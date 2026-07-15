@@ -34,13 +34,13 @@ class PipelineSchedulerTests(unittest.TestCase):
 
     def test_full_backtest_logs_nonfatal_python_warnings_but_keeps_exit_code(self):
         source = (Path(__file__).parents[1] / "scripts" / "run_full_backtest.ps1").read_text(encoding="utf-8")
-        self.assertIn("$ErrorActionPreference = 'Continue'", source)
+        self.assertIn("2> $StderrPath", source)
+        self.assertIn("Get-Content -LiteralPath $StderrPath", source)
         self.assertIn("$ExitCode = $LASTEXITCODE", source)
-        self.assertIn("$ErrorActionPreference = 'Stop'", source)
 
     def test_task_wrapper_records_success_or_failure_without_secrets(self):
         source = (Path(__file__).parents[1] / "scripts" / "invoke_pipeline_task.ps1").read_text(encoding="utf-8")
-        for required in ("logs\\tasks", "current-", "Get-Command powershell.exe", "Start-Process", "RedirectStandardOutput", "RedirectStandardError", "$ChildProcess.WaitForExit()", "$ChildProcess.ExitCode", "success = $false"):
+        for required in ("logs\\tasks", "current-", "Get-Command powershell.exe", "Tee-Object", "$LASTEXITCODE", "success = $false"):
             with self.subTest(required=required):
                 self.assertIn(required, source)
         for forbidden in ("LINE_CHANNEL_ACCESS_TOKEN", "GOOGLE_APPLICATION_CREDENTIALS", "Bearer"):
