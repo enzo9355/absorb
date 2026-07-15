@@ -37,6 +37,13 @@ try {
     if ($ExitCode -ne 0) { throw "Pipeline exited with code $ExitCode" }
     @{ job = $Job; started_at = $StartedAt.ToString('o'); finished_at = [DateTimeOffset]::Now.ToString('o'); success = $true; exit_code = 0; log = $LogPath } |
         ConvertTo-Json -Compress | Set-Content -LiteralPath $StatusPath -Encoding utf8
+    if ($Job -eq 'FullBacktest') {
+        $CheckpointPath = Join-Path $DataRoot 'checkpoints\jobs\full_backtest\current.json'
+        $Checkpoint = if (Test-Path -LiteralPath $CheckpointPath) { Get-Content -LiteralPath $CheckpointPath -Raw -Encoding utf8 | ConvertFrom-Json } else { $null }
+        if ($Checkpoint.status -eq 'completed') {
+            try { Disable-ScheduledTask -TaskName 'ABSORB-FullBacktest' -ErrorAction Stop | Out-Null } catch { Write-Warning 'Unable to disable completed full-backtest task' }
+        }
+    }
 } catch {
     @{ job = $Job; started_at = $StartedAt.ToString('o'); finished_at = [DateTimeOffset]::Now.ToString('o'); success = $false; exit_code = if ($ExitCode -is [int]) { $ExitCode } else { 1 }; error = $_.Exception.Message; log = $LogPath } |
         ConvertTo-Json -Compress | Set-Content -LiteralPath $StatusPath -Encoding utf8

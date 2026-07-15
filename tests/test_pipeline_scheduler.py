@@ -47,6 +47,8 @@ class PipelineSchedulerTests(unittest.TestCase):
         for required in ("logs\\tasks", "current-", "Get-Command powershell.exe", "Tee-Object", "$LASTEXITCODE", "success = $false"):
             with self.subTest(required=required):
                 self.assertIn(required, source)
+        self.assertIn("Disable-ScheduledTask -TaskName 'ABSORB-FullBacktest'", source)
+        self.assertIn("$Checkpoint.status -eq 'completed'", source)
         for forbidden in ("LINE_CHANNEL_ACCESS_TOKEN", "GOOGLE_APPLICATION_CREDENTIALS", "Bearer"):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
