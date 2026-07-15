@@ -27,7 +27,7 @@ New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
 $StartedAt = [DateTimeOffset]::Now
 $LogPath = Join-Path $LogDirectory ("{0}-{1:yyyyMMdd}.log" -f $Job, $StartedAt)
 $StatusPath = Join-Path $LogDirectory ("current-{0}.json" -f $Job)
-$PowerShellExe = Join-Path $PSHOME 'powershell.exe'
+$PowerShellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
 if (-not (Test-Path -LiteralPath $PowerShellExe -PathType Leaf)) { throw 'PowerShell executable was not found' }
 $Arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath, '-DataRoot', $DataRoot) + $Definition.Arguments
 $ArgumentLine = (($Arguments | ForEach-Object {
