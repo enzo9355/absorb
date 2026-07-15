@@ -9,16 +9,11 @@ $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
 $PythonExe = if (Test-Path $BundledPython) { $BundledPython } elseif ($PythonCommand) { $PythonCommand.Source } else { $null }
 if (-not $PythonExe) { throw 'Python executable was not found' }
 $env:PYTHONPATH = Join-Path $RepoRoot '.deps'
-$TaskLogDirectory = Join-Path $DataRoot 'logs\tasks'
-New-Item -ItemType Directory -Path $TaskLogDirectory -Force | Out-Null
-$StderrPath = Join-Path $TaskLogDirectory ("full-backtest-python-{0}.stderr.tmp" -f $PID)
+$ErrorActionPreference = 'Continue'
 try {
-  & $PythonExe -m stock_papi.batch.full_backtest_cli --root $DataRoot --max-items $MaxItems 2> $StderrPath
+  & $PythonExe -m stock_papi.batch.full_backtest_cli --root $DataRoot --max-items $MaxItems
   $ExitCode = $LASTEXITCODE
 } finally {
-  if (Test-Path -LiteralPath $StderrPath) {
-    Get-Content -LiteralPath $StderrPath -Encoding utf8 | Write-Output
-    Remove-Item -LiteralPath $StderrPath -Force
-  }
+  $ErrorActionPreference = 'Stop'
 }
 exit $ExitCode
