@@ -40,12 +40,14 @@ try {
     # 重新包裝為 terminating ErrorRecord；兩個 stream 仍完整保留至 task log。
     $ChildProcess = Start-Process -FilePath $PowerShellExe -ArgumentList $ArgumentLine -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
     try {
+        $ChildProcess.WaitForExit()
+        if (-not $ChildProcess.HasExited) { throw 'Pipeline child did not exit' }
         foreach ($StreamPath in @($StdoutPath, $StderrPath)) {
             if (Test-Path -LiteralPath $StreamPath) {
                 Get-Content -LiteralPath $StreamPath -Encoding utf8 | Tee-Object -FilePath $LogPath -Append
             }
         }
-        $ExitCode = $ChildProcess.ExitCode
+        $ExitCode = [int]$ChildProcess.ExitCode
     } finally {
         Remove-Item -LiteralPath $StdoutPath, $StderrPath -Force -ErrorAction SilentlyContinue
     }
