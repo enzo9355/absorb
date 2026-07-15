@@ -40,7 +40,7 @@ class PipelineSchedulerTests(unittest.TestCase):
 
     def test_task_wrapper_records_success_or_failure_without_secrets(self):
         source = (Path(__file__).parents[1] / "scripts" / "invoke_pipeline_task.ps1").read_text(encoding="utf-8")
-        for required in ("logs\\tasks", "current-", "Tee-Object", "$LASTEXITCODE", "ErrorActionPreference = 'Continue'", "ErrorActionPreference = 'Stop'", "success = $false"):
+        for required in ("logs\\tasks", "current-", "Start-Process", "RedirectStandardOutput", "RedirectStandardError", "$ChildProcess.ExitCode", "success = $false"):
             with self.subTest(required=required):
                 self.assertIn(required, source)
         for forbidden in ("LINE_CHANNEL_ACCESS_TOKEN", "GOOGLE_APPLICATION_CREDENTIALS", "Bearer"):

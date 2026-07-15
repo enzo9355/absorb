@@ -29,16 +29,25 @@ $LogPath = Join-Path $LogDirectory ("{0}-{1:yyyyMMdd}.log" -f $Job, $StartedAt)
 $StatusPath = Join-Path $LogDirectory ("current-{0}.json" -f $Job)
 $PowerShellExe = (Get-Process -Id $PID).Path
 $Arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath, '-DataRoot', $DataRoot) + $Definition.Arguments
+$ArgumentLine = (($Arguments | ForEach-Object {
+    if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
+}) -join ' ')
+$StdoutPath = "$LogPath.stdout.tmp"
+$StderrPath = "$LogPath.stderr.tmp"
 
 try {
-    # 上游資料來源可能在 stderr 寫入非致命警告；保留到 transcript，
-    # 但只依 child PowerShell 的實際 exit code 判定 pipeline 是否失敗。
-    $ErrorActionPreference = 'Continue'
+    # 將 child stderr 獨立重導向，避免 PowerShell 將非致命上游 warning
+    # 重新包裝為 terminating ErrorRecord；兩個 stream 仍完整保留至 task log。
+    $ChildProcess = Start-Process -FilePath $PowerShellExe -ArgumentList $ArgumentLine -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
     try {
-        & $PowerShellExe @Arguments 2>&1 | Tee-Object -FilePath $LogPath -Append
-        $ExitCode = $LASTEXITCODE
+        foreach ($StreamPath in @($StdoutPath, $StderrPath)) {
+            if (Test-Path -LiteralPath $StreamPath) {
+                Get-Content -LiteralPath $StreamPath -Encoding utf8 | Tee-Object -FilePath $LogPath -Append
+            }
+        }
+        $ExitCode = $ChildProcess.ExitCode
     } finally {
-        $ErrorActionPreference = 'Stop'
+        Remove-Item -LiteralPath $StdoutPath, $StderrPath -Force -ErrorAction SilentlyContinue
     }
     if ($ExitCode -ne 0) { throw "Pipeline exited with code $ExitCode" }
     @{ job = $Job; started_at = $StartedAt.ToString('o'); finished_at = [DateTimeOffset]::Now.ToString('o'); success = $true; exit_code = 0; log = $LogPath } |
