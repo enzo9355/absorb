@@ -1,4 +1,4 @@
-# Stock Papi 技術架構總覽
+# ABSORB 技術架構總覽
 
 ## 系統邊界
 
@@ -20,6 +20,12 @@ flowchart LR
   J --> K["GCS latest 指標"]
   K --> L["Cloud Run 驗證讀取與降級"]
 ```
+
+## 共同自然語言研究層
+
+LINE 與 Web 的一般自然語言都進入 `absorb.conversation`。固定指令先由既有 handler 處理，不會經過模型。對話層只接受 allowlist 工具、server-side 身分與短期上下文；模型不能直接呼叫資料庫、檔案系統、shell 或任意 URL。自選股寫入必須登入、先提出操作摘要，再以短效 nonce 二次確認並做冪等保護。
+
+模型只負責規劃與根據工具結果組織文字。五日機率、行動標籤、資料日期、過期狀態與缺值均由現有量化／報告服務提供；模型不得補值或把行動標籤升級。
 
 ## 回測六層
 
@@ -54,7 +60,7 @@ flowchart LR
 
 - Secret Manager 僅保存憑證值；日誌、報告與 artifact 不得輸出 secret。
 - GCS object 必須先驗證大小、SHA-256、gzip、schema、日期與市場覆蓋率。
-- 本機資料根目錄固定為 `D:\StockPapiData`，排程使用 Limited run level 與私有 ACL。
+- 新資料根目錄固定為 `D:\AbsorbData`；遷移期間只額外接受舊 `D:\StockPapiData`。排程使用 Limited run level 與私有 ACL。
 - Cloud Run 僅讀取已驗證快照；失敗時沿用既有即時計算或中性降級，不改寫 GCS。
 - HTML 日報只讀取與 index 雜湊綁定的 metadata；PDF 保留在 private storage，不存在公開 bytes route。
 - OAuth callback 使用 state、nonce、PKCE 與 LINE 官方 ID token verify endpoint；應用 session cookie 不包含 LINE token 或完整 profile。

@@ -1,4 +1,4 @@
-# Stock Papi 發布 Blocker 與風險紀錄
+# ABSORB 發布 Blocker 與風險紀錄
 
 ## Blocker
 
@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | Secret 外洩 | Secret Manager、日誌脫敏、文件僅列名稱 | 驗證 secret 名稱與 IAM，絕不讀取值 |
 | GCS 公開或過度授權 | private bucket、uniform access、public access prevention | Cloud Run 僅 Object Viewer；發布主體最小寫入權限 |
-| 本機資料遺失或 ACL 變更 | 固定 D 槽、受保護 ACL、低權限排程 | D 槽空間至少 100 GB，兩個排程未停用 |
+| 本機資料遺失或 ACL 變更 | `D:\AbsorbData` allowlist、受保護 ACL、低權限排程 | D 槽空間至少 100 GB，必要 ABSORB 排程未停用 |
 | Cloud Run 冷啟動 | webhook 延遲 | 保持重運算於本機 | 部署後驗證 `/health` 與代表性 TW/US 查詢 |
 
 ## Cutover 停止條件

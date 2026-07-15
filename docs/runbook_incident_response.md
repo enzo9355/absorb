@@ -1,4 +1,4 @@
-# Stock Papi 故障應對手冊
+# ABSORB 故障應對手冊
 
 ## 範圍與原則
 
@@ -58,10 +58,10 @@
 
 ## 本機磁碟空間不足
 
-1. 讀取 `D:\StockPapiData\logs\runner-status.json` 與 `upload-status.json`。
+1. 讀取 `D:\AbsorbData\logs\runner-status.json` 與 `upload-status.json`；尚未 cutover 時才讀舊 root。
 2. 若可用容量低於 100 GB，停止新的批次與上傳。
 3. 僅使用既有 allowlist 清理機制處理 cache、raw、暫存與過期發布資料。
-4. 禁止刪除 checkpoint、已發布 artifact、secrets 或 `D:\StockPapiData` 以外路徑。
+4. 禁止刪除 checkpoint、已發布 artifact、secrets，或 allowlist 以外路徑。
 5. 恢復到門檻以上後，以單一排程實例續跑。
 
 ## 事件結案

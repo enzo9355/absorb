@@ -1,10 +1,10 @@
 [CmdletBinding()]
 param(
-    [string]$DataRoot = 'D:\StockPapiData'
+    [string]$DataRoot = 'D:\AbsorbData'
 )
 
 $ErrorActionPreference = 'Stop'
-if ($DataRoot -ne 'D:\StockPapiData') { throw 'Data root must be D:\StockPapiData' }
+if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) { throw 'Data root is not allowlisted' }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Runner = Join-Path $RepoRoot 'local_quant.py'

@@ -1,4 +1,6 @@
-# Papi (papillon) Secret Manager 安全設定指南
+# ABSORB Secret Manager 安全設定指南
+
+現有 `stock-papi-*` 名稱是 GCP Secret Manager 的 resource ID，不是顯示品牌。這一階段保留 ID，以避免部署引用中斷；未完成 Secret 複製、IAM、revision 與 rollback 驗證前不得直接改名。
 
 在 Google Cloud Secret Manager 中設定或更新金鑰時，如果使用了 `echo "value"` 指令，或者從部分文字編輯器（如 Windows Notepad）直接複製貼上，會自動在金鑰結尾附加 **換行符號（`\n` 或 `\r\n`）**。
 

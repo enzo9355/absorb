@@ -17,7 +17,7 @@ LINE Official Account Manager 建立 Rich Menu 時，依上表設定六個 actio
 
 ## Flex Message 結構
 
-所有卡片共用 `build_line_summary_card()`，維持一致的深色表面、綠色主動作，且每張卡只保留一個明確 CTA。
+所有卡片共用 `build_line_summary_card()`，維持 ABSORB 深海軍藍、白色與中性灰層級，且每張卡只保留一個明確 CTA。
 
 | 卡片 | 摘要內容 | CTA |
 | --- | --- | --- |

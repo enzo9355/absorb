@@ -102,7 +102,7 @@ Register-ScheduledTask `
     -Trigger $Trigger `
     -Settings $Settings `
     -Principal $Principal `
-    -Description 'Stock Papi local quant runner; data stays on D drive' `
+    -Description 'ABSORB legacy-name local quant runner; data stays on D drive' `
     -Force | Out-Null
 
 $UploadArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
@@ -125,7 +125,7 @@ Register-ScheduledTask `
     -Trigger $UploadTrigger `
     -Settings $UploadSettings `
     -Principal $Principal `
-    -Description 'Stock Papi private quant snapshot uploader' `
+    -Description 'ABSORB legacy-name private quant snapshot uploader' `
     -Force | Out-Null
 
 Write-Output "Installed $TaskName at $TriggerTime and $UploadTaskName at $UploadTriggerTime"

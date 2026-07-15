@@ -1,12 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$DataRoot = 'D:\StockPapiData',
+    [string]$DataRoot = 'D:\AbsorbData',
     [string]$Bucket = 'line-stock-bot-498908-quant-snapshots',
     [switch]$RequireReportV2
 )
 
 $ErrorActionPreference = 'Stop'
-if ($DataRoot -ne 'D:\StockPapiData') { throw 'Data root is not allowlisted' }
+if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) { throw 'Data root is not allowlisted' }
 if ($Bucket -ne 'line-stock-bot-498908-quant-snapshots') { throw 'Bucket is not allowlisted' }
 
 $PublishRoot = Join-Path $DataRoot 'publish\quant\v1'
@@ -146,7 +146,7 @@ function Publish-ReportsV2 {
     $IndexFile = Get-Item -LiteralPath $IndexPath
     if ($IndexFile.Length -le 0 -or $IndexFile.Length -gt 1MB) { throw 'Invalid report v2 index size' }
     $Index = Get-Content -LiteralPath $IndexPath -Raw -Encoding utf8 | ConvertFrom-Json
-    if ($Index.schema_version -ne 2 -or $Index.kind -ne 'stock-papi-report-index' -or $Index.market -ne 'TW') {
+    if ($Index.schema_version -ne 2 -or $Index.kind -notin @('absorb-report-index', 'stock-papi-report-index') -or $Index.market -ne 'TW') {
         throw 'Invalid report v2 index'
     }
     $Reports = @($Index.reports)
@@ -165,7 +165,7 @@ function Publish-ReportsV2 {
         if ($MetadataHash -ne [string]$Entry.metadata_sha256) { throw 'Report v2 metadata hash mismatch' }
         $Metadata = Get-Content -LiteralPath $MetadataPath -Raw -Encoding utf8 | ConvertFrom-Json
         if (
-            $Metadata.schema_version -ne 2 -or $Metadata.kind -ne 'stock-papi-report' -or
+            $Metadata.schema_version -ne 2 -or $Metadata.kind -notin @('absorb-report', 'stock-papi-report') -or
             $Metadata.market -ne 'TW' -or [string]$Metadata.report_type -ne $Type -or
             [string]$Metadata.source_market_date -ne [string]$Entry.source_market_date -or
             [string]$Metadata.applicable_trading_date -ne [string]$Entry.applicable_trading_date
@@ -215,7 +215,7 @@ function Publish-ReportsV2 {
         if (-not (Test-Path -LiteralPath $LatestCandidate -PathType Leaf)) { continue }
         $LatestPath = Assert-V2Path $LatestCandidate
         $Latest = Get-Content -LiteralPath $LatestPath -Raw -Encoding utf8 | ConvertFrom-Json
-        if ($Latest.schema_version -ne 2 -or $Latest.kind -ne 'stock-papi-report' -or $Latest.market -ne 'TW' -or [string]$Latest.report_type -ne $Type) {
+        if ($Latest.schema_version -ne 2 -or $Latest.kind -notin @('absorb-report', 'stock-papi-report') -or $Latest.market -ne 'TW' -or [string]$Latest.report_type -ne $Type) {
             throw 'Invalid report v2 latest pointer'
         }
         $Match = @($Reports | Where-Object {

@@ -1,7 +1,7 @@
 [CmdletBinding()]
-param([string]$DataRoot = 'D:\StockPapiData', [int]$MaxItems = 25)
+param([string]$DataRoot = 'D:\AbsorbData', [int]$MaxItems = 25)
 $ErrorActionPreference = 'Stop'
-if ($DataRoot -ne 'D:\StockPapiData') { throw 'Data root is not allowlisted' }
+if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) { throw 'Data root is not allowlisted' }
 if ($MaxItems -lt 1 -or $MaxItems -gt 500) { throw 'MaxItems is outside the safe range' }
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $BundledPython = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'

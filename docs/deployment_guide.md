@@ -1,4 +1,4 @@
-# Stock Papi 安全部署手冊
+# ABSORB 安全部署手冊
 
 ## 前置條件
 
@@ -8,7 +8,7 @@
 
 ## Secret Manager
 
-部署只引用 secret 名稱，不讀取或印出 secret 值。現有文件列出的名稱為：
+部署只引用 secret 名稱，不讀取或印出 secret 值。以下 `stock-papi-*` 是既有 GCP resource ID，為避免一次改名造成中斷，遷移期保持不變；顯示品牌與程式 package 已改為 ABSORB：
 
 - `stock-papi-line-channel-access-token`
 - `stock-papi-line-channel-secret`
@@ -85,23 +85,41 @@ gcloud run deploy line-stock-bot `
 
 ## Windows 本機批次
 
-資料根目錄固定為 `D:\StockPapiData`。安裝命令：
+新資料根目錄固定為 `D:\AbsorbData`。先做可驗證且不刪除來源的資料遷移：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_local_quant_task.ps1
+.\scripts\migrate_stock_papi_data_to_absorb.ps1 -Copy -WhatIf
+.\scripts\migrate_stock_papi_data_to_absorb.ps1 -Copy
+.\scripts\migrate_stock_papi_data_to_absorb.ps1 -VerifyOnly
 ```
 
-- `StockPapi-LocalQuant`：02:30 啟動、7 小時限制、`IgnoreNew`、Limited run level。
-- `StockPapi-QuantUpload`：09:35 啟動、1 小時限制、`IgnoreNew`、Limited run level。
+再建立停用狀態的 ABSORB shadow tasks；確認 command、root、run level、retry 與 `IgnoreNew` 後才 cutover：
+
+```powershell
+.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode Inventory
+.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode InstallShadow -WhatIf
+.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode InstallShadow
+.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode Cutover -ConfirmCutover
+```
+
+- `ABSORB-LocalQuant`：02:30 啟動、7 小時限制、`IgnoreNew`、Limited run level。
+- `ABSORB-QuantUpload`：09:35 啟動、1 小時限制、`IgnoreNew`、Limited run level。
 - Python runner 在 09:20 停止接收新標的，09:30 結束運算。
 
 驗證命令：
 
 ```powershell
-Get-ScheduledTaskInfo 'StockPapi-LocalQuant'
-Get-ScheduledTaskInfo 'StockPapi-QuantUpload'
-Get-Content 'D:\StockPapiData\logs\runner-status.json'
-Get-Content 'D:\StockPapiData\logs\upload-status.json'
+Get-ScheduledTaskInfo 'ABSORB-LocalQuant'
+Get-ScheduledTaskInfo 'ABSORB-QuantUpload'
+Get-Content 'D:\AbsorbData\logs\runner-status.json'
+Get-Content 'D:\AbsorbData\logs\upload-status.json'
+```
+
+回滾排程只切回舊 task，不刪除 ABSORB task；資料來源目錄也不會由腳本刪除：
+
+```powershell
+.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode Rollback
+.\scripts\migrate_stock_papi_data_to_absorb.ps1 -Rollback
 ```
 
 ## GCS 與發布

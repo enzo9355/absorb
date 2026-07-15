@@ -4,7 +4,7 @@ param(
     [string]$Bucket = 'line-stock-bot-498908-quant-snapshots',
     [string]$Service = 'line-stock-bot',
     [string]$Region = 'asia-east1',
-    [string]$DataRoot = 'D:\StockPapiData',
+    [string]$DataRoot = 'D:\AbsorbData',
     [string]$ReleaseEvidencePath = 'release-evidence.json',
     [double]$MinimumCoverage = 0.95,
     [double]$MinimumFreeGB = 100
@@ -209,21 +209,26 @@ function Test-MarketPointer {
 }
 
 function Test-LocalOperations {
-    if ($DataRoot -ne 'D:\StockPapiData') { throw 'Data root is not allowlisted' }
+    if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) { throw 'Data root is not allowlisted' }
     $Drive = [IO.DriveInfo]::new('D')
     if (-not $Drive.IsReady -or $Drive.AvailableFreeSpace -lt $MinimumFreeGB * 1GB) {
         throw 'D drive free space is below threshold'
     }
     $Acl = Get-Acl -LiteralPath $DataRoot
     if (-not $Acl.AreAccessRulesProtected) { throw 'Data root ACL is not protected' }
-    foreach ($TaskName in @('StockPapi-LocalQuant', 'StockPapi-QuantUpload')) {
+    $TaskNames = if ($DataRoot -eq 'D:\AbsorbData') {
+        @('ABSORB-LocalQuant', 'ABSORB-QuantUpload')
+    } else {
+        @('StockPapi-LocalQuant', 'StockPapi-QuantUpload')
+    }
+    foreach ($TaskName in $TaskNames) {
         $Task = Get-ScheduledTask -TaskName $TaskName
         if ($Task.State -eq 'Disabled') { throw "Scheduled task is disabled: $TaskName" }
     }
     return 'D drive, private ACL and scheduled tasks are ready'
 }
 
-$TemporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("stock-papi-cutover-" + [Guid]::NewGuid().ToString('N'))
+$TemporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("absorb-cutover-" + [Guid]::NewGuid().ToString('N'))
 try {
     Invoke-Checked 'release_evidence' { Test-ReleaseEvidence }
     Invoke-Checked 'gcloud_available' {

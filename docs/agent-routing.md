@@ -1,4 +1,4 @@
-# Stock-Papi 多模型 Agent 路由
+# ABSORB 多模型 Agent 路由
 
 ## 已驗證的 Codex 能力
 

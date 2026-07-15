@@ -1,7 +1,7 @@
 [CmdletBinding()]
-param([string]$DataRoot = 'D:\StockPapiData')
+param([string]$DataRoot = 'D:\AbsorbData')
 $ErrorActionPreference = 'Stop'
-if ($DataRoot -ne 'D:\StockPapiData') { throw 'Data root is not allowlisted' }
+if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) { throw 'Data root is not allowlisted' }
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $BundledPython = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
 $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
