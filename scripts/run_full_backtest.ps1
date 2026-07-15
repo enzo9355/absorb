@@ -9,11 +9,9 @@ $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
 $PythonExe = if (Test-Path $BundledPython) { $BundledPython } elseif ($PythonCommand) { $PythonCommand.Source } else { $null }
 if (-not $PythonExe) { throw 'Python executable was not found' }
 $env:PYTHONPATH = Join-Path $RepoRoot '.deps'
-$ErrorActionPreference = 'Continue'
-try {
-  & $PythonExe -m stock_papi.batch.full_backtest_cli --root $DataRoot --max-items $MaxItems
-  $ExitCode = $LASTEXITCODE
-} finally {
-  $ErrorActionPreference = 'Stop'
-}
+$CommandExe = $env:ComSpec
+if (-not $CommandExe -or -not (Test-Path -LiteralPath $CommandExe -PathType Leaf)) { throw 'Command processor was not found' }
+$PythonCommand = '""{0}" -m stock_papi.batch.full_backtest_cli --root "{1}" --max-items {2} 2>&1"' -f $PythonExe, $DataRoot, $MaxItems
+& $CommandExe /d /c $PythonCommand
+$ExitCode = $LASTEXITCODE
 exit $ExitCode

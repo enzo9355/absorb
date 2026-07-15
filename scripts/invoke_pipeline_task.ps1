@@ -30,17 +30,9 @@ $StatusPath = Join-Path $LogDirectory ("current-{0}.json" -f $Job)
 $PowerShellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
 if (-not (Test-Path -LiteralPath $PowerShellExe -PathType Leaf)) { throw 'PowerShell executable was not found' }
 $Arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath, '-DataRoot', $DataRoot) + $Definition.Arguments
-$ArgumentLine = (($Arguments | ForEach-Object {
-    if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
-}) -join ' ')
-$CommandExe = $env:ComSpec
-if (-not $CommandExe -or -not (Test-Path -LiteralPath $CommandExe -PathType Leaf)) { throw 'Command processor was not found' }
-$ChildCommand = '""{0}" {1} 2>&1"' -f $PowerShellExe, $ArgumentLine
 
 try {
-    # cmd 將 child stderr 合併為一般 stdout，避免 PowerShell 將資料來源
-    # warning 重新包裝為 ErrorRecord；child exit code 仍原樣傳回。
-    & $CommandExe /d /c $ChildCommand | Tee-Object -FilePath $LogPath -Append
+    & $PowerShellExe @Arguments 2>&1 | Tee-Object -FilePath $LogPath -Append
     $ExitCode = $LASTEXITCODE
     if ($ExitCode -ne 0) { throw "Pipeline exited with code $ExitCode" }
     @{ job = $Job; started_at = $StartedAt.ToString('o'); finished_at = [DateTimeOffset]::Now.ToString('o'); success = $true; exit_code = 0; log = $LogPath } |
