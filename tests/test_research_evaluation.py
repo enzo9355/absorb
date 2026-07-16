@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import unittest
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -94,6 +95,28 @@ class ResearchEvaluationTests(unittest.TestCase):
         self.assertIn("bootstrap_ci", stability)
         self.assertEqual(stability["industry"]["status"], "NOT_RUN")
         self.assertEqual(stability["market_regime"]["status"], "NOT_RUN")
+
+    def test_constant_ranking_scores_return_no_ic_without_runtime_warnings(self):
+        source = pd.DataFrame(
+            [
+                {
+                    "symbol": f"{symbol_index:04d}",
+                    "source_market_date": "2026-01-02",
+                    "score": 0.5,
+                    "future_return_5": symbol_index / 100,
+                }
+                for symbol_index in range(20)
+            ]
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ranking = ranking_metrics(source, score_column="score")
+
+        self.assertEqual(caught, [])
+        self.assertIsNone(ranking["spearman_ic"])
+        self.assertIsNone(ranking["spearman_ic_std"])
+        self.assertIsNone(ranking["top_decile_spread"])
 
 
 if __name__ == "__main__":

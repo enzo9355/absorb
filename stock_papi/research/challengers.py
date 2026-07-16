@@ -184,6 +184,21 @@ def _indices_for_dates(frame, dates):
     return np.flatnonzero(frame["source_market_date"].isin(dates).to_numpy())
 
 
+def _predict_positive_probability(model, values):
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=(
+                r"^X does not have valid feature names, but LGBMClassifier "
+                r"was fitted with feature names$"
+            ),
+            category=UserWarning,
+        )
+        return model.predict_proba(values)[:, 1]
+
+
 def _run_classifier(frame, plan, *, name, features, model_factory):
     import numpy as np
 
@@ -200,9 +215,10 @@ def _run_classifier(frame, plan, *, name, features, model_factory):
             frame.iloc[train_indices][list(features)].to_numpy(dtype=float),
             frame.iloc[train_indices]["direction_5"].to_numpy(dtype=int),
         )
-        probability = model.predict_proba(
+        probability = _predict_positive_probability(
+            model,
             frame.iloc[selected_indices][list(features)].to_numpy(dtype=float)
-        )[:, 1]
+        )
         validation_indices.append(selected_indices)
         validation_probability.append(probability)
         fit_rows.append(int(len(train_indices)))
@@ -218,9 +234,10 @@ def _run_classifier(frame, plan, *, name, features, model_factory):
         frame.iloc[development_indices][list(features)].to_numpy(dtype=float),
         frame.iloc[development_indices]["direction_5"].to_numpy(dtype=int),
     )
-    holdout_probability = final_model.predict_proba(
+    holdout_probability = _predict_positive_probability(
+        final_model,
         frame.iloc[holdout_indices][list(features)].to_numpy(dtype=float)
-    )[:, 1]
+    )
     return {
         "name": name,
         "status": "RUN",

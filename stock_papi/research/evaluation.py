@@ -246,9 +246,15 @@ def ranking_metrics(frame, *, score_column="score"):
     for date, selected in ranked.groupby("source_market_date", sort=True):
         if len(selected) < 10:
             continue
-        correlation = selected["score_rank"].corr(selected["return_rank"])
-        if correlation is not None and math.isfinite(float(correlation)):
-            daily_ic.append(float(correlation))
+        if (
+            selected["score_rank"].nunique(dropna=True) > 1
+            and selected["return_rank"].nunique(dropna=True) > 1
+        ):
+            correlation = selected["score_rank"].corr(
+                selected["return_rank"]
+            )
+            if correlation is not None and math.isfinite(float(correlation)):
+                daily_ic.append(float(correlation))
         top = selected[selected["score_rank"] > 0.90]
         bottom = selected[selected["score_rank"] <= 0.10]
         if len(top) and len(bottom):

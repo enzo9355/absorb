@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import unittest
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -71,6 +72,16 @@ class FakeRanker:
         return values[:, 1]
 
 
+class FeatureNameWarningClassifier(FakeClassifier):
+    def predict_proba(self, values):
+        warnings.warn(
+            "X does not have valid feature names, but LGBMClassifier was fitted "
+            "with feature names",
+            UserWarning,
+        )
+        return super().predict_proba(values)
+
+
 class ResearchChallengerTests(unittest.TestCase):
     def test_baselines_refit_from_explicit_dataset_features_only(self):
         source = frame()
@@ -113,6 +124,21 @@ class ResearchChallengerTests(unittest.TestCase):
         for values, target in FakeClassifier.fits:
             self.assertEqual(values.shape[1], len(DIRECTION_FEATURES))
             self.assertEqual(len(values), len(target))
+
+    def test_direction_lightgbm_suppresses_only_known_feature_name_warning(self):
+        source = frame()
+        plan = build_split_plan(source["source_market_date"].unique())
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = run_direction_lightgbm(
+                source,
+                plan,
+                model_factory=FeatureNameWarningClassifier,
+            )
+
+        self.assertEqual(result["status"], "RUN")
+        self.assertEqual(caught, [])
 
     def test_ranking_challenger_is_not_run_without_pit_universe(self):
         source = frame()
