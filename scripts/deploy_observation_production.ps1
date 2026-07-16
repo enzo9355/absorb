@@ -1,0 +1,511 @@
+[CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+param(
+    [Parameter(Mandatory)][string]$ObservationLkgReceipt,
+    [string]$Project = 'line-stock-bot-498908',
+    [string]$Service = 'line-stock-bot',
+    [string]$Region = 'asia-east1',
+    [string]$DataRoot = 'D:\AbsorbData',
+    [switch]$ApplyTraffic,
+    [bool]$RollbackOnFailure = $true
+)
+
+$ErrorActionPreference = 'Stop'
+if ($Project -ne 'line-stock-bot-498908') { throw 'Project is not allowlisted' }
+if ($Service -ne 'line-stock-bot') { throw 'Service is not allowlisted' }
+if ($Region -ne 'asia-east1') { throw 'Region is not allowlisted' }
+if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) {
+    throw 'Data root is not allowlisted'
+}
+
+. (Join-Path $PSScriptRoot 'observation_release_common.ps1')
+
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$LkgRoot = Join-Path $DataRoot 'release\observation-lkg'
+$ResolvedLkgReceipt = Assert-PathWithinRoot `
+    -Path $ObservationLkgReceipt `
+    -Root $LkgRoot
+$CaptureRoot = Split-Path -Parent $ResolvedLkgReceipt
+$ObservationLkg = Get-Content `
+    -LiteralPath $ResolvedLkgReceipt `
+    -Raw `
+    -Encoding utf8 | ConvertFrom-Json
+if (
+    $ObservationLkg.schema_version -ne 1 -or
+    $ObservationLkg.kind -ne 'absorb-observation-lkg' -or
+    -not ($ObservationLkg.pointers -is [array])
+) {
+    throw 'Observation LKG receipt is invalid'
+}
+$ObservationLkgHash = (
+    Get-FileHash -LiteralPath $ResolvedLkgReceipt -Algorithm SHA256
+).Hash.ToLowerInvariant()
+$DeploymentReceiptPath = Join-Path $CaptureRoot 'deployment-receipt.json'
+if (Test-Path -LiteralPath $DeploymentReceiptPath) {
+    throw 'Observation deployment receipt already exists'
+}
+
+$Gcloud = (Get-Command gcloud -ErrorAction Stop).Source
+$Git = (Get-Command git -ErrorAction Stop).Source
+$ForbiddenPredictionKeys = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase
+)
+foreach ($Key in @(
+    'forecast_probability',
+    'probability',
+    'ranking_score',
+    'model_version',
+    'backtest_version',
+    'recommendation'
+)) {
+    $ForbiddenPredictionKeys.Add($Key) | Out-Null
+}
+
+function Invoke-Gcloud {
+    param([string[]]$Arguments)
+
+    $PreviousPythonPath = $env:PYTHONPATH
+    try {
+        $env:PYTHONPATH = $null
+        $Output = & $Gcloud @Arguments 2>&1
+        $ExitCode = $LASTEXITCODE
+    } finally {
+        $env:PYTHONPATH = $PreviousPythonPath
+    }
+    if ($ExitCode -ne 0) {
+        throw "gcloud command failed with exit code ${ExitCode}: $($Output | Out-String)"
+    }
+    return ($Output | Out-String)
+}
+
+function Get-Service {
+    return Invoke-Gcloud @(
+        'run', 'services', 'describe', $Service,
+        '--project', $Project,
+        '--region', $Region,
+        '--format=json'
+    ) | ConvertFrom-Json
+}
+
+function Get-EnvironmentMap {
+    param([object[]]$Environment)
+
+    $Map = @{}
+    foreach ($Entry in @($Environment)) {
+        if ($Entry.name -and $null -ne $Entry.value) {
+            $Map[[string]$Entry.name] = [string]$Entry.value
+        }
+    }
+    return $Map
+}
+
+function Assert-ObservationEnvironment {
+    param([object]$ServiceInfo)
+
+    $Environment = Get-EnvironmentMap `
+        $ServiceInfo.spec.template.spec.containers[0].env
+    $Expected = [ordered]@{
+        ABSORB_PREDICTION_MODE = 'research'
+        ABSORB_OBSERVATION_ENABLED = 'true'
+        ABSORB_PREDICTION_PROBABILITY_ENABLED = 'false'
+        ABSORB_PREDICTION_RANKING_ENABLED = 'false'
+        ABSORB_PREDICTION_STRONG_ACTIONS_ENABLED = 'false'
+        ABSORB_PREDICTION_PERFORMANCE_ENDORSEMENT_ENABLED = 'false'
+    }
+    foreach ($Property in $Expected.GetEnumerator()) {
+        if (
+            -not $Environment.ContainsKey($Property.Key) -or
+            $Environment[$Property.Key] -ne $Property.Value
+        ) {
+            throw "Observation environment mismatch: $($Property.Key)"
+        }
+    }
+    foreach ($PrefixName in @(
+        'ABSORB_PREVIEW_CANDIDATE_PREFIX',
+        'PREVIEW_CANDIDATE_PREFIX'
+    )) {
+        if ($Environment.ContainsKey($PrefixName)) {
+            throw "Preview prefix remains on Production revision: $PrefixName"
+        }
+    }
+}
+
+function Assert-NoPredictionKeys {
+    param(
+        [object]$Value,
+        [string]$Path = '$'
+    )
+
+    if ($null -eq $Value) { return }
+    if ($Value -is [Collections.IDictionary]) {
+        foreach ($Key in $Value.Keys) {
+            if ($ForbiddenPredictionKeys.Contains([string]$Key)) {
+                throw "Prediction key is forbidden at ${Path}: $Key"
+            }
+            Assert-NoPredictionKeys -Value $Value[$Key] -Path "$Path.$Key"
+        }
+        return
+    }
+    if ($Value -is [Management.Automation.PSCustomObject]) {
+        foreach ($Property in $Value.PSObject.Properties) {
+            if ($ForbiddenPredictionKeys.Contains([string]$Property.Name)) {
+                throw "Prediction key is forbidden at ${Path}: $($Property.Name)"
+            }
+            Assert-NoPredictionKeys `
+                -Value $Property.Value `
+                -Path "$Path.$($Property.Name)"
+        }
+        return
+    }
+    if ($Value -is [Collections.IEnumerable] -and $Value -isnot [string]) {
+        $Index = 0
+        foreach ($Item in $Value) {
+            Assert-NoPredictionKeys -Value $Item -Path "$Path[$Index]"
+            $Index += 1
+        }
+    }
+}
+
+function Get-TextSha256 {
+    param([string]$Text)
+
+    $Bytes = [Text.Encoding]::UTF8.GetBytes($Text)
+    $Hasher = [Security.Cryptography.SHA256]::Create()
+    try {
+        $Digest = $Hasher.ComputeHash($Bytes)
+    } finally {
+        $Hasher.Dispose()
+    }
+    return ([BitConverter]::ToString($Digest) -replace '-', '').ToLowerInvariant()
+}
+
+function Invoke-ObservationSmoke {
+    param([string]$BaseUrl)
+
+    $Results = New-Object System.Collections.Generic.List[object]
+    foreach ($Path in @(
+        '/health',
+        '/',
+        '/api/dashboard',
+        '/reports',
+        '/market-map',
+        '/stock/2330'
+    )) {
+        $Response = Invoke-WebRequest `
+            -Uri ($BaseUrl.TrimEnd('/') + $Path) `
+            -UseBasicParsing `
+            -MaximumRedirection 5 `
+            -TimeoutSec 45
+        if ([int]$Response.StatusCode -ne 200) {
+            throw "Observation smoke failed for ${Path}: $($Response.StatusCode)"
+        }
+        if ($Path -eq '/api/dashboard') {
+            try {
+                $Document = $Response.Content | ConvertFrom-Json
+            } catch {
+                throw 'Observation dashboard API did not return valid JSON'
+            }
+            if (
+                $Document.product_mode -ne 'observation' -or
+                $null -eq $Document.market_observation -or
+                $null -eq $Document.industry_observations -or
+                $null -eq $Document.data_quality
+            ) {
+                throw 'Observation dashboard API schema is invalid'
+            }
+            Assert-NoPredictionKeys $Document
+        }
+        $Results.Add([ordered]@{
+            path = $Path
+            status = [int]$Response.StatusCode
+            body_sha256 = Get-TextSha256 ([string]$Response.Content)
+        }) | Out-Null
+    }
+    return $Results.ToArray()
+}
+
+function Invoke-ObservationCutoverVerification {
+    param([string]$BaseUrl)
+
+    $WindowsPowerShell = (Get-Command powershell.exe -ErrorAction Stop).Source
+    $Output = & $WindowsPowerShell `
+        -NoProfile `
+        -NonInteractive `
+        -ExecutionPolicy Bypass `
+        -File (Join-Path $PSScriptRoot 'verify_cutover.ps1') `
+        -Project $Project `
+        -Bucket ([string]$ObservationLkg.bucket) `
+        -Service $Service `
+        -Region $Region `
+        -DataRoot $DataRoot `
+        -ObservationOnly `
+        -BaseUrl $BaseUrl
+    $ExitCode = $LASTEXITCODE
+    $Text = ($Output | Out-String).Trim()
+    if ($ExitCode -ne 0) {
+        throw "Observation cutover verification was BLOCKED: $Text"
+    }
+    try {
+        $Verification = $Text | ConvertFrom-Json
+    } catch {
+        throw 'Observation cutover verification did not return valid JSON'
+    }
+    if (
+        $Verification.overall -ne 'READY' -or
+        $Verification.mode -ne 'observation'
+    ) {
+        throw 'Observation cutover verification did not return READY'
+    }
+    return $Verification
+}
+
+function Write-DeploymentReceipt {
+    param([object]$Receipt)
+
+    $Temporary = "$DeploymentReceiptPath.tmp"
+    [IO.File]::WriteAllText(
+        $Temporary,
+        ($Receipt | ConvertTo-Json -Depth 12),
+        [Text.UTF8Encoding]::new($false)
+    )
+    Move-Item -LiteralPath $Temporary -Destination $DeploymentReceiptPath -Force
+}
+
+function Restore-PreviousTraffic {
+    param([string]$PreviousTrafficSpec)
+
+    if (-not $PreviousTrafficSpec) {
+        throw 'Previous Cloud Run traffic specification is empty'
+    }
+    Invoke-Gcloud @(
+        'run', 'services', 'update-traffic', $Service,
+        '--project', $Project,
+        '--region', $Region,
+        "--to-revisions=$PreviousTrafficSpec",
+        '--quiet'
+    ) | Out-Null
+}
+
+$Dirty = & $Git -C $RepoRoot status --porcelain
+if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect repository status' }
+if (@($Dirty).Count -gt 0) { throw 'Production deployment requires a clean worktree' }
+$Commit = (& $Git -C $RepoRoot rev-parse HEAD | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $Commit -notmatch '^[0-9a-f]{40}$') {
+    throw 'Unable to determine deployment commit'
+}
+
+$Before = Get-Service
+if (-not $Before.status.latestReadyRevisionName -or -not $Before.status.url) {
+    throw 'Cloud Run service has no ready Production revision'
+}
+$PreviousTraffic = @(
+    $Before.status.traffic |
+        Where-Object { [int]$_.percent -gt 0 } |
+        ForEach-Object {
+            [ordered]@{
+                revision = [string]$_.revisionName
+                percent = [int]$_.percent
+                tag = [string]$_.tag
+            }
+        }
+)
+if (
+    $PreviousTraffic.Count -lt 1 -or
+    ($PreviousTraffic | Measure-Object -Property percent -Sum).Sum -ne 100
+) {
+    throw 'Cloud Run Production traffic is not a complete 100 percent assignment'
+}
+$PreviousTrafficSpec = (
+    $PreviousTraffic |
+        ForEach-Object { "$($_.revision)=$($_.percent)" }
+) -join ','
+$BeforePath = Join-Path $CaptureRoot 'cloud-run-before.json'
+$BeforeJson = $Before | ConvertTo-Json -Depth 20
+$PreviousEnvironment = @($Before.spec.template.spec.containers[0].env)
+
+$Receipt = [ordered]@{
+    schema_version = 1
+    kind = 'absorb-observation-deployment'
+    created_at = [DateTimeOffset]::UtcNow.ToString('o')
+    project = $Project
+    service = $Service
+    region = $Region
+    source_commit = $Commit
+    previous_service = [ordered]@{
+        file = 'cloud-run-before.json'
+        sha256 = $null
+    }
+    previous_revision = [string]$Before.status.latestReadyRevisionName
+    previous_traffic = $PreviousTraffic
+    previous_traffic_spec = $PreviousTrafficSpec
+    previous_environment = $PreviousEnvironment
+    observation_lkg_receipt = $ResolvedLkgReceipt
+    observation_lkg_sha256 = $ObservationLkgHash
+    previous_pointer_state = @($ObservationLkg.pointers)
+    candidate_revision = $null
+    candidate_url = $null
+    candidate_tag = $null
+    smoke = @()
+    traffic_applied = $false
+    status = 'PLANNED'
+}
+
+if (-not $PSCmdlet.ShouldProcess(
+    "$Project/$Region/$Service",
+    'deploy fail-closed Observation Production candidate'
+)) {
+    $Receipt | ConvertTo-Json -Depth 12
+    return
+}
+
+[IO.File]::WriteAllText(
+    $BeforePath,
+    $BeforeJson,
+    [Text.UTF8Encoding]::new($false)
+)
+$Receipt.previous_service.sha256 = (
+    Get-FileHash -LiteralPath $BeforePath -Algorithm SHA256
+).Hash.ToLowerInvariant()
+Write-DeploymentReceipt $Receipt
+
+$MutationStarted = $false
+$TrafficApplied = $false
+try {
+    $Tag = "observation-$($Commit.Substring(0, 12))"
+    $EnvironmentUpdates = @(
+        'ABSORB_PREDICTION_MODE=research',
+        'ABSORB_OBSERVATION_ENABLED=true',
+        'ABSORB_PREDICTION_PROBABILITY_ENABLED=false',
+        'ABSORB_PREDICTION_RANKING_ENABLED=false',
+        'ABSORB_PREDICTION_STRONG_ACTIONS_ENABLED=false',
+        'ABSORB_PREDICTION_PERFORMANCE_ENDORSEMENT_ENABLED=false'
+    ) -join ','
+    $PreviewPrefixes = @(
+        'ABSORB_PREVIEW_CANDIDATE_PREFIX',
+        'PREVIEW_CANDIDATE_PREFIX'
+    ) -join ','
+
+    $MutationStarted = $true
+    Invoke-Gcloud @(
+        'run', 'deploy', $Service,
+        '--source', $RepoRoot,
+        '--project', $Project,
+        '--region', $Region,
+        '--no-traffic',
+        '--tag', $Tag,
+        '--update-env-vars', $EnvironmentUpdates,
+        '--remove-env-vars', $PreviewPrefixes,
+        '--quiet'
+    ) | Out-Null
+
+    $AfterDeploy = Get-Service
+    Assert-ObservationEnvironment $AfterDeploy
+    $CandidateRevision = [string]$AfterDeploy.status.latestCreatedRevisionName
+    if (-not $CandidateRevision) {
+        throw 'Observation candidate revision is unavailable'
+    }
+    $CandidateTraffic = @(
+        $AfterDeploy.status.traffic |
+            Where-Object { $_.revisionName -eq $CandidateRevision }
+    )
+    if (@($CandidateTraffic | Where-Object { [int]$_.percent -gt 0 }).Count -gt 0) {
+        throw 'Observation candidate unexpectedly received Production traffic'
+    }
+    $Tagged = @(
+        $AfterDeploy.status.traffic |
+            Where-Object { $_.tag -eq $Tag }
+    ) | Select-Object -First 1
+    if (-not $Tagged.url) {
+        throw 'Observation candidate tag URL is unavailable'
+    }
+
+    $Receipt.candidate_revision = $CandidateRevision
+    $Receipt.candidate_url = [string]$Tagged.url
+    $Receipt.candidate_tag = $Tag
+    $CandidateSmoke = Invoke-ObservationSmoke -BaseUrl $Receipt.candidate_url
+    $Receipt.smoke = $CandidateSmoke
+    $Receipt.cutover_verification = Invoke-ObservationCutoverVerification `
+        -BaseUrl $Receipt.candidate_url
+    $Receipt.status = 'NO_TRAFFIC_VERIFIED'
+    Write-DeploymentReceipt $Receipt
+
+    if ($ApplyTraffic) {
+        if (-not $PSCmdlet.ShouldProcess(
+            $CandidateRevision,
+            'assign 100 percent Cloud Run Production traffic'
+        )) {
+            $Receipt | ConvertTo-Json -Depth 12
+            return
+        }
+        Invoke-Gcloud @(
+            'run', 'services', 'update-traffic', $Service,
+            '--project', $Project,
+            '--region', $Region,
+            "--to-revisions=$CandidateRevision=100",
+            '--quiet'
+        ) | Out-Null
+        $TrafficApplied = $true
+
+        $AfterTraffic = Get-Service
+        $Active = @(
+            $AfterTraffic.status.traffic |
+                Where-Object {
+                    $_.revisionName -eq $CandidateRevision -and
+                    [int]$_.percent -eq 100
+                }
+        )
+        if ($Active.Count -ne 1) {
+            throw 'Observation candidate did not receive 100 percent traffic'
+        }
+        Assert-ObservationEnvironment $AfterTraffic
+        $ProductionSmoke = Invoke-ObservationSmoke `
+            -BaseUrl ([string]$AfterTraffic.status.url)
+        $Receipt.production_smoke = $ProductionSmoke
+        $Receipt.traffic_applied = $true
+        $Receipt.status = 'PRODUCTION_VERIFIED'
+        $Receipt.completed_at = [DateTimeOffset]::UtcNow.ToString('o')
+        Write-DeploymentReceipt $Receipt
+    }
+
+    [ordered]@{
+        deployment_receipt = $DeploymentReceiptPath
+        candidate_revision = $Receipt.candidate_revision
+        candidate_url = $Receipt.candidate_url
+        traffic_applied = $Receipt.traffic_applied
+        status = $Receipt.status
+    } | ConvertTo-Json -Compress
+} catch {
+    $Failure = $_
+    $RollbackErrors = New-Object System.Collections.Generic.List[string]
+    if ($RollbackOnFailure -and $MutationStarted -and $TrafficApplied) {
+        if ($TrafficApplied) {
+            try {
+                Restore-PreviousTraffic $PreviousTrafficSpec
+            } catch {
+                $RollbackErrors.Add("traffic: $($_.Exception.Message)") | Out-Null
+            }
+        }
+        if (@(
+            $ObservationLkg.pointers |
+                Where-Object { [string]$_.applied_generation }
+        ).Count -gt 0) {
+            try {
+                & (Join-Path $PSScriptRoot 'rollback_observation.ps1') `
+                    -ReceiptPath $ResolvedLkgReceipt `
+                    -DataRoot $DataRoot `
+                    -Bucket ([string]$ObservationLkg.bucket) `
+                    -Confirm:$false | Out-Null
+            } catch {
+                $RollbackErrors.Add("pointers: $($_.Exception.Message)") | Out-Null
+            }
+        }
+    }
+    $Receipt.status = 'FAILED'
+    $Receipt.failure = $Failure.Exception.Message
+    $Receipt.rollback_errors = $RollbackErrors.ToArray()
+    $Receipt.failed_at = [DateTimeOffset]::UtcNow.ToString('o')
+    Write-DeploymentReceipt $Receipt
+    if ($RollbackErrors.Count -gt 0) {
+        throw "$($Failure.Exception.Message); rollback errors: $($RollbackErrors -join '; ')"
+    }
+    throw
+}

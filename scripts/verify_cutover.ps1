@@ -7,7 +7,9 @@ param(
     [string]$DataRoot = 'D:\AbsorbData',
     [string]$ReleaseEvidencePath = 'release-evidence.json',
     [double]$MinimumCoverage = 0.95,
-    [double]$MinimumFreeGB = 100
+    [double]$MinimumFreeGB = 100,
+    [switch]$ObservationOnly,
+    [string]$BaseUrl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -228,33 +230,379 @@ function Test-LocalOperations {
     return 'D drive, private ACL and scheduled tasks are ready'
 }
 
+$ObservationForbiddenKeys = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase
+)
+foreach ($Key in @(
+    'forecast_probability',
+    'probability',
+    'ranking_score',
+    'model_version',
+    'backtest_version',
+    'recommendation'
+)) {
+    $ObservationForbiddenKeys.Add($Key) | Out-Null
+}
+
+function Assert-ObservationNoPredictionKeys {
+    param(
+        [object]$Value,
+        [string]$Path = '$'
+    )
+
+    if ($null -eq $Value) { return }
+    if ($Value -is [Collections.IDictionary]) {
+        foreach ($Key in $Value.Keys) {
+            if ($ObservationForbiddenKeys.Contains([string]$Key)) {
+                throw "Prediction key is forbidden at ${Path}: $Key"
+            }
+            Assert-ObservationNoPredictionKeys `
+                -Value $Value[$Key] `
+                -Path "$Path.$Key"
+        }
+        return
+    }
+    if ($Value -is [Management.Automation.PSCustomObject]) {
+        foreach ($Property in $Value.PSObject.Properties) {
+            if ($ObservationForbiddenKeys.Contains([string]$Property.Name)) {
+                throw "Prediction key is forbidden at ${Path}: $($Property.Name)"
+            }
+            Assert-ObservationNoPredictionKeys `
+                -Value $Property.Value `
+                -Path "$Path.$($Property.Name)"
+        }
+        return
+    }
+    if ($Value -is [Collections.IEnumerable] -and $Value -isnot [string]) {
+        $Index = 0
+        foreach ($Item in $Value) {
+            Assert-ObservationNoPredictionKeys `
+                -Value $Item `
+                -Path "$Path[$Index]"
+            $Index += 1
+        }
+    }
+}
+
+function Get-ObservationEnvironment {
+    param([object]$ServiceInfo)
+
+    $Environment = @{}
+    foreach ($Entry in @($ServiceInfo.spec.template.spec.containers[0].env)) {
+        if ($Entry.name -and $null -ne $Entry.value) {
+            $Environment[[string]$Entry.name] = [string]$Entry.value
+        }
+    }
+    return $Environment
+}
+
+function Test-ObservationCloudRunEnvironment {
+    $ServiceInfo = Get-CloudRunService
+    $Environment = Get-ObservationEnvironment $ServiceInfo
+    $Expected = [ordered]@{
+        ABSORB_PREDICTION_MODE = 'research'
+        ABSORB_OBSERVATION_ENABLED = 'true'
+        ABSORB_PREDICTION_PROBABILITY_ENABLED = 'false'
+        ABSORB_PREDICTION_RANKING_ENABLED = 'false'
+        ABSORB_PREDICTION_STRONG_ACTIONS_ENABLED = 'false'
+        ABSORB_PREDICTION_PERFORMANCE_ENDORSEMENT_ENABLED = 'false'
+    }
+    foreach ($Property in $Expected.GetEnumerator()) {
+        if (
+            -not $Environment.ContainsKey($Property.Key) -or
+            $Environment[$Property.Key] -ne $Property.Value
+        ) {
+            throw "Observation Cloud Run environment mismatch: $($Property.Key)"
+        }
+    }
+    foreach ($Name in @(
+        'ABSORB_PREVIEW_CANDIDATE_PREFIX',
+        'PREVIEW_CANDIDATE_PREFIX'
+    )) {
+        if ($Environment.ContainsKey($Name)) {
+            throw "Preview prefix remains in Observation Production: $Name"
+        }
+    }
+    return 'Observation mode is research, all Prediction flags are false, and preview prefix is absent'
+}
+
+function Get-GcsJsonEvidence {
+    param(
+        [string]$Uri,
+        [string]$TemporaryRoot,
+        [string]$Name
+    )
+
+    $Metadata = Invoke-Gcloud @(
+        'storage', 'objects', 'describe', $Uri, '--format=json'
+    ) | ConvertFrom-Json
+    if ([string]$Metadata.generation -notmatch '^\d+$') {
+        throw "GCS object has no generation: $Uri"
+    }
+    $Path = Join-Path $TemporaryRoot $Name
+    Invoke-Gcloud @('storage', 'cp', '--quiet', $Uri, $Path) | Out-Null
+    $File = Get-Item -LiteralPath $Path
+    if ($File.Length -le 0) { throw "GCS object is empty: $Uri" }
+    $Document = Get-JsonFile $Path
+    return [pscustomobject]@{
+        metadata = $Metadata
+        path = $Path
+        file = $File
+        document = $Document
+    }
+}
+
+function Assert-ObservationCapability {
+    param([object]$Capability)
+
+    if (
+        $Capability.mode -ne 'research' -or
+        $Capability.observation_enabled -ne $true -or
+        $Capability.probability_allowed -ne $false -or
+        $Capability.ranking_allowed -ne $false -or
+        $Capability.strong_action_allowed -ne $false -or
+        $Capability.performance_endorsement_allowed -ne $false
+    ) {
+        throw 'Observation prediction capability is not fail-closed'
+    }
+}
+
+function Test-ObservationDashboardPointer {
+    param([string]$TemporaryRoot)
+
+    $LatestUri = "gs://$Bucket/dashboard/v1/latest-TW.json"
+    $LatestEvidence = Get-GcsJsonEvidence `
+        -Uri $LatestUri `
+        -TemporaryRoot $TemporaryRoot `
+        -Name 'observation-dashboard-latest.json'
+    $Latest = $LatestEvidence.document
+    if (
+        $Latest.schema_version -ne 2 -or
+        $Latest.kind -ne 'absorb-observation-dashboard' -or
+        $Latest.product_mode -ne 'observation' -or
+        $Latest.market -ne 'TW' -or
+        [string]$Latest.path -notmatch '^objects/[0-9a-f]{64}\.json$' -or
+        [string]$Latest.sha256 -notmatch '^[0-9a-f]{64}$' -or
+        [long]$Latest.size -le 0
+    ) {
+        throw 'Observation dashboard latest pointer is invalid'
+    }
+
+    $ObjectEvidence = Get-GcsJsonEvidence `
+        -Uri "gs://$Bucket/dashboard/v1/$($Latest.path)" `
+        -TemporaryRoot $TemporaryRoot `
+        -Name 'observation-dashboard-object.json'
+    $Digest = (
+        Get-FileHash -LiteralPath $ObjectEvidence.path -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    if (
+        $ObjectEvidence.file.Length -ne [long]$Latest.size -or
+        $Digest -ne [string]$Latest.sha256 -or
+        [string]$Latest.path -ne "objects/$Digest.json"
+    ) {
+        throw 'Observation dashboard immutable object hash or size mismatch'
+    }
+    $Dashboard = $ObjectEvidence.document
+    if (
+        $Dashboard.schema_version -ne 2 -or
+        $Dashboard.kind -ne 'absorb-observation-dashboard' -or
+        $Dashboard.product_mode -ne 'observation' -or
+        $Dashboard.market -ne 'TW' -or
+        [string]$Dashboard.observation_as_of -ne [string]$Latest.observation_as_of
+    ) {
+        throw 'Observation dashboard immutable object schema mismatch'
+    }
+    Assert-ObservationCapability $Dashboard.prediction_capability
+    Assert-ObservationNoPredictionKeys $Dashboard
+
+    $SourceManifest = [string]$Dashboard.source_manifest
+    if (
+        $SourceManifest -notmatch
+        '^quant/v1/manifests/TW-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}\.json$' -or
+        [string]$Dashboard.source_manifest_sha256 -notmatch '^[0-9a-f]{64}$'
+    ) {
+        throw 'Observation dashboard source manifest identity is invalid'
+    }
+    $SourceEvidence = Get-GcsJsonEvidence `
+        -Uri "gs://$Bucket/$SourceManifest" `
+        -TemporaryRoot $TemporaryRoot `
+        -Name 'observation-source-manifest.json'
+    $SourceHash = (
+        Get-FileHash -LiteralPath $SourceEvidence.path -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    if (
+        $SourceHash -ne [string]$Dashboard.source_manifest_sha256 -or
+        [double]$SourceEvidence.document.coverage -lt $MinimumCoverage -or
+        $SourceEvidence.document.sample_data -eq $true
+    ) {
+        throw 'Observation dashboard source manifest failed coverage, sample, or hash Gate'
+    }
+    return "dashboard/v1/latest-TW.json generation $($LatestEvidence.metadata.generation) and immutable object are verified"
+}
+
+function Test-ObservationReportPointers {
+    param([string]$TemporaryRoot)
+
+    $IndexEvidence = Get-GcsJsonEvidence `
+        -Uri "gs://$Bucket/reports/v2/index-TW.json" `
+        -TemporaryRoot $TemporaryRoot `
+        -Name 'observation-reports-index.json'
+    $LatestEvidence = Get-GcsJsonEvidence `
+        -Uri "gs://$Bucket/reports/v2/latest-TW-post_close.json" `
+        -TemporaryRoot $TemporaryRoot `
+        -Name 'observation-report-latest.json'
+    $Index = $IndexEvidence.document
+    $Latest = $LatestEvidence.document
+    if (
+        $Index.schema_version -ne 2 -or
+        $Index.kind -ne 'absorb-report-index' -or
+        $Index.market -ne 'TW' -or
+        $Latest.schema_version -ne 2 -or
+        $Latest.kind -ne 'absorb-report' -or
+        $Latest.product_mode -ne 'observation' -or
+        $Latest.report_type -ne 'post_close' -or
+        [string]$Latest.metadata -notmatch '^metadata/[0-9a-f]{64}\.json$' -or
+        [string]$Latest.metadata_sha256 -notmatch '^[0-9a-f]{64}$'
+    ) {
+        throw 'Observation report index or latest pointer is invalid'
+    }
+    $Matches = @(
+        $Index.reports |
+            Where-Object {
+                $_.report_type -eq 'post_close' -and
+                $_.product_mode -eq 'observation' -and
+                $_.metadata -eq $Latest.metadata -and
+                $_.metadata_sha256 -eq $Latest.metadata_sha256
+            }
+    )
+    if ($Matches.Count -ne 1) {
+        throw 'Observation report latest pointer is not bound to exactly one index entry'
+    }
+    if (@($Matches[0].model_versions.PSObject.Properties).Count -ne 0) {
+        throw 'Observation report index contains model versions'
+    }
+
+    $MetadataEvidence = Get-GcsJsonEvidence `
+        -Uri "gs://$Bucket/reports/v2/$($Latest.metadata)" `
+        -TemporaryRoot $TemporaryRoot `
+        -Name 'observation-report-metadata.json'
+    $MetadataHash = (
+        Get-FileHash -LiteralPath $MetadataEvidence.path -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    $Metadata = $MetadataEvidence.document
+    if (
+        $MetadataHash -ne [string]$Latest.metadata_sha256 -or
+        $Metadata.schema_version -ne 2 -or
+        $Metadata.product_mode -ne 'observation' -or
+        $Metadata.report_type -ne 'post_close' -or
+        @($Metadata.model_versions.PSObject.Properties).Count -ne 0
+    ) {
+        throw 'Observation report immutable metadata failed hash or schema Gate'
+    }
+    Assert-ObservationCapability $Metadata.prediction_capability
+    Assert-ObservationNoPredictionKeys $Metadata
+    return "reports/v2/index-TW.json generation $($IndexEvidence.metadata.generation) and post-close latest generation $($LatestEvidence.metadata.generation) are verified"
+}
+
+function Test-ObservationHttp {
+    $ServiceInfo = Get-CloudRunService
+    $Target = if ($BaseUrl) { $BaseUrl } else { [string]$ServiceInfo.status.url }
+    if (-not $Target) { throw 'Observation HTTP base URL is unavailable' }
+    foreach ($Path in @(
+        '/health',
+        '/',
+        '/api/dashboard',
+        '/reports',
+        '/market-map',
+        '/stock/2330'
+    )) {
+        $Response = Invoke-WebRequest `
+            -Uri ($Target.TrimEnd('/') + $Path) `
+            -UseBasicParsing `
+            -MaximumRedirection 5 `
+            -TimeoutSec 45
+        if ([int]$Response.StatusCode -ne 200) {
+            throw "Observation HTTP smoke failed for ${Path}: $($Response.StatusCode)"
+        }
+        if ($Path -eq '/api/dashboard') {
+            try {
+                $Document = $Response.Content | ConvertFrom-Json
+            } catch {
+                throw 'Observation dashboard API did not return valid JSON'
+            }
+            if (
+                $Document.product_mode -ne 'observation' -or
+                $null -eq $Document.market_observation -or
+                $null -eq $Document.industry_observations -or
+                $null -eq $Document.data_quality
+            ) {
+                throw 'Observation dashboard API schema is invalid'
+            }
+            Assert-ObservationNoPredictionKeys $Document
+        }
+    }
+    return "Observation HTTP smoke passed at $Target"
+}
+
 $TemporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("absorb-cutover-" + [Guid]::NewGuid().ToString('N'))
 try {
-    Invoke-Checked 'release_evidence' { Test-ReleaseEvidence }
-    Invoke-Checked 'gcloud_available' {
-        if (-not $Gcloud) { throw 'gcloud was not found' }
-        return 'gcloud is available'
-    }
-    Invoke-Checked 'gcs_bucket_security' { Test-BucketSecurity }
-
-    $ServiceAccount = $null
-    try {
-        $ServiceAccount = Test-CloudRunIdentity
-        Add-Check 'cloud_run_revision' $true 'Cloud Run has a ready revision and service account'
-    } catch {
-        Add-Check 'cloud_run_revision' $false $_.Exception.GetType().Name
-    }
-    if ($ServiceAccount) {
-        Invoke-Checked 'cloud_run_iam' { Test-ServiceAccountAccess $ServiceAccount }
-    } else {
-        Add-Check 'cloud_run_iam' $false 'Service account unavailable'
-    }
-
-    Invoke-Checked 'secret_manager_names' { Test-RequiredSecrets }
     New-Item -ItemType Directory -Path $TemporaryRoot -Force | Out-Null
-    Invoke-Checked 'latest_tw' { Test-MarketPointer 'TW' $TemporaryRoot }
-    Invoke-Checked 'latest_us' { Test-MarketPointer 'US' $TemporaryRoot }
-    Invoke-Checked 'local_operations' { Test-LocalOperations }
+    if ($ObservationOnly) {
+        Invoke-Checked 'gcloud_available' {
+            if (-not $Gcloud) { throw 'gcloud was not found' }
+            return 'gcloud is available'
+        }
+        Invoke-Checked 'gcs_bucket_security' { Test-BucketSecurity }
+
+        $ServiceAccount = $null
+        try {
+            $ServiceAccount = Test-CloudRunIdentity
+            Add-Check 'cloud_run_revision' $true 'Cloud Run has a ready revision and service account'
+        } catch {
+            Add-Check 'cloud_run_revision' $false $_.Exception.GetType().Name
+        }
+        if ($ServiceAccount) {
+            Invoke-Checked 'cloud_run_iam' { Test-ServiceAccountAccess $ServiceAccount }
+        } else {
+            Add-Check 'cloud_run_iam' $false 'Service account unavailable'
+        }
+        Invoke-Checked 'secret_manager_names' { Test-RequiredSecrets }
+        Invoke-Checked 'observation_environment' {
+            Test-ObservationCloudRunEnvironment
+        }
+        Invoke-Checked 'observation_dashboard' {
+            Test-ObservationDashboardPointer $TemporaryRoot
+        }
+        Invoke-Checked 'observation_reports' {
+            Test-ObservationReportPointers $TemporaryRoot
+        }
+        Invoke-Checked 'observation_http' { Test-ObservationHttp }
+    } else {
+        Invoke-Checked 'release_evidence' { Test-ReleaseEvidence }
+        Invoke-Checked 'gcloud_available' {
+            if (-not $Gcloud) { throw 'gcloud was not found' }
+            return 'gcloud is available'
+        }
+        Invoke-Checked 'gcs_bucket_security' { Test-BucketSecurity }
+
+        $ServiceAccount = $null
+        try {
+            $ServiceAccount = Test-CloudRunIdentity
+            Add-Check 'cloud_run_revision' $true 'Cloud Run has a ready revision and service account'
+        } catch {
+            Add-Check 'cloud_run_revision' $false $_.Exception.GetType().Name
+        }
+        if ($ServiceAccount) {
+            Invoke-Checked 'cloud_run_iam' { Test-ServiceAccountAccess $ServiceAccount }
+        } else {
+            Add-Check 'cloud_run_iam' $false 'Service account unavailable'
+        }
+
+        Invoke-Checked 'secret_manager_names' { Test-RequiredSecrets }
+        Invoke-Checked 'latest_tw' { Test-MarketPointer 'TW' $TemporaryRoot }
+        Invoke-Checked 'latest_us' { Test-MarketPointer 'US' $TemporaryRoot }
+        Invoke-Checked 'local_operations' { Test-LocalOperations }
+    }
 } finally {
     if (Test-Path -LiteralPath $TemporaryRoot) {
         $ResolvedTemp = (Resolve-Path -LiteralPath $TemporaryRoot).Path
@@ -268,6 +616,7 @@ try {
 $Ready = @($Checks | Where-Object { $_.status -eq 'BLOCKED' }).Count -eq 0
 [ordered]@{
     overall = if ($Ready) { 'READY' } else { 'BLOCKED' }
+    mode = if ($ObservationOnly) { 'observation' } else { 'prediction' }
     checked_at = [DateTimeOffset]::UtcNow.ToString('o')
     checks = $Checks
 } | ConvertTo-Json -Depth 4

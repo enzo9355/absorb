@@ -67,3 +67,19 @@ Rollback：
 ```
 
 Rollback 只切設定與 task enablement；不刪 `D:\AbsorbData`、`D:\StockPapiData`、舊 task、audit、checkpoint 或 immutable artifact。
+
+## Observation Production
+
+正式 Observation 上線必須使用同一份 LKG receipt 串接 pointer、Cloud Run 與 rollback 證據，不得手動跳過中間步驟。
+
+1. 執行 `capture_observation_lkg.ps1`，保存 dashboard 與 reports v2 mutable pointer 的 generation、內容與 SHA-256。
+2. 發布並 read-back immutable Observation dashboard／report，再以 generation precondition 更新 index 與 latest。
+3. 在所有 Observation pointers 已發布且可 read-back 後，以 `deploy_observation_production.ps1 -ApplyTraffic` 啟動受控上線。腳本先部署 no-traffic revision，明確設為 research、Observation 開啟、所有 Prediction flags 關閉，並移除正式 revision 的 preview prefix。
+4. 對 tagged candidate 執行 `/health`、首頁、`/api/dashboard`、`/reports`、`/market-map`、`/stock/2330` smoke。任何非 200、非 Observation schema 或 API 出現 prediction fields，立即停止。
+5. 腳本在切流量前以獨立 PowerShell process 執行 `verify_cutover.ps1 -ObservationOnly -BaseUrl <candidate-url>`，驗證 Cloud Run env、GCS generation／hash／schema、source manifest 與 HTTP；只有 `READY` 才會繼續。
+6. 同一執行流程將已驗證 revision 切到 100%，並以正式 URL 重跑 HTTP smoke；完成後另以 `verify_cutover.ps1 -ObservationOnly` 保存正式狀態證據。
+7. 保留 deployment receipt、前一 revision／traffic／env、LKG receipt、candidate／production smoke hashes 與正式驗證 JSON。
+
+停止條件：preview prefix 未清空、任何 Prediction flag 不為 false、dashboard／report 不是 `product_mode=observation`、pointer generation 或 immutable hash 不符、API 含 prediction fields、任一 smoke 非 200，均不得切流量。
+
+實際失敗時執行 `manual_rollback.ps1 -ObservationDeploymentReceipt <deployment-receipt.json>`。它先恢復前一 Cloud Run traffic，再呼叫 `rollback_observation.ps1` 依 applied generation 恢復或刪除本次新建 pointer；immutable objects 保留。正常演練只使用 `-WhatIf` 與 receipt/hash 驗證，不為了演練改動正式狀態。
