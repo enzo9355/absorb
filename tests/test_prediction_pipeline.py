@@ -1249,11 +1249,12 @@ class PredictionPipelineTests(unittest.TestCase):
         flex = stock_app.build_stock_flex_message(
             "2330", "台積電", data, "https://example.com"
         )
-        rendered = html + template_html + json.dumps(flex, ensure_ascii=False)
+        rendered = html + json.dumps(flex, ensure_ascii=False)
 
         self.assertIn("新聞／輿論情緒", rendered)
         self.assertIn("12 則｜2 個來源｜社群 10 則", rendered)
-        self.assertIn("近期新聞與輿論", template_html)
+        self.assertIn("個股觀察摘要", template_html)
+        self.assertNotIn("新聞／輿論情緒", template_html)
         self.assertIn("財經報", html)
         self.assertIn("2026-06-27", html)
         self.assertIn("正向", html)

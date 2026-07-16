@@ -1,248 +1,147 @@
-import hashlib
-import json
+import datetime
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
 
 os.environ.setdefault("LINE_CHANNEL_ACCESS_TOKEN", "test")
 os.environ.setdefault("LINE_CHANNEL_SECRET", "test")
 
 import app as stock_app
 
+from reporting.observation_v2 import build_post_close_observation_metadata
+from reporting.publisher import publish_report_v2
+from tests.test_observation_public_surfaces import observation_dashboard
+
+
+class Calendar:
+    def next_session(self, value):
+        self.requested = value
+        return datetime.date(2026, 7, 16)
+
 
 class ReportWebTests(unittest.TestCase):
-    def test_v2_trading_day_pre_market_and_weekly_routes_use_verified_metadata(self):
-        entries = []
-        objects = {}
-        for report_type, suffix in (("post_close", "post"), ("pre_market", "pre"), ("weekly_model", "week")):
-            content = {
-                "core": {"probability": 61.0},
-                "overnight_overlay": {"status": "mixed", "message": "隔夜訊號分歧"},
-                "week_id": "2026-W29",
-            }
-            content_bytes = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-            document = {
-                "schema_version": 2, "kind": "stock-papi-report", "market": "TW",
-                "report_type": report_type, "source_market_date": "2026-07-14",
-                "applicable_trading_date": "2026-07-15" if report_type != "weekly_model" else "2026-07-14",
-                "published_at": f"2026-07-14T1{len(entries)}:00:00Z", "forecast_start_date": "2026-07-15",
-                "forecast_end_date": "2026-07-21", "backtest_as_of": "2026-07-14",
-                "data_as_of": "2026-07-14", "source_manifest": "quant/v1/manifests/TW-20260714T090000Z-aaaaaaaaaaaa.json",
-                "source_manifest_sha256": "a" * 64, "model_versions": {"lgbm-5d-v1": 1},
-                "title": suffix, "summary": [suffix], "warnings": [], "content": content,
-                "content_sha256": hashlib.sha256(content_bytes).hexdigest(),
-            }
-            metadata_bytes = json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-            digest = hashlib.sha256(metadata_bytes).hexdigest()
-            entry = {
-                "report_type": report_type, "source_market_date": document["source_market_date"],
-                "applicable_trading_date": document["applicable_trading_date"], "published_at": document["published_at"],
-                "data_as_of": document["data_as_of"], "model_versions": document["model_versions"],
-                "title": document["title"], "summary": document["summary"], "content_sha256": document["content_sha256"],
-                "metadata": f"metadata/{digest}.json", "metadata_sha256": digest,
-            }
-            if report_type == "weekly_model":
-                entry["week_id"] = "2026-W29"
-            entries.append(entry)
-            objects[f"reports/v2/metadata/{digest}.json"] = metadata_bytes
-        index = {"schema_version": 2, "kind": "stock-papi-report-index", "market": "TW", "updated_at": "2026-07-14T12:00:00Z", "reports": entries}
-        objects["reports/v2/index-TW.json"] = json.dumps(index).encode()
+    def _objects(self):
+        temporary = tempfile.TemporaryDirectory()
+        root = Path(temporary.name)
+        metadata = build_post_close_observation_metadata(
+            observation_dashboard(), Calendar()
+        )
+        publish_report_v2(root, metadata)
+        publish = root / "publish" / "reports" / "v2"
+        objects = {
+            f"reports/v2/{path.relative_to(publish).as_posix()}": path.read_bytes()
+            for path in publish.rglob("*")
+            if path.is_file()
+        }
+        return temporary, objects, metadata
 
-        with patch.object(stock_app, "_gcs_get_report_v2_object", side_effect=lambda path, _size: objects.get(path), create=True):
+    def test_v2_observation_report_is_the_only_formal_report_surface(self):
+        temporary, objects, metadata = self._objects()
+        self.addCleanup(temporary.cleanup)
+
+        with patch.object(
+            stock_app,
+            "_gcs_get_report_v2_object",
+            side_effect=lambda path, _size: objects.get(path),
+            create=True,
+        ):
             client = stock_app.app.test_client()
-            trading_day = client.get("/reports/trading-day/2026-07-15")
-            pre_market = client.get("/reports/2026-07-15/pre-market")
+            listing = client.get("/reports")
+            trading_day = client.get("/reports/trading-day/2026-07-16")
+            pre_market = client.get("/reports/2026-07-16/pre-market")
             weekly = client.get("/reports/weekly/2026-W29")
 
+        self.assertEqual(listing.status_code, 200)
+        listing_html = listing.get_data(as_text=True)
+        self.assertIn(metadata["title"], listing_html)
+        self.assertIn("盤後觀察", listing_html)
+        self.assertIn("閱讀觀察報告", listing_html)
+
         self.assertEqual(trading_day.status_code, 200)
-        self.assertIn("盤後分析", trading_day.get_data(as_text=True))
-        self.assertIn("盤前更新", trading_day.get_data(as_text=True))
-        self.assertEqual(pre_market.status_code, 200)
-        self.assertIn("隔夜訊號分歧", pre_market.get_data(as_text=True))
-        self.assertEqual(weekly.status_code, 200)
-        self.assertIn("模型驗證週報", weekly.get_data(as_text=True))
-
-    def setUp(self):
-        self.pdf = b"%PDF-1.4 verified report bytes"
-        self.digest = hashlib.sha256(self.pdf).hexdigest()
-        self.metadata = {
-            "schema_version": 1,
-            "kind": "daily-industry-report",
-            "market": "TW",
-            "report_date": "2026-07-03",
-            "data_as_of": "2026-07-03",
-            "generated_at": "2026-07-03T10:00:00Z",
-            "coverage": 0.98,
-            "pdf_path": f"objects/{self.digest}.pdf",
-            "pdf_sha256": self.digest,
-            "pdf_size": len(self.pdf),
-            "page_count": 7,
-            "summary": ["市場維持整理", "半導體相對強勢"],
-            "warnings": ["歷史資料不代表未來"],
-            "public_report": {
-                "schema_version": 1,
-                "market_recommendation": {
-                    "action": "控制追價", "level": "neutral",
-                    "headline": "市場訊號尚未形成一致優勢",
-                    "confidence": "可信度中等",
-                    "supporting_reasons": ["五日上漲機率 58%"],
-                    "risk_reasons": ["量能不足"],
-                    "suggested_action": "降低追價速度。",
-                    "invalidation_conditions": ["市場趨勢轉弱"],
-                },
-                "key_points": ["市場維持整理", "半導體相對強勢"],
-                "industries": [{
-                    "name": "半導體", "probability": 62.0,
-                    "rotation": "領先", "action": "優先關注",
-                    "headline": "模型與產業強弱位置一致",
-                    "risk": "接近輪動分界", "confidence": "可信度中等",
-                }],
-                "stocks": [{
-                    "symbol": "2330", "name": "台積電", "probability": 68.0,
-                    "action": "分批布局", "headline": "模型與趨勢偏多",
-                    "risks": ["短線偏熱"], "confidence": "可信度有限",
-                }],
-                "backtest": {
-                    "advantage": "過去相同規則優於買進持有。",
-                    "sample_quality": "可信度中等",
-                },
-                "model_quality": {"samples": 120, "direction_accuracy": 55.0, "brier_score": 0.23},
-            },
-        }
-        self.metadata_bytes = json.dumps(self.metadata, separators=(",", ":")).encode()
-        self.metadata_digest = hashlib.sha256(self.metadata_bytes).hexdigest()
-        self.index = {
-            "schema_version": 1,
-            "kind": "daily-industry-report-index",
-            "market": "TW",
-            "updated_at": "2026-07-03T10:00:00Z",
-            "reports": [{
-                "report_date": "2026-07-03",
-                "data_as_of": "2026-07-03",
-                "generated_at": "2026-07-03T10:00:00Z",
-                "model_versions": {"lgbm-5d-v1": 2},
-                "coverage": 0.98,
-                "pdf_path": f"objects/{self.digest}.pdf",
-                "pdf_sha256": self.digest,
-                "pdf_size": len(self.pdf),
-                "page_count": 7,
-                "market_action": "控制追價",
-                "headline": "市場訊號尚未形成一致優勢",
-                "key_industries": ["半導體"],
-                "metadata": f"metadata/{self.metadata_digest}.json",
-                "metadata_sha256": self.metadata_digest,
-            }],
-        }
-
-    def _reader(self, object_name, _max_bytes):
-        if object_name == "reports/v1/index-TW.json":
-            return json.dumps(self.index).encode("utf-8")
-        if object_name == f"reports/v1/objects/{self.digest}.pdf":
-            return self.pdf
-        if object_name == f"reports/v1/metadata/{self.metadata_digest}.json":
-            return self.metadata_bytes
-        return None
-
-    def test_reports_page_lists_verified_history_and_navigation(self):
-        with patch.object(
-            stock_app, "_gcs_get_report_object", side_effect=self._reader, create=True
+        html = trading_day.get_data(as_text=True)
+        for label in (
+            "今日市場準備",
+            "市場實況",
+            "產業觀察",
+            "個股異常事件",
+            "ETF 觀察",
+            "資料品質",
         ):
-            response = stock_app.app.test_client().get("/reports")
-
-        html = response.get_data(as_text=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("每日報告", html)
-        self.assertIn("2026-07-03", html)
-        self.assertIn("98.0%", html)
-        self.assertIn("控制追價", html)
-        self.assertIn("半導體", html)
-        self.assertIn("閱讀完整報告", html)
-        self.assertNotIn("下載", html)
-
-    def test_legacy_report_without_card_summary_is_not_labeled_as_pending(self):
-        legacy_index = json.loads(json.dumps(self.index))
-        for key in ("market_action", "headline", "key_industries"):
-            legacy_index["reports"][0].pop(key)
-
-        def reader(object_name, max_bytes):
-            if object_name == "reports/v1/index-TW.json":
-                return json.dumps(legacy_index).encode("utf-8")
-            return self._reader(object_name, max_bytes)
-
-        with patch.object(
-            stock_app, "_gcs_get_report_object", side_effect=reader, create=True
+            self.assertIn(label, html)
+        for forbidden in (
+            "五日上漲機率",
+            "模型驗證週報",
+            "勝率",
+            "推薦",
+            "回測",
         ):
-            response = stock_app.app.test_client().get("/reports")
+            self.assertNotIn(forbidden, html)
+        self.assertEqual(
+            trading_day.headers["Cache-Control"], "public, max-age=300"
+        )
+        self.assertEqual(pre_market.status_code, 404)
+        self.assertEqual(weekly.status_code, 404)
 
-        html = response.get_data(as_text=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("舊版報告", html)
-        self.assertIn("不是等待人工確認", html)
-        self.assertIn("舊版未提供", html)
-        self.assertNotIn("等待確認", html)
+    def test_legacy_reports_are_hidden_and_not_loaded_in_research_mode(self):
+        with patch.object(
+            stock_app, "_gcs_get_report_object", return_value=b"must-not-load"
+        ) as legacy:
+            client = stock_app.app.test_client()
+            listing = client.get("/reports")
+            report = client.get("/reports/2026-07-03")
+            preview = client.get("/reports/2026-07-03/preview")
+            download = client.get("/reports/2026-07-03/download")
+
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(report.status_code, 404)
+        self.assertEqual(preview.status_code, 302)
+        self.assertEqual(download.status_code, 302)
+        legacy.assert_not_called()
 
     def test_empty_reports_page_has_clear_state(self):
-        with patch.object(stock_app, "_gcs_get_report_object", return_value=None, create=True):
+        with patch.object(
+            stock_app, "_gcs_get_report_v2_object", return_value=None, create=True
+        ):
             response = stock_app.app.test_client().get("/reports")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("目前沒有可用的每日報告", response.get_data(as_text=True))
+        self.assertIn(
+            "目前沒有可用的每日報告",
+            response.get_data(as_text=True),
+        )
 
-    def test_sample_download_redirects_to_public_html_list_without_pdf_bytes(self):
+    def test_sample_download_redirects_to_public_html_list(self):
         response = stock_app.app.test_client().get("/reports/sample/download")
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/reports"))
         self.assertNotEqual(response.mimetype, "application/pdf")
 
-    def test_reports_page_keeps_sample_download_outside_formal_history(self):
-        with patch.object(stock_app, "_gcs_get_report_object", return_value=None, create=True):
-            response = stock_app.app.test_client().get("/reports")
-
-        html = response.get_data(as_text=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("SAMPLE", html)
-        self.assertNotIn("/reports/sample/download", html)
-
-    def test_html_report_is_formal_public_entry_and_old_pdf_routes_redirect(self):
-        with patch.object(
-            stock_app, "_gcs_get_report_object", side_effect=self._reader, create=True
-        ):
-            client = stock_app.app.test_client()
-            report = client.get("/reports/2026-07-03")
-            preview = client.get("/reports/2026-07-03/preview")
-            download = client.get("/reports/2026-07-03/download")
-
-        self.assertEqual(report.status_code, 200)
-        self.assertEqual(report.mimetype, "text/html")
-        self.assertIn("30 秒市場結論", report.get_data(as_text=True))
-        self.assertIn("控制追價", report.get_data(as_text=True))
-        self.assertIn("支持理由", report.get_data(as_text=True))
-        self.assertIn("主要風險", report.get_data(as_text=True))
-        self.assertIn("查看完整專業數據", report.get_data(as_text=True))
-        self.assertEqual(report.headers["Cache-Control"], "public, max-age=300")
-        self.assertEqual(preview.status_code, 302)
-        self.assertTrue(preview.headers["Location"].endswith("/reports/2026-07-03"))
-        self.assertEqual(download.status_code, 302)
-        self.assertTrue(download.headers["Location"].endswith("/reports/2026-07-03"))
-        self.assertNotEqual(download.mimetype, "application/pdf")
-
-    def test_bad_hash_returns_safe_error_and_date_or_path_cannot_be_injected(self):
-        def corrupt_reader(object_name, max_bytes):
-            content = self._reader(object_name, max_bytes)
-            return b"corrupt" if "/metadata/" in object_name else content
+    def test_corrupt_observation_metadata_fails_closed(self):
+        temporary, objects, _metadata = self._objects()
+        self.addCleanup(temporary.cleanup)
+        metadata_path = next(
+            path for path in objects if "/metadata/" in path
+        )
+        objects[metadata_path] = b"corrupt"
 
         with patch.object(
-            stock_app, "_gcs_get_report_object", side_effect=corrupt_reader, create=True
+            stock_app,
+            "_gcs_get_report_v2_object",
+            side_effect=lambda path, _size: objects.get(path),
+            create=True,
         ):
             client = stock_app.app.test_client()
-            bad_hash = client.get("/reports/2026-07-03")
-            bad_date = client.get("/reports/not-a-date")
-            missing = client.get("/reports/2026-07-04")
+            bad_hash = client.get("/reports/trading-day/2026-07-16")
+            bad_date = client.get("/reports/trading-day/not-a-date")
+            missing = client.get("/reports/trading-day/2026-07-17")
             traversal = client.get("/reports/../../secret")
 
         self.assertEqual(bad_hash.status_code, 503)
-        self.assertNotIn("objects/", bad_hash.get_data(as_text=True))
+        self.assertNotIn("metadata/", bad_hash.get_data(as_text=True))
         self.assertEqual(bad_date.status_code, 404)
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(traversal.status_code, 404)

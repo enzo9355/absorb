@@ -31,8 +31,8 @@
     <g transform="translate(894 92)">
       <rect class="pillApricot" x="0" y="0" width="154" height="114" rx="36"/>
       <text class="code" x="38" y="76">02</text>
-      <text class="label" x="0" y="292">找機會</text>
-      <text class="hint" x="0" y="496">熱門題材與排行</text>
+      <text class="label" x="0" y="292">看產業</text>
+      <text class="hint" x="0" y="496">實際報酬與市場廣度</text>
     </g>
 
     <g transform="translate(1704 92)">
@@ -52,15 +52,15 @@
     <g transform="translate(894 844)">
       <rect class="pillMint" x="0" y="0" width="154" height="114" rx="36"/>
       <text class="code" x="38" y="76">05</text>
-      <text class="label" x="0" y="292">算報酬</text>
-      <text class="hint" x="0" y="496">投入金額快速試算</text>
+      <text class="label" x="0" y="292">查股票</text>
+      <text class="hint" x="0" y="496">價格、均線與風險事件</text>
     </g>
 
     <g transform="translate(1704 844)">
       <rect class="pillApricot" x="0" y="0" width="154" height="114" rx="36"/>
       <text class="code" x="38" y="76">06</text>
-      <text class="label" x="0" y="292">深度分析</text>
-      <text class="hint" x="0" y="496">圖表、回測、新聞</text>
+      <text class="label" x="0" y="292">市場觀察</text>
+      <text class="hint" x="0" y="496">完整市場與事件頁面</text>
     </g>
   </g>
 </svg>

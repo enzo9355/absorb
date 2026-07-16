@@ -4,7 +4,9 @@ from line_state import evaluate_alert, top_signals
 from stock_papi.integrations.line.flex import build_alert_push_flex
 
 
-def run_alert_checks(store, analyze_fn, push_fn, today, base_url):
+def run_alert_checks(
+    store, analyze_fn, push_fn, today, base_url, *, prediction_allowed=True
+):
     quotes = {}
     push_failed = False
 
@@ -17,10 +19,29 @@ def run_alert_checks(store, analyze_fn, push_fn, today, base_url):
                 quotes[code] = None
                 return None
             datetime.date.fromisoformat(data["as_of"])
-            quotes[code] = {
-                "code": code, "name": data["name"], "price": float(data["price"]),
-                "prob": int(data["prob"]), "trend": data["trend"], "as_of": data["as_of"],
-            }
+            if prediction_allowed:
+                quote = {
+                    "code": code,
+                    "name": data["name"],
+                    "price": float(data["price"]),
+                    "prob": int(data["prob"]),
+                    "trend": data["trend"],
+                    "as_of": data["as_of"],
+                }
+            else:
+                quote = {
+                    "code": code,
+                    "name": data["name"],
+                    "price": float(data["price"]),
+                    "trend": {
+                        "above_ma20_ma60": "多頭",
+                        "above_ma20": "多頭",
+                        "below_ma60": "空頭",
+                        "mixed": "盤整",
+                    }.get(data.get("trend_observation"), "資料不足"),
+                    "as_of": data["as_of"],
+                }
+            quotes[code] = quote
         except Exception:
             quotes[code] = None
         return quotes[code]
@@ -50,12 +71,20 @@ def run_alert_checks(store, analyze_fn, push_fn, today, base_url):
             continue
 
         latest_as_of = max(item["as_of"] for item in watched)
-        signal_items = top_signals(watched)
+        signal_items = (
+            top_signals(watched)
+            if prediction_allowed
+            else [dict(item) for item in watched]
+        )
         hits = []
         for alert in observed.get("alerts", []):
             quote = quotes.get(alert.get("code"))
             if (
                 not alert.get("enabled")
+                or (
+                    not prediction_allowed
+                    and alert.get("kind") == "probability"
+                )
                 or alert.get("last_triggered_date") == today
                 or quote is None
                 or quote["code"] not in fresh_codes

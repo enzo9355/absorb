@@ -23,7 +23,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self' https://unpkg.com "
-            "'sha256-Jxu2UIvZOMfr3oGYTt0sMR0CABwgDa8PXnisvz4E9B4='; "
+            "'sha256-1HFbWstPdqx9AZ4hK2pfVq5fe4kCRQO5zJaodvFXeJ4='; "
             "style-src 'self'; img-src 'self' https: data:; connect-src 'self'; "
             "font-src 'self'; object-src 'none'; frame-ancestors 'none'; "
             "base-uri 'none'; form-action 'self'",

@@ -13,6 +13,10 @@ os.environ.setdefault("LINE_CHANNEL_SECRET", "test")
 import app as stock_app
 from absorb.conversation.schemas import ConversationAnswer
 from line_state import StoreError, empty_state
+from tests.test_observation_public_surfaces import (
+    observation_dashboard,
+    quant_snapshot,
+)
 
 
 def sample_data():
@@ -491,27 +495,22 @@ class PostbackTests(unittest.TestCase):
         reply = line_api.reply_message.call_args.args[1]
         self.assertEqual(reply.type, "flex")
 
-    def test_calculator_menu_replies_with_preset_amount_buttons(self):
+    def test_calculator_menu_is_disabled_in_observation_mode(self):
         store, line_api = self.call("calc:menu:2330")
 
         self.assertEqual(store.updated_user_ids, [])
         reply = line_api.reply_message.call_args.args[1]
-        self.assertEqual(reply.type, "flex")
-        payload = flex_text(reply)
-        self.assertIn("1 萬", payload)
-        self.assertIn("calc:amount:2330:100000", payload)
+        self.assertEqual(reply.type, "text")
+        self.assertIn("AI 預測研究中", reply.text)
 
-    @patch.object(stock_app, "analyze")
-    def test_calculator_amount_postback_replies_with_projection(self, analyze):
-        analyze.return_value = {
-            "code": "2330", "name": "台積電", "price": 100.0,
-            "bt": {"strat_cum": 8.0, "bh_cum": 5.0, "days": 252},
-        }
-
+    def test_calculator_amount_postback_is_disabled(self):
         store, line_api = self.call("calc:amount:2330:100000")
 
         self.assertEqual(store.updated_user_ids, [])
-        self.assertIn("約可買", flex_text(line_api.reply_message.call_args.args[1]))
+        self.assertIn(
+            "AI 預測研究中",
+            line_api.reply_message.call_args.args[1].text,
+        )
 
     def test_alert_remove_filters_exact_hex_id_and_handles_missing(self):
         state = empty_state()
@@ -582,25 +581,17 @@ class MessageFlowTests(unittest.TestCase):
         line_api.reply_message.assert_called_once()
         return line_api
 
-    def test_sector_selection_uses_snapshot_without_running_analysis(self):
-        snapshot = {
-            "as_of": "2026-06-24",
-            "generated_at": "2026-06-24T08:30:00Z",
-            "sectors": {
-                "半導體": [{
-                    "code": "2330", "name": "台積電", "price": 1000.0,
-                    "prob": 68, "trend": "多頭", "score": 72.5,
-                    "strat_cum": 8.0, "mdd": -6.0,
-                    "foreign_net_5": 2000.0, "as_of": "2026-06-24",
-                }]
-            },
-        }
+    def test_sector_selection_uses_observation_dashboard_without_analysis(self):
         line_api = Mock()
         event = message_event("選產業_半導體")
 
         with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
              patch.object(stock_app, "line_store", object()), \
-             patch.object(stock_app, "load_sector_signal_snapshot", return_value=snapshot), \
+             patch.object(
+                 stock_app,
+                 "_published_dashboard_snapshot",
+                 return_value=observation_dashboard(),
+             ), \
              patch.object(stock_app, "analyze") as analyze, \
              patch.object(stock_app, "line_bot_api", line_api):
             stock_app.handle_message(event)
@@ -608,23 +599,31 @@ class MessageFlowTests(unittest.TestCase):
         analyze.assert_not_called()
         message = line_api.reply_message.call_args.args[1]
         self.assertEqual(message.type, "flex")
-        self.assertIn("台積電", flex_text(message))
+        self.assertIn("近 5 日相對大盤報酬", flex_text(message))
+        self.assertNotIn("五日上漲機率", flex_text(message))
 
-    def test_us_ticker_query_reuses_stock_analysis_flow(self):
-        data = sample_data()
-        data.update({"code": "AAPL", "name": "美股 AAPL"})
+    def test_us_ticker_query_uses_observation_flow(self):
         line_api = Mock()
 
         with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
              patch.object(stock_app, "line_store", None), \
              patch.object(stock_app, "line_bot_api", line_api), \
-             patch.object(stock_app, "analyze", return_value=data) as analyze:
+             patch.object(
+                 stock_app,
+                 "search_stock_code",
+                 return_value=("AAPL", "美股 AAPL"),
+             ), \
+             patch.object(
+                 stock_app,
+                 "fetch_published_quant_snapshot",
+                 return_value=quant_snapshot("AAPL", market="US"),
+             ) as fetch:
             stock_app.handle_message(message_event("AAPL"))
 
-        analyze.assert_called_once_with("AAPL")
+        fetch.assert_called_once_with("AAPL")
         self.assertIn("美股 AAPL", flex_text(line_api.reply_message.call_args.args[1]))
 
-    def test_pending_numeric_success_creates_alert_and_stops_stock_lookup(self):
+    def test_pending_probability_is_cancelled_in_observation_mode(self):
         state = empty_state()
         state["pending"] = {"code": "2330", "name": "台積電", "kind": "probability", "expires_at": 9999999999}
         store = CopyOnWriteStore(state)
@@ -637,24 +636,21 @@ class MessageFlowTests(unittest.TestCase):
 
         search.assert_not_called()
         self.assertIsNone(store.state["pending"])
-        self.assertEqual((store.state["alerts"][0]["kind"], store.state["alerts"][0]["value"]), ("probability", 65.0))
+        self.assertEqual(store.state["alerts"], [])
         line_api.reply_message.assert_called_once()
-        self.assertIn("已建立", line_api.reply_message.call_args.args[1].text)
+        self.assertIn("已取消", line_api.reply_message.call_args.args[1].text)
 
-    def test_text_calculator_command_replies_with_projection(self):
-        data = {
-            "code": "2330", "name": "台積電", "price": 100.0,
-            "bt": {"strat_cum": 8.0, "bh_cum": 5.0, "days": 252},
-        }
+    def test_text_calculator_command_is_disabled(self):
         line_api = Mock()
         with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
              patch.object(stock_app, "line_store", None), \
-             patch.object(stock_app, "line_bot_api", line_api), \
-             patch.object(stock_app, "search_stock_code", return_value=("2330", "台積電")), \
-             patch.object(stock_app, "analyze", return_value=data):
+             patch.object(stock_app, "line_bot_api", line_api):
             stock_app.handle_message(message_event("試算 2330 100000"))
 
-        self.assertIn("約可買", flex_text(line_api.reply_message.call_args.args[1]))
+        self.assertIn(
+            "AI 預測研究中",
+            line_api.reply_message.call_args.args[1].text,
+        )
 
     def test_papi_alias_uses_shared_absorb_conversation(self):
         line_api = Mock()
@@ -887,7 +883,7 @@ class MessageFlowTests(unittest.TestCase):
         self.assertEqual(store.state, latest)
         self.assertIn("已變更", line_api.reply_message.call_args.args[1].text)
 
-    def test_repeated_numeric_alert_is_idempotent_and_clears_pending(self):
+    def test_existing_probability_alert_is_not_recreated(self):
         state = empty_state()
         state["alerts"] = [{
             "id": "a" * 32, "code": "2330", "name": "台積電",
@@ -903,7 +899,7 @@ class MessageFlowTests(unittest.TestCase):
 
         self.assertIsNone(store.state["pending"])
         self.assertEqual(len(store.state["alerts"]), 1)
-        self.assertIn("已存在", line_api.reply_message.call_args.args[1].text)
+        self.assertIn("已取消", line_api.reply_message.call_args.args[1].text)
 
     def test_slow_state_reads_fail_open_for_non_state_commands_within_budget(self):
         cases = ("2330", "大盤", "新手教學")
@@ -1024,16 +1020,15 @@ class MessageFlowTests(unittest.TestCase):
                 if text == "提醒管理":
                     self.assertIn("alert:remove:" + "a" * 32, str(contents))
 
-    def test_investment_calculator_menu_text_replies_with_usage_hint(self):
+    def test_investment_calculator_menu_reports_research_status(self):
         line_api = self.call("投資試算", CopyOnWriteStore())
 
         reply = line_api.reply_message.call_args.args[1]
-        self.assertEqual(reply.type, "flex")
-        self.assertIn("試算 2330 100000", flex_text(reply))
-        self.assertIn("先輸入股票代碼", flex_text(reply))
+        self.assertEqual(reply.type, "text")
+        self.assertIn("AI 預測研究中", reply.text)
 
     def test_missing_or_failing_store_returns_safe_message_for_native_commands(self):
-        for text in ("我的關注", "強勢訊號", "提醒管理"):
+        for text in ("我的關注", "提醒管理"):
             with self.subTest(text=text, failure="missing"):
                 line_api = self.call(text, None)
                 self.assertIn("關注功能尚未設定", line_api.reply_message.call_args.args[1].text)
@@ -1047,7 +1042,6 @@ class MessageFlowTests(unittest.TestCase):
                 self.assertNotIn("token", reply)
 
     def test_stock_query_uses_watched_state_but_survives_store_error(self):
-        data = sample_data()
         state = empty_state()
         state["watchlist"] = [{"code": "2330", "name": "台積電", "added_at": 1}]
         for store, expected in ((CopyOnWriteStore(state), "watch:remove:2330"), (Mock(), "watch:add:2330")):
@@ -1056,9 +1050,13 @@ class MessageFlowTests(unittest.TestCase):
             line_api = Mock()
             with stock_app.app.test_request_context("/callback", base_url="https://example.com/"), \
                  patch.object(stock_app, "line_store", store), \
-                 patch.object(stock_app, "line_bot_api", line_api), \
-                 patch.object(stock_app, "search_stock_code", return_value=("2330", "台積電")), \
-                 patch.object(stock_app, "analyze", return_value=data):
+                  patch.object(stock_app, "line_bot_api", line_api), \
+                  patch.object(stock_app, "search_stock_code", return_value=("2330", "台積電")), \
+                  patch.object(
+                      stock_app,
+                      "fetch_published_quant_snapshot",
+                      return_value=quant_snapshot(),
+                  ):
                 stock_app.handle_message(message_event("2330"))
             contents = line_api.reply_message.call_args.args[1].contents
             if hasattr(contents, "as_json_dict"):
@@ -1377,17 +1375,18 @@ class ScheduledAlertRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         refresh.assert_not_called()
 
-    def test_refresh_sector_signals_runs_after_valid_auth(self):
+    def test_refresh_sector_signals_is_disabled_after_valid_auth(self):
         with patch.object(stock_app, "ALERT_TASK_TOKEN", "secret"), \
              patch.object(stock_app, "line_store", object()), \
-             patch.object(stock_app, "refresh_sector_signals", return_value={"as_of": "2026-06-24"}):
+             patch.object(stock_app, "refresh_sector_signals") as refresh:
             response = self.client.post(
                 "/tasks/refresh-sector-signals",
                 headers={"Authorization": "Bearer secret"},
             )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("2026-06-24", response.get_data(as_text=True))
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("研究中", response.get_data(as_text=True))
+        refresh.assert_not_called()
 
     def test_missing_token_configuration_returns_503(self):
         with patch.object(stock_app, "ALERT_TASK_TOKEN", None), \
@@ -1421,7 +1420,11 @@ class ScheduledAlertRouteTests(unittest.TestCase):
     def test_success_pushes_flex_and_returns_200(self):
         line_api = Mock()
 
-        def run(store, analyze_fn, push_fn, today, base_url):
+        def run(
+            store, analyze_fn, push_fn, today, base_url,
+            *, prediction_allowed=True,
+        ):
+            self.assertFalse(prediction_allowed)
             push_fn("U1", stock_app.build_alert_push_flex([{
                 "alert": {
                     "id": "a" * 32, "code": "2330", "name": "台積電",

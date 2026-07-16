@@ -66,6 +66,7 @@ from stock_papi.shared.logging import (
     redact_secrets,
     safe_exception_text,
 )
+from stock_papi.services.observation_view import build_stock_observation
 from stock_papi.integrations.line.flex import (
     _alert_condition_text,
     _alert_management_card,
@@ -78,6 +79,8 @@ from stock_papi.integrations.line.flex import (
     build_calculator_menu_flex,
     build_line_navigation_flex,
     build_line_summary_card,
+    build_observation_watchlist_flex,
+    build_stock_observation_flex,
     build_stock_flex_message,
     build_strong_signals_flex,
     build_tutorial_flex,
@@ -233,10 +236,13 @@ from stock_papi.services.market_insights import (
 )
 from stock_papi.web.legacy_html import render_web
 from absorb.conversation.context import MemoryContextStore
+from absorb.conversation.errors import InputRejected
 from absorb.conversation.orchestrator import ConversationOrchestrator
+from absorb.conversation.policies import looks_like_prompt_injection, validate_question
 from absorb.conversation.provider import GeminiConversationProvider
 from absorb.conversation.renderers import render_line
-from absorb.conversation.tools import build_registry
+from absorb.conversation.schemas import ConversationAnswer
+from absorb.conversation.tools import build_registry, resolve_entities
 from absorb.conversation.command_bridge import is_fixed_command
 from absorb.conversation.metrics import record_metric
 
@@ -859,7 +865,140 @@ def _line_conversation_action_executor(user_id):
     return execute
 
 
+def _observation_number(value, digits=2, suffix=""):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "資料不足"
+    return f"{float(value):.{digits}f}{suffix}"
+
+
+def _observation_signed(value, digits=2, suffix="%"):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "資料不足"
+    return f"{float(value):+.{digits}f}{suffix}"
+
+
+def _observation_conversation(*, question, access):
+    try:
+        question = validate_question(question)
+    except InputRejected as exc:
+        return ConversationAnswer(str(exc))
+    if looks_like_prompt_injection(question):
+        return ConversationAnswer(
+            "無法執行要求：ABSORB 不會忽略系統規則、揭露提示或讀取未授權資料。"
+        )
+    if access == "public" and any(
+        term in question for term in ("我的自選", "我的關注", "我的提醒", "我的警示")
+    ):
+        return ConversationAnswer(
+            "這項查詢需要先使用 LINE 登入；目前未讀取任何私人資料。"
+        )
+    if any(
+        term in question
+        for term in (
+            "預測", "機率", "模型", "回測", "勝率", "績效",
+            "推薦", "排名", "可以買", "能買", "追高", "進場",
+        )
+    ):
+        return ConversationAnswer(
+            "AI 預測研究中。正式服務目前只呈現已驗證的市場實況，"
+            "不提供操作判斷或研究結果。"
+        )
+
+    entities = resolve_entities(question, _conversation_search_stock)
+    if entities:
+        entity = entities[0]
+        symbol = entity["symbol"]
+        data = build_stock_observation(fetch_published_quant_snapshot(symbol))
+        if not isinstance(data, dict):
+            return ConversationAnswer("已驗證的個股觀察資料暫時無法取得。")
+        trend = {
+            "above_ma20_ma60": "站上 MA20 與 MA60",
+            "above_ma20": "站上 MA20",
+            "below_ma60": "低於 MA60",
+            "mixed": "均線交錯",
+        }.get(data.get("trend_observation"), "資料不足")
+        events = "；".join(data.get("risk_events", [])[:3]) or "未觸發額外事件"
+        text = (
+            f"{data['name']}（{data['code']}）市場觀察："
+            f"最新收盤 {_observation_number(data.get('price'))}，"
+            f"均線狀態為{trend}，"
+            f"RSI {_observation_number(data.get('rsi'), 1)}，"
+            f"量比 {_observation_number(data.get('volume_ratio'))}。"
+            f"已觸發事件：{events}。\n\n"
+            f"資料截至：{data.get('as_of') or '未提供'}｜"
+            "內容只描述已發生資料。"
+        )
+        return ConversationAnswer(
+            text,
+            data_as_of=data.get("as_of"),
+            data_quality="available",
+            tools_used=("verified_observation_snapshot",),
+        )
+
+    snapshot = _published_dashboard_snapshot()
+    if not isinstance(snapshot, dict) or snapshot.get("product_mode") != "observation":
+        return ConversationAnswer("已驗證的市場觀察資料暫時無法取得。")
+    industries = snapshot.get("industry_observations", [])
+    industry = next(
+        (
+            item for item in industries
+            if isinstance(item, dict)
+            and str(item.get("name") or "") in question
+        ),
+        None,
+    )
+    if industry is not None:
+        text = (
+            f"{industry['name']}產業觀察："
+            f"單日實際報酬 {_observation_signed(industry.get('return_1d_pct'))}，"
+            f"近 5 日相對大盤報酬 "
+            f"{_observation_signed(industry.get('relative_return_5d_pct'))}，"
+            f"上漲家數比例 "
+            f"{_observation_number(industry.get('advancing_ratio_pct'), 1, '%')}，"
+            f"站上 MA20 比例 "
+            f"{_observation_number(industry.get('ma20_breadth_pct'), 1, '%')}。\n\n"
+            f"資料截至：{snapshot.get('observation_as_of')}｜"
+            "內容只描述已發生資料。"
+        )
+        return ConversationAnswer(
+            text,
+            data_as_of=snapshot.get("observation_as_of"),
+            data_quality="available",
+            tools_used=("verified_observation_dashboard",),
+        )
+    if any(term in question for term in ("台股", "大盤", "市場", "盤勢", "今天")):
+        market = snapshot.get("market_observation", {})
+        risk = {
+            "normal": "一般",
+            "cautious": "謹慎",
+            "elevated": "升高",
+        }.get(market.get("risk_state"), "資料不足")
+        text = (
+            f"市場實況：單日中位報酬 "
+            f"{_observation_signed(market.get('return_1d_pct'))}，"
+            f"上漲 {market.get('advancing_count', '—')} 檔、"
+            f"下跌 {market.get('declining_count', '—')} 檔，"
+            f"站上 MA20 比例 "
+            f"{_observation_number(market.get('ma20_breadth_pct'), 1, '%')}，"
+            f"風險狀態為{risk}。\n\n"
+            f"資料截至：{snapshot.get('observation_as_of')}｜"
+            "內容只描述已發生資料。"
+        )
+        return ConversationAnswer(
+            text,
+            data_as_of=snapshot.get("observation_as_of"),
+            data_quality="available",
+            tools_used=("verified_observation_dashboard",),
+        )
+    return ConversationAnswer(
+        "AI 預測研究中。你可以詢問市場實況、產業實際強弱、"
+        "個股價格、均線、技術指標、籌碼或已觸發事件。"
+    )
+
+
 def run_absorb_conversation(*, principal, question, access="public", action_executor=None):
+    if prediction_capability.mode == "research":
+        return _observation_conversation(question=question, access=access)
     state_lookup = (lambda: _conversation_user_state(principal)) if access == "authenticated" else None
     orchestrator = ConversationOrchestrator(
         context_store=conversation_context_store,
@@ -1111,6 +1250,7 @@ def _handle_postback_impl(event):
         "build_projection_flex": build_projection_flex,
         "current_web_root": _current_web_root,
         "find_matching_alert": _find_matching_alert,
+        "observation_mode": prediction_capability.mode == "research",
     })
 
 
@@ -1144,6 +1284,11 @@ def _handle_message_impl(event):
         "logger": logger,
         "search_stock_code": search_stock_code,
         "analyze": analyze,
+        "observe": lambda code: build_stock_observation(
+            fetch_published_quant_snapshot(code)
+        ),
+        "dashboard_snapshot": _published_dashboard_snapshot,
+        "observation_mode": prediction_capability.mode == "research",
         "build_projection_flex": build_projection_flex,
         "build_category_quick_reply": build_category_quick_reply,
         "industry_map": industry_map,
@@ -1188,6 +1333,9 @@ def route_dependencies():
         "converse": lambda **kwargs: run_absorb_web_conversation(**kwargs),
         "resolve_conversation_identity": lambda http_request: _web_conversation_identity(http_request),
         "analyze": lambda code: analyze(code),
+        "stock_observation": lambda code: build_stock_observation(
+            fetch_published_quant_snapshot(code)
+        ),
         "dashboard_sector_cards": lambda: dashboard_sector_cards(),
         "dashboard_snapshot": lambda: _published_dashboard_snapshot(),
         "prediction_capability": prediction_capability,
@@ -1209,8 +1357,16 @@ def route_dependencies():
             name, data, bt, news
         ),
         "refresh_sector_signals": lambda store: refresh_sector_signals(store),
-        "run_alert_checks": lambda store, analyze_fn, push, today, root: run_alert_checks(
-            store, analyze_fn, push, today, root
+        "run_alert_checks": (
+            lambda store, analyze_fn, push, today, root, *, prediction_allowed=True:
+            run_alert_checks(
+                store,
+                analyze_fn,
+                push,
+                today,
+                root,
+                prediction_allowed=prediction_allowed,
+            )
         ),
     }
 def _papi_service():

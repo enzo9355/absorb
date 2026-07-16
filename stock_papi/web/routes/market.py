@@ -1,13 +1,13 @@
 """Market-facing Flask route registration."""
 
-from flask import abort, jsonify, render_template
+from flask import abort, jsonify, redirect, render_template, url_for
 
 from stock_papi.shared.formatting import safe_float as _safe_float
 from stock_papi.services.model_evidence import sanitize_recommendation
 
 
 def register_market_routes(
-    app, *, analyze, dashboard_sector_cards, cached_opportunities,
+    app, *, analyze, stock_observation, dashboard_sector_cards, cached_opportunities,
     build_market_heatmap, dashboard_top_picks, industry_map,
     market_insights_payload, twstock_codes, is_us_ticker,
     find_industry_peers, get_stock_name, dashboard_snapshot,
@@ -96,16 +96,38 @@ def register_market_routes(
         })
 
     def market_insights_api():
-        return jsonify(market_insights_payload())
+        snapshot = dashboard_snapshot()
+        if not isinstance(snapshot, dict) or snapshot.get("product_mode") != "observation":
+            return jsonify({"status": "observation_unavailable"}), 503
+        return jsonify(
+            {
+                "product_mode": "observation",
+                "observation_as_of": snapshot["observation_as_of"],
+                "market_observation": snapshot["market_observation"],
+                "industry_observations": snapshot["industry_observations"],
+                "heatmap": snapshot["heatmap"],
+                "stock_events": snapshot["stock_events"],
+                "etf_observations": snapshot["etf_observations"],
+                "data_quality": snapshot["data_quality"],
+                "prediction_status": "AI 預測研究中",
+            }
+        )
 
     def market_map_page():
-        return render_template("market_map.html", insights=market_insights_payload())
+        snapshot = dashboard_snapshot()
+        observation = (
+            snapshot
+            if isinstance(snapshot, dict)
+            and snapshot.get("product_mode") == "observation"
+            else None
+        )
+        return render_template("market_map.html", observation=observation)
 
     def stock_page(code):
         code = code.upper()
         if code not in twstock_codes() and not is_us_ticker(code):
             abort(404)
-        data = analyze(code)
+        data = stock_observation(code)
         peer_group = find_industry_peers(code)
         peers = [{"code": peer, "name": get_stock_name(peer)} for peer in peer_group["codes"]]
         return render_template(
@@ -114,8 +136,7 @@ def register_market_routes(
         ) if data else "查無資料"
 
     def market_page():
-        data = analyze("TAIEX")
-        return render_template("stock_detail.html", d=data) if data else "資料更新中"
+        return redirect(url_for("dashboard_page") + "#market-pulse", code=302)
 
     app.add_url_rule("/api/dashboard", "dashboard_api", dashboard_api)
     app.add_url_rule("/api/market-insights", "market_insights_api", market_insights_api)

@@ -10,6 +10,183 @@ ABSORB_MUTED = "#5F6B7A"
 ABSORB_SURFACE = "#FFFFFF"
 
 
+def _observation_trend_label(value):
+    return {
+        "above_ma20_ma60": "站上 MA20 與 MA60",
+        "above_ma20": "站上 MA20",
+        "below_ma60": "低於 MA60",
+        "mixed": "均線交錯",
+    }.get(value, "資料不足")
+
+
+def build_stock_observation_flex(code, name, data, url, watched=False):
+    """Render verified actual-market fields without model or backtest content."""
+    risk_events = [
+        str(value)[:120]
+        for value in data.get("risk_events", [])
+        if isinstance(value, str) and value.strip()
+    ][:3]
+    body = [
+        {
+            "type": "text",
+            "text": "AI 預測研究中",
+            "color": "#b45309",
+            "size": "sm",
+            "weight": "bold",
+            "wrap": True,
+        },
+        {
+            "type": "text",
+            "text": "目前只顯示已驗證的市場觀察資料。",
+            "color": "#64748b",
+            "size": "xs",
+            "wrap": True,
+        },
+        {"type": "separator", "margin": "md", "color": "#cbd5e1"},
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                {"type": "text", "text": "最新收盤", "color": "#64748b", "size": "sm", "flex": 4},
+                {
+                    "type": "text",
+                    "text": f"{float(data['price']):.2f}",
+                    "color": "#0f172a",
+                    "size": "md",
+                    "weight": "bold",
+                    "align": "end",
+                    "flex": 5,
+                },
+            ],
+        },
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                {"type": "text", "text": "均線狀態", "color": "#64748b", "size": "sm", "flex": 4},
+                {
+                    "type": "text",
+                    "text": _observation_trend_label(data.get("trend_observation")),
+                    "color": "#0f172a",
+                    "size": "sm",
+                    "weight": "bold",
+                    "align": "end",
+                    "wrap": True,
+                    "flex": 5,
+                },
+            ],
+        },
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                {"type": "text", "text": "量比", "color": "#64748b", "size": "sm", "flex": 4},
+                {
+                    "type": "text",
+                    "text": (
+                        f"{float(data['volume_ratio']):.2f}"
+                        if data.get("volume_ratio") is not None
+                        else "資料不足"
+                    ),
+                    "color": "#0f172a",
+                    "size": "sm",
+                    "align": "end",
+                    "flex": 5,
+                },
+            ],
+        },
+        {
+            "type": "text",
+            "text": f"資料日期 {data.get('as_of') or '待更新'}",
+            "color": "#94a3b8",
+            "size": "xs",
+            "wrap": True,
+        },
+    ]
+    if risk_events:
+        body.extend(
+            [
+                {"type": "separator", "margin": "md", "color": "#cbd5e1"},
+                {
+                    "type": "text",
+                    "text": "已觸發事件",
+                    "color": "#0f172a",
+                    "size": "sm",
+                    "weight": "bold",
+                },
+                *[
+                    {
+                        "type": "text",
+                        "text": f"• {event}",
+                        "color": "#64748b",
+                        "size": "xs",
+                        "wrap": True,
+                    }
+                    for event in risk_events
+                ],
+            ]
+        )
+    return {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": ABSORB_NAVY,
+            "paddingAll": "20px",
+            "contents": [
+                {"type": "text", "text": "ABSORB｜市場觀察", "color": "#FFFFFF", "weight": "bold", "size": "xs"},
+                {"type": "text", "text": f"{name} ({code})", "color": "#FFFFFF", "weight": "bold", "size": "xl", "wrap": True},
+            ],
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": "#f8fafc",
+            "paddingAll": "20px",
+            "spacing": "md",
+            "contents": body,
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": "#f8fafc",
+            "paddingAll": "16px",
+            "spacing": "sm",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "action": {
+                        "type": "postback",
+                        "label": "移除關注" if watched else "加入關注",
+                        "data": f"watch:{'remove' if watched else 'add'}:{code}",
+                    },
+                },
+                {
+                    "type": "button",
+                    "style": "secondary",
+                    "action": {
+                        "type": "postback",
+                        "label": "設定實況提醒",
+                        "data": f"alert:menu:{code}",
+                    },
+                },
+                {
+                    "type": "button",
+                    "style": "primary",
+                    "color": ABSORB_NAVY,
+                    "action": {
+                        "type": "uri",
+                        "label": "查看完整觀察",
+                        "uri": url,
+                    },
+                },
+            ],
+        },
+    }
+
+
 def build_stock_flex_message(code, name, data, url, watched=False):
     color_prob = "#10b981" if data['prob'] >= 50 else "#ef4444"
     color_s = "#10b981" if data['s_score'] >= 50 else "#ef4444"
@@ -285,6 +462,78 @@ def build_watchlist_flex(state, base_url):
     }
 
 
+def build_observation_watchlist_flex(state, base_url):
+    watchlist = [
+        item for item in state.get("watchlist", [])
+        if isinstance(item, dict) and item.get("code") and item.get("name")
+    ][:12]
+    if not watchlist:
+        return _empty_line_bubble(
+            "我的關注",
+            "尚未加入關注股票。請先查詢個股，再點選「加入關注」。",
+        )
+    root = base_url.rstrip("/")
+    return {
+        "type": "carousel",
+        "contents": [
+            {
+                "type": "bubble",
+                "size": "kilo",
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "paddingAll": "18px",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": f"{item['name']} ({item['code']})",
+                            "weight": "bold",
+                            "size": "lg",
+                            "wrap": True,
+                        },
+                        {
+                            "type": "text",
+                            "text": "開啟個股頁查看最新已驗證觀察。",
+                            "color": "#64748b",
+                            "size": "sm",
+                            "wrap": True,
+                        },
+                    ],
+                },
+                "footer": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "paddingAll": "14px",
+                    "spacing": "sm",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "secondary",
+                            "action": {
+                                "type": "postback",
+                                "label": "移除關注",
+                                "data": f"watch:remove:{item['code']}",
+                            },
+                        },
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "color": ABSORB_NAVY,
+                            "action": {
+                                "type": "uri",
+                                "label": "查看完整觀察",
+                                "uri": f"{root}/stock/{item['code']}",
+                            },
+                        },
+                    ],
+                },
+            }
+            for item in watchlist
+        ],
+    }
+
+
 def _alert_condition_text(alert):
     if alert["kind"] in {"price", "price_above"}:
         return f"收盤價站上 {float(alert['value']):g}"
@@ -316,21 +565,29 @@ def _alert_management_card(alert):
     }
 
 
-def build_alerts_flex(state):
-    alerts = [alert for alert in state.get("alerts", []) if alert.get("enabled", True)][:12]
+def build_alerts_flex(state, prediction_allowed=True):
+    alerts = [
+        alert for alert in state.get("alerts", [])
+        if alert.get("enabled", True)
+        and (prediction_allowed or alert.get("kind") != "probability")
+    ][:12]
     if not alerts:
         return _empty_line_bubble("提醒管理", "尚未設定提醒。請先查詢個股，再點選「設定提醒」。")
     return {"type": "carousel", "contents": [_alert_management_card(alert) for alert in alerts]}
 
 
-def build_alert_menu_flex(code, name):
+def build_alert_menu_flex(code, name, prediction_allowed=True):
     choices = [
         ("站上收盤價", f"alert:start:{code}:price_above"),
         ("跌破收盤價", f"alert:start:{code}:price_below"),
-        ("上漲機率門檻", f"alert:start:{code}:probability"),
         ("趨勢為多頭", f"alert:trend:{code}:多頭"),
         ("趨勢為空頭", f"alert:trend:{code}:空頭"),
     ]
+    if prediction_allowed:
+        choices.insert(
+            2,
+            ("上漲機率門檻", f"alert:start:{code}:probability"),
+        )
     return {
         "type": "bubble",
         "size": "kilo",
@@ -493,12 +750,12 @@ def build_line_navigation_flex(base_url):
     """Rich Menu 入口的可預覽 Flex 版本。"""
     root = base_url.rstrip("/")
     entries = [
-        ("看大盤", "今天盤面偏強還是偏弱", "查看盤勢", {"type": "uri", "label": "查看盤勢", "uri": f"{root}/market"}),
-        ("找機會", "產業預測與熱門題材", "選擇產業", {"type": "message", "label": "選擇產業", "text": "預測"}),
+        ("看大盤", "查看市場報酬、廣度與風險狀態", "查看市場", {"type": "uri", "label": "查看市場", "uri": f"{root}/market"}),
+        ("看產業", "查看產業實際報酬與市場廣度", "查看產業", {"type": "uri", "label": "查看產業", "uri": f"{root}/market-map"}),
         ("查自選", "自選股票清單", "開啟關注", {"type": "message", "label": "開啟關注", "text": "我的關注"}),
-        ("設提醒", "收盤與趨勢通知", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
-        ("算報酬", "投入金額試算", "開始試算", {"type": "message", "label": "開始試算", "text": "投資試算"}),
-        ("深度分析", "圖表、回測、新聞", "開啟分析", {"type": "uri", "label": "開啟分析", "uri": f"{root}/dashboard"}),
+        ("設提醒", "管理收盤價與均線趨勢通知", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
+        ("查股票", "輸入股票代碼查看實際資料", "查台積電", {"type": "message", "label": "查台積電", "text": "2330"}),
+        ("市場觀察", "查看完整市場與事件頁面", "開啟觀察", {"type": "uri", "label": "開啟觀察", "uri": f"{root}/dashboard"}),
     ]
     return {
         "type": "carousel",
@@ -531,7 +788,7 @@ def build_welcome_flex():
             "paddingAll": "20px",
             "contents": [
                 { "type": "text", "text": "ABSORB", "color": "#FFFFFF", "weight": "bold", "size": "xl" },
-                { "type": "text", "text": "AI 量化市場情報與決策輔助", "color": "#DCE6F2", "size": "sm", "wrap": True }
+                { "type": "text", "text": "已驗證市場觀察", "color": "#DCE6F2", "size": "sm", "wrap": True }
             ]
         },
         "body": {
@@ -541,8 +798,8 @@ def build_welcome_flex():
             "paddingAll": "20px",
             "spacing": "md",
             "contents": [
-                { "type": "text", "text": "以市場、產業與個股資料形成可驗證的研究展望。", "color": ABSORB_INK, "size": "md", "weight": "bold", "wrap": True },
-                { "type": "text", "text": "您可以：\n1️⃣ 點擊下方選單選擇有興趣的【產業】\n2️⃣ 直接輸入【股票代碼】(如 2330)\n3️⃣ 輸入【大盤】查看今日走勢\n4️⃣ 直接用自然中文提出研究問題", "color": ABSORB_MUTED, "size": "sm", "wrap": True, "margin": "md" }
+                { "type": "text", "text": "AI 預測研究中；目前正式服務只呈現已驗證的市場實況。", "color": ABSORB_INK, "size": "md", "weight": "bold", "wrap": True },
+                { "type": "text", "text": "您可以：\n1️⃣ 開啟產業實際強弱頁\n2️⃣ 直接輸入股票代碼（如 2330）\n3️⃣ 輸入「大盤」查看市場實況\n4️⃣ 管理關注與收盤價提醒", "color": ABSORB_MUTED, "size": "sm", "wrap": True, "margin": "md" }
             ]
         },
         "footer": {
@@ -582,14 +839,14 @@ def build_tutorial_flex():
             "paddingAll": "20px",
             "spacing": "md",
             "contents": [
-                { "type": "text", "text": "不用擔心看不懂複雜的數據，只要掌握以下三個重點：", "color": "#475569", "size": "sm", "wrap": True, "weight": "bold", "margin": "sm" },
+                { "type": "text", "text": "正式服務只呈現已發生的市場資料，可先掌握以下三個重點：", "color": "#475569", "size": "sm", "wrap": True, "weight": "bold", "margin": "sm" },
                 { "type": "separator", "margin": "md", "color": "#cbd5e1" },
-                { "type": "text", "text": "🎯 1. 看「模型輸出」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
-                { "type": "text", "text": "有 validated compatible baseline 時會顯示五日上漲機率；尚未通過校準驗證時只顯示模型方向分數，不能當成真實機率。", "color": "#64748b", "size": "sm", "wrap": True },
-                { "type": "text", "text": "🌡 2. 看「新聞情緒」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
-                { "type": "text", "text": "我們會自動分析最近的新聞是利多還利空。「樂觀貪婪」代表市場氣氛好，「悲觀恐慌」代表市場害怕。", "color": "#64748b", "size": "sm", "wrap": True },
-                { "type": "text", "text": "📖 3. 專有名詞看不懂？", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
-                { "type": "text", "text": "直接點擊個股的「📈 查看圖表與回測報告」，滑到網頁最下方，就有白話文的【新手投資小辭典】幫你翻譯各種專業術語喔！", "color": "#64748b", "size": "sm", "wrap": True }
+                { "type": "text", "text": "1. 看「市場廣度」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
+                { "type": "text", "text": "上漲家數與站上均線比例，可觀察漲勢是否由多數股票共同參與。", "color": "#64748b", "size": "sm", "wrap": True },
+                { "type": "text", "text": "2. 看「相對報酬」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
+                { "type": "text", "text": "產業報酬扣除同期大盤報酬，只描述已發生的相對強弱。", "color": "#64748b", "size": "sm", "wrap": True },
+                { "type": "text", "text": "3. 看「異常事件」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
+                { "type": "text", "text": "價格、量能、技術或資料品質超過條件時才列出；事件本身不是買賣指令。", "color": "#64748b", "size": "sm", "wrap": True }
             ]
         }
     }

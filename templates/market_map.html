@@ -1,102 +1,117 @@
 {% extends "base.html" %}
-{% block title %}產業地圖｜ABSORB{% endblock %}
+{% block title %}產業實際強弱｜ABSORB{% endblock %}
 {% block content %}
-{% set lead = insights.industries[0] if insights.industries else none %}
 <div class="page market-map-page">
   <header class="map-hero glass-panel">
-    <div><p class="eyebrow">MARKET INTELLIGENCE</p><h1>產業地圖</h1></div>
-    <p class="muted">資料日 {{ insights.as_of }}。從產業熱度、籌碼與供應鏈角色，快速找到值得深入研究的方向。</p>
-    {% if insights.degraded %}<p class="map-notice">本地洞察快照尚未上傳，目前顯示既有產業訊號與供應鏈架構。</p>{% endif %}
+    <div><p class="eyebrow">OBSERVATION ONLY</p><h1>產業實際強弱</h1></div>
+    {% if observation %}
+      <p class="muted">資料日 {{ observation.observation_as_of }}。以下內容只描述已發生的市場、產業、個股事件與 ETF 實況。</p>
+    {% else %}
+      <p class="map-notice">已驗證的市場觀察快照暫時無法取得；系統不以舊資料或假資料補位。</p>
+    {% endif %}
+    <p class="muted small">AI 預測研究中。正式頁面只呈現已發生的市場資料。</p>
   </header>
 
-  <section class="map-section" aria-labelledby="key-metrics-title">
-    <div class="section-heading"><div><p class="eyebrow">AT A GLANCE</p><h2 id="key-metrics-title">產業關鍵指標</h2></div><span class="muted small">依目前有效樣本彙總</span></div>
-    <div class="map-kpi-grid">
-      <article><span>領先產業</span><strong>{{ lead.name if lead else '等待更新' }}</strong><small>{% if lead and lead.coverage|default(0) %}平均 AI 機率 {{ lead.average_prob }}%{% else %}等待量化快照{% endif %}</small></article>
-      <article><span>領先個股</span><strong>{{ lead.leaders[0].name if lead and lead.leaders else '等待更新' }}</strong><small>{% if lead and lead.leaders %}{{ lead.leaders[0].symbol }} · {% if lead.leaders[0].prob is not none %}{{ lead.leaders[0].prob }}%{% else %}等待更新{% endif %}{% else %}尚無候選{% endif %}</small></article>
-      <article><span>多頭廣度</span><strong>{% if lead and lead.coverage|default(0) %}{{ lead.bullish_ratio }}%{% else %}--{% endif %}</strong><small>領先產業中，股價高於 MA20 的比例</small></article>
-      <article><span>資料覆蓋</span><strong>{% if lead and lead.coverage is not none and lead.coverage != "" %}{{ lead.coverage }} 檔{% else %}資料不足{% endif %}</strong><small>已完成本地分析的產業樣本</small></article>
-    </div>
-  </section>
+  {% if observation %}
+    {% set market = observation.market_observation %}
+    <section class="map-section" aria-labelledby="key-metrics-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">MARKET ACTUALS</p><h2 id="key-metrics-title">市場實況摘要</h2></div>
+        <span class="muted small">依已完成驗證的本地快照彙總</span>
+      </div>
+      <div class="map-kpi-grid">
+        <article><span>單日中位報酬</span><strong>{{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}</strong><small>全市場有效樣本中位數</small></article>
+        <article><span>上漲／下跌家數</span><strong>{{ market.advancing_count }}／{{ market.declining_count }}</strong><small>平盤 {{ market.unchanged_count }} 檔</small></article>
+        <article><span>站上 MA20</span><strong>{{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '資料不足' }}</strong><small>市場廣度</small></article>
+        <article><span>20 日已實現波動</span><strong>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '資料不足' }}</strong><small>風險狀態 {{ {'normal':'一般', 'cautious':'謹慎', 'elevated':'升高'}.get(market.risk_state, '資料不足') }}</small></article>
+      </div>
+    </section>
 
-  <section class="panel" aria-labelledby="industry-heat-title">
-    <div class="section-heading"><div><p class="eyebrow">DAILY SNAPSHOT</p><h2 id="industry-heat-title">產業漲跌熱力圖</h2></div><span class="muted small">顏色代表平均單日漲跌，區塊大小代表有效樣本數</span></div>
-    <div class="industry-heatmap">
-      {% for industry in insights.industries %}
-      <a class="industry-heat {{ industry.heat_tone|default('flat') }} size-{{ industry.heat_size|default('sm') }}" href="#industry-{{ loop.index }}">
-        <span>{{ industry.name }}</span>
-        <strong>{% if industry.coverage|default(0) and industry.average_return is defined %}{{ '%+.1f'|format(industry.average_return) }}%{% else %}--{% endif %}</strong>
-        <small>AI {% if industry.coverage|default(0) %}{{ industry.average_prob }}%{% else %}--{% endif %} · {{ industry.candidate_count|default(industry.leaders|length) }} 檔候選</small>
-      </a>
-      {% else %}<div class="empty-state">產業快照等待更新。</div>{% endfor %}
-    </div>
-    <div class="heat-legend" aria-label="熱力圖圖例"><span>跌</span><i class="fall"></i><i class="weak"></i><i class="flat"></i><i class="rise"></i><i class="surge"></i><span>漲</span></div>
-  </section>
+    <section class="panel" aria-labelledby="industry-heat-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">RELATIVE RETURNS</p><h2 id="industry-heat-title">近 5 日相對大盤報酬</h2></div>
+        <span class="muted small">顏色表示已發生的相對強弱，區塊不代表未來方向</span>
+      </div>
+      <div class="industry-heatmap">
+        {% for item in observation.heatmap %}
+          <a class="industry-heat {{ item.tone|default('steady') }} size-sm" href="#industry-{{ loop.index }}">
+            <span>{{ item.name }}</span>
+            <strong>{{ '%+.2f%%'|format(item.metric_value_pct) }}</strong>
+            <small>{{ item.available_count }} 檔｜覆蓋 {{ '%.1f%%'|format(item.coverage * 100) }}</small>
+          </a>
+        {% else %}
+          <div class="empty-state">產業相對報酬資料不足。</div>
+        {% endfor %}
+      </div>
+      <div class="heat-legend" aria-label="熱力圖圖例"><span>相對弱</span><i class="fall"></i><i class="weak"></i><i class="flat"></i><i class="rise"></i><i class="surge"></i><span>相對強</span></div>
+    </section>
 
-  {% set ns = namespace(has_chips=false) %}
-  {% if lead and lead.chips is defined %}
-    {% for chip in lead.chips %}
-      {% if chip.score is not none and chip.score != "" %}
-        {% set ns.has_chips = true %}
-      {% endif %}
-    {% endfor %}
+    <section class="panel" aria-labelledby="industry-observation-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">INDUSTRY ACTUALS</p><h2 id="industry-observation-title">產業觀察</h2></div>
+        <span class="muted small">實際報酬、廣度、量能與機構流向</span>
+      </div>
+      <div class="industry-detail-list">
+        {% for industry in observation.industry_observations %}
+          <article class="industry-detail" id="industry-{{ loop.index }}">
+            <header>
+              <div>
+                <h3>{{ industry.name }}</h3>
+                <p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用｜階段 {{ {'strong':'相對強', 'strengthening':'轉強', 'weakening':'轉弱', 'weak':'相對弱', 'insufficient':'資料不足'}.get(industry.phase, industry.phase) }}</p>
+              </div>
+              <strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct >= 0 else 'down' }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong>
+            </header>
+            <div class="indicator-grid wide-indicator-grid">
+              <article><span>單日報酬</span><strong>{{ '%+.2f%%'|format(industry.return_1d_pct) if industry.return_1d_pct is not none else '—' }}</strong><small>有效成分股平均</small></article>
+              <article><span>5 日報酬</span><strong>{{ '%+.2f%%'|format(industry.return_5d_pct) if industry.return_5d_pct is not none else '—' }}</strong><small>已發生報酬</small></article>
+              <article><span>上漲家數比例</span><strong>{{ '%.1f%%'|format(industry.advancing_ratio_pct) if industry.advancing_ratio_pct is not none else '—' }}</strong><small>單日市場廣度</small></article>
+              <article><span>站上 MA20</span><strong>{{ '%.1f%%'|format(industry.ma20_breadth_pct) if industry.ma20_breadth_pct is not none else '—' }}</strong><small>均線廣度</small></article>
+              <article><span>量比中位數</span><strong>{{ '%.2f'|format(industry.median_volume_ratio) if industry.median_volume_ratio is not none else '—' }}</strong><small>相對近期常態量</small></article>
+              <article><span>機構淨流量中位數</span><strong>{{ '%+.2f%%'|format(industry.median_institution_net_ratio_pct) if industry.median_institution_net_ratio_pct is not none else '—' }}</strong><small>僅描述已發生流向</small></article>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state">產業觀察資料不足。</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="events-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">OBSERVED EVENTS</p><h2 id="events-title">個股異常事件</h2></div>
+        <span class="muted small">按事件嚴重度與幅度整理，不構成選股清單</span>
+      </div>
+      <div class="mops-list">
+        {% for item in observation.stock_events %}
+          <a href="{{ url_for('stock_page', code=item.symbol) }}">
+            <strong>{{ item.name }}（{{ item.symbol }}）</strong>
+            <span>{{ item.observation }}</span>
+            <small>{{ item.as_of }}｜{{ item.metric_value }} {{ item.unit }}</small>
+          </a>
+        {% else %}
+          <div class="empty-state">目前沒有通過條件的異常事件。</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="etf-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">ETF ACTUALS</p><h2 id="etf-title">ETF 觀察</h2></div>
+        <span class="muted small">價格、已發生報酬、量能與均線狀態</span>
+      </div>
+      <div class="etf-grid">
+        {% for item in observation.etf_observations %}
+          <article class="etf-card">
+            <h3>{{ item.name }}（{{ item.symbol }}）</h3>
+            <p>收盤 {{ '{:,.2f}'.format(item.price) if item.price is not none else '—' }}｜單日 {{ '%+.2f%%'|format(item.return_1d_pct) if item.return_1d_pct is not none else '—' }}</p>
+            <p class="muted small">5 日 {{ '%+.2f%%'|format(item.return_5d_pct) if item.return_5d_pct is not none else '—' }}｜20 日 {{ '%+.2f%%'|format(item.return_20d_pct) if item.return_20d_pct is not none else '—' }}｜量比 {{ '%.2f'|format(item.volume_ratio) if item.volume_ratio is not none else '—' }}</p>
+            <p class="muted small">均線狀態 {{ {'above_ma20_ma60':'站上 MA20 與 MA60', 'above_ma20':'站上 MA20', 'below_ma60':'低於 MA60', 'mixed':'均線交錯', 'insufficient':'資料不足'}.get(item.trend_observation, item.trend_observation) }}</p>
+          </article>
+        {% else %}
+          <div class="empty-state">ETF 觀察資料不足。</div>
+        {% endfor %}
+      </div>
+    </section>
   {% endif %}
-
-  {% if ns.has_chips %}
-  <section class="panel" aria-labelledby="chip-title">
-    <div class="section-heading"><div><p class="eyebrow">CAPITAL FLOW</p><h2 id="chip-title">籌碼訊號</h2></div><span class="muted small">{{ lead.name if lead else '領先產業' }} · 0 至 10 分，只作相對強弱比較</span></div>
-    <div class="chip-signal-list">
-      {% for chip in lead.chips %}
-        {% if chip.score is not none and chip.score != "" %}
-        <div class="chip-signal">
-          <strong>{{ chip.label }}</strong>
-          <progress max="10" value="{{ chip.score }}">{{ chip.score }}/10</progress>
-          <span>{{ chip.score }}/10</span>
-        </div>
-        {% endif %}
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <section class="panel" aria-labelledby="industry-map-title">
-    <div class="section-heading"><div><p class="eyebrow">COMPANY ROLES</p><h2 id="industry-map-title">產業角色分群</h2></div><span class="muted small">依平均 AI 機率排序；點選公司查看完整分析</span></div>
-    <div class="industry-detail-list">
-      {% for industry in insights.industries %}
-      <article class="industry-detail" id="industry-{{ loop.index }}">
-        <header><div><h3>{{ industry.name }}</h3><p>平均 AI {% if industry.coverage|default(0) %}{{ industry.average_prob }}% · 多頭廣度 {{ industry.bullish_ratio }}%{% else %}等待量化快照{% endif %}</p></div><strong class="return {% if industry.average_return|default(0, true) >= 0 %}up{% else %}down{% endif %}">{% if industry.coverage|default(0) and industry.average_return is defined and industry.average_return is not none %}{{ '%+.1f'|format(industry.average_return) }}%{% else %}--{% endif %}</strong></header>
-        <div class="industry-company-grid">
-          {% for leader in industry.leaders %}<a href="{{ url_for('stock_page', code=leader.symbol) }}" class="industry-company">
-            <div><strong>{{ leader.name }}</strong><small>{{ leader.symbol }}</small></div>
-            <div class="company-quote"><strong>{% if leader.close is defined and leader.close is not none %}{{ '{:,.2f}'.format(leader.close) }}{% else %}--{% endif %}</strong><span class="{% if leader.return_1d|default(0, true) >= 0 %}up{% else %}down{% endif %}">{% if leader.return_1d is defined and leader.return_1d is not none %}{{ '%+.1f'|format(leader.return_1d) }}%{% else %}--{% endif %}</span></div>
-            <div class="signal-tags"><span>{{ leader.trend }}</span><span>AI {% if leader.prob is not none %}{{ leader.prob }}%{% else %}--{% endif %}</span>{% for signal in leader.signals|default([]) %}<span>{{ signal }}</span>{% endfor %}</div>
-          </a>{% endfor %}
-        </div>
-      </article>
-      {% else %}<div class="empty-state">產業快照等待更新。</div>{% endfor %}
-    </div>
-  </section>
-
-  <section class="panel" aria-labelledby="supply-chain-title">
-    <div class="section-heading"><div><p class="eyebrow">TW · US · JP</p><h2 id="supply-chain-title">台美日供應鏈</h2></div><span class="muted small">角色分類，不代表已驗證的客戶或供應契約</span></div>
-    {% for chain in insights.supply_chains %}<article class="supply-chain"><h3>{{ chain.name }}</h3><div class="supply-stages">
-      {% for stage in chain.stages %}<section><h4>{{ stage.name }}</h4><div class="supply-nodes">
-        {% for node in stage.nodes %}{% if node.market != 'JP' %}<a href="{{ url_for('stock_page', code=node.symbol) }}" class="supply-node">{% else %}<div class="supply-node">{% endif %}
-          <div><span>{{ node.market }}</span><strong>{{ node.name }}</strong></div><small>{{ node.symbol }}{% if node.prob is not none %} · AI {{ node.prob }}%{% endif %}{% if node.return_1d is defined and node.return_1d is not none %} · {{ '%+.1f'|format(node.return_1d) }}%{% endif %}</small>
-          {% if node.signals|default([]) %}<div class="signal-tags">{% for signal in node.signals %}<span>{{ signal }}</span>{% endfor %}</div>{% endif %}
-        {% if node.market != 'JP' %}</a>{% else %}</div>{% endif %}{% endfor %}
-      </div></section>{% endfor %}
-    </div></article>{% endfor %}
-  </section>
-
-  <section class="panel" aria-labelledby="mops-title">
-    <div class="section-heading"><div><p class="eyebrow">DISCLOSURES</p><h2 id="mops-title">重大資訊 MOPS</h2></div><span class="muted small">TWSE／TPEx 每日重大訊息</span></div>
-    <div class="mops-list">{% for item in insights.mops[:30] %}<a href="{{ url_for('stock_page', code=item.code) }}"><strong>{{ item.code }} {{ item.name }}</strong><span>{{ item.title }}</span><small>{{ item.source }} · {{ item.published_at[:10] }}</small></a>{% else %}<div class="empty-state">MOPS 快照等待下一次夜間批次。</div>{% endfor %}</div>
-  </section>
-
-  <section class="panel" aria-labelledby="etf-title">
-    <div class="section-heading"><div><p class="eyebrow">FUND HOLDINGS</p><h2 id="etf-title">ETF 持倉</h2></div><span class="muted small">僅顯示資料源可取得的前十大持倉</span></div>
-    <div class="etf-grid">{% for etf in insights.etfs %}<article class="etf-card"><h3>{{ etf.name }}</h3><p>{{ etf.market }} · {{ etf.ticker }}</p><ol>{% for holding in etf.holdings %}<li><span>{{ holding.name }}</span><strong>{{ holding.weight }}%</strong></li>{% endfor %}</ol></article>{% else %}<div class="empty-state">ETF 持倉快照等待下一次夜間批次。</div>{% endfor %}</div>
-  </section>
 </div>
 {% endblock %}

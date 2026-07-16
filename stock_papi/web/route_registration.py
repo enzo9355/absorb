@@ -26,10 +26,12 @@ def register_routes(app, dependencies):
         load_metadata=dependencies["load_report_metadata"],
         load_index_v2=dependencies["load_report_index_v2"],
         load_metadata_v2=dependencies["load_report_metadata_v2"],
+        prediction_capability=dependencies["prediction_capability"],
     )
     register_market_routes(
         app,
         analyze=dependencies["analyze"],
+        stock_observation=dependencies["stock_observation"],
         dashboard_sector_cards=dependencies["dashboard_sector_cards"],
         cached_opportunities=dependencies["cached_opportunities"],
         build_market_heatmap=dependencies["build_market_heatmap"],
@@ -64,6 +66,10 @@ def register_routes(app, dependencies):
         get_broadcast_token=dependencies["get_broadcast_token"],
         get_alert_task_token=dependencies["get_alert_task_token"],
         analyze=dependencies["analyze"],
+        observe=dependencies["stock_observation"],
+        observation_mode=(
+            dependencies["prediction_capability"].mode == "research"
+        ),
         get_broadcast_insight=dependencies["get_broadcast_insight"],
         refresh_sector_signals=dependencies["refresh_sector_signals"],
         run_alert_checks=dependencies["run_alert_checks"],

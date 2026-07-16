@@ -7,6 +7,8 @@ LINE, Firestore, market providers, or the formal report publishing pipeline.
 import datetime
 import json
 import os
+import tempfile
+from pathlib import Path
 
 
 os.environ.setdefault("LINE_CHANNEL_ACCESS_TOKEN", "visual-test")
@@ -22,7 +24,13 @@ os.environ.setdefault("AUTH_COOKIE_SECURE", "false")
 import app as stock_app
 from flask import redirect
 
+from reporting.observation_v2 import build_post_close_observation_metadata
+from reporting.publisher import publish_report_v2
 from stock_papi.services.auth import sign_opaque_token
+from tests.test_observation_public_surfaces import (
+    observation_dashboard,
+    quant_snapshot,
+)
 
 
 NOW = datetime.datetime(2026, 7, 13, 4, 0, tzinfo=datetime.timezone.utc)
@@ -186,23 +194,35 @@ REPORT_METADATA = {
 }
 
 
-stock_app.analyze = lambda _code: analysis_data()
-stock_app.dashboard_sector_cards = lambda: [{
-    "name": "半導體", "count": 12, "score": 68,
-    "leader": {
-        "code": "2330", "name": "台積電", "prob": 63, "trend": "多頭",
-        "foreign_net_5": 1500, "as_of": "2026-07-11",
-        "recommendation": analysis_data()["recommendation"],
-    },
-}]
-stock_app.cached_opportunities = lambda: [
-    {"code": "2330", "name": "台積電", "prob": 63},
-    {"code": "2454", "name": "聯發科", "prob": 61},
-]
+stock_app._published_dashboard_snapshot = observation_dashboard
+stock_app.fetch_published_quant_snapshot = quant_snapshot
 stock_app.find_industry_peers = lambda _code: {"category": "半導體", "codes": ["2454"]}
 stock_app.get_stock_name = lambda code: "聯發科" if code == "2454" else "台積電"
-stock_app._published_report_index = lambda: [REPORT_ITEM]
-stock_app.load_report_metadata = lambda _item, **_kwargs: REPORT_METADATA
+
+
+class VisualCalendar:
+    def next_session(self, _value):
+        return datetime.date(2026, 7, 16)
+
+
+_REPORT_ROOT = tempfile.TemporaryDirectory()
+_REPORT_PUBLISH = Path(_REPORT_ROOT.name)
+publish_report_v2(
+    _REPORT_PUBLISH,
+    build_post_close_observation_metadata(
+        observation_dashboard(),
+        VisualCalendar(),
+    ),
+)
+_REPORT_V2_ROOT = _REPORT_PUBLISH / "publish" / "reports" / "v2"
+_REPORT_OBJECTS = {
+    f"reports/v2/{path.relative_to(_REPORT_V2_ROOT).as_posix()}": path.read_bytes()
+    for path in _REPORT_V2_ROOT.rglob("*")
+    if path.is_file()
+}
+stock_app._gcs_get_report_v2_object = (
+    lambda path, _size: _REPORT_OBJECTS.get(path)
+)
 stock_app.line_auth_store = VisualAuthStore()
 stock_app.line_store = VisualLineStore()
 stock_app.utc_now = lambda: NOW

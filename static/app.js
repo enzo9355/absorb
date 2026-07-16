@@ -32,77 +32,81 @@ function card(tag, className, rows, href) {
 async function loadDashboard() {
   const page = bySelector("[data-dashboard-endpoint]");
   if (!page) return;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(page.dataset.dashboardEndpoint, { headers: { Accept: "application/json" } });
+    const response = await fetch(page.dataset.dashboardEndpoint, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
     if (!response.ok) throw new Error("dashboard");
     renderDashboard(await response.json());
-  } catch (error) {
+  } catch (_error) {
     const banner = bySelector("[data-dashboard-error]");
     if (banner) banner.hidden = false;
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 
+function displayNumber(value, digits = 2, suffix = "") {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number.toFixed(digits)}${suffix}` : "資料不足";
+}
+
+function displaySigned(value, digits = 2, suffix = "%") {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "資料不足";
+  return `${number >= 0 ? "+" : ""}${number.toFixed(digits)}${suffix}`;
+}
+
+function observationTrend(value) {
+  return {
+    above_ma20_ma60: "站上 MA20 與 MA60",
+    above_ma20: "站上 MA20",
+    below_ma60: "低於 MA60",
+    mixed: "均線交錯",
+    insufficient: "資料不足",
+  }[value] || "資料不足";
+}
+
 function renderDashboard(data) {
-  const presentation = data.presentation || {};
-  const outputLabel = presentation.model_output_label || "五日上漲機率";
-  const bootstrap = data.baseline_status === "initial_backtest_bootstrap";
-  const picksTitle = bySelector("[data-top-picks-title]");
-  if (picksTitle) picksTitle.textContent = presentation.top_picks_label || "精選標的";
-  const outputDescription = bySelector("[data-model-output-description]");
-  if (outputDescription) {
-    outputDescription.textContent = bootstrap
-      ? "顏色代表模型方向分數，尚未完成機率校準驗證"
-      : "顏色代表五日上漲機率，不等同即時漲跌";
+  if (!data || data.product_mode !== "observation") {
+    throw new Error("observation dashboard required");
   }
-  const guideTitle = bySelector("[data-model-output-guide-title]");
-  const guide = bySelector("[data-model-output-guide]");
-  if (guideTitle) guideTitle.textContent = `${outputLabel}是什麼？`;
-  if (guide) {
-    guide.textContent = bootstrap
-      ? "這是未完成機率校準驗證的模型方向分數，只能作研究觀察，不是真實上漲機率。"
-      : "它是五個交易日內方向判斷的已驗證機率，不是保證獲利。";
-  }
-  const marketData = data.market || {};
-  const marketRecommendation = marketData.recommendation || {};
+  const marketData = data.market_observation || {};
   const hero = bySelector("[data-market-hero]");
   if (hero) {
-    const label = element("p", `action-label action-${marketRecommendation.level || "insufficient"}`, marketRecommendation.action || "等待資料");
-    const headline = element("h1", "market-headline", marketRecommendation.headline || "市場建議資料暫時不足");
-    const reasons = element("ul", "hero-reasons");
-    (marketRecommendation.supporting_reasons || []).slice(0, 3).forEach((reason) => reasons.append(element("li", "", reason)));
-    if (!reasons.children.length) reasons.append(element("li", "", "等待完整市場資料更新"));
-    const risk = element("p", "hero-risk");
-    risk.append(element("strong", "", "最大風險："));
-    risk.append(document.createTextNode((marketRecommendation.risk_reasons || ["資料品質不足"])[0]));
-    const meta = element("p", "muted small", `資料日 ${marketData.as_of || "待更新"} · ${marketRecommendation.confidence || "可信度低"}`);
-    replaceContent(hero, [label, headline, reasons, risk, meta]);
+    const riskState = {
+      normal: "一般",
+      cautious: "謹慎",
+      elevated: "升高",
+    }[marketData.risk_state] || "資料不足";
+    replaceContent(hero, [
+      element("p", "action-label action-insufficient", `市場風險狀態：${riskState}`),
+      element("h1", "market-headline", `上漲 ${marketData.advancing_count ?? "—"} 檔、下跌 ${marketData.declining_count ?? "—"} 檔`),
+      element("p", "hero-risk", `近 5 日市場中位報酬 ${displaySigned(marketData.return_5d_pct)}`),
+      element("p", "muted small", `資料日 ${data.observation_as_of || "待更新"} · 覆蓋率 ${displayNumber((data.data_quality?.coverage || 0) * 100, 1, "%")}`),
+    ]);
   }
 
   const market = bySelector("[data-market-summary]");
   if (market) {
     replaceContent(market, [
-      card("article", "pulse-card", [["span", "", "市場行動"], ["strong", "", marketRecommendation.action || "等待資料"], ["small", "muted", marketRecommendation.headline || "市場建議資料不足"]]),
-      card("article", "pulse-card", [["span", "", "優先方向"], ["strong", "", (data.sector_cards || [])[0]?.name || "等待資料"], ["small", "muted", "先看產業，再評估個股"]]),
-      card("article", "pulse-card", [["span", "", "最大風險"], ["strong", "", (marketRecommendation.risk_reasons || ["資料品質不足"])[0]], ["small", "muted", `加權指數 ${Number(marketData.price || 0).toFixed(2)}`]]),
+      card("article", "pulse-card", [["span", "", "單日中位報酬"], ["strong", "", displaySigned(marketData.return_1d_pct)], ["small", "muted", "全市場有效樣本"]]),
+      card("article", "pulse-card", [["span", "", "站上 MA20"], ["strong", "", displayNumber(marketData.ma20_breadth_pct, 1, "%")], ["small", "muted", "市場均線廣度"]]),
+      card("article", "pulse-card", [["span", "", "20 日已實現波動"], ["strong", "", displayNumber(marketData.realized_volatility_20d_pct, 1, "%")], ["small", "muted", `20 日新高 ${marketData.new_high_20d_count ?? "—"}／新低 ${marketData.new_low_20d_count ?? "—"}`]]),
     ]);
   }
   const status = bySelector(".status-dot");
-  if (status) status.textContent = marketData.as_of ? `資料日 ${marketData.as_of}` : "已更新";
-
-  const watchlist = bySelector("[data-watchlist-strip]");
-  if (watchlist) {
-    const hint = data.watchlist_hint || { title: "", steps: [] };
-    replaceContent(watchlist, (hint.steps || []).map((step, index) =>
-      card("article", "watch-chip", [["span", "", `Step ${index + 1}`], ["strong", "", step]])
-    ));
-  }
+  if (status) status.textContent = data.observation_as_of ? `資料日 ${data.observation_as_of}` : "資料不足";
 
   const focus = bySelector("[data-daily-focus]");
   if (focus) {
-    const items = data.top_picks || [];
-    replaceContent(focus, items.length ? items.slice(0, 2).map((item) =>
-      card("a", "focus-card", [["span", "", item.recommendation?.action || "等待確認"], ["strong", "", item.name], ["small", "", item.headline], ["small", "", item.summary]], stockHref(item.code))
-    ) : [emptyState("今日焦點等待產業快照更新。")]);
+    const items = Array.isArray(data.daily_focus) ? data.daily_focus : [];
+    replaceContent(focus, items.length ? items.map((text, index) =>
+      card("article", "focus-card", [["span", "", `焦點 ${index + 1}`], ["strong", "", text]])
+    ) : [emptyState("今日焦點資料不足。")]);
   }
 
   const heatmap = bySelector("[data-market-heatmap]");
@@ -114,71 +118,52 @@ function renderDashboard(data) {
       heatmap.style.gridTemplateColumns = "";
     }
     replaceContent(heatmap, cells.length ? cells.map((item) =>
-      card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [["span", "", item.name], ["strong", "", `${item.direction_score ?? item.probability}`], ["small", "", `${outputLabel} · ${item.count} 檔觀察`]], item.code ? stockHref(item.code, "#industry-forecast") : "#industry-forecast")
-    ) : [emptyState("今日產業樣本尚未完成，暫不提供產業熱力圖。")]);
+      card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [
+        ["span", "", item.name],
+        ["strong", "", displaySigned(item.metric_value_pct)],
+        ["small", "", `${item.available_count ?? "—"} 檔 · 覆蓋 ${displayNumber((item.coverage || 0) * 100, 1, "%")}`],
+      ], "#industry-observations")
+    ) : [emptyState("產業相對報酬資料不足。")]);
   }
 
-  const forecasts = bySelector("[data-sector-grid]");
-  if (forecasts) {
-    const cards = data.sector_cards || [];
-    replaceContent(forecasts, cards.length ? cards.map((sector, index) => {
-      const recommendation = sector.leader.recommendation || {};
-      return card("a", "forecast-card", [
-        ["span", "", `第 ${index + 1} 名 · ${sector.name}`],
-        ["strong", "", recommendation.action || "等待確認"],
-        ["small", "", `${sector.leader.model_output_label || outputLabel} ${sector.leader.direction_score ?? sector.leader.prob} · ${sector.leader.trend}`],
-        ["small", "", recommendation.headline || "等待完整資料"],
-        ["small", "", `代表股票 ${sector.leader.name || "待更新"} · ${recommendation.confidence || "可信度低"}`],
-      ], stockHref(sector.leader.code));
-    }) : [emptyState("產業預測快照尚未準備好，請稍後再試。")]);
+  const industries = bySelector("[data-industry-observations]");
+  if (industries) {
+    const items = Array.isArray(data.industry_observations) ? data.industry_observations : [];
+    replaceContent(industries, items.length ? items.map((item) =>
+      card("article", "forecast-card", [
+        ["span", "", item.name],
+        ["strong", "", `相對大盤 ${displaySigned(item.relative_return_5d_pct)}`],
+        ["small", "", `單日 ${displaySigned(item.return_1d_pct)} · 5 日 ${displaySigned(item.return_5d_pct)}`],
+        ["small", "", `上漲家數 ${displayNumber(item.advancing_ratio_pct, 1, "%")} · 站上 MA20 ${displayNumber(item.ma20_breadth_pct, 1, "%")}`],
+        ["small", "", `量比中位數 ${displayNumber(item.median_volume_ratio)} · 可用 ${item.available_count ?? "—"}/${item.component_count ?? "—"} 檔`],
+      ])
+    ) : [emptyState("產業觀察資料不足。")]);
   }
 
-  const picks = bySelector("[data-top-picks]");
-  if (picks) {
-    const items = data.top_picks || [];
-    const stocks = items.filter(item => !item.is_etf);
-    const etfs = items.filter(item => item.is_etf);
-    
-    const elements = [];
-    
-    // Stocks Section
-    elements.push(element("h3", "sub-section-title", bootstrap ? "量化觀察個股" : "精選個股"));
-    const stocksGrid = element("div", `top-picks count-${Math.min(3, stocks.length || 1)}`);
-    if (stocks.length) {
-      stocks.forEach(item => {
-        const rec = item.recommendation || {};
-        stocksGrid.append(card("a", "pick-card", [
-          ["span", "badge-stock", `[個股] ${item.name} · ${item.code}`],
-          ["strong", "", rec.action || "等待確認"],
-          ["p", "", item.headline],
-          ["p", "", item.summary],
-          ["small", "", `主要風險：${(rec.risk_reasons || ["資料不足"])[0]}`],
-        ], stockHref(item.code)));
-      });
-    } else {
-      stocksGrid.append(emptyState("目前沒有足夠的精選個股資料。"));
-    }
-    elements.push(stocksGrid);
-    
-    // ETFs Section
-    elements.push(element("h3", "sub-section-title", "ETF 觀察"));
-    const etfsGrid = element("div", `top-picks count-${Math.min(3, etfs.length || 1)}`);
-    if (etfs.length) {
-      etfs.forEach(item => {
-        const rec = item.recommendation || {};
-        etfsGrid.append(card("a", "pick-card", [
-          ["span", "badge-etf", `[ETF] ${item.name} · ${item.code}`],
-          ["strong", "", rec.action || "等待確認"],
-          ["p", "", item.headline],
-          ["p", "", item.summary],
-        ], stockHref(item.code)));
-      });
-    } else {
-      etfsGrid.append(emptyState("目前沒有足夠的 ETF 觀察資料。"));
-    }
-    elements.push(etfsGrid);
-    
-    replaceContent(picks, elements);
+  const events = bySelector("[data-stock-events]");
+  if (events) {
+    const items = Array.isArray(data.stock_events) ? data.stock_events : [];
+    replaceContent(events, items.length ? items.map((item) =>
+      card("a", "pick-card", [
+        ["span", "badge-stock", `${item.name} · ${item.symbol}`],
+        ["strong", "", item.observation],
+        ["p", "", `${item.metric_value ?? "—"} ${item.unit || ""}`],
+        ["small", "", `資料日 ${item.as_of || data.observation_as_of}`],
+      ], stockHref(item.symbol))
+    ) : [emptyState("目前沒有通過條件的異常事件。")]);
+  }
+
+  const etfs = bySelector("[data-etf-observations]");
+  if (etfs) {
+    const items = Array.isArray(data.etf_observations) ? data.etf_observations : [];
+    replaceContent(etfs, items.length ? items.map((item) =>
+      card("a", "pick-card", [
+        ["span", "badge-etf", `${item.name} · ${item.symbol}`],
+        ["strong", "", `收盤 ${displayNumber(item.price)}`],
+        ["p", "", `單日 ${displaySigned(item.return_1d_pct)} · 5 日 ${displaySigned(item.return_5d_pct)}`],
+        ["small", "", `${observationTrend(item.trend_observation)} · 量比 ${displayNumber(item.volume_ratio)}`],
+      ], stockHref(item.symbol))
+    ) : [emptyState("ETF 觀察資料不足。")]);
   }
 }
 
@@ -362,7 +347,6 @@ function initStockChart() {
   });
   candleSeries.setData(candles);
   chart.addLineSeries({ color: "#2b6cb0", lineWidth: 1, title: "MA20" }).setData(JSON.parse(raw.ma20));
-  chart.addLineSeries({ color: "#122643", lineWidth: 2, lineStyle: 2, title: "五日預測" }).setData(JSON.parse(raw.prediction));
   window.stockChart = { chart, length: candles.length };
   setChartRange(90);
   const resize = () => chart.resize(container.clientWidth, measureChartHeight(container));

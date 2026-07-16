@@ -22,6 +22,8 @@ from stock_papi.integrations.line.flex import (
     build_calculator_menu_flex,
     build_line_navigation_flex,
     build_line_summary_card,
+    build_observation_watchlist_flex,
+    build_stock_observation_flex,
     build_stock_flex_message,
     build_strong_signals_flex,
     build_tutorial_flex,
@@ -72,6 +74,7 @@ def handle_postback_impl(event, deps):
     build_projection_flex = deps["build_projection_flex"]
     current_web_root = deps["current_web_root"]
     find_matching_alert = deps["find_matching_alert"]
+    observation_mode = deps.get("observation_mode", False)
 
     user_id = getattr(getattr(event, "source", None), "user_id", None)
     if not user_id:
@@ -119,7 +122,21 @@ def handle_postback_impl(event, deps):
     if payload == f"alert:menu:{code}":
         line_bot_api.reply_message(
             event.reply_token,
-            FlexSendMessage(alt_text=f"設定 {name} 提醒", contents=build_alert_menu_flex(code, name)),
+            FlexSendMessage(
+                alt_text=f"設定 {name} 提醒",
+                contents=build_alert_menu_flex(
+                    code, name, prediction_allowed=not observation_mode
+                ),
+            ),
+        )
+        return
+    if observation_mode and (
+        payload.startswith("calc:")
+        or (alert_start_match and alert_start_match.group(2) == "probability")
+    ):
+        reply_text(
+            event,
+            "AI 預測研究中；目前只提供收盤價與均線趨勢提醒。",
         )
         return
     if payload == f"calc:menu:{code}":
@@ -193,6 +210,228 @@ def handle_postback_impl(event, deps):
         reply_text(event, store_error_text())
 
 
+def _observation_industry_card(snapshot, category, web_root):
+    industries = (
+        snapshot.get("industry_observations", [])
+        if isinstance(snapshot, dict)
+        else []
+    )
+    item = next(
+        (
+            value for value in industries
+            if isinstance(value, dict) and value.get("name") == category
+        ),
+        None,
+    )
+    if item is None:
+        return build_line_summary_card(
+            "產業觀察",
+            ["目前沒有這個產業的已驗證觀察資料。"],
+            "開啟產業頁",
+            f"{web_root}/market-map",
+        )
+    relative = item.get("relative_return_5d_pct")
+    relative_text = (
+        f"{float(relative):+.2f}%"
+        if isinstance(relative, (int, float)) and not isinstance(relative, bool)
+        else "資料不足"
+    )
+    breadth = item.get("advancing_ratio_pct")
+    breadth_text = (
+        f"{float(breadth):.1f}%"
+        if isinstance(breadth, (int, float)) and not isinstance(breadth, bool)
+        else "資料不足"
+    )
+    return build_line_summary_card(
+        f"{category}｜產業觀察",
+        [
+            f"近 5 日相對大盤報酬：{relative_text}",
+            f"單日上漲家數比例：{breadth_text}",
+            f"資料日：{snapshot.get('observation_as_of') or '待更新'}",
+        ],
+        "查看完整產業資料",
+        f"{web_root}/market-map",
+    )
+
+
+def _handle_observation_message(
+    event, msg, deps, *, current_state, state_load_failed, user_id
+):
+    reply_text = deps["reply_text"]
+    line_store = deps["line_store"]
+    line_bot_api = deps["line_bot_api"]
+    store_error_text = deps["store_error_text"]
+    search_stock_code = deps["search_stock_code"]
+    observe = deps["observe"]
+    dashboard_snapshot = deps.get("dashboard_snapshot", lambda: None)
+    web_root = deps["web_root"]
+    request_host_url = deps["request_host_url"]
+
+    if msg.startswith("試算") or msg == "投資試算":
+        reply_text(
+            event,
+            "AI 預測研究中；目前不提供報酬試算。",
+        )
+        return True
+    if msg in ("大盤預測", "大盤", "今日盤勢"):
+        data = observe("TAIEX")
+        if not data:
+            reply_text(event, "已驗證的大盤觀察資料暫時無法取得。")
+            return True
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(
+                alt_text="台股大盤市場觀察",
+                contents=build_stock_observation_flex(
+                    "TAIEX",
+                    "台股大盤（加權指數）",
+                    data,
+                    f"{web_root}/market",
+                ),
+            ),
+        )
+        return True
+    if msg in ("預測", "熱門產業", "強勢訊號", "完整分析"):
+        title = "個股異常事件" if msg == "強勢訊號" else "產業與市場觀察"
+        card = build_line_summary_card(
+            title,
+            [
+                "AI 預測研究中。",
+                "目前只顯示已驗證的市場報酬、廣度、量能與異常事件。",
+            ],
+            "開啟市場觀察",
+            f"{web_root}/market-map" if msg != "完整分析" else f"{web_root}/dashboard",
+        )
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(alt_text=title, contents=card),
+        )
+        return True
+    if msg == "我的關注":
+        if line_store is None or state_load_failed:
+            reply_text(event, store_error_text())
+        elif not user_id:
+            reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                FlexSendMessage(
+                    alt_text="我的關注",
+                    contents=build_observation_watchlist_flex(
+                        current_state, web_root
+                    ),
+                ),
+            )
+        return True
+    if msg == "提醒管理":
+        if line_store is None or state_load_failed:
+            reply_text(event, store_error_text())
+        elif not user_id:
+            reply_text(event, "無法識別 LINE 使用者，請從一對一聊天室操作。")
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                FlexSendMessage(
+                    alt_text="提醒管理",
+                    contents=build_alerts_flex(
+                        current_state, prediction_allowed=False
+                    ),
+                ),
+            )
+        return True
+    if msg == "功能選單":
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(
+                alt_text="ABSORB 功能選單",
+                contents=build_line_navigation_flex(web_root),
+            ),
+        )
+        return True
+    if msg == "產業列表":
+        categories = list(deps["industry_map"].keys())
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text="\n".join(
+                    ["產業分類"] + [
+                        f"{index}. {category}"
+                        for index, category in enumerate(categories[:100], 1)
+                    ]
+                )
+            ),
+        )
+        return True
+    if msg.startswith("選產業_"):
+        category = msg.removeprefix("選產業_")
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(
+                alt_text=f"{category} 產業觀察",
+                contents=_observation_industry_card(
+                    dashboard_snapshot(), category, web_root
+                ),
+            ),
+        )
+        return True
+    if msg.startswith("分類第_") and msg.endswith("頁"):
+        card = build_line_summary_card(
+            "產業觀察",
+            ["請開啟產業頁查看目前可用的已驗證產業資料。"],
+            "開啟產業頁",
+            f"{web_root}/market-map",
+        )
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(alt_text="產業觀察", contents=card),
+        )
+        return True
+    if msg in ("免責聲明", "新手教學"):
+        if msg == "免責聲明":
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text="本系統目前只呈現市場觀察資料，不構成投資建議，投資盈虧請自負。"
+                ),
+            )
+        else:
+            line_bot_api.reply_message(
+                event.reply_token,
+                FlexSendMessage(
+                    alt_text="ABSORB 市場觀察指南",
+                    contents=build_tutorial_flex(),
+                ),
+            )
+        return True
+
+    code, name = search_stock_code(msg)
+    if not code:
+        return False
+    data = observe(code)
+    if not data:
+        reply_text(event, "已驗證的個股觀察資料暫時無法取得。")
+        return True
+    watched = bool(
+        current_state
+        and any(
+            item.get("code") == code
+            for item in current_state.get("watchlist", [])
+            if isinstance(item, dict)
+        )
+    )
+    url = f"{request_host_url}stock/{code}".replace("http://", "https://")
+    line_bot_api.reply_message(
+        event.reply_token,
+        FlexSendMessage(
+            alt_text=f"{name}（{code}）市場觀察",
+            contents=build_stock_observation_flex(
+                code, name, data, url, watched=watched
+            ),
+        ),
+    )
+    return True
+
+
 def handle_message_impl(event, deps):
     reply_text = deps["reply_text"]
     line_store = deps["line_store"]
@@ -216,6 +455,7 @@ def handle_message_impl(event, deps):
     conversation = deps["conversation"]
     is_fixed_command = deps.get("is_fixed_command", lambda _message: False)
     record_metric = deps.get("record_metric", lambda _name: None)
+    observation_mode = deps.get("observation_mode", False)
 
     try:
         msg = validate_question(event.message.text)
@@ -233,6 +473,24 @@ def handle_message_impl(event, deps):
     if current_state and current_state.get("pending"):
         record_metric("command_requests")
         expected_pending = dict(current_state["pending"])
+        if observation_mode and expected_pending.get("kind") == "probability":
+            try:
+                def cancel_probability_pending(state):
+                    require_same_pending(state, expected_pending)
+                    state["pending"] = None
+
+                update_line_state(user_id, cancel_probability_pending)
+            except StateError as error:
+                reply_text(event, str(error))
+                return
+            except StoreError:
+                reply_text(event, store_error_text())
+                return
+            reply_text(
+                event,
+                "AI 預測仍在研究中，原機率提醒設定已取消；請改用收盤價或均線趨勢提醒。",
+            )
+            return
         try:
             if msg == "取消":
                 def cancel_pending(state):
@@ -297,6 +555,16 @@ def handle_message_impl(event, deps):
 
     if is_fixed_command(msg):
         record_metric("command_requests")
+
+    if observation_mode and _handle_observation_message(
+        event,
+        msg,
+        deps,
+        current_state=current_state,
+        state_load_failed=state_load_failed,
+        user_id=user_id,
+    ):
+        return
 
     calc_text = re.fullmatch(r"試算\s+([A-Za-z0-9-]+)\s+([0-9]+(?:\.[0-9]+)?)", msg)
     if calc_text:

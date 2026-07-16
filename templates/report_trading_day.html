@@ -7,31 +7,83 @@
     <a class="back-link" href="{{ url_for('reports_page') }}">返回每日報告</a>
     <p class="eyebrow">VERIFIED REPORT</p>
     <h1>{{ heading }}</h1>
+    <p class="muted small">AI 預測研究中；正式報告只呈現已發生且通過發布驗證的市場資料。</p>
   </header>
+
   {% for bundle in bundles %}
     {% set report = bundle.item %}
     {% set metadata = bundle.metadata %}
     {% set content = metadata.content %}
     <section class="panel" aria-labelledby="report-section-{{ loop.index }}">
-      <p class="eyebrow">{{ {'post_close': '盤後分析', 'pre_market': '盤前更新', 'weekly_model': '模型驗證週報'}.get(report.report_type) }}</p>
+      <p class="eyebrow">{{ {'post_close': '盤後觀察', 'pre_market': '盤前風險更新'}.get(report.report_type, report.report_type) }}</p>
       <h2 id="report-section-{{ loop.index }}">{{ metadata.title }}</h2>
       <p class="muted">資料日 {{ metadata.source_market_date }}｜適用交易日 {{ metadata.applicable_trading_date }}｜發布 {{ metadata.published_at }}</p>
       <ul>{% for line in metadata.summary %}<li>{{ line }}</li>{% endfor %}</ul>
-      {% if report.report_type == 'pre_market' %}
-        {% set overlay = content.overnight_overlay %}
-        <h3>隔夜風險：{{ overlay.status }}</h3><p>{{ overlay.message }}</p>
-        <p class="muted small">盤前資訊只疊加風險，不改寫盤後模型機率與證據。</p>
-      {% elif report.report_type == 'weekly_model' %}
-        {% set probability_model = content.get('probability_model', {}) %}
-        {% set strategy = content.get('strategy', {}) %}
-        <h3>機率模型</h3>
-        <dl class="report-meta"><div><dt>Ledger 方向準確率</dt><dd>{{ probability_model.get('ledger_direction_accuracy', '資料不足') }}</dd></div><div><dt>策略勝率</dt><dd>{{ strategy.get('win_rate', '資料不足') }}</dd></div><div><dt>Brier Score</dt><dd>{{ probability_model.get('brier_score', '資料不足') }}</dd></div></dl>
+
+      {% if metadata.product_mode == 'observation' %}
+        {% set market = content.market_observation %}
+        <h3>市場實況</h3>
+        <dl class="report-meta">
+          <div><dt>單日中位報酬</dt><dd>{{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}</dd></div>
+          <div><dt>上漲／下跌家數</dt><dd>{{ market.advancing_count }}／{{ market.declining_count }}</dd></div>
+          <div><dt>站上 MA20</dt><dd>{{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '資料不足' }}</dd></div>
+          <div><dt>20 日已實現波動</dt><dd>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '資料不足' }}</dd></div>
+        </dl>
+
+        <h3>產業觀察</h3>
+        <div class="industry-detail-list">
+          {% for industry in content.industry_observations[:12] %}
+            <article class="industry-detail">
+              <header>
+                <div><h4>{{ industry.name }}</h4><p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用</p></div>
+                <strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct >= 0 else 'down' }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong>
+              </header>
+              <p class="muted small">單日 {{ '%+.2f%%'|format(industry.return_1d_pct) if industry.return_1d_pct is not none else '—' }}｜上漲家數 {{ '%.1f%%'|format(industry.advancing_ratio_pct) if industry.advancing_ratio_pct is not none else '—' }}｜站上 MA20 {{ '%.1f%%'|format(industry.ma20_breadth_pct) if industry.ma20_breadth_pct is not none else '—' }}</p>
+            </article>
+          {% else %}
+            <div class="empty-state">產業觀察資料不足。</div>
+          {% endfor %}
+        </div>
+
+        <h3>個股異常事件</h3>
+        <div class="mops-list">
+          {% for item in content.stock_events[:30] %}
+            <a href="{{ url_for('stock_page', code=item.symbol) }}"><strong>{{ item.name }}（{{ item.symbol }}）</strong><span>{{ item.observation }}</span><small>{{ item.as_of }}｜{{ item.metric_value }} {{ item.unit }}</small></a>
+          {% else %}
+            <div class="empty-state">目前沒有通過條件的異常事件。</div>
+          {% endfor %}
+        </div>
+
+        <h3>ETF 觀察</h3>
+        <div class="etf-grid">
+          {% for item in content.etf_observations[:30] %}
+            <article class="etf-card">
+              <h4>{{ item.name }}（{{ item.symbol }}）</h4>
+              <p>收盤 {{ '{:,.2f}'.format(item.price) if item.price is not none else '—' }}｜單日 {{ '%+.2f%%'|format(item.return_1d_pct) if item.return_1d_pct is not none else '—' }}｜5 日 {{ '%+.2f%%'|format(item.return_5d_pct) if item.return_5d_pct is not none else '—' }}</p>
+            </article>
+          {% else %}
+            <div class="empty-state">ETF 觀察資料不足。</div>
+          {% endfor %}
+        </div>
+
+        {% set quality = content.data_quality %}
+        <h3>資料品質</h3>
+        <dl class="report-meta">
+          <div><dt>覆蓋率</dt><dd>{{ '%.2f%%'|format(quality.coverage * 100) if quality.coverage is not none else '資料不足' }}</dd></div>
+          <div><dt>有效標的</dt><dd>{{ quality.symbol_count if quality.symbol_count is not none else '資料不足' }}</dd></div>
+          <div><dt>未納入標的</dt><dd>{{ quality.failure_count if quality.failure_count is not none else '資料不足' }}</dd></div>
+        </dl>
       {% else %}
-        <p>完整盤後核心內容已通過 metadata hash 驗證。</p>
+        <p>這份研究報告不在目前正式 Observation 服務範圍內。</p>
       {% endif %}
+
       {% if metadata.warnings %}<ul>{% for warning in metadata.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
     </section>
   {% endfor %}
-  <section class="panel risk-panel"><h2>方法限制</h2><p>{{ AI_QUANT_DISCLOSURE }}</p></section>
+
+  <section class="panel risk-panel">
+    <h2>方法限制</h2>
+    <p>本頁只整理已發生的市場資料。資料可能因交易所揭露時差、來源缺漏或市場休市而延遲；任何事件條件都不是買賣指令。</p>
+  </section>
 </article>
 {% endblock %}

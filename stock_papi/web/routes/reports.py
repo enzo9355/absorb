@@ -18,13 +18,25 @@ def _valid_report_date(report_date):
 
 
 def register_report_routes(
-    app, *, load_index, load_metadata, load_index_v2, load_metadata_v2
+    app, *, load_index, load_metadata, load_index_v2, load_metadata_v2,
+    prediction_capability=None,
 ):
+    observation_mode = (
+        prediction_capability is not None
+        and prediction_capability.mode == "research"
+    )
+
     def _v2_reports():
         try:
-            return load_index_v2()
+            reports = load_index_v2()
         except ReportWebError:
             return None
+        if observation_mode and isinstance(reports, list):
+            return [
+                item for item in reports
+                if item.get("product_mode") == "observation"
+            ]
+        return reports
 
     def _v2_page(items, heading):
         bundles = []
@@ -44,10 +56,13 @@ def register_report_routes(
         return response
 
     def reports_page():
-        try:
-            reports = load_index()
-        except ReportWebError:
-            reports = None
+        if observation_mode:
+            reports = []
+        else:
+            try:
+                reports = load_index()
+            except ReportWebError:
+                reports = None
         reports_v2 = _v2_reports()
         response = make_response(render_template(
             "reports.html", reports=reports or [], reports_v2=reports_v2 or [],
@@ -58,6 +73,8 @@ def register_report_routes(
         return response
 
     def report_page(report_date):
+        if observation_mode:
+            abort(404)
         if not _valid_report_date(report_date):
             abort(404)
         try:
@@ -107,7 +124,7 @@ def register_report_routes(
         ]
         if not items:
             abort(404)
-        return _v2_page(items, f"{trading_date} 今日交易準備")
+        return _v2_page(items, f"{trading_date} 今日市場準備")
 
     def pre_market_report_page(trading_date):
         if not _valid_report_date(trading_date):
@@ -123,9 +140,11 @@ def register_report_routes(
         ]
         if not items:
             abort(404)
-        return _v2_page(items[:1], f"{trading_date} 盤前更新")
+        return _v2_page(items[:1], f"{trading_date} 盤前風險更新")
 
     def weekly_report_page(week_id):
+        if observation_mode:
+            abort(404)
         if not isinstance(week_id, str) or re.fullmatch(r"[0-9]{4}-W[0-9]{2}", week_id) is None:
             abort(404)
         reports = _v2_reports()

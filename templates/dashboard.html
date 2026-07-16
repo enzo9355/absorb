@@ -1,70 +1,69 @@
 {% extends "base.html" %}
-{% block title %}市場首頁｜ABSORB{% endblock %}
+{% block title %}市場觀察｜ABSORB{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
 {% block content %}
 <div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
-  {% if model_presentation.get('calibration_notice') %}
   <div class="error-banner bootstrap-banner" role="status">
-    {{ model_presentation.calibration_notice }}。目前僅顯示「模型方向分數」，action confidence 固定為低，不提供績效背書或強行動。
-    <a href="{{ url_for('preview_report_page') }}">查看研究預覽報告</a>
+    AI 預測研究中。目前正式頁面只呈現已驗證的市場實況，不提供研究型輸出。
   </div>
-  {% endif %}
   {% if search_error %}<div class="error-banner" role="alert">找不到「{{ search_query }}」，請輸入台股代碼、名稱或美股代碼。</div>{% endif %}
+
   <section class="panel trading-prep-panel" aria-labelledby="trading-prep-title">
     <div class="section-heading">
-      <div><p class="eyebrow">TRADING PREPARATION</p><h1 id="trading-prep-title">今日交易準備</h1></div>
+      <div><p class="eyebrow">MARKET PREPARATION</p><h1 id="trading-prep-title">今日市場準備</h1></div>
     </div>
     <div class="report-card-grid">
-      {% for report_type, label in [('post_close', '盤後分析'), ('pre_market', '盤前更新')] %}
-        {% set card = daily_cards.get(report_type) %}
+      {% for report_type, label in [('post_close', '盤後觀察'), ('pre_market', '盤前風險更新')] %}
+        {% set item = daily_cards.get(report_type) %}
         <article class="report-insight-card">
           <p class="eyebrow">{{ label }}</p>
-          {% if card %}
-            <h2>{{ card.title }}</h2>
-            <p>{{ card.summary|join('；') }}</p>
-            <p class="muted small">適用交易日 {{ card.applicable_trading_date }}｜資料日 {{ card.source_market_date }}</p>
-            <a class="button button-secondary" href="{{ url_for('trading_day_report_page', trading_date=card.applicable_trading_date) }}">查看報告</a>
+          {% if item %}
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.summary|join('；') }}</p>
+            <p class="muted small">適用交易日 {{ item.applicable_trading_date }}｜資料日 {{ item.source_market_date }}</p>
+            <a class="button button-secondary" href="{{ url_for('trading_day_report_page', trading_date=item.applicable_trading_date) }}">查看觀察報告</a>
           {% else %}
             <h2>尚未發布</h2>
-            <p class="muted">完成驗證後會顯示在這裡，不以假資料補位。</p>
+            <p class="muted">通過資料與發布驗證後才會顯示，不以假資料補位。</p>
           {% endif %}
         </article>
       {% endfor %}
     </div>
   </section>
+
   <section class="hero-search market-entry-panel">
     <div class="hero-copy" data-market-hero aria-live="polite">
       <div class="skeleton tall"></div>
-      <p class="muted">正在整理今日市場建議與風險。</p>
+      <p class="muted">正在讀取已驗證的市場觀察資料。</p>
     </div>
     <div class="search-entry">
       <p class="eyebrow">查股票</p>
-      <h2>輸入股票，直接查看 AI 建議、風險與歷史表現</h2>
+      <h2>輸入股票，查看價格、均線、籌碼與風險事件</h2>
       <form class="stock-search" action="{{ url_for('search_page') }}" method="get" role="search">
         <label class="search-label" for="stock-search">搜尋股票</label>
         <div class="search-control glass-panel">
           <input id="stock-search" name="q" value="{{ search_query }}" placeholder="輸入 2330、台積電或 AAPL" autocomplete="off" required>
-          <button type="submit">查看分析</button>
+          <button type="submit">查看觀察</button>
         </div>
       </form>
       <div class="hero-shortcuts" aria-label="常用捷徑">
         <a href="{{ url_for('stock_page', code='2330') }}">台積電</a>
         <a href="{{ url_for('market_page') }}">看大盤</a>
-        <a href="#industry-forecast">產業機會</a>
+        <a href="#industry-observations">產業觀察</a>
       </div>
     </div>
   </section>
 
   <section class="panel conversation-panel" aria-labelledby="conversation-title" data-conversation-endpoint="/api/conversation">
     <div class="section-heading">
-      <div><p class="eyebrow">ABSORB RESEARCH</p><h2 id="conversation-title">直接問市場、產業或股票</h2></div>
-      <span class="muted small">回答以系統可驗證資料為準</span>
+      <div><p class="eyebrow">ABSORB OBSERVATION</p><h2 id="conversation-title">詢問市場、產業或股票實況</h2></div>
+      <span class="muted small">回答只使用已發布的觀察資料</span>
     </div>
     <div class="conversation-log" data-conversation-log aria-live="polite">
-      <p class="empty-state">例如：「台積電現在能不能追高？」或「今天哪些產業正在轉強？」</p>
+      <p class="empty-state">例如：「台積電目前站上哪些均線？」或「今天哪些產業實際轉強？」</p>
     </div>
     <form class="conversation-form" data-conversation-form>
-      <label for="conversation-question">研究問題</label>
+      <label for="conversation-question">觀察問題</label>
       <div class="conversation-control">
         <input id="conversation-question" name="question" maxlength="1200" autocomplete="off" placeholder="輸入一般自然語言問題" required>
         <button type="submit">詢問 ABSORB</button>
@@ -74,7 +73,7 @@
 
   <section class="panel pulse-panel" id="market-pulse" aria-labelledby="market-title">
     <div class="section-heading">
-      <div><p class="eyebrow">TODAY'S PLAN</p><h2 id="market-title">今天該怎麼做｜市場摘要</h2></div>
+      <div><p class="eyebrow">MARKET ACTUALS</p><h2 id="market-title">市場實況</h2></div>
       <span class="status-dot" aria-live="polite">更新中</span>
     </div>
     <div class="pulse-grid" data-market-summary><div class="skeleton tall"></div><div class="skeleton tall"></div><div class="skeleton tall"></div></div>
@@ -84,38 +83,51 @@
     <div class="section-heading">
       <div><p class="eyebrow">LINE FIRST</p><h2 id="watchlist-title">LINE 管理關注</h2></div>
     </div>
-    <div class="watchlist-strip" data-watchlist-strip></div>
+    <div class="watchlist-strip" data-watchlist-strip>
+      <article class="watch-chip"><span>Step 1</span><strong>在 LINE 查詢個股</strong></article>
+      <article class="watch-chip"><span>Step 2</span><strong>加入關注清單</strong></article>
+      <article class="watch-chip"><span>Step 3</span><strong>設定價格或趨勢提醒</strong></article>
+    </div>
   </section>
 
   <section class="panel focus-panel" id="daily-focus" aria-labelledby="focus-title">
     <div class="section-heading">
       <div><p class="eyebrow">DAILY FOCUS</p><h2 id="focus-title">今日焦點</h2></div>
-      <span class="muted small">市場、題材、標的一次看</span>
+      <span class="muted small">由實際市場、產業與事件資料整理</span>
     </div>
     <div class="focus-grid" data-daily-focus><div class="skeleton tall"></div><div class="skeleton tall"></div></div>
   </section>
 
   <section class="panel heatmap-panel" id="market-heatmap" aria-labelledby="heatmap-title">
     <div class="section-heading">
-      <div><p class="eyebrow">MARKET MAP</p><h2 id="heatmap-title">市場熱力圖</h2></div>
-      <span class="muted small" data-model-output-description>顏色代表模型輸出，不等同即時漲跌</span>
+      <div><p class="eyebrow">RELATIVE RETURNS</p><h2 id="heatmap-title">產業實際強弱</h2></div>
+      <span class="muted small">顏色代表近 5 日相對大盤報酬</span>
     </div>
     <div class="heatmap-grid" data-market-heatmap></div>
   </section>
 
-  <section class="panel forecast-panel" id="industry-forecast" aria-labelledby="forecast-title">
+  <section class="panel forecast-panel" id="industry-observations" aria-labelledby="industry-title">
     <div class="section-heading">
-      <div><p class="eyebrow">INDUSTRY FORECAST</p><h2 id="forecast-title">今日產業機會｜產業預測</h2></div>
-      <span class="muted small">先看題材，再看領先股</span>
+      <div><p class="eyebrow">INDUSTRY ACTUALS</p><h2 id="industry-title">產業觀察</h2></div>
+      <span class="muted small">實際報酬、廣度、量能與機構流向</span>
     </div>
-    <div class="forecast-grid" data-sector-grid></div>
+    <div class="forecast-grid" data-industry-observations></div>
   </section>
 
-  <section class="panel picks-panel" id="top-picks" aria-labelledby="picks-title">
+  <section class="panel picks-panel" id="stock-events" aria-labelledby="events-title">
     <div class="section-heading">
-      <div><p class="eyebrow">TOP PICKS</p><h2 id="picks-title" data-top-picks-title>{{ model_presentation.get('top_picks_label', '精選標的') }}</h2></div>
+      <div><p class="eyebrow">OBSERVED EVENTS</p><h2 id="events-title">個股異常事件</h2></div>
+      <span class="muted small">只列已觸發的價格、量能、技術或資料警示</span>
     </div>
-    <div class="top-picks" data-top-picks></div>
+    <div class="top-picks" data-stock-events></div>
+  </section>
+
+  <section class="panel picks-panel" id="etf-observations" aria-labelledby="etf-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">ETF ACTUALS</p><h2 id="etf-title">ETF 觀察</h2></div>
+      <span class="muted small">價格、實際報酬、量能與均線狀態</span>
+    </div>
+    <div class="top-picks" data-etf-observations></div>
   </section>
 
   <section class="panel learn-panel" id="learn" aria-labelledby="learn-title">
@@ -123,11 +135,13 @@
       <div><p class="eyebrow">LEARN</p><h2 id="learn-title">新手投資小辭典</h2></div>
     </div>
     <div class="learn-grid">
-      <article><strong data-model-output-guide-title>模型輸出怎麼看？</strong><p data-model-output-guide>只有 validated compatible baseline 存在時，才會把輸出稱為五日上漲機率；bootstrap 階段只顯示方向分數。</p></article>
-      <article><strong>市場情緒怎麼用？</strong><p>情緒適合拿來輔助觀察，不適合單獨當作進出依據。</p></article>
+      <article><strong>相對大盤報酬</strong><p>產業報酬扣除同期大盤報酬，用來描述已發生的相對強弱，不代表未來方向。</p></article>
+      <article><strong>市場廣度</strong><p>上漲家數或站上均線的比例，用來觀察漲勢是否由多數股票共同參與。</p></article>
+      <article><strong>量比</strong><p>當日成交量相對近期常態的比例；明顯放大只代表交易活躍，不等同利多。</p></article>
+      <article><strong>風險狀態</strong><p>依下跌家數、新高低與已實現波動整理的市場狀態，不是操作指令。</p></article>
     </div>
   </section>
 
-  <div class="error-banner" data-dashboard-error hidden>市場資料暫時無法取得，請稍後再試。</div>
+  <div class="error-banner" data-dashboard-error hidden>已驗證的市場觀察資料暫時無法取得，請稍後再試。</div>
 </div>
 {% endblock %}
