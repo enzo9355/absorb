@@ -1,6 +1,10 @@
 .git
 .gitignore
 .gcloudignore
+.codex/
+.pytest_cache/
+AGENTS.md
+tmp/
 .deps/
 .report-deps/
 __pycache__

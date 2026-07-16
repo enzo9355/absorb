@@ -163,6 +163,12 @@ class BootstrapEvidenceTests(unittest.TestCase):
             self.assertIn(required, script)
         self.assertNotIn("latest-TW.json", script)
         self.assertNotIn("broadcast", script.lower())
+        for ignore_name in (".gcloudignore", ".dockerignore"):
+            ignore = (Path(__file__).parents[1] / ignore_name).read_text(
+                encoding="utf-8"
+            )
+            for local_only in (".codex/", ".pytest_cache/", "AGENTS.md", "tmp/"):
+                self.assertIn(local_only, ignore)
 
     def test_calibration_selection_never_uses_final_holdout(self):
         import numpy as np
