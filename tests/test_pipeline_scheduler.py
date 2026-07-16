@@ -32,12 +32,24 @@ class PipelineSchedulerTests(unittest.TestCase):
         self.assertIn(r"D:\AbsorbData", script)
         wrapper_source = (scripts / "invoke_pipeline_task.ps1").read_text(encoding="utf-8")
         self.assertIn("-RequireReportV2", wrapper_source)
+        self.assertIn("-RequireDashboard", wrapper_source)
         self.assertIn("@('-MaxItems', '500')", wrapper_source)
+        self.assertIn(
+            "'TW-PostClose' = @{ Script = 'run_tw_post_close_pipeline.ps1'; "
+            "Arguments = @('-PublishObservation') }",
+            wrapper_source,
+        )
         post_close = (scripts / "run_tw_post_close_pipeline.ps1").read_text(encoding="utf-8")
         self.assertLess(post_close.index("calendar-check"), post_close.index("--post-close"))
-        self.assertIn("stock_papi.batch.daily_products_cli", post_close)
-        self.assertIn("if (-not $Publish) { exit 0 }", post_close)
+        self.assertIn("stock_papi.batch.observation_products_cli", post_close)
+        self.assertIn("[switch]$PublishObservation", post_close)
+        self.assertIn("if (-not $PublishObservation) { exit 0 }", post_close)
+        self.assertNotIn("AllowDegradedBootstrap", post_close)
         self.assertIn("-RequireDashboard", post_close)
+        pre_market = (scripts / "run_tw_pre_market_pipeline.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("$Latest.product_mode -ne 'observation'", pre_market)
 
     def test_full_backtest_logs_nonfatal_python_warnings_but_keeps_exit_code(self):
         source = (Path(__file__).parents[1] / "scripts" / "run_full_backtest.ps1").read_text(encoding="utf-8")

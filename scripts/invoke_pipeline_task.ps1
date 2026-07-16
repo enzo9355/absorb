@@ -9,12 +9,12 @@ $ErrorActionPreference = 'Stop'
 if ($DataRoot -ne 'D:\AbsorbData') { throw 'Data root is not allowlisted' }
 
 $Definitions = @{
-    'TW-PostClose' = @{ Script = 'run_tw_post_close_pipeline.ps1'; Arguments = @() }
+    'TW-PostClose' = @{ Script = 'run_tw_post_close_pipeline.ps1'; Arguments = @('-PublishObservation') }
     'TW-PreMarket' = @{ Script = 'run_tw_pre_market_pipeline.ps1'; Arguments = @() }
     'FullBacktest' = @{ Script = 'run_full_backtest.ps1'; Arguments = @('-MaxItems', '500') }
     'US-Daily' = @{ Script = 'run_us_daily.ps1'; Arguments = @() }
     'WeeklyModel' = @{ Script = 'run_weekly_model.ps1'; Arguments = @() }
-    'ReportUploadRecovery' = @{ Script = 'upload_local_quant.ps1'; Arguments = @('-RequireReportV2') }
+    'ReportUploadRecovery' = @{ Script = 'upload_local_quant.ps1'; Arguments = @('-RequireReportV2', '-RequireDashboard', '-ObservationOnly') }
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path

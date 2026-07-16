@@ -79,15 +79,30 @@ class PreMarketPipeline:
             raise PreMarketPipelineError("verified post-close base is missing")
         metadata = receipt["metadata"]
         digest = receipt.get("metadata_sha256")
+        capability = metadata.get("prediction_capability")
         if (
             metadata.get("schema_version") != 2
             or metadata.get("kind") not in {"absorb-report", "stock-papi-report"}
+            or metadata.get("product_mode") != "observation"
             or metadata.get("report_type") != "post_close"
             or metadata.get("market") != "TW"
             or metadata.get("applicable_trading_date")
             != self.applicable_trading_date.isoformat()
             or hashlib.sha256(_canonical(metadata)).hexdigest() != digest
             or not isinstance(metadata.get("content"), dict)
+            or metadata.get("model_versions") != {}
+            or metadata.get("backtest_as_of") is not None
+            or metadata.get("observation_start_date")
+            != metadata.get("source_market_date")
+            or metadata.get("observation_end_date")
+            != metadata.get("applicable_trading_date")
+            or not isinstance(capability, dict)
+            or capability.get("mode") != "research"
+            or capability.get("observation_enabled") is not True
+            or capability.get("probability_allowed") is not False
+            or capability.get("ranking_allowed") is not False
+            or capability.get("strong_action_allowed") is not False
+            or capability.get("performance_endorsement_allowed") is not False
         ):
             raise PreMarketPipelineError("verified post-close base is invalid")
         return receipt
@@ -167,7 +182,7 @@ class PreMarketPipeline:
                     signals = {item["signal"] for item in available}
                     if not available:
                         status = "insufficient"
-                        message = "資料不足，維持盤後判斷"
+                        message = "資料不足，維持盤後觀察"
                     elif signals == {"risk_on"}:
                         status, message = "risk_on", "隔夜風險偏正向"
                     elif signals == {"risk_off"}:
@@ -177,6 +192,7 @@ class PreMarketPipeline:
                     core = json.loads(_canonical(base_metadata["content"]).decode("utf-8"))
                     metadata = {
                         "schema_version": 2,
+                        "product_mode": "observation",
                         "report_type": "pre_market",
                         "market": "TW",
                         "source_market_date": base_metadata["source_market_date"],
@@ -188,14 +204,23 @@ class PreMarketPipeline:
                         ).isoformat().replace("+00:00", "Z"),
                         "forecast_start_date": base_metadata["forecast_start_date"],
                         "forecast_end_date": base_metadata["forecast_end_date"],
-                        "backtest_as_of": base_metadata["backtest_as_of"],
+                        "observation_start_date": base_metadata[
+                            "observation_start_date"
+                        ],
+                        "observation_end_date": base_metadata[
+                            "observation_end_date"
+                        ],
+                        "backtest_as_of": None,
                         "data_as_of": base_metadata["data_as_of"],
                         "source_manifest": base_metadata["source_manifest"],
                         "source_manifest_sha256": base_metadata[
                             "source_manifest_sha256"
                         ],
-                        "model_versions": base_metadata["model_versions"],
-                        "title": "ABSORB 台股盤前快報",
+                        "model_versions": {},
+                        "prediction_capability": dict(
+                            base_metadata["prediction_capability"]
+                        ),
+                        "title": "ABSORB 盤前風險更新",
                         "summary": [message],
                         "warnings": (
                             []

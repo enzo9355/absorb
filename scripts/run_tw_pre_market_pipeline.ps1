@@ -9,7 +9,9 @@ $PythonExe = if (Test-Path $BundledPython) { $BundledPython } elseif ($PythonCom
 if (-not $PythonExe) { throw 'Python executable was not found' }
 $LatestPath = Join-Path $DataRoot 'publish\reports\v2\latest-TW-post_close.json'
 if (-not (Test-Path -LiteralPath $LatestPath -PathType Leaf)) { throw 'Verified post-close base is unavailable' }
-$ApplicableDate = [string](Get-Content -LiteralPath $LatestPath -Raw -Encoding utf8 | ConvertFrom-Json).applicable_trading_date
+$Latest = Get-Content -LiteralPath $LatestPath -Raw -Encoding utf8 | ConvertFrom-Json
+if ($Latest.product_mode -ne 'observation') { throw 'Verified post-close base is not observation mode' }
+$ApplicableDate = [string]$Latest.applicable_trading_date
 $Arguments = @('-m', 'stock_papi.batch.cli', 'pre-market', '--root', $DataRoot, '--applicable-trading-date', $ApplicableDate)
 if ($env:TW_PREMARKET_SOURCE_FILES) {
     foreach ($Source in $env:TW_PREMARKET_SOURCE_FILES.Split(';', [StringSplitOptions]::RemoveEmptyEntries)) {
@@ -21,7 +23,7 @@ if ($env:TW_PREMARKET_SOURCE_FILES) {
 $env:PYTHONPATH = Join-Path $RepoRoot '.deps'
 & $PythonExe @Arguments
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& (Join-Path $PSScriptRoot 'upload_local_quant.ps1') -DataRoot $DataRoot -RequireReportV2
+& (Join-Path $PSScriptRoot 'upload_local_quant.ps1') -DataRoot $DataRoot -RequireReportV2 -ObservationOnly
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $PythonExe -m stock_papi.batch.cli notify --root $DataRoot --report-type pre_market --audience admin --audience broadcast
 exit $LASTEXITCODE

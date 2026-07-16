@@ -3,12 +3,15 @@ param(
     [string]$DataRoot = 'D:\AbsorbData',
     [string]$Bucket = 'line-stock-bot-498908-quant-snapshots',
     [switch]$RequireReportV2,
-    [switch]$RequireDashboard
+    [switch]$RequireDashboard,
+    [switch]$ObservationOnly,
+    [string]$LkgReceiptPath
 )
 
 $ErrorActionPreference = 'Stop'
 if ($DataRoot -notin @('D:\AbsorbData', 'D:\StockPapiData')) { throw 'Data root is not allowlisted' }
 if ($Bucket -ne 'line-stock-bot-498908-quant-snapshots') { throw 'Bucket is not allowlisted' }
+. (Join-Path $PSScriptRoot 'observation_release_common.ps1')
 
 $PublishRoot = Join-Path $DataRoot 'publish\quant\v1'
 $ResolvedRoot = (Resolve-Path -LiteralPath $PublishRoot).Path
@@ -19,6 +22,8 @@ $Gcloud = (Get-Command gcloud -ErrorAction Stop).Source
 $ObjectBatchSize = 100
 
 $Global:VerifiedDirs = @{}
+$Global:PointerUpdates = New-Object System.Collections.Generic.List[object]
+$ReceiptUpdated = $false
 
 function Send-ReportUploadFailureNotification {
     param([string]$Message)
@@ -47,28 +52,10 @@ function Send-ReportUploadFailureNotification {
 
 function Assert-AllowlistedPath {
     param([string]$Path)
-    $Resolved = (Resolve-Path -LiteralPath $Path).Path
-    if (-not $Resolved.StartsWith($ResolvedRoot + [IO.Path]::DirectorySeparatorChar)) {
-        throw 'Upload path escaped publish root'
-    }
-    $Current = Get-Item -LiteralPath $Resolved
-    while ($Current.FullName -ne $ResolvedRoot) {
-        if ($Global:VerifiedDirs.ContainsKey($Current.FullName)) {
-            break
-        }
-        if (($Current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw 'Upload path contains a reparse point'
-        }
-        $Current = $Current.Parent
-    }
-    # Cache verified directories
-    $Curr = Get-Item -LiteralPath $Resolved
-    while ($Curr.FullName -ne $ResolvedRoot) {
-        if ($Global:VerifiedDirs.ContainsKey($Curr.FullName)) { break }
-        $Global:VerifiedDirs[$Curr.FullName] = $true
-        $Curr = $Curr.Parent
-    }
-    return $Resolved
+    return Assert-PathWithinRoot `
+        -Path $Path `
+        -Root $ResolvedRoot `
+        -VerifiedDirs $Global:VerifiedDirs
 }
 
 function Invoke-GcloudCopy {
@@ -120,6 +107,77 @@ function Get-GcloudJson {
     }
 }
 
+function Set-GcloudMutablePointer {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+    $Update = Invoke-GcloudConditionalCopy `
+        -Gcloud $Gcloud `
+        -Source $Source `
+        -Destination $Destination `
+        -SkipIfMatches
+    if ($Update.changed) {
+        $Global:PointerUpdates.Add([pscustomobject]$Update) | Out-Null
+    }
+    return $Update
+}
+
+function Update-ObservationLkgReceipt {
+    if (-not $LkgReceiptPath) { return }
+    $ReceiptRoot = Join-Path $DataRoot 'release\observation-lkg'
+    $ResolvedReceipt = Assert-PathWithinRoot `
+        -Path $LkgReceiptPath `
+        -Root $ReceiptRoot
+    $Receipt = Get-Content -LiteralPath $ResolvedReceipt -Raw -Encoding utf8 |
+        ConvertFrom-Json
+    if (
+        $Receipt.schema_version -ne 1 -or
+        $Receipt.kind -ne 'absorb-observation-lkg' -or
+        $Receipt.bucket -ne $Bucket -or
+        -not ($Receipt.pointers -is [array])
+    ) {
+        throw 'Observation LKG receipt is invalid'
+    }
+    foreach ($Update in $Global:PointerUpdates) {
+        $Matches = @($Receipt.pointers | Where-Object {
+            [string]$_.uri -eq [string]$Update.uri
+        })
+        if ($Matches.Count -eq 0) { continue }
+        if ($Matches.Count -ne 1) {
+            throw 'Observation LKG receipt contains duplicate pointers'
+        }
+        $Pointer = $Matches[0]
+        $ExpectedBefore = if (
+            [string]$Pointer.applied_generation -match '^\d+$'
+        ) {
+            [string]$Pointer.applied_generation
+        } elseif ($Pointer.exists) {
+            [string]$Pointer.generation
+        } else {
+            '0'
+        }
+        if ([string]$Update.before_generation -ne $ExpectedBefore) {
+            throw 'Observation LKG generation changed before update'
+        }
+        $Pointer | Add-Member `
+            -NotePropertyName applied_generation `
+            -NotePropertyValue ([string]$Update.after_generation) `
+            -Force
+    }
+    $Receipt | Add-Member `
+        -NotePropertyName applied_at `
+        -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) `
+        -Force
+    $Temporary = "$ResolvedReceipt.tmp"
+    [IO.File]::WriteAllText(
+        $Temporary,
+        ($Receipt | ConvertTo-Json -Depth 8),
+        [Text.UTF8Encoding]::new($false)
+    )
+    Move-Item -LiteralPath $Temporary -Destination $ResolvedReceipt -Force
+}
+
 function Publish-ReportsV2 {
     param([string]$Root)
     if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return @() }
@@ -129,18 +187,7 @@ function Publish-ReportsV2 {
     }
     function Assert-V2Path {
         param([string]$Path)
-        $Candidate = (Resolve-Path -LiteralPath $Path).Path
-        if (-not $Candidate.StartsWith($Resolved + [IO.Path]::DirectorySeparatorChar)) {
-            throw 'Report v2 upload path escaped publish root'
-        }
-        $Current = Get-Item -LiteralPath $Candidate
-        while ($Current.FullName -ne $Resolved) {
-            if (($Current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw 'Report v2 upload path contains a reparse point'
-            }
-            $Current = $Current.Parent
-        }
-        return $Candidate
+        return Assert-PathWithinRoot -Path $Path -Root $Resolved
     }
 
     $IndexPath = Assert-V2Path (Join-Path $Resolved 'index-TW.json')
@@ -199,18 +246,29 @@ function Publish-ReportsV2 {
                 throw 'Report v2 PDF hash mismatch'
             }
             Invoke-GcloudCopy $PdfPath "gs://$Bucket/reports/v2/$PdfRelative" -NoClobber
+            Assert-GcloudFileMatches `
+                -Gcloud $Gcloud `
+                -LocalPath $PdfPath `
+                -Uri "gs://$Bucket/reports/v2/$PdfRelative"
         }
         Invoke-GcloudCopy $MetadataPath "gs://$Bucket/reports/v2/$MetadataRelative" -NoClobber
+        Assert-GcloudFileMatches `
+            -Gcloud $Gcloud `
+            -LocalPath $MetadataPath `
+            -Uri "gs://$Bucket/reports/v2/$MetadataRelative"
     }
 
     # All immutable objects and metadata are verified and uploaded before mutable pointers.
-    Invoke-GcloudCopy $IndexPath "gs://$Bucket/reports/v2/index-TW.json"
+    Set-GcloudMutablePointer `
+        -Source $IndexPath `
+        -Destination "gs://$Bucket/reports/v2/index-TW.json" | Out-Null
     $RemoteIndex = Get-GcloudJson "gs://$Bucket/reports/v2/index-TW.json"
     if ($RemoteIndex.schema_version -ne 2 -or $RemoteIndex.market -ne 'TW' -or @($RemoteIndex.reports).Count -ne $Reports.Count) {
         throw 'Report v2 remote index read-back mismatch'
     }
     $Uploaded = New-Object System.Collections.Generic.List[string]
     foreach ($Type in @('post_close', 'pre_market', 'weekly_model')) {
+        if ($ObservationOnly -and $Type -eq 'weekly_model') { continue }
         $LatestName = "latest-TW-$Type.json"
         $LatestCandidate = Join-Path $Resolved $LatestName
         if (-not (Test-Path -LiteralPath $LatestCandidate -PathType Leaf)) { continue }
@@ -219,13 +277,24 @@ function Publish-ReportsV2 {
         if ($Latest.schema_version -ne 2 -or $Latest.kind -notin @('absorb-report', 'stock-papi-report') -or $Latest.market -ne 'TW' -or [string]$Latest.report_type -ne $Type) {
             throw 'Invalid report v2 latest pointer'
         }
+        if (
+            $ObservationOnly -and
+            (
+                [string]$Latest.product_mode -ne 'observation' -or
+                @($Latest.model_versions.PSObject.Properties).Count -ne 0
+            )
+        ) {
+            throw 'Observation report latest pointer contains prediction state'
+        }
         $Match = @($Reports | Where-Object {
             [string]$_.report_type -eq $Type -and
             [string]$_.metadata -eq [string]$Latest.metadata -and
             [string]$_.metadata_sha256 -eq [string]$Latest.metadata_sha256
         })
         if ($Match.Count -ne 1) { throw 'Report v2 latest pointer is not present in index' }
-        Invoke-GcloudCopy $LatestPath "gs://$Bucket/reports/v2/$LatestName"
+        Set-GcloudMutablePointer `
+            -Source $LatestPath `
+            -Destination "gs://$Bucket/reports/v2/$LatestName" | Out-Null
         $RemoteLatest = Get-GcloudJson "gs://$Bucket/reports/v2/$LatestName"
         if (
             [string]$RemoteLatest.report_type -ne $Type -or
@@ -242,35 +311,63 @@ function Publish-DashboardV1 {
     if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return $false }
     $Resolved = (Resolve-Path -LiteralPath $Root).Path
     if (((Get-Item -LiteralPath $Resolved).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Dashboard root must not be a reparse point' }
-    $LatestPath = (Resolve-Path -LiteralPath (Join-Path $Resolved 'latest-TW.json')).Path
+    $LatestPath = Assert-PathWithinRoot `
+        -Path (Join-Path $Resolved 'latest-TW.json') `
+        -Root $Resolved
     $Latest = Get-Content -LiteralPath $LatestPath -Raw -Encoding utf8 | ConvertFrom-Json
     $Relative = [string]$Latest.path
     if (
-        $Latest.schema_version -ne 1 -or $Latest.kind -ne 'absorb-daily-dashboard' -or
+        $Latest.schema_version -ne 2 -or
+        $Latest.kind -ne 'absorb-observation-dashboard' -or
+        $Latest.product_mode -ne 'observation' -or
         $Latest.market -ne 'TW' -or $Relative -notmatch '^objects/[0-9a-f]{64}\.json$' -or
         [string]$Latest.sha256 -notmatch '^[0-9a-f]{64}$' -or [long]$Latest.size -le 0 -or [long]$Latest.size -gt 5MB
     ) { throw 'Invalid dashboard latest pointer' }
-    $ObjectPath = (Resolve-Path -LiteralPath (Join-Path $Resolved $Relative)).Path
-    if (-not $ObjectPath.StartsWith($Resolved + [IO.Path]::DirectorySeparatorChar)) { throw 'Dashboard object escaped publish root' }
+    $ObjectPath = Assert-PathWithinRoot `
+        -Path (Join-Path $Resolved $Relative) `
+        -Root $Resolved
     $Object = Get-Item -LiteralPath $ObjectPath
     if (($Object.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $Object.Length -ne [long]$Latest.size) { throw 'Invalid dashboard object' }
     $Digest = (Get-FileHash -LiteralPath $ObjectPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($Digest -ne [string]$Latest.sha256 -or $Relative -ne "objects/$Digest.json") { throw 'Dashboard object hash mismatch' }
     $Document = Get-Content -LiteralPath $ObjectPath -Raw -Encoding utf8 | ConvertFrom-Json
     if (
-        $Document.schema_version -ne 1 -or $Document.kind -ne 'absorb-daily-dashboard' -or
-        $Document.market -ne 'TW' -or [string]$Document.inference_as_of -ne [string]$Latest.inference_as_of -or
-        -not ($Document.sector_snapshot.sectors -is [psobject]) -or
-        $null -eq $Document.heatmap -or $null -eq $Document.daily_focus -or $null -eq $Document.top_picks
+        $Document.schema_version -ne 2 -or
+        $Document.kind -ne 'absorb-observation-dashboard' -or
+        $Document.product_mode -ne 'observation' -or
+        $Document.market -ne 'TW' -or
+        [string]$Document.observation_as_of -ne [string]$Latest.observation_as_of -or
+        $Document.prediction_capability.mode -ne 'research' -or
+        $Document.prediction_capability.probability_allowed -ne $false -or
+        $Document.prediction_capability.ranking_allowed -ne $false -or
+        $Document.prediction_capability.strong_action_allowed -ne $false -or
+        $Document.prediction_capability.performance_endorsement_allowed -ne $false -or
+        $null -eq $Document.market_observation -or
+        $null -eq $Document.industry_observations -or
+        $null -eq $Document.heatmap -or
+        $null -eq $Document.daily_focus -or
+        $null -eq $Document.stock_events -or
+        $null -eq $Document.etf_observations
     ) { throw 'Dashboard object schema mismatch' }
     $SourceManifest = [string]$Document.source_manifest
     if ($SourceManifest -notmatch '^quant/v1/manifests/TW-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}\.json$') { throw 'Invalid dashboard source manifest' }
     $SourcePath = Assert-AllowlistedPath (Join-Path $ResolvedRoot $SourceManifest.Substring('quant/v1/'.Length))
     if ((Get-FileHash -LiteralPath $SourcePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$Document.source_manifest_sha256) { throw 'Dashboard source manifest hash mismatch' }
     Invoke-GcloudCopy $ObjectPath "gs://$Bucket/dashboard/v1/$Relative" -NoClobber
-    Invoke-GcloudCopy $LatestPath "gs://$Bucket/dashboard/v1/latest-TW.json"
+    Assert-GcloudFileMatches `
+        -Gcloud $Gcloud `
+        -LocalPath $ObjectPath `
+        -Uri "gs://$Bucket/dashboard/v1/$Relative"
+    Set-GcloudMutablePointer `
+        -Source $LatestPath `
+        -Destination "gs://$Bucket/dashboard/v1/latest-TW.json" | Out-Null
     $Remote = Get-GcloudJson "gs://$Bucket/dashboard/v1/latest-TW.json"
-    if ([string]$Remote.sha256 -ne $Digest -or [string]$Remote.inference_as_of -ne [string]$Document.inference_as_of) { throw 'Dashboard remote read-back mismatch' }
+    if (
+        [string]$Remote.sha256 -ne $Digest -or
+        [string]$Remote.observation_as_of -ne
+        [string]$Document.observation_as_of -or
+        [string]$Remote.product_mode -ne 'observation'
+    ) { throw 'Dashboard remote read-back mismatch' }
     return $true
 }
 
@@ -295,7 +392,9 @@ try {
             throw 'Market-insights object hash mismatch'
         }
         Invoke-GcloudCopy $InsightsObjectPath "gs://$Bucket/quant/v1/$InsightsObjectRelative" -NoClobber
-        Invoke-GcloudCopy $InsightsLatestPath "gs://$Bucket/quant/v1/latest-insights.json"
+        Set-GcloudMutablePointer `
+            -Source $InsightsLatestPath `
+            -Destination "gs://$Bucket/quant/v1/latest-insights.json" | Out-Null
         $InsightsUploaded = $true
     }
 
@@ -346,9 +445,15 @@ try {
 
         # Upload manifest
         Invoke-GcloudCopy $ManifestPath "gs://$Bucket/quant/v1/$ManifestRelative" -NoClobber
+        Assert-GcloudFileMatches `
+            -Gcloud $Gcloud `
+            -LocalPath $ManifestPath `
+            -Uri "gs://$Bucket/quant/v1/$ManifestRelative"
 
         # Upload latest pointer
-        Invoke-GcloudCopy $LatestPath "gs://$Bucket/quant/v1/latest-$Market.json"
+        Set-GcloudMutablePointer `
+            -Source $LatestPath `
+            -Destination "gs://$Bucket/quant/v1/latest-$Market.json" | Out-Null
         $UploadedMarkets += $Market
     }
 
@@ -363,18 +468,7 @@ try {
             }
             function Assert-ReportPath {
                 param([string]$Path)
-                $Resolved = (Resolve-Path -LiteralPath $Path).Path
-                if (-not $Resolved.StartsWith($ResolvedReportRoot + [IO.Path]::DirectorySeparatorChar)) {
-                    throw 'Report upload path escaped publish root'
-                }
-                $Current = Get-Item -LiteralPath $Resolved
-                while ($Current.FullName -ne $ResolvedReportRoot) {
-                    if (($Current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                        throw 'Report upload path contains a reparse point'
-                    }
-                    $Current = $Current.Parent
-                }
-                return $Resolved
+                return Assert-PathWithinRoot -Path $Path -Root $ResolvedReportRoot
             }
 
             $ReportLatestPath = Assert-ReportPath (Join-Path $ResolvedReportRoot 'latest-TW.json')
@@ -439,8 +533,20 @@ try {
 
             Invoke-GcloudCopy $ReportPdfPath "gs://$Bucket/reports/v1/$ReportPdfRelative" -NoClobber
             Invoke-GcloudCopy $ReportMetadataPath "gs://$Bucket/reports/v1/$ReportMetadataRelative" -NoClobber
-            Invoke-GcloudCopy $ReportIndexPath "gs://$Bucket/reports/v1/index-TW.json"
-            Invoke-GcloudCopy $ReportLatestPath "gs://$Bucket/reports/v1/latest-TW.json"
+            Assert-GcloudFileMatches `
+                -Gcloud $Gcloud `
+                -LocalPath $ReportPdfPath `
+                -Uri "gs://$Bucket/reports/v1/$ReportPdfRelative"
+            Assert-GcloudFileMatches `
+                -Gcloud $Gcloud `
+                -LocalPath $ReportMetadataPath `
+                -Uri "gs://$Bucket/reports/v1/$ReportMetadataRelative"
+            Set-GcloudMutablePointer `
+                -Source $ReportIndexPath `
+                -Destination "gs://$Bucket/reports/v1/index-TW.json" | Out-Null
+            Set-GcloudMutablePointer `
+                -Source $ReportLatestPath `
+                -Destination "gs://$Bucket/reports/v1/latest-TW.json" | Out-Null
             $ReportUploaded = $true
         } catch {
             $ReportUploadError = $_.Exception.Message
@@ -479,6 +585,7 @@ try {
         report_v2_error = $ReportV2UploadError
         dashboard_uploaded = $DashboardUploaded
         dashboard_error = $DashboardUploadError
+        pointer_updates = @($Global:PointerUpdates)
         bucket = $Bucket
     } | ConvertTo-Json -Compress
     Set-Content -LiteralPath (Join-Path $DataRoot 'logs\upload-status.json') -Value $Status -Encoding utf8
@@ -488,8 +595,23 @@ try {
     if ($RequireDashboard -and ($DashboardUploadError -or -not $DashboardUploaded)) {
         throw 'Required dashboard upload or remote verification failed'
     }
+    Update-ObservationLkgReceipt
+    $ReceiptUpdated = $true
     Write-Output "Uploaded quant snapshots: $($UploadedMarkets -join ',')"
 
 } catch {
-    throw $_
+    $OriginalError = $_
+    if (
+        -not $ReceiptUpdated -and
+        $LkgReceiptPath -and
+        $Global:PointerUpdates.Count -gt 0
+    ) {
+        try {
+            Update-ObservationLkgReceipt
+            $ReceiptUpdated = $true
+        } catch {
+            throw 'Upload failed after pointer mutation and LKG receipt update failed'
+        }
+    }
+    throw $OriginalError
 }

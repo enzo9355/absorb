@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from reporting.schemas import ReportMetadataV2
 from stock_papi.batch.pre_market import PreMarketPipeline, PreMarketPipelineError
 from stock_papi.integrations.market_data.overnight import (
     OvernightSourceError,
@@ -19,23 +20,37 @@ UTC = datetime.timezone.utc
 def base_receipt():
     metadata = {
         "schema_version": 2,
-        "kind": "stock-papi-report",
+        "kind": "absorb-report",
+        "product_mode": "observation",
         "report_type": "post_close",
         "market": "TW",
         "source_market_date": "2026-07-14",
         "applicable_trading_date": "2026-07-15",
         "published_at": "2026-07-14T10:00:00Z",
         "forecast_start_date": "2026-07-15",
-        "forecast_end_date": "2026-07-21",
-        "backtest_as_of": "2026-07-14",
+        "forecast_end_date": "2026-07-15",
+        "observation_start_date": "2026-07-14",
+        "observation_end_date": "2026-07-15",
+        "backtest_as_of": None,
         "data_as_of": "2026-07-14",
         "source_manifest": "quant/v1/manifests/TW-20260714T090000Z-aaaaaaaaaaaa.json",
         "source_manifest_sha256": "a" * 64,
-        "model_versions": {"lgbm-5d-v1": 1},
-        "title": "盤後報告",
-        "summary": ["整理"],
+        "model_versions": {},
+        "prediction_capability": {
+            "mode": "research",
+            "observation_enabled": True,
+            "probability_allowed": False,
+            "ranking_allowed": False,
+            "strong_action_allowed": False,
+            "performance_endorsement_allowed": False,
+        },
+        "title": "盤後市場觀察",
+        "summary": ["市場風險狀態為中性"],
         "warnings": [],
-        "content": {"probability": 64.5, "model_evidence": {"version": "lgbm-5d-v1"}},
+        "content": {
+            "market_observation": {"risk_state": "normal"},
+            "daily_focus": ["市場風險狀態為中性"],
+        },
     }
     encoded = json.dumps(metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return {"metadata": metadata, "metadata_sha256": hashlib.sha256(encoded).hexdigest()}
@@ -84,7 +99,24 @@ class PreMarketPipelineTests(unittest.TestCase):
 
     def test_missing_or_invalid_base_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            for value in (None, {"metadata": {"report_type": "pre_market"}, "metadata_sha256": "a" * 64}):
+            prediction_base = base_receipt()
+            prediction_base["metadata"].pop("product_mode")
+            prediction_base["metadata_sha256"] = hashlib.sha256(
+                json.dumps(
+                    prediction_base["metadata"],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            for value in (
+                None,
+                {
+                    "metadata": {"report_type": "pre_market"},
+                    "metadata_sha256": "a" * 64,
+                },
+                prediction_base,
+            ):
                 with self.subTest(value=value), self.assertRaises(PreMarketPipelineError):
                     PreMarketPipeline(
                         Path(temporary),
@@ -115,10 +147,20 @@ class PreMarketPipelineTests(unittest.TestCase):
             result = pipeline.run(now=datetime.datetime(2026, 7, 15, 0, tzinfo=UTC))
 
             document = published[0]
+            parsed = ReportMetadataV2.from_document(document)
             after = json.dumps(document["content"]["core"], sort_keys=True, separators=(",", ":")).encode()
             self.assertEqual(before, after)
+            self.assertEqual(parsed.product_mode, "observation")
             self.assertEqual(document["content"]["overnight_overlay"]["status"], "risk_off")
             self.assertEqual(len(document["content"]["overnight_overlay"]["unavailable"]), 1)
+            self.assertEqual(document["product_mode"], "observation")
+            self.assertEqual(document["model_versions"], {})
+            self.assertIsNone(document["backtest_as_of"])
+            self.assertEqual(
+                document["prediction_capability"],
+                base["metadata"]["prediction_capability"],
+            )
+            self.assertEqual(document["title"], "ABSORB 盤前風險更新")
             self.assertNotIn("pdf_path", document)
             self.assertEqual(result["status"], "completed")
 
@@ -138,7 +180,7 @@ class PreMarketPipelineTests(unittest.TestCase):
 
             overlay = first["outputs"]["metadata"]["content"]["overnight_overlay"]
             self.assertEqual(overlay["status"], "insufficient")
-            self.assertEqual(overlay["message"], "資料不足，維持盤後判斷")
+            self.assertEqual(overlay["message"], "資料不足，維持盤後觀察")
             self.assertEqual(calls, ["publish", "notify"])
             self.assertEqual(second["status"], "completed")
 

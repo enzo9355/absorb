@@ -99,6 +99,8 @@ class LocalQuantTaskTests(unittest.TestCase):
             "Report v2 content hash mismatch",
             "Pre-market report v2 must not contain PDF",
             "--no-clobber",
+            "Invoke-GcloudConditionalCopy",
+            "Assert-GcloudFileMatches",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, source)
