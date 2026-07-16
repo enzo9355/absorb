@@ -53,6 +53,8 @@ def build_stock_flex_message(code, name, data, url, watched=False):
             ).to_dict()
         except (TypeError, ValueError):
             recommendation = recommend_analysis(data).to_dict()
+    output_label = data.get("model_output_label") or "五日上漲機率"
+    output_suffix = "%" if output_label == "五日上漲機率" else ""
     body_contents.extend([
         {
             "type": "text",
@@ -111,10 +113,17 @@ def build_stock_flex_message(code, name, data, url, watched=False):
             "layout": "horizontal",
             "margin": "md",
             "contents": [
-                { "type": "text", "text": "🎯 五日上漲機率", "color": "#0f172a", "size": "md", "weight": "bold", "flex": 4 },
-                { "type": "text", "text": f"{data['prob']}%", "color": color_prob, "size": "lg", "weight": "bold", "align": "end", "flex": 5 }
+                { "type": "text", "text": f"🎯 {output_label}", "color": "#0f172a", "size": "md", "weight": "bold", "flex": 4 },
+                { "type": "text", "text": f"{data['prob']}{output_suffix}", "color": color_prob, "size": "lg", "weight": "bold", "align": "end", "flex": 5 }
             ]
-        }
+        },
+        *([{
+            "type": "text",
+            "text": str(data["calibration_notice"]),
+            "color": "#b45309",
+            "size": "xs",
+            "wrap": True,
+        }] if data.get("calibration_notice") else [])
     ])
 
     return {
@@ -217,9 +226,11 @@ def _watchlist_card(item, snapshot, base_url):
     code = item["code"]
     name = item["name"]
     if snapshot:
+        label = snapshot.get("model_output_label") or "五日上漲機率"
+        suffix = "%" if label == "五日上漲機率" else ""
         details = [
             f"收盤價 {snapshot['price']:.2f}",
-            f"五日上漲機率 {snapshot['prob']}%",
+            f"{label} {snapshot['prob']}{suffix}",
             f"趨勢 {snapshot['trend']}",
             f"資料日期 {snapshot['as_of']}",
         ]
@@ -280,7 +291,7 @@ def _alert_condition_text(alert):
     if alert["kind"] == "price_below":
         return f"收盤價跌破 {float(alert['value']):g}"
     if alert["kind"] == "probability":
-        return f"五日上漲機率達到 {float(alert['value']):g}%"
+        return f"模型輸出達到 {float(alert['value']):g}"
     return f"趨勢為{alert['value']}"
 
 
@@ -364,6 +375,8 @@ def build_calculator_menu_flex(code, name):
 
 def _signal_card(item, base_url):
     code = item["code"]
+    label = item.get("model_output_label") or "五日上漲機率"
+    suffix = "%" if label == "五日上漲機率" else ""
     return {
         "type": "bubble",
         "size": "kilo",
@@ -372,7 +385,7 @@ def _signal_card(item, base_url):
             "contents": [
                 {"type": "text", "text": f"{item['name']} ({code})", "weight": "bold", "size": "lg", "wrap": True},
                 {"type": "text", "text": f"收盤價 {item['price']:.2f}", "color": "#64748b", "size": "sm"},
-                {"type": "text", "text": f"五日上漲機率 {item['prob']}%", "color": "#64748b", "size": "sm"},
+                {"type": "text", "text": f"{label} {item['prob']}{suffix}", "color": "#64748b", "size": "sm"},
                 {"type": "text", "text": f"趨勢 {item['trend']}", "color": "#64748b", "size": "sm"},
                 {"type": "text", "text": f"資料日期 {item['as_of']}", "color": "#64748b", "size": "sm"},
             ],
@@ -410,8 +423,9 @@ def build_alert_push_flex(hits, base_url):
             condition = f"條件：收盤價跌破 {float(alert['value']):g}"
             current = f"今日收盤價：{quote['price']:.2f}"
         elif alert["kind"] == "probability":
-            condition = f"條件：五日上漲機率達到 {float(alert['value']):g}%"
-            current = f"目前五日上漲機率：{quote['prob']}%"
+            label = quote.get("model_output_label") or "模型輸出"
+            condition = f"條件：{label}達到 {float(alert['value']):g}"
+            current = f"目前{label}：{quote['prob']}"
         else:
             condition = f"條件：趨勢為{alert['value']}"
             current = f"目前趨勢：{quote['trend']}"
@@ -570,8 +584,8 @@ def build_tutorial_flex():
             "contents": [
                 { "type": "text", "text": "不用擔心看不懂複雜的數據，只要掌握以下三個重點：", "color": "#475569", "size": "sm", "wrap": True, "weight": "bold", "margin": "sm" },
                 { "type": "separator", "margin": "md", "color": "#cbd5e1" },
-                { "type": "text", "text": "🎯 1. 看「五日上漲機率」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
-                { "type": "text", "text": "AI 會根據過去的數據估計五個交易日後上漲的機率。大於 60% 代表機率偏高（綠字），低於 40% 建議保守觀望（紅字）。", "color": "#64748b", "size": "sm", "wrap": True },
+                { "type": "text", "text": "🎯 1. 看「模型輸出」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
+                { "type": "text", "text": "有 validated compatible baseline 時會顯示五日上漲機率；尚未通過校準驗證時只顯示模型方向分數，不能當成真實機率。", "color": "#64748b", "size": "sm", "wrap": True },
                 { "type": "text", "text": "🌡 2. 看「新聞情緒」", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },
                 { "type": "text", "text": "我們會自動分析最近的新聞是利多還利空。「樂觀貪婪」代表市場氣氛好，「悲觀恐慌」代表市場害怕。", "color": "#64748b", "size": "sm", "wrap": True },
                 { "type": "text", "text": "📖 3. 專有名詞看不懂？", "color": "#0f172a", "size": "md", "weight": "bold", "margin": "md" },

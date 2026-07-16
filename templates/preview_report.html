@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}研究預覽報告｜ABSORB{% endblock %}
+{% block content %}
+{% set presentation = snapshot.presentation %}
+<div class="page report-detail-page">
+  <header class="report-hero">
+    <p class="eyebrow">NO-TRAFFIC RESEARCH PREVIEW</p>
+    <h1>ABSORB 台股盤後研究預覽</h1>
+    <p>{{ presentation.calibration_notice or '已通過機率校準驗證' }}</p>
+    <p class="muted small">
+      推論資料日 {{ snapshot.inference_as_of }}｜
+      回測資料日 {{ snapshot.backtest_as_of or '尚無 validated baseline' }}｜
+      模型 {{ snapshot.model_version }}
+    </p>
+  </header>
+  <section class="panel">
+    <h2>呈現限制</h2>
+    <ul>
+      <li>模型輸出名稱：{{ presentation.model_output_label }}</li>
+      <li>Action confidence：{{ '正常' if presentation.confidence_cap == 'normal' else '低' }}</li>
+      <li>Strong action：{{ '允許' if presentation.strong_action_allowed else '禁止' }}</li>
+      <li>績效背書：{{ '允許' if presentation.performance_endorsement_allowed else '不顯示' }}</li>
+    </ul>
+  </section>
+  <section class="panel">
+    <h2>產業觀察</h2>
+    <div class="forecast-grid">
+      {% for item in snapshot.heatmap %}
+      <article class="forecast-card">
+        <span>{{ item.name }}</span>
+        <strong>{{ presentation.model_output_label }} {{ '%.1f'|format(item.probability) }}</strong>
+        <small>{{ presentation.calibration_notice or 'validated' }}</small>
+      </article>
+      {% else %}
+      <p class="empty-state">尚無產業觀察資料。</p>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="panel">
+    <h2>{{ presentation.top_picks_label }}</h2>
+    <div class="top-picks">
+      {% for item in snapshot.top_picks %}
+      <article class="pick-card">
+        <span>{{ item.name }}（{{ item.code }}）</span>
+        <strong>{{ item.model_output_label }} {{ item.direction_score }}</strong>
+        <p>{{ item.trend }}</p>
+        <small>{{ item.calibration_notice }}</small>
+      </article>
+      {% else %}
+      <p class="empty-state">尚無量化觀察名單。</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

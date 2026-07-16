@@ -24,6 +24,7 @@
   'brier': '資料不足：無法判斷模型機率可信度。'
 } %}
 <div class="page stock-page" data-stock-code="{{ d.code }}" data-stock-name="{{ d.name }}" data-stock-price="{{ '%.2f'|format(d.price) }}" data-stock-prob="{{ d.prob }}">
+  {% if d.get('calibration_notice') %}<div class="error-banner" role="status">{{ d.calibration_notice }}。目前顯示的是模型方向分數，不是真實上漲機率；不提供績效背書或強行動。</div>{% endif %}
   <header class="stock-hero" id="summary">
     <div class="hero-copy">
       <a class="back-link" href="{{ url_for('dashboard_page') }}">返回市場首頁</a>
@@ -36,10 +37,15 @@
       <button class="button button-secondary watchlist-toggle" type="button" data-watchlist-toggle data-code="{{ d.code }}" data-name="{{ d.name }}">登入後加入關注</button>
     </div>
     <section class="summary-strip" aria-label="預測摘要">
-      <article class="summary-card confidence-card"><span>模型看法</span><strong>{{ d.prob }}%</strong><progress class="confidence-track" max="100" value="{{ d.prob }}" aria-label="五日上漲機率 {{ d.prob }}%"></progress><small>五日上漲機率，不是交易勝率</small></article>
+      <article class="summary-card confidence-card"><span>{{ d.get('model_output_label', '五日上漲機率') }}</span><strong>{{ d.prob }}{% if not d.get('calibration_notice') %}%{% endif %}</strong><progress class="confidence-track" max="100" value="{{ d.prob }}" aria-label="{{ d.get('model_output_label', '五日上漲機率') }} {{ d.prob }}"></progress><small>{{ d.get('calibration_notice') or '五日上漲機率，不是交易勝率' }}</small></article>
       <article class="summary-card"><span>走勢狀態</span><strong>{{ d.trend }}</strong><small>股價{{ '站上' if d.price > d.ma20 else '跌破' }} MA20</small></article>
+      {% if d.get('performance_endorsement_allowed', True) %}
       <article class="summary-card"><span>歷史可靠度</span><strong>{{ recommendation.confidence }}</strong><small>{{ d.bt.trades }} 次相似歷史訊號</small></article>
       <article class="summary-card"><span>最差歷史壓力</span><strong>{{ '%.2f'|format(d.bt.mdd|abs) }}%</strong><small>最差資金跌幅，不代表未來上限</small></article>
+      {% else %}
+      <article class="summary-card"><span>校準狀態</span><strong>未驗證</strong><small>尚未完成機率校準驗證</small></article>
+      <article class="summary-card"><span>Action confidence</span><strong>低</strong><small>strong action 已停用</small></article>
+      {% endif %}
     </section>
   </header>
 
@@ -79,6 +85,7 @@
   {% set projection = d.projection %}
   {% set foreign = d.foreign_flow %}
   <div class="analysis-grid">
+    {% if d.get('performance_endorsement_allowed', True) %}
     <section class="panel calculator-panel" id="calculator" data-return-calculator data-price="{{ '%.4f'|format(d.price) }}" data-strategy-return="{{ '%.6f'|format(d.bt.strat_cum) }}" data-buyhold-return="{{ '%.6f'|format(d.bt.bh_cum) }}">
       <div class="section-heading"><div><p class="eyebrow">RETURN CHECK</p><h2>投資金額試算</h2></div></div>
       <label class="amount-field">投入金額<input type="number" min="0" step="1000" value="100000" data-investment-amount></label>
@@ -95,6 +102,7 @@
       </div>
       <p class="muted small">年化：AI 策略 {{ '%.2f'|format(projection.strategy_annualized) if projection.ok and projection.strategy_annualized is not none else '—' }}%，買進持有 {{ '%.2f'|format(projection.buy_hold_annualized) if projection.ok and projection.buy_hold_annualized is not none else '—' }}%。這是歷史回測換算，不代表未來獲利。</p>
     </section>
+    {% endif %}
 
     <section class="panel foreign-panel" id="chips">
       <div class="section-heading"><div><p class="eyebrow">FOREIGN FLOW</p><h2>外資買賣超</h2></div><strong class="{{ 'positive' if foreign.status == '外資偏多' else 'negative' if foreign.status == '外資偏空' else '' }}">{{ foreign.status }}</strong></div>
@@ -105,6 +113,7 @@
     </section>
   </div>
 
+  {% if d.get('performance_endorsement_allowed', True) %}
   <section class="panel backtest-panel" id="backtest">
     <div class="section-heading"><div><p class="eyebrow">BACKTEST</p><h2>過去相同規則是否比買進持有更有優勢？</h2></div><span class="muted small">未參與訓練的歷史測試，近 {{ d.bt.days }} 日</span></div>
     <p class="backtest-verdict">{{ interpretation.advantage }}</p>
@@ -128,6 +137,7 @@
       <h3>主要特徵</h3><ol class="feature-list">{% for feature in d.bt.top_features %}<li>{{ feature }}</li>{% endfor %}</ol>
     </details>
   </section>
+  {% endif %}
 
   <div class="analysis-grid">
     <section class="panel">

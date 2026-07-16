@@ -56,6 +56,7 @@ def normalize_stock_analysis(data: dict[str, Any]) -> dict[str, Any]:
     backtest = data.get("bt") if isinstance(data.get("bt"), dict) else {}
     price = _finite(data.get("price"))
     probability = _finite(data.get("prob"))
+    bootstrap = data.get("baseline_status") == "initial_backtest_bootstrap"
     symbol = str(data.get("code") or "").upper()
     as_of = recommendation.get("data_as_of") or data.get("as_of")
     limitations = []
@@ -83,7 +84,16 @@ def normalize_stock_analysis(data: dict[str, Any]) -> dict[str, Any]:
         "data_quality": quality,
         "stale": stale,
         "latest_price": price,
-        "five_day_probability": probability / 100 if probability is not None else None,
+        "five_day_probability": (
+            None if bootstrap or probability is None else probability / 100
+        ),
+        "model_direction_score": (
+            probability / 100 if bootstrap and probability is not None else None
+        ),
+        "model_output_label": data.get("model_output_label"),
+        "calibration_notice": data.get("calibration_notice"),
+        "baseline_status": data.get("baseline_status"),
+        "strong_action_allowed": data.get("strong_action_allowed", not bootstrap),
         "probability_change_1d": _finite(required["probability_change_1d"]),
         "probability_change_5d": _finite(required["probability_change_5d"]),
         "action_label": recommendation.get("action"),
@@ -110,7 +120,7 @@ def normalize_stock_analysis(data: dict[str, Any]) -> dict[str, Any]:
         "invalidation_conditions": list(recommendation.get("invalidation_conditions") or [])[:4],
         "model_version": required["model_version"],
         "backtest_as_of": required["backtest_as_of"],
-        "backtest_sample_count": backtest.get("trades"),
+        "backtest_sample_count": None if bootstrap else backtest.get("trades"),
         "limitations": limitations[:12],
     }
 

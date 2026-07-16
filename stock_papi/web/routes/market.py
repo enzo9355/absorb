@@ -3,19 +3,23 @@
 from flask import abort, jsonify, render_template
 
 from stock_papi.shared.formatting import safe_float as _safe_float
+from stock_papi.services.model_evidence import sanitize_recommendation
 
 
 def register_market_routes(
     app, *, analyze, dashboard_sector_cards, cached_opportunities,
     build_market_heatmap, dashboard_top_picks, industry_map,
     market_insights_payload, twstock_codes, is_us_ticker,
-    find_industry_peers, get_stock_name,
+    find_industry_peers, get_stock_name, dashboard_snapshot,
 ):
     def dashboard_api():
         market = analyze("TAIEX")
         if not market:
             return jsonify({"error": "market data unavailable"}), 503
         sector_cards = dashboard_sector_cards()
+        snapshot = dashboard_snapshot() or {}
+        presentation = snapshot.get("presentation") or {}
+        baseline_status = snapshot.get("baseline_status")
         sectors = [
             {"name": name, "count": len(codes)}
             for name, codes in list(industry_map().items())[:8]
@@ -28,7 +32,8 @@ def register_market_routes(
                 "sentiment_status": str(market.get("s_status") or "資料不足"),
                 "sentiment_score": round(_safe_float(market.get("s_score")), 1),
                 "confidence": str(market.get("news_confidence") or "低"),
-                "recommendation": market.get("recommendation") or {
+                "recommendation": sanitize_recommendation(
+                    market.get("recommendation") or {
                     "action": "控制追價",
                     "level": "insufficient",
                     "headline": "市場建議資料不足，請等待資料更新",
@@ -36,7 +41,9 @@ def register_market_routes(
                     "supporting_reasons": [],
                     "risk_reasons": ["市場建議資料缺失"],
                     "data_as_of": str(market.get("as_of") or "") or None,
-                },
+                    },
+                    baseline_status,
+                ),
             },
             "opportunities": cached_opportunities(),
             "sector_cards": sector_cards,
@@ -47,6 +54,8 @@ def register_market_routes(
                 "steps": ["在 LINE 查詢個股", "點選加入關注", "從提醒管理設定通知"],
             },
             "sectors": sectors,
+            "presentation": presentation,
+            "baseline_status": baseline_status,
         })
 
     def market_insights_api():

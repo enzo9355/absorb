@@ -132,6 +132,7 @@ from stock_papi.repositories.gcs import get_allowed_object
 from stock_papi.repositories.dashboard_snapshots import (
     DASHBOARD_CACHE as _DASHBOARD_CACHE,
     load_dashboard_snapshot,
+    load_preview_dashboard_snapshot,
 )
 from stock_papi.repositories.market_insights import (
     MARKET_INSIGHTS_CACHE as _MARKET_INSIGHTS_CACHE,
@@ -190,6 +191,7 @@ from stock_papi.quant.model import (
     run_ai_engine as _run_ai_engine,
     run_latest_inference as _run_latest_inference,
 )
+from stock_papi.services.model_evidence import sanitize_analysis
 from stock_papi.services.sentiment import (
     NEWS_MAJOR_EVENTS,
     NEWS_NEGATIONS,
@@ -281,6 +283,7 @@ line_auth_store = FirestoreAuthStore(GCP_PROJECT_ID) if GCP_PROJECT_ID else None
 gemini_model = _LazyGeminiModel(GEMINI_API_KEY) if GEMINI_API_KEY else None
 conversation_context_store = MemoryContextStore(ttl_seconds=1800)
 _conversation_provider_cache = {"model": None, "provider": None}
+PREVIEW_CANDIDATE_PREFIX = os.getenv("ABSORB_PREVIEW_CANDIDATE_PREFIX", "").strip()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -423,7 +426,17 @@ def _gcs_get_dashboard_object(object_name, max_bytes):
     return _gcs_get_allowed_object(object_name, max_bytes, "dashboard/v1/")
 
 
+def _gcs_get_preview_object(object_name, max_bytes):
+    return _gcs_get_allowed_object(object_name, max_bytes, "previews/")
+
+
 def _published_dashboard_snapshot(today=None):
+    if PREVIEW_CANDIDATE_PREFIX:
+        return load_preview_dashboard_snapshot(
+            PREVIEW_CANDIDATE_PREFIX,
+            load_object=_gcs_get_preview_object,
+            cache=_DASHBOARD_CACHE,
+        )
     return load_dashboard_snapshot(
         today=today,
         load_object=_gcs_get_dashboard_object,
@@ -651,13 +664,15 @@ def _do_analyze(code):
     )
 
 def analyze(code):
-    return _analyze_cached(
+    value = _analyze_cached(
         code,
         cache=_SYSTEM_CACHE,
         expiry_seconds=CACHE_EXPIRY_SECONDS,
         now=time.time,
         analyze_fn=_do_analyze,
     )
+    dashboard = _published_dashboard_snapshot()
+    return sanitize_analysis(value, dashboard) if dashboard is not None else value
 
 def cached_opportunities(limit=5):
     return _dashboard_cached_opportunities(
@@ -742,7 +757,18 @@ def _conversation_sector_ranking():
             "industry": card.get("name"),
             "symbol": leader.get("code"),
             "name": leader.get("name"),
-            "five_day_probability": probability,
+            "five_day_probability": (
+                probability
+                if leader.get("model_output_label") == "五日上漲機率"
+                else None
+            ),
+            "model_direction_score": (
+                probability
+                if leader.get("model_output_label") == "模型方向分數"
+                else None
+            ),
+            "model_output_label": leader.get("model_output_label"),
+            "calibration_notice": leader.get("calibration_notice"),
             "trend": leader.get("trend"),
             "action_label": recommendation.get("action"),
             "data_as_of": leader.get("as_of"),
@@ -977,7 +1003,11 @@ def save_sector_signal_snapshot(store, snapshot):
 def load_sector_signal_snapshot(store):
     dashboard = _published_dashboard_snapshot()
     if dashboard is not None:
-        return dashboard["sector_snapshot"]
+        return {
+            **dashboard["sector_snapshot"],
+            "baseline_status": dashboard.get("baseline_status"),
+            "presentation": dashboard.get("presentation") or {},
+        }
     return _line_load_sector_signal_snapshot(store)
 
 
@@ -1143,6 +1173,7 @@ def route_dependencies():
         "resolve_conversation_identity": lambda http_request: _web_conversation_identity(http_request),
         "analyze": lambda code: analyze(code),
         "dashboard_sector_cards": lambda: dashboard_sector_cards(),
+        "dashboard_snapshot": lambda: _published_dashboard_snapshot(),
         "cached_opportunities": lambda: cached_opportunities(),
         "build_market_heatmap": build_market_heatmap,
         "dashboard_top_picks": dashboard_top_picks,

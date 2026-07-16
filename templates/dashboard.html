@@ -3,6 +3,12 @@
 {% block nav_dashboard %}active{% endblock %}
 {% block content %}
 <div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
+  {% if model_presentation.get('calibration_notice') %}
+  <div class="error-banner bootstrap-banner" role="status">
+    {{ model_presentation.calibration_notice }}。目前僅顯示「模型方向分數」，action confidence 固定為低，不提供績效背書或強行動。
+    <a href="{{ url_for('preview_report_page') }}">查看研究預覽報告</a>
+  </div>
+  {% endif %}
   {% if search_error %}<div class="error-banner" role="alert">找不到「{{ search_query }}」，請輸入台股代碼、名稱或美股代碼。</div>{% endif %}
   <section class="panel trading-prep-panel" aria-labelledby="trading-prep-title">
     <div class="section-heading">
@@ -92,7 +98,7 @@
   <section class="panel heatmap-panel" id="market-heatmap" aria-labelledby="heatmap-title">
     <div class="section-heading">
       <div><p class="eyebrow">MARKET MAP</p><h2 id="heatmap-title">市場熱力圖</h2></div>
-      <span class="muted small">顏色代表五日上漲機率，不等同即時漲跌</span>
+      <span class="muted small" data-model-output-description>顏色代表模型輸出，不等同即時漲跌</span>
     </div>
     <div class="heatmap-grid" data-market-heatmap></div>
   </section>
@@ -107,7 +113,7 @@
 
   <section class="panel picks-panel" id="top-picks" aria-labelledby="picks-title">
     <div class="section-heading">
-      <div><p class="eyebrow">TOP PICKS</p><h2 id="picks-title">精選標的</h2></div>
+      <div><p class="eyebrow">TOP PICKS</p><h2 id="picks-title" data-top-picks-title>{{ model_presentation.get('top_picks_label', '精選標的') }}</h2></div>
     </div>
     <div class="top-picks" data-top-picks></div>
   </section>
@@ -117,7 +123,7 @@
       <div><p class="eyebrow">LEARN</p><h2 id="learn-title">新手投資小辭典</h2></div>
     </div>
     <div class="learn-grid">
-      <article><strong>五日上漲機率是什麼？</strong><p>它是五個交易日內方向判斷的機率，不是保證獲利。</p></article>
+      <article><strong data-model-output-guide-title>模型輸出怎麼看？</strong><p data-model-output-guide>只有 validated compatible baseline 存在時，才會把輸出稱為五日上漲機率；bootstrap 階段只顯示方向分數。</p></article>
       <article><strong>市場情緒怎麼用？</strong><p>情緒適合拿來輔助觀察，不適合單獨當作進出依據。</p></article>
     </div>
   </section>

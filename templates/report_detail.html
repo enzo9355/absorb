@@ -39,7 +39,8 @@
             <p class="eyebrow">{{ industry.name }}</p>
             <h3>{{ industry.action }}</h3>
             <p>{{ industry.headline }}</p>
-            <dl><div><dt>五日上漲機率</dt><dd>{{ '%.1f%%'|format(industry.probability) if industry.probability is not none else '資料不足' }}</dd></div><div><dt>產業強弱位置</dt><dd>{{ industry.rotation }}</dd></div><div><dt>主要風險</dt><dd>{{ industry.risk }}</dd></div><div><dt>結論可信度</dt><dd>{{ industry.confidence }}</dd></div></dl>
+            <dl><div><dt>{{ industry.get('model_output_label', '五日上漲機率') }}</dt><dd>{% if industry.get('direction_score') is not none %}{{ '%.1f'|format(industry.direction_score) }}{% elif industry.get('probability') is not none %}{{ '%.1f%%'|format(industry.probability) }}{% else %}資料不足{% endif %}</dd></div><div><dt>產業強弱位置</dt><dd>{{ industry.rotation }}</dd></div><div><dt>主要風險</dt><dd>{{ industry.risk }}</dd></div><div><dt>結論可信度</dt><dd>{{ industry.confidence }}</dd></div></dl>
+            {% if industry.get('calibration_notice') %}<p class="muted small">{{ industry.calibration_notice }}</p>{% endif %}
           </article>
         {% else %}<div class="empty-state">產業資料不足。</div>{% endfor %}
       </div>
@@ -52,7 +53,8 @@
           <article class="report-insight-card">
             <p class="eyebrow">{{ stock.symbol }}</p><h3>{{ stock.name }}｜{{ stock.action }}</h3>
             <p>{{ stock.headline }}</p>
-            <p><strong>五日上漲機率：</strong>{{ '%.1f%%'|format(stock.probability) if stock.probability is not none else '資料不足' }}</p>
+            <p><strong>{{ stock.get('model_output_label', '五日上漲機率') }}：</strong>{% if stock.get('direction_score') is not none %}{{ '%.1f'|format(stock.direction_score) }}{% elif stock.get('probability') is not none %}{{ '%.1f%%'|format(stock.probability) }}{% else %}資料不足{% endif %}</p>
+            {% if stock.get('calibration_notice') %}<p class="muted small">{{ stock.calibration_notice }}</p>{% endif %}
             <p><strong>主要風險：</strong>{{ stock.risks|join('；') }}</p>
             <p class="muted small">{{ stock.confidence }}</p>
             <a class="button button-secondary" href="{{ url_for('stock_page', code=stock.symbol) }}">前往個股頁</a>

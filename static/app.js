@@ -43,6 +43,25 @@ async function loadDashboard() {
 }
 
 function renderDashboard(data) {
+  const presentation = data.presentation || {};
+  const outputLabel = presentation.model_output_label || "五日上漲機率";
+  const bootstrap = data.baseline_status === "initial_backtest_bootstrap";
+  const picksTitle = bySelector("[data-top-picks-title]");
+  if (picksTitle) picksTitle.textContent = presentation.top_picks_label || "精選標的";
+  const outputDescription = bySelector("[data-model-output-description]");
+  if (outputDescription) {
+    outputDescription.textContent = bootstrap
+      ? "顏色代表模型方向分數，尚未完成機率校準驗證"
+      : "顏色代表五日上漲機率，不等同即時漲跌";
+  }
+  const guideTitle = bySelector("[data-model-output-guide-title]");
+  const guide = bySelector("[data-model-output-guide]");
+  if (guideTitle) guideTitle.textContent = `${outputLabel}是什麼？`;
+  if (guide) {
+    guide.textContent = bootstrap
+      ? "這是未完成機率校準驗證的模型方向分數，只能作研究觀察，不是真實上漲機率。"
+      : "它是五個交易日內方向判斷的已驗證機率，不是保證獲利。";
+  }
   const marketData = data.market || {};
   const marketRecommendation = marketData.recommendation || {};
   const hero = bySelector("[data-market-hero]");
@@ -95,7 +114,7 @@ function renderDashboard(data) {
       heatmap.style.gridTemplateColumns = "";
     }
     replaceContent(heatmap, cells.length ? cells.map((item) =>
-      card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [["span", "", item.name], ["strong", "", `${item.probability}%`], ["small", "", `${item.count} 檔候選`]], item.code ? stockHref(item.code, "#industry-forecast") : "#industry-forecast")
+      card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [["span", "", item.name], ["strong", "", `${item.direction_score ?? item.probability}`], ["small", "", `${outputLabel} · ${item.count} 檔觀察`]], item.code ? stockHref(item.code, "#industry-forecast") : "#industry-forecast")
     ) : [emptyState("今日產業樣本尚未完成，暫不提供產業熱力圖。")]);
   }
 
@@ -107,7 +126,7 @@ function renderDashboard(data) {
       return card("a", "forecast-card", [
         ["span", "", `第 ${index + 1} 名 · ${sector.name}`],
         ["strong", "", recommendation.action || "等待確認"],
-        ["small", "", `五日上漲機率 ${sector.leader.prob}% · ${sector.leader.trend}`],
+        ["small", "", `${sector.leader.model_output_label || outputLabel} ${sector.leader.direction_score ?? sector.leader.prob} · ${sector.leader.trend}`],
         ["small", "", recommendation.headline || "等待完整資料"],
         ["small", "", `代表股票 ${sector.leader.name || "待更新"} · ${recommendation.confidence || "可信度低"}`],
       ], stockHref(sector.leader.code));
@@ -123,7 +142,7 @@ function renderDashboard(data) {
     const elements = [];
     
     // Stocks Section
-    elements.push(element("h3", "sub-section-title", "精選個股"));
+    elements.push(element("h3", "sub-section-title", bootstrap ? "量化觀察個股" : "精選個股"));
     const stocksGrid = element("div", `top-picks count-${Math.min(3, stocks.length || 1)}`);
     if (stocks.length) {
       stocks.forEach(item => {

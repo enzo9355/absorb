@@ -4,6 +4,7 @@ from stock_papi.services.recommendation_engine import (
     RecommendationInput,
     build_recommendation,
 )
+from stock_papi.services.model_evidence import sanitize_recommendation
 from stock_papi.shared.formatting import clamp as _clamp
 from stock_papi.shared.formatting import safe_float as _safe_float
 
@@ -110,7 +111,9 @@ def dashboard_top_picks(cards, limit=3):
         code = leader["code"]
         is_etf = get_instrument_type(code) == "ETF"
         
-        summary = f"五日上漲機率 {leader['prob']}%・{leader['trend']}"
+        label = leader.get("model_output_label") or "五日上漲機率"
+        suffix = "%" if label == "五日上漲機率" else ""
+        summary = f"{label} {leader['prob']}{suffix}・{leader['trend']}"
         if not is_etf and leader.get("foreign_net_5") is not None:
             summary += f"・外資5日 {leader['foreign_net_5']:,}"
             
@@ -164,6 +167,7 @@ def build_market_heatmap(cards):
         heatmap.append({
             "name": str(card.get("name") or "未分類"),
             "probability": round(probability, 1),
+            "direction_score": round(probability, 1),
             "count": int(_safe_float(card.get("count"))),
             "tone": "hot" if probability >= 60 else "cold" if probability < 45 else "steady",
             "code": str(leader.get("code") or ""),
@@ -193,6 +197,8 @@ def dashboard_sector_cards(load_snapshot, line_store, fallback_items, safe_float
         snapshot = load_snapshot(line_store)
     except Exception:
         snapshot = {}
+    baseline_status = (snapshot or {}).get("baseline_status")
+    presentation = (snapshot or {}).get("presentation") or {}
     cards = []
     for name, items in (snapshot or {}).get("sectors", {}).items():
         if not items:
@@ -216,6 +222,10 @@ def dashboard_sector_cards(load_snapshot, line_store, fallback_items, safe_float
             near_rotation_boundary=leader.get("near_rotation_boundary") is True,
             data_quality_warning=leader.get("data_quality_warning") is True,
         )).to_dict()
+        recommendation = sanitize_recommendation(recommendation, baseline_status)
+        label = leader.get("model_output_label") or presentation.get(
+            "model_output_label"
+        ) or "五日上漲機率"
         cards.append({
             "name": name,
             "count": len(items),
@@ -224,6 +234,15 @@ def dashboard_sector_cards(load_snapshot, line_store, fallback_items, safe_float
                 "code": str(leader.get("code") or ""),
                 "name": str(leader.get("name") or ""),
                 "prob": int(safe_float(leader.get("prob"))),
+                "direction_score": int(
+                    safe_float(leader.get("direction_score"), leader.get("prob"))
+                ),
+                "model_output_label": label,
+                "calibration_notice": leader.get("calibration_notice")
+                or presentation.get("calibration_notice"),
+                "strong_action_allowed": presentation.get(
+                    "strong_action_allowed", True
+                ),
                 "trend": str(leader.get("trend") or "中性"),
                 "foreign_net_5": int(safe_float(leader.get("foreign_net_5"))),
                 "as_of": str(leader.get("as_of") or ""),

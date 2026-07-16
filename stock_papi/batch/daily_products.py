@@ -8,6 +8,11 @@ import os
 import re
 from pathlib import Path
 
+from stock_papi.services.model_evidence import (
+    presentation_policy,
+    sanitize_public_report,
+)
+
 
 MAX_DASHBOARD_BYTES = 5_000_000
 
@@ -94,6 +99,9 @@ def _validate_dashboard(document):
         or not isinstance(document.get("daily_focus"), list)
         or not isinstance(document.get("top_picks"), list)
         or not isinstance(document.get("gates"), dict)
+        or not isinstance(document.get("presentation"), dict)
+        or type(document["presentation"].get("strong_action_allowed")) is not bool
+        or type(document["presentation"].get("performance_endorsement_allowed")) is not bool
     ):
         raise ValueError("dashboard snapshot schema is invalid")
     content = _canonical(document)
@@ -107,6 +115,7 @@ def build_daily_products(report, metadata, baseline):
     generated_at = metadata["published_at"]
     backtests = {item.industry: item for item in report.backtests}
     stocks = {stock.symbol: stock for stock in report.source.stocks}
+    presentation = presentation_policy(baseline["status"])
     sectors = {}
     all_items = []
     for industry in report.industries:
@@ -134,12 +143,16 @@ def build_daily_products(report, metadata, baseline):
                     else "中性"
                 ),
                 "score": round(probability, 2),
+                "direction_score": round(probability, 1),
                 "as_of": source_date,
                 "sample_count": backtests[industry.name].valid_signals,
                 "coverage": industry.coverage,
                 "rotation": industry.rotation,
                 "near_rotation_boundary": industry.near_boundary,
                 "data_quality_warning": baseline["status"] != "validated_compatible",
+                "model_output_label": presentation["model_output_label"],
+                "calibration_notice": presentation["calibration_notice"],
+                "strong_action_allowed": presentation["strong_action_allowed"],
             }
             items.append(item)
             all_items.append((industry.name, item))
@@ -157,6 +170,7 @@ def build_daily_products(report, metadata, baseline):
             {
                 "name": industry.name,
                 "probability": probability,
+                "direction_score": probability,
                 "count": industry.component_count,
                 "tone": "hot" if probability >= 60 else "cold" if probability < 45 else "steady",
                 "code": items[0]["code"],
@@ -210,6 +224,7 @@ def build_daily_products(report, metadata, baseline):
             ),
             "production_cutover": "NOT_RUN",
         },
+        "presentation": presentation,
     }
     return _validate_dashboard(dashboard)
 
@@ -217,6 +232,33 @@ def build_daily_products(report, metadata, baseline):
 def write_daily_candidate(root, report_metadata, dashboard):
     from reporting.schemas import ReportMetadataV2
 
+    report_metadata = dict(report_metadata)
+    content = dict(report_metadata.get("content") or {})
+    content["public_report"] = sanitize_public_report(
+        content.get("public_report"),
+        dashboard["baseline_status"],
+    )
+    content["presentation"] = dict(dashboard["presentation"])
+    report_metadata["content"] = content
+    if dashboard["baseline_status"] == "initial_backtest_bootstrap":
+        report_metadata["summary"] = [
+            (
+                str(item)
+                .replace("五日上漲機率", "模型方向分數")
+                .replace("機率變化", "方向分數變化")
+                .replace("模型偏多產業", "模型分數較高產業")
+                .replace("模型偏弱產業", "模型分數較低產業")
+                .replace("%", "")
+                if "機率" in str(item) or "模型偏" in str(item)
+                else str(item)
+            )
+            for item in report_metadata.get("summary") or []
+        ]
+        warnings = list(report_metadata.get("warnings") or [])
+        notice = "尚未完成機率校準驗證；本報告只顯示模型方向分數，不含績效背書。"
+        if notice not in warnings:
+            warnings.append(notice)
+        report_metadata["warnings"] = warnings
     report_document = ReportMetadataV2.from_document(report_metadata).to_document()
     dashboard = _validate_dashboard(dashboard)
     identity = _canonical({"report": report_document, "dashboard": dashboard})

@@ -11,7 +11,9 @@ from absorb.conversation.web import register_conversation_routes
 
 def register_routes(app, dependencies):
     register_dashboard_page(
-        app, load_report_index_v2=dependencies["load_report_index_v2"]
+        app,
+        load_report_index_v2=dependencies["load_report_index_v2"],
+        load_dashboard_snapshot=dependencies["dashboard_snapshot"],
     )
     register_system_routes(app, search_stock=dependencies["search_stock"])
     register_report_routes(
@@ -34,6 +36,7 @@ def register_routes(app, dependencies):
         is_us_ticker=dependencies["is_us_ticker"],
         find_industry_peers=dependencies["find_industry_peers"],
         get_stock_name=dependencies["get_stock_name"],
+        dashboard_snapshot=dependencies["dashboard_snapshot"],
     )
     register_auth_routes(
         app,
