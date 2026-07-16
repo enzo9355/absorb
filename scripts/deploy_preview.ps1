@@ -47,12 +47,37 @@ if (-not $Bucket) { throw 'QUANT_SNAPSHOT_BUCKET is unavailable' }
 $Prefix = "previews/$CandidateId"
 $Files = @('candidate.json') + @($Manifest.files.PSObject.Properties.Name)
 foreach ($Name in $Files) {
-    gcloud storage cp (Join-Path $Candidate $Name) "gs://$Bucket/$Prefix/$Name" `
-        --if-generation-match=0 --project $Project --quiet
-    if ($LASTEXITCODE -ne 0) { throw "Preview upload failed: $Name" }
+    $LocalPath = Join-Path $Candidate $Name
+    $RemotePath = "gs://$Bucket/$Prefix/$Name"
+    $Existing = gcloud storage objects describe $RemotePath --project $Project --format=json 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $Temporary = Join-Path ([IO.Path]::GetTempPath()) "absorb-preview-$([guid]::NewGuid().ToString('N'))-$Name"
+        try {
+            gcloud storage cp $RemotePath $Temporary --project $Project --quiet
+            if ($LASTEXITCODE -ne 0) { throw "Preview verification download failed: $Name" }
+            $LocalHash = (Get-FileHash -LiteralPath $LocalPath -Algorithm SHA256).Hash
+            $RemoteHash = (Get-FileHash -LiteralPath $Temporary -Algorithm SHA256).Hash
+            if (
+                (Get-Item -LiteralPath $LocalPath).Length -ne (Get-Item -LiteralPath $Temporary).Length -or
+                $LocalHash -ne $RemoteHash
+            ) {
+                throw "Existing preview object does not match immutable candidate: $Name"
+            }
+        }
+        finally {
+            if (Test-Path -LiteralPath $Temporary -PathType Leaf) {
+                Remove-Item -LiteralPath $Temporary -Force
+            }
+        }
+    }
+    else {
+        gcloud storage cp $LocalPath $RemotePath `
+            --if-generation-match=0 --project $Project --quiet
+        if ($LASTEXITCODE -ne 0) { throw "Preview upload failed: $Name" }
+    }
 }
 
-$Tag = ('preview-' + ($CandidateId -replace '[^a-z0-9-]', '-')).Trim('-')
+$Tag = "preview-$($CandidateId.Substring($CandidateId.Length - 12))"
 gcloud run deploy $Service --source $RepoRoot --project $Project --region $Region `
     --no-traffic --tag $Tag `
     --update-env-vars "ABSORB_PREVIEW_CANDIDATE_PREFIX=$Prefix" --quiet
