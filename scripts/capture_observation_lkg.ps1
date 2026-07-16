@@ -33,6 +33,10 @@ $CaptureRoot = Assert-PathWithinRoot -Path $CaptureRoot -Root $ReleaseRoot
 
 $Definitions = @(
     @{
+        name = 'quant-latest'
+        uri = "gs://$Bucket/quant/v1/latest-TW.json"
+    },
+    @{
         name = 'dashboard-latest'
         uri = "gs://$Bucket/dashboard/v1/latest-TW.json"
     },

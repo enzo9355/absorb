@@ -132,6 +132,7 @@ class ObservationReleaseScriptTests(unittest.TestCase):
         )
 
         for required in (
+            "quant/v1/latest-TW.json",
             "dashboard/v1/latest-TW.json",
             "reports/v2/index-TW.json",
             "reports/v2/latest-TW-post_close.json",
