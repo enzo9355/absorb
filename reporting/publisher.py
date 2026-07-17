@@ -182,7 +182,7 @@ def publish_report_v2(
         "schema_version": 2,
         "kind": "absorb-report-index",
         "market": "TW",
-        "updated_at": document["published_at"],
+        "updated_at": reports[0]["published_at"],
         "reports": reports[: settings.index_history_days * 3],
     }
     index_bytes = _json_bytes(index)

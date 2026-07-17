@@ -134,6 +134,21 @@ class ReportSchemaV2Tests(unittest.TestCase):
 
             self.assertEqual(index_path.read_bytes(), before)
 
+    def test_rerunning_older_report_preserves_newer_index_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            post_close = metadata("post_close")
+            pre_market = metadata("pre_market")
+            pre_market["published_at"] = "2026-07-14T11:00:00Z"
+            publish_report_v2(root, post_close)
+            publish_report_v2(root, pre_market)
+            index_path = root / "publish" / "reports" / "v2" / "index-TW.json"
+            before = index_path.read_bytes()
+
+            publish_report_v2(root, post_close)
+
+            self.assertEqual(index_path.read_bytes(), before)
+
     def test_pre_market_rejects_pdf(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
