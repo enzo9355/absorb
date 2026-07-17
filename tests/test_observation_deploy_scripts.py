@@ -43,6 +43,18 @@ class ObservationDeployScriptTests(unittest.TestCase):
         self.assertNotIn("--set-env-vars", source)
         self.assertNotIn("--set-secrets", source)
 
+    def test_whatif_does_not_disable_read_only_gcloud_preflight(self) -> None:
+        source = DEPLOY.read_text(encoding="utf-8")
+        invoke_gcloud = source[
+            source.index("function Invoke-Gcloud"):source.index(
+                "function Get-Service"
+            )
+        ]
+
+        self.assertIn("$PreviousWhatIfPreference = $WhatIfPreference", invoke_gcloud)
+        self.assertIn("$WhatIfPreference = $false", invoke_gcloud)
+        self.assertIn("$WhatIfPreference = $PreviousWhatIfPreference", invoke_gcloud)
+
     def test_deploy_receipt_captures_previous_state_and_endpoint_evidence(self) -> None:
         source = DEPLOY.read_text(encoding="utf-8")
 
