@@ -121,9 +121,17 @@ function Get-GcloudObjectState {
         [Parameter(Mandatory)][string]$Uri
     )
 
-    $Result = Invoke-GcloudCaptured -Gcloud $Gcloud -AllowFailure -Arguments @(
-        'storage', 'objects', 'describe', $Uri, '--format=json'
-    )
+    $PreviousWhatIfPreference = $WhatIfPreference
+    try {
+        # Object metadata is a read-only preflight and must remain observable
+        # when the caller uses WhatIf to prove rollback readiness.
+        $WhatIfPreference = $false
+        $Result = Invoke-GcloudCaptured -Gcloud $Gcloud -AllowFailure -Arguments @(
+            'storage', 'objects', 'describe', $Uri, '--format=json'
+        )
+    } finally {
+        $WhatIfPreference = $PreviousWhatIfPreference
+    }
     if ($Result.exit_code -ne 0) {
         if ($Result.text -match '(?i)(not found|no urls matched|404)') {
             return [pscustomobject]@{

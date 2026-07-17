@@ -151,9 +151,10 @@ class ObservationReleaseScriptTests(unittest.TestCase):
         rollback = (SCRIPTS / "rollback_observation.ps1").read_text(
             encoding="utf-8"
         )
-        source = rollback + "\n" + (
+        common = (
             SCRIPTS / "observation_release_common.ps1"
         ).read_text(encoding="utf-8")
+        source = rollback + "\n" + common
 
         for required in (
             "SupportsShouldProcess",
@@ -167,6 +168,17 @@ class ObservationReleaseScriptTests(unittest.TestCase):
                 self.assertIn(required, source)
         self.assertNotIn("--recursive", source)
         self.assertNotIn("objects/", rollback)
+
+        object_state = common[
+            common.index("function Get-GcloudObjectState"):
+            common.index("function Invoke-GcloudConditionalCopy")
+        ]
+        self.assertIn("$PreviousWhatIfPreference = $WhatIfPreference", object_state)
+        self.assertIn("$WhatIfPreference = $false", object_state)
+        self.assertIn(
+            "$WhatIfPreference = $PreviousWhatIfPreference",
+            object_state,
+        )
 
 
 if __name__ == "__main__":

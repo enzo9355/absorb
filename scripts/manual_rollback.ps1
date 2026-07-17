@@ -37,12 +37,15 @@ if ($PSCmdlet.ParameterSetName -eq 'Observation') {
 
         $GcloudPath = (Get-Command gcloud -ErrorAction Stop).Source
         $PreviousPythonPath = $env:PYTHONPATH
+        $PreviousWhatIfPreference = $WhatIfPreference
         try {
+            $WhatIfPreference = $false
             $env:PYTHONPATH = $null
             $Output = & $GcloudPath @Arguments 2>&1
             $ExitCode = $LASTEXITCODE
         } finally {
             $env:PYTHONPATH = $PreviousPythonPath
+            $WhatIfPreference = $PreviousWhatIfPreference
         }
         if ($ExitCode -ne 0) {
             throw "gcloud command failed with exit code ${ExitCode}: $($Output | Out-String)"
@@ -102,15 +105,20 @@ if ($PSCmdlet.ParameterSetName -eq 'Observation') {
                 }
             }
     )
+    $PreviousTrafficPercent = (
+        $PreviousTraffic |
+            ForEach-Object { [int]$_['percent'] } |
+            Measure-Object -Sum
+    ).Sum
     if (
         $PreviousTraffic.Count -lt 1 -or
-        ($PreviousTraffic | Measure-Object -Property percent -Sum).Sum -ne 100
+        $PreviousTrafficPercent -ne 100
     ) {
         throw 'Observation previous_traffic is incomplete'
     }
     $PreviousTrafficSpec = (
         $PreviousTraffic |
-            ForEach-Object { "$($_.revision)=$($_.percent)" }
+            ForEach-Object { "$($_['revision'])=$($_['percent'])" }
     ) -join ','
     if ($PreviousTrafficSpec -ne [string]$Deployment.previous_traffic_spec) {
         throw 'Observation previous_traffic specification mismatch'
@@ -158,12 +166,12 @@ if ($PSCmdlet.ParameterSetName -eq 'Observation') {
         $Match = @(
             $AfterTraffic.status.traffic |
                 Where-Object {
-                    $_.revisionName -eq $Expected.revision -and
-                    [int]$_.percent -eq $Expected.percent
+                    $_.revisionName -eq [string]$Expected['revision'] -and
+                    [int]$_.percent -eq [int]$Expected['percent']
                 }
         )
         if ($Match.Count -ne 1) {
-            throw "Observation Cloud Run traffic rollback verification failed: $($Expected.revision)"
+            throw "Observation Cloud Run traffic rollback verification failed: $($Expected['revision'])"
         }
     }
 

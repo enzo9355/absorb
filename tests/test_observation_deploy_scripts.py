@@ -134,6 +134,34 @@ class ObservationDeployScriptTests(unittest.TestCase):
             self.assertIn(required, source)
         self.assertNotIn("--recursive", source)
 
+    def test_manual_rollback_preflight_handles_whatif_and_ordered_traffic(self) -> None:
+        source = ROLLBACK.read_text(encoding="utf-8")
+        observation = source[:source.index("if ($LkgManifest")]
+        invoke_gcloud = observation[
+            observation.index("function Invoke-ObservationGcloud"):
+            observation.index("$ReceiptRoot")
+        ]
+
+        self.assertIn("$PreviousWhatIfPreference = $WhatIfPreference", invoke_gcloud)
+        self.assertIn("$WhatIfPreference = $false", invoke_gcloud)
+        self.assertIn("$WhatIfPreference = $PreviousWhatIfPreference", invoke_gcloud)
+        self.assertIn("$PreviousTrafficPercent = (", observation)
+        self.assertIn("ForEach-Object { [int]$_['percent'] }", observation)
+        self.assertIn("$PreviousTrafficPercent -ne 100", observation)
+        self.assertIn(
+            'ForEach-Object { "$($_[\'revision\'])=$($_[\'percent\'])" }',
+            observation,
+        )
+        self.assertIn(
+            "$_.revisionName -eq [string]$Expected['revision']",
+            observation,
+        )
+        self.assertIn(
+            "[int]$_.percent -eq [int]$Expected['percent']",
+            observation,
+        )
+        self.assertNotIn("Measure-Object -Property percent -Sum", observation)
+
     def test_cutover_checklist_documents_order_and_stop_conditions(self) -> None:
         source = CHECKLIST.read_text(encoding="utf-8")
 
