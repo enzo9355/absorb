@@ -55,6 +55,18 @@ class ObservationDeployScriptTests(unittest.TestCase):
         self.assertIn("$WhatIfPreference = $false", invoke_gcloud)
         self.assertIn("$WhatIfPreference = $PreviousWhatIfPreference", invoke_gcloud)
 
+    def test_traffic_preflight_sums_ordered_receipt_entries_explicitly(self) -> None:
+        source = DEPLOY.read_text(encoding="utf-8")
+
+        self.assertIn("$PreviousTrafficPercent = (", source)
+        self.assertIn("ForEach-Object { [int]$_['percent'] }", source)
+        self.assertIn("$PreviousTrafficPercent -ne 100", source)
+        self.assertIn(
+            'ForEach-Object { "$($_[\'revision\'])=$($_[\'percent\'])" }',
+            source,
+        )
+        self.assertNotIn("Measure-Object -Property percent -Sum", source)
+
     def test_deploy_receipt_captures_previous_state_and_endpoint_evidence(self) -> None:
         source = DEPLOY.read_text(encoding="utf-8")
 

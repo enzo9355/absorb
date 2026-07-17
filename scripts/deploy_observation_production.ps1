@@ -314,15 +314,20 @@ $PreviousTraffic = @(
             }
         }
 )
+$PreviousTrafficPercent = (
+    $PreviousTraffic |
+        ForEach-Object { [int]$_['percent'] } |
+        Measure-Object -Sum
+).Sum
 if (
     $PreviousTraffic.Count -lt 1 -or
-    ($PreviousTraffic | Measure-Object -Property percent -Sum).Sum -ne 100
+    $PreviousTrafficPercent -ne 100
 ) {
     throw 'Cloud Run Production traffic is not a complete 100 percent assignment'
 }
 $PreviousTrafficSpec = (
     $PreviousTraffic |
-        ForEach-Object { "$($_.revision)=$($_.percent)" }
+        ForEach-Object { "$($_['revision'])=$($_['percent'])" }
 ) -join ','
 $BeforePath = Join-Path $CaptureRoot 'cloud-run-before.json'
 $BeforeJson = $Before | ConvertTo-Json -Depth 20
