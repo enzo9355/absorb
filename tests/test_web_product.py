@@ -16,6 +16,41 @@ from tests.test_observation_public_surfaces import (
 
 
 class WebProductTests(unittest.TestCase):
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_information_architecture_has_distinct_server_rendered_pages(self, load):
+        load.return_value = observation_dashboard()
+        client = stock_app.app.test_client()
+        expectations = {
+            "/": "今日市場準備",
+            "/market": "市場實況",
+            "/industries": "產業觀察",
+            "/stocks": "個股與 ETF",
+            "/ask": "Ask ABSORB",
+            "/learn": "市場觀察小辭典",
+        }
+
+        for path, heading in expectations.items():
+            with self.subTest(path=path):
+                response = client.get(path)
+                html = response.get_data(as_text=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(html.count("<h1"), 1)
+                self.assertIn(heading, html)
+
+        home = client.get("/").get_data(as_text=True)
+        self.assertNotIn('id="industry-observations"', home)
+        self.assertNotIn('id="stock-events"', home)
+        self.assertIn('href="/industries"', home)
+        self.assertIn('href="/stocks"', home)
+        self.assertIn('href="/ask"', home)
+        self.assertIn('href="/learn"', home)
+
+    def test_legacy_market_map_redirects_to_industries(self):
+        response = stock_app.app.test_client().get("/market-map")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/industries"))
+
     def test_dashboard_starts_with_today_market_preparation_cards(self):
         response = stock_app.app.test_client().get("/")
         html = response.get_data(as_text=True)
@@ -68,21 +103,17 @@ class WebProductTests(unittest.TestCase):
         )
 
     @patch.object(stock_app, "_published_dashboard_snapshot")
-    def test_market_map_renders_verified_actual_observations(self, load):
+    def test_industries_page_renders_verified_actual_observations(self, load):
         load.return_value = observation_dashboard()
 
-        response = stock_app.app.test_client().get("/market-map")
+        response = stock_app.app.test_client().get("/industries")
         html = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
         for label in (
             "產業實際強弱",
-            "市場實況摘要",
             "近 5 日相對大盤報酬",
             "產業觀察",
-            "個股異常事件",
-            "ETF 觀察",
-            "量能異常放大",
         ):
             self.assertIn(label, html)
         for forbidden in (
@@ -166,14 +197,12 @@ class WebProductTests(unittest.TestCase):
         analyze.assert_not_called()
         html = response.get_data(as_text=True)
         for label in (
-            "市場實況",
+            "今日市場準備",
             "今日焦點",
-            "產業實際強弱",
             "產業觀察",
-            "個股異常事件",
-            "ETF 觀察",
-            "新手投資小辭典",
-            "LINE 管理關注",
+            "市場實況",
+            "個股與 ETF",
+            "Ask ABSORB",
             "AI 預測研究中",
         ):
             self.assertIn(label, html)
@@ -185,19 +214,17 @@ class WebProductTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, html)
 
-    def test_dashboard_has_real_search_and_section_navigation(self):
+    def test_dashboard_has_route_based_section_navigation(self):
         html = stock_app.app.test_client().get(
             "/dashboard"
         ).get_data(as_text=True)
 
         for marker in (
-            'action="/search"',
-            'name="q"',
-            'id="market-pulse"',
-            'id="industry-observations"',
-            'id="stock-events"',
-            'id="etf-observations"',
-            'id="learn"',
+            'href="/market"',
+            'href="/industries"',
+            'href="/stocks"',
+            'href="/ask"',
+            'href="/learn"',
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, html)
@@ -409,7 +436,7 @@ class WebProductTests(unittest.TestCase):
             actual_uri,
             {
                 "看大盤": "https://example.com/market",
-                "看產業": "https://example.com/market-map",
+                "看產業": "https://example.com/industries",
                 "市場觀察": "https://example.com/dashboard",
             },
         )
@@ -479,7 +506,7 @@ class WebProductTests(unittest.TestCase):
             "min-height:44px",
         ):
             self.assertIn(rule, css)
-        self.assertIn("grid-template-columns:repeat(4,1fr)", css)
+        self.assertIn("grid-template-columns:repeat(5,1fr)", css)
         self.assertIn('href="/reports">每日報告</a>', html)
 
     def test_browser_bundle_has_no_local_watchlist_storage(self):

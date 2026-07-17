@@ -114,14 +114,7 @@ def register_market_routes(
         )
 
     def market_map_page():
-        snapshot = dashboard_snapshot()
-        observation = (
-            snapshot
-            if isinstance(snapshot, dict)
-            and snapshot.get("product_mode") == "observation"
-            else None
-        )
-        return render_template("market_map.html", observation=observation)
+        return redirect(url_for("industries_page"), code=302)
 
     def stock_page(code):
         code = code.upper()
@@ -136,7 +129,14 @@ def register_market_routes(
         ) if data else "查無資料"
 
     def market_page():
-        return redirect(url_for("dashboard_page") + "#market-pulse", code=302)
+        snapshot = dashboard_snapshot()
+        observation = (
+            snapshot
+            if isinstance(snapshot, dict)
+            and snapshot.get("product_mode") == "observation"
+            else {}
+        )
+        return render_template("market.html", observation=observation)
 
     app.add_url_rule("/api/dashboard", "dashboard_api", dashboard_api)
     app.add_url_rule("/api/market-insights", "market_insights_api", market_insights_api)

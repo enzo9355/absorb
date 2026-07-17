@@ -172,10 +172,9 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
         for label in (
             "市場實況",
             "今日焦點",
-            "產業實際強弱",
             "產業觀察",
-            "個股異常事件",
-            "ETF 觀察",
+            "個股與 ETF",
+            "Ask ABSORB",
             "AI 預測研究中",
         ):
             self.assertIn(label, html)
@@ -183,13 +182,16 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
             self.assertNotIn(text, html)
 
     @patch.object(stock_app, "_published_dashboard_snapshot")
-    def test_market_map_uses_actual_observations_only(self, load_snapshot):
+    def test_industry_and_stock_pages_use_actual_observations_only(self, load_snapshot):
         load_snapshot.return_value = observation_dashboard()
 
-        response = stock_app.app.test_client().get("/market-map")
-        html = response.get_data(as_text=True)
+        client = stock_app.app.test_client()
+        industries = client.get("/industries")
+        stocks = client.get("/stocks")
+        html = industries.get_data(as_text=True) + stocks.get_data(as_text=True)
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(industries.status_code, 200)
+        self.assertEqual(stocks.status_code, 200)
         for label in (
             "產業實際強弱",
             "半導體",

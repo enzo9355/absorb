@@ -191,6 +191,11 @@ function Invoke-ObservationSmoke {
     foreach ($Path in @(
         '/health',
         '/',
+        '/market',
+        '/industries',
+        '/stocks',
+        '/ask',
+        '/learn',
         '/api/dashboard',
         '/reports',
         '/market-map',

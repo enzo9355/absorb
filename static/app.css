@@ -349,7 +349,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{
 }
 .mobile-nav{
   display:none;
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(5,1fr);
   gap:8px;
 }
 .mobile-nav a{
@@ -361,6 +361,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{
   border:1px solid var(--line);
   color:var(--muted);
 }
+.mobile-more{position:relative}.mobile-more summary{display:grid;place-items:center;min-height:44px;border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer;list-style:none}.mobile-more summary::-webkit-details-marker{display:none}.mobile-more div{position:absolute;right:0;bottom:52px;display:grid;min-width:132px;padding:8px;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}.mobile-more:not([open]) div{display:none}.mobile-more div a{white-space:nowrap}
+.home-entry-grid a{color:inherit;text-decoration:none}.home-entry-grid a:hover{border-color:var(--absorb-blue)}
 .stock-page{display:grid;gap:16px}
 .watchlist-toggle{margin-top:16px}
 .stock-page [id]{scroll-margin-top:84px}

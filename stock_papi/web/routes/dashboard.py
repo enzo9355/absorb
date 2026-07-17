@@ -8,6 +8,10 @@ from reporting.exceptions import ReportWebError
 def register_dashboard_page(
     app, *, load_report_index_v2, load_dashboard_snapshot, preview_enabled=False
 ):
+    def _snapshot():
+        value = load_dashboard_snapshot() or {}
+        return value if isinstance(value, dict) else {}
+
     def dashboard_page():
         try:
             reports = load_report_index_v2() or []
@@ -20,14 +24,32 @@ def register_dashboard_page(
             )
             for report_type in ("post_close", "pre_market")
         }
-        snapshot = load_dashboard_snapshot() or {}
+        snapshot = _snapshot()
         return render_template(
             "dashboard.html",
             search_query=request.args.get("q", "").strip(),
             search_error=request.args.get("error") == "not-found",
             daily_cards=daily_cards,
             model_presentation=snapshot.get("presentation") or {},
+            observation=snapshot,
         )
+
+    def industries_page():
+        return render_template("industries.html", observation=_snapshot())
+
+    def stocks_page():
+        return render_template(
+            "stocks.html",
+            observation=_snapshot(),
+            search_query=request.args.get("q", "").strip(),
+            search_error=request.args.get("error") == "not-found",
+        )
+
+    def ask_page():
+        return render_template("ask.html")
+
+    def learn_page():
+        return render_template("learn.html")
 
     def preview_report_page():
         if not preview_enabled:
@@ -39,4 +61,8 @@ def register_dashboard_page(
 
     app.add_url_rule("/", "dashboard_page", dashboard_page)
     app.add_url_rule("/dashboard", "dashboard_page", dashboard_page)
+    app.add_url_rule("/industries", "industries_page", industries_page)
+    app.add_url_rule("/stocks", "stocks_page", stocks_page)
+    app.add_url_rule("/ask", "ask_page", ask_page)
+    app.add_url_rule("/learn", "learn_page", learn_page)
     app.add_url_rule("/preview/report", "preview_report_page", preview_report_page)

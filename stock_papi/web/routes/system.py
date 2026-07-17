@@ -13,7 +13,7 @@ def register_system_routes(app, *, search_stock):
         if code:
             return redirect(url_for("stock_page", code=code), code=302)
         return redirect(
-            url_for("dashboard_page", q=query, error="not-found"), code=302
+            url_for("stocks_page", q=query, error="not-found"), code=302
         )
 
     def watchlist_page():

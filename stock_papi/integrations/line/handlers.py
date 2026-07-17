@@ -228,7 +228,7 @@ def _observation_industry_card(snapshot, category, web_root):
             "產業觀察",
             ["目前沒有這個產業的已驗證觀察資料。"],
             "開啟產業頁",
-            f"{web_root}/market-map",
+            f"{web_root}/industries",
         )
     relative = item.get("relative_return_5d_pct")
     relative_text = (
@@ -250,7 +250,7 @@ def _observation_industry_card(snapshot, category, web_root):
             f"資料日：{snapshot.get('observation_as_of') or '待更新'}",
         ],
         "查看完整產業資料",
-        f"{web_root}/market-map",
+        f"{web_root}/industries",
     )
 
 
@@ -300,7 +300,7 @@ def _handle_observation_message(
                 "目前只顯示已驗證的市場報酬、廣度、量能與異常事件。",
             ],
             "開啟市場觀察",
-            f"{web_root}/market-map" if msg != "完整分析" else f"{web_root}/dashboard",
+            f"{web_root}/industries" if msg != "完整分析" else f"{web_root}/dashboard",
         )
         line_bot_api.reply_message(
             event.reply_token,
@@ -379,7 +379,7 @@ def _handle_observation_message(
             "產業觀察",
             ["請開啟產業頁查看目前可用的已驗證產業資料。"],
             "開啟產業頁",
-            f"{web_root}/market-map",
+            f"{web_root}/industries",
         )
         line_bot_api.reply_message(
             event.reply_token,

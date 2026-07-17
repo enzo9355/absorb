@@ -751,7 +751,7 @@ def build_line_navigation_flex(base_url):
     root = base_url.rstrip("/")
     entries = [
         ("看大盤", "查看市場報酬、廣度與風險狀態", "查看市場", {"type": "uri", "label": "查看市場", "uri": f"{root}/market"}),
-        ("看產業", "查看產業實際報酬與市場廣度", "查看產業", {"type": "uri", "label": "查看產業", "uri": f"{root}/market-map"}),
+        ("看產業", "查看產業實際報酬與市場廣度", "查看產業", {"type": "uri", "label": "查看產業", "uri": f"{root}/industries"}),
         ("查自選", "自選股票清單", "開啟關注", {"type": "message", "label": "開啟關注", "text": "我的關注"}),
         ("設提醒", "管理收盤價與均線趨勢通知", "管理提醒", {"type": "message", "label": "管理提醒", "text": "提醒管理"}),
         ("查股票", "輸入股票代碼查看實際資料", "查台積電", {"type": "message", "label": "查台積電", "text": "2330"}),

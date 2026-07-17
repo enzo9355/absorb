@@ -19,6 +19,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='brand/favicon-32x32.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='brand/apple-touch-icon.png') }}">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="canonical" href="{{ request.base_url }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ABSORB","applicationCategory":"FinanceApplication","operatingSystem":"Web, LINE","description":"已驗證市場觀察"}</script>
   {% block head %}{% endblock %}
@@ -29,10 +30,13 @@
     <aside class="sidebar" aria-label="主要導覽">
       <a class="brand" href="{{ url_for('dashboard_page') }}"><img class="brand-mark" src="{{ url_for('static', filename='brand/absorb-mark-64.png') }}" alt="ABSORB logo"><span>ABSORB</span></a>
       <nav class="nav-list">
-        <a class="nav-link {% block nav_dashboard %}{% endblock %}" href="{{ url_for('dashboard_page') }}">今天市場</a>
-        <a class="nav-link" href="{{ url_for('dashboard_page') }}#industry-observations">產業觀察</a>
-        <a class="nav-link" href="{{ url_for('dashboard_page') }}#stock-search">查股票</a>
-        <a class="nav-link {% block nav_reports %}{% endblock %}" href="{{ url_for('reports_page') }}">每日報告</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_page' else '' }}" href="{{ url_for('dashboard_page') }}">今天市場</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'market_page' else '' }}" href="{{ url_for('market_page') }}">市場實況</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'industries_page' else '' }}" href="{{ url_for('industries_page') }}">產業觀察</a>
+        <a class="nav-link {{ 'active' if request.endpoint in ('stocks_page', 'stock_page') else '' }}" href="{{ url_for('stocks_page') }}">個股與 ETF</a>
+        <a class="nav-link {{ 'active' if request.endpoint and 'report' in request.endpoint else '' }}" href="{{ url_for('reports_page') }}">每日報告</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'ask_page' else '' }}" href="{{ url_for('ask_page') }}">Ask ABSORB</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'learn_page' else '' }}" href="{{ url_for('learn_page') }}">學習</a>
       </nav>
       <section class="account-nav" data-account-nav>
         <a class="button line-login-button" href="{{ url_for('line_login', return_to=request.path) }}">使用 LINE 登入</a>
@@ -46,10 +50,11 @@
     </div>
   </div>
   <nav class="mobile-nav" aria-label="行動版導覽">
-    <a href="{{ url_for('dashboard_page') }}">市場</a>
-    <a href="{{ url_for('dashboard_page') }}#industry-observations">產業</a>
+    <a href="{{ url_for('dashboard_page') }}">今天</a>
+    <a href="{{ url_for('market_page') }}">市場</a>
+    <a href="{{ url_for('stocks_page') }}">個股</a>
     <a href="{{ url_for('reports_page') }}">每日報告</a>
-    <a href="{{ url_for('account_page') }}" data-mobile-account>登入</a>
+    <details class="mobile-more"><summary>更多</summary><div><a href="{{ url_for('industries_page') }}">產業</a><a href="{{ url_for('ask_page') }}">Ask</a><a href="{{ url_for('learn_page') }}">學習</a><a href="{{ url_for('account_page') }}" data-mobile-account>登入</a></div></details>
   </nav>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   {% block scripts %}{% endblock %}

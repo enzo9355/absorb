@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}產業觀察｜ABSORB{% endblock %}
+{% block content %}
+<div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
+  <header class="page-header"><div><p class="eyebrow">INDUSTRY ACTUALS</p><h1>產業觀察</h1><p class="page-intro">以實際相對報酬、廣度、量能與機構流向整理產業狀態。</p></div></header>
+  <section class="panel heatmap-panel" aria-labelledby="heatmap-title"><div class="section-heading"><div><h2 id="heatmap-title">產業實際強弱</h2></div><span class="muted small">近 5 日相對大盤報酬</span></div><div class="heatmap-grid" data-market-heatmap>{% for item in observation.heatmap or [] %}<article class="heatmap-cell {{ item.tone }}"><span>{{ item.name }}</span><strong>{{ '%+.2f%%'|format(item.metric_value_pct) }}</strong></article>{% else %}<div class="empty-state">產業熱圖資料不足。</div>{% endfor %}</div></section>
+  <section class="panel forecast-panel" aria-labelledby="industry-title"><div class="section-heading"><div><h2 id="industry-title">產業觀察清單</h2></div></div><div class="forecast-grid" data-industry-observations>{% for item in observation.industry_observations or [] %}<article class="forecast-card"><span>{{ item.name }}</span><strong>相對大盤 {{ '%+.2f%%'|format(item.relative_return_5d_pct) if item.relative_return_5d_pct is not none else '資料不足' }}</strong><small>可用 {{ item.available_count }}／{{ item.component_count }} 檔</small></article>{% else %}<div class="empty-state">產業觀察資料不足。</div>{% endfor %}</div></section>
+  <div class="error-banner" data-dashboard-error hidden>產業觀察資料暫時無法取得。</div>
+</div>
+{% endblock %}

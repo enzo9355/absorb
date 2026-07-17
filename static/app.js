@@ -1,5 +1,20 @@
 const bySelector = (selector, root = document) => root.querySelector(selector);
 
+function migrateLegacyHashRoute() {
+  if (!["/", "/dashboard"].includes(window.location.pathname)) return;
+  const target = {
+    "#market-pulse": "/market",
+    "#daily-focus": "/market",
+    "#market-heatmap": "/industries",
+    "#industry-observations": "/industries",
+    "#stock-search": "/stocks",
+    "#stock-events": "/stocks",
+    "#etf-observations": "/stocks",
+    "#learn": "/learn",
+  }[window.location.hash];
+  if (target) window.location.replace(target);
+}
+
 function element(tag, className, text) {
   const item = document.createElement(tag);
   if (className) item.className = className;
@@ -122,7 +137,7 @@ function renderDashboard(data) {
         ["span", "", item.name],
         ["strong", "", displaySigned(item.metric_value_pct)],
         ["small", "", `${item.available_count ?? "—"} 檔 · 覆蓋 ${displayNumber((item.coverage || 0) * 100, 1, "%")}`],
-      ], "#industry-observations")
+      ], "/industries")
     ) : [emptyState("產業相對報酬資料不足。")]);
   }
 
@@ -410,6 +425,7 @@ document.addEventListener("click", (event) => {
   setChartRange(Number(range.dataset.chartRange));
 });
 
+migrateLegacyHashRoute();
 loadDashboard();
 loadAccountState();
 initStockChart();
