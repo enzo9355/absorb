@@ -40,12 +40,15 @@ function Invoke-Gcloud {
 
     if (-not $Gcloud) { throw 'gcloud was not found' }
     $PreviousPythonPath = $env:PYTHONPATH
+    $PreviousErrorActionPreference = $ErrorActionPreference
     try {
+        $ErrorActionPreference = 'SilentlyContinue'
         $env:PYTHONPATH = $null
         $Output = & $Gcloud.Source @Arguments 2>&1
         $ExitCode = $LASTEXITCODE
     } finally {
         $env:PYTHONPATH = $PreviousPythonPath
+        $ErrorActionPreference = $PreviousErrorActionPreference
     }
     if ($ExitCode -ne 0) { throw 'gcloud command failed' }
     return ($Output | Out-String)
@@ -109,13 +112,34 @@ function Get-CloudRunService {
 function Test-BucketSecurity {
     $BucketInfo = Invoke-Gcloud @('storage', 'buckets', 'describe', "gs://$Bucket", '--format=json') |
         ConvertFrom-Json
-    if ($BucketInfo.iamConfiguration.uniformBucketLevelAccess.enabled -ne $true) {
+    $UniformBucketLevelAccess = if (
+        $null -ne $BucketInfo.PSObject.Properties['uniform_bucket_level_access']
+    ) {
+        $BucketInfo.uniform_bucket_level_access
+    } else {
+        $BucketInfo.iamConfiguration.uniformBucketLevelAccess.enabled
+    }
+    $PublicAccessPrevention = if (
+        $null -ne $BucketInfo.PSObject.Properties['public_access_prevention']
+    ) {
+        [string]$BucketInfo.public_access_prevention
+    } else {
+        [string]$BucketInfo.iamConfiguration.publicAccessPrevention
+    }
+    $LifecycleRules = @(
+        if ($null -ne $BucketInfo.PSObject.Properties['lifecycle_config']) {
+            $BucketInfo.lifecycle_config.rule
+        } else {
+            $BucketInfo.lifecycle.rule
+        }
+    )
+    if ($UniformBucketLevelAccess -ne $true) {
         throw 'Uniform bucket-level access is disabled'
     }
-    if ([string]$BucketInfo.iamConfiguration.publicAccessPrevention -ne 'enforced') {
+    if ($PublicAccessPrevention -ne 'enforced') {
         throw 'Public access prevention is not enforced'
     }
-    if (@($BucketInfo.lifecycle.rule).Count -lt 1) {
+    if ($LifecycleRules.Count -lt 1) {
         throw 'Lifecycle rule is missing'
     }
     return 'Bucket is private with uniform access, public access prevention and lifecycle'

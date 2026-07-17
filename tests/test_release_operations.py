@@ -42,6 +42,39 @@ class ReleaseOperationsTests(unittest.TestCase):
         self.assertNotIn("storage', 'rm'", source)
         self.assertNotIn("run', 'deploy'", source)
 
+    def test_cutover_supports_current_gcloud_bucket_security_schema(self) -> None:
+        source = CUTOVER.read_text(encoding="utf-8")
+
+        for required in (
+            "uniform_bucket_level_access",
+            "public_access_prevention",
+            "lifecycle_config.rule",
+            "uniformBucketLevelAccess",
+            "publicAccessPrevention",
+            "lifecycle.rule",
+        ):
+            self.assertIn(required, source)
+        self.assertIn("$LifecycleRules = @(", source)
+        self.assertNotIn("$LifecycleRules = if (", source)
+
+    def test_cutover_handles_ps51_native_progress_but_checks_exit_code(self) -> None:
+        source = CUTOVER.read_text(encoding="utf-8")
+        invoke_gcloud = source[
+            source.index("function Invoke-Gcloud"):
+            source.index("function Invoke-Checked")
+        ]
+
+        self.assertIn(
+            "$PreviousErrorActionPreference = $ErrorActionPreference",
+            invoke_gcloud,
+        )
+        self.assertIn("$ErrorActionPreference = 'SilentlyContinue'", invoke_gcloud)
+        self.assertIn(
+            "$ErrorActionPreference = $PreviousErrorActionPreference",
+            invoke_gcloud,
+        )
+        self.assertIn("if ($ExitCode -ne 0)", invoke_gcloud)
+
     def test_required_runbook_and_handover_documents_exist(self) -> None:
         documents = {
             "runbook_incident_response.md": "手動回滾",
