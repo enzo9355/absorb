@@ -113,6 +113,14 @@ class LocalQuantTaskTests(unittest.TestCase):
             section.index('"gs://$Bucket/reports/v2/$LatestName"'),
         )
 
+    def test_observation_report_latest_allows_omitted_model_versions(self):
+        source = UPLOADER.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "$null -ne $Latest.model_versions -and",
+            source,
+        )
+
     def test_lifecycle_deletes_cloud_objects_after_thirty_days(self):
         source = LIFECYCLE.read_text(encoding="utf-8")
 

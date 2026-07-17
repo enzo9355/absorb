@@ -281,7 +281,10 @@ function Publish-ReportsV2 {
             $ObservationOnly -and
             (
                 [string]$Latest.product_mode -ne 'observation' -or
-                @($Latest.model_versions.PSObject.Properties).Count -ne 0
+                (
+                    $null -ne $Latest.model_versions -and
+                    @($Latest.model_versions.PSObject.Properties).Count -ne 0
+                )
             )
         ) {
             throw 'Observation report latest pointer contains prediction state'
