@@ -156,6 +156,13 @@ class ObservationDeployScriptTests(unittest.TestCase):
         ):
             self.assertIn(required, source)
 
+    def test_no_traffic_smoke_verifies_revisioned_static_assets(self) -> None:
+        source = DEPLOY.read_text(encoding="utf-8")
+
+        self.assertIn("/static/app.css?v=", source)
+        self.assertIn("/static/app.js?v=", source)
+        self.assertIn("asset_version", source)
+
     def test_deploy_failure_rolls_back_traffic_without_mutating_existing_pointers(self) -> None:
         source = DEPLOY.read_text(encoding="utf-8")
         failure_handler = source[source.index("} catch {"):]

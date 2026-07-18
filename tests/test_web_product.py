@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -168,6 +169,32 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("--absorb-navy:#122643", css)
         self.assertIn("--absorb-canvas:#f7f9fc", css)
         self.assertIn(".glass-panel", css)
+        version = re.search(r'/static/app\.css\?v=([0-9a-f]{12})', html)
+        self.assertIsNotNone(version)
+        self.assertIn(f'/static/app.js?v={version.group(1)}', html)
+        asset = stock_app.app.test_client().get(
+            f'/static/app.js?v={version.group(1)}'
+        )
+        self.assertIn("immutable", asset.headers["Cache-Control"])
+        asset.close()
+
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_market_page_accepts_production_data_quality_fields(self, load):
+        snapshot = observation_dashboard()
+        snapshot["data_quality"] = {
+            "coverage": 0.998,
+            "available_count": 2072,
+            "failure_count": 4,
+            "universe_count": 2076,
+        }
+        load.return_value = snapshot
+
+        response = stock_app.app.test_client().get("/market")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("有效標的</dt><dd>2072</dd>", html)
+        self.assertNotIn("有效標的</dt><dd>資料不足</dd>", html)
 
     @patch.object(stock_app, "fetch_published_quant_snapshot")
     def test_web_security_headers_and_pinned_chart_supply_chain(
@@ -228,6 +255,55 @@ class WebProductTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, html)
+
+    @patch.object(
+        stock_app, "_published_dashboard_snapshot", return_value=observation_dashboard()
+    )
+    def test_navigation_has_route_active_state_and_no_primary_hash_links(self, _load):
+        client = stock_app.app.test_client()
+        for path, label in (
+            ("/dashboard", "今天市場"),
+            ("/market", "市場實況"),
+            ("/industries", "產業觀察"),
+            ("/stocks", "個股與 ETF"),
+            ("/reports", "每日報告"),
+            ("/ask", "Ask ABSORB"),
+        ):
+            with self.subTest(path=path):
+                html = client.get(path).get_data(as_text=True)
+                self.assertIn(
+                    f'class="nav-link active" href="{path if path != "/dashboard" else "/"}" aria-current="page">{label}',
+                    html,
+                )
+        home = client.get("/dashboard").get_data(as_text=True)
+        primary_nav = home.split('<nav class="nav-list">', 1)[1].split("</nav>", 1)[0]
+        mobile_nav = home.split('<nav class="mobile-nav"', 1)[1].split("</nav>", 1)[0]
+        self.assertNotIn('href="#', primary_nav)
+        self.assertNotIn('href="#', mobile_nav)
+        self.assertIn('aria-current="page">今天</a>', mobile_nav)
+
+    def test_legacy_hash_migrator_uses_only_fixed_canonical_routes(self):
+        script = Path(stock_app.app.static_folder, "app.js").read_text(
+            encoding="utf-8"
+        )
+
+        expected = {
+            '"#market-pulse": "/market"',
+            '"#market-heatmap": "/industries"',
+            '"#industry-observations": "/industries"',
+            '"#stock-search": "/stocks"',
+            '"#stock-events": "/stocks"',
+            '"#etf-observations": "/stocks?tab=etf"',
+            '"#learn": "/learn"',
+            '"#daily-focus": "/"',
+        }
+        for mapping in expected:
+            self.assertIn(mapping, script)
+        self.assertIn(
+            "if(!['/','/dashboard'].includes",
+            script.replace('"', "'").replace(" ", ""),
+        )
+        self.assertNotIn("window.location.hash.slice", script)
 
     @patch.object(stock_app, "analyze")
     @patch.object(stock_app, "_published_dashboard_snapshot")

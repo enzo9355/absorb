@@ -4,12 +4,12 @@ function migrateLegacyHashRoute() {
   if (!["/", "/dashboard"].includes(window.location.pathname)) return;
   const target = {
     "#market-pulse": "/market",
-    "#daily-focus": "/market",
+    "#daily-focus": "/",
     "#market-heatmap": "/industries",
     "#industry-observations": "/industries",
     "#stock-search": "/stocks",
     "#stock-events": "/stocks",
-    "#etf-observations": "/stocks",
+    "#etf-observations": "/stocks?tab=etf",
     "#learn": "/learn",
   }[window.location.hash];
   if (target) window.location.replace(target);

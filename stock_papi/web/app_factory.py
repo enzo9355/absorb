@@ -1,4 +1,6 @@
+import hashlib
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, render_template, request
@@ -16,6 +18,12 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     if config:
         flask_app.config.update(config)
     flask_app.jinja_env.globals["AI_QUANT_DISCLOSURE"] = AI_QUANT_DISCLOSURE
+    asset_hasher = hashlib.sha256()
+    static_root = Path(application.APPLICATION_ROOT) / "static"
+    for asset_name in ("app.css", "app.js"):
+        asset_hasher.update((static_root / asset_name).read_bytes())
+    asset_version = asset_hasher.hexdigest()[:12]
+    flask_app.jinja_env.globals["STATIC_ASSET_VERSION"] = asset_version
     flask_app.jinja_env.filters["safe_external_url"] = safe_external_https_url
 
     @flask_app.after_request
@@ -32,6 +40,13 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        if request.endpoint == "static":
+            cache = (
+                "public, max-age=31536000, immutable"
+                if request.args.get("v") == asset_version
+                else "public, max-age=300"
+            )
+            response.headers["Cache-Control"] = cache
         return response
 
     @flask_app.errorhandler(404)

@@ -196,6 +196,7 @@ function Invoke-ObservationSmoke {
 
     $Results = New-Object System.Collections.Generic.List[object]
     $ReportsHtml = $null
+    $HomeHtml = $null
     foreach ($Path in @(
         '/health',
         '/',
@@ -236,10 +237,42 @@ function Invoke-ObservationSmoke {
         if ($Path -eq '/reports') {
             $ReportsHtml = [string]$Response.Content
         }
+        if ($Path -eq '/') {
+            $HomeHtml = [string]$Response.Content
+        }
         $Results.Add([ordered]@{
             path = $Path
             status = [int]$Response.StatusCode
             body_sha256 = Get-TextSha256 ([string]$Response.Content)
+        }) | Out-Null
+    }
+
+    $AssetVersion = $null
+    foreach ($AssetPrefix in @('/static/app.css?v=', '/static/app.js?v=')) {
+        $Pattern = [regex]::Escape($AssetPrefix) + '(?<version>[0-9a-f]{12})'
+        $Match = [regex]::Match([string]$HomeHtml, $Pattern)
+        if (-not $Match.Success) {
+            throw "Revisioned static asset is unavailable: $AssetPrefix"
+        }
+        $Version = [string]$Match.Groups['version'].Value
+        if ($null -ne $AssetVersion -and $AssetVersion -ne $Version) {
+            throw 'Static asset versions are inconsistent'
+        }
+        $AssetVersion = $Version
+        $AssetPath = $AssetPrefix + $Version
+        $Response = Invoke-WebRequest `
+            -Uri ($BaseUrl.TrimEnd('/') + $AssetPath) `
+            -UseBasicParsing `
+            -MaximumRedirection 0 `
+            -TimeoutSec 45
+        if ([int]$Response.StatusCode -ne 200) {
+            throw "Static asset smoke failed: $AssetPath"
+        }
+        $Results.Add([ordered]@{
+            path = $AssetPath
+            status = [int]$Response.StatusCode
+            body_sha256 = Get-TextSha256 ([string]$Response.Content)
+            asset_version = $Version
         }) | Out-Null
     }
 
