@@ -1,6 +1,9 @@
 """Public HTML report routes and legacy compatibility redirects."""
 
 import datetime
+import hashlib
+import hmac
+import json
 import os
 import re
 import uuid
@@ -131,22 +134,67 @@ def register_report_routes(
                 )
             elif report_type == "post_close":
                 canonical_ptr = metadata.get("professional_report")
-                if not isinstance(canonical_ptr, dict) or not canonical_ptr.get("object"):
+                if not isinstance(canonical_ptr, dict):
                     raise ReportWebError("報告 Canonical Object 指標遺失")
+
+                object_path = canonical_ptr.get("object")
+                expected_sha = canonical_ptr.get("sha256")
+                if not isinstance(object_path, str) or not object_path:
+                    raise ReportWebError("報告 Canonical Object 指標遺失")
+                if not isinstance(expected_sha, str) or not expected_sha:
+                    raise ReportWebError("報告 Canonical Object 指標遺失")
+
                 if load_canonical_object is None:
                     raise ReportWebError("系統未提供 load_canonical_object")
-                
-                import hashlib
+
                 try:
-                    canonical_doc = load_canonical_object(canonical_ptr["object"])
+                    raw_bytes = load_canonical_object(object_path, max_bytes=5_000_000)
+                except TypeError:
+                    raw_bytes = load_canonical_object(object_path)
                 except Exception as exc:
                     raise ReportWebError("無法讀取 Canonical Object") from exc
-                
+
+                if not isinstance(raw_bytes, bytes) or len(raw_bytes) == 0 or len(raw_bytes) > 5_000_000:
+                    raise ReportWebError("Canonical Object 內容無效")
+
+                actual_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+                if not hmac.compare_digest(actual_sha256, expected_sha):
+                    raise ReportWebError("Canonical Object 雜湊比對失敗")
+
+                expected_object_1 = f"objects/canonical/{actual_sha256}.json"
+                expected_object_2 = f"objects/{actual_sha256}.json"
+                if object_path not in (expected_object_1, expected_object_2):
+                    raise ReportWebError("Canonical Object 路徑與雜湊不符")
+
+                try:
+                    text_content = raw_bytes.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise ReportWebError("Canonical Object 解碼失敗") from exc
+
+                try:
+                    canonical_doc = json.loads(text_content)
+                except json.JSONDecodeError as exc:
+                    raise ReportWebError("Canonical Object JSON 解析失敗") from exc
+
+                if not isinstance(canonical_doc, dict):
+                    raise ReportWebError("Canonical Object 格式錯誤")
+
                 from reporting.professional_schema import ProfessionalPostCloseReport
                 try:
                     prof_report = ProfessionalPostCloseReport.from_document(canonical_doc)
-                except ValueError as exc:
+                except (ValueError, TypeError, KeyError) as exc:
                     raise ReportWebError("Canonical Object 驗證失敗") from exc
+
+                from reporting.professional_binding import validate_professional_report_binding
+                try:
+                    validate_professional_report_binding(
+                        route_source_date=date_param,
+                        metadata=metadata,
+                        pointer=canonical_ptr,
+                        report=prof_report,
+                    )
+                except (ValueError, TypeError) as exc:
+                    raise ReportWebError(f"Professional Report 綁定驗證失敗: {exc}") from exc
 
                 pdf_download_url = None
                 view_model = build_professional_report_view(

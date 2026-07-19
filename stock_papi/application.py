@@ -430,6 +430,18 @@ def _gcs_get_report_v2_object(object_name, max_bytes):
     return _gcs_get_allowed_object(object_name, max_bytes, "reports/v2/")
 
 
+def load_canonical_object(object_path, max_bytes=5_000_000):
+    if not isinstance(object_path, str) or not object_path:
+        return None
+    if type(max_bytes) is not int or max_bytes < 1:
+        return None
+    data = _gcs_get_report_v2_object(object_path, max_bytes)
+    if not isinstance(data, bytes) or len(data) == 0 or len(data) > max_bytes:
+        return None
+    return data
+
+
+
 def _gcs_get_dashboard_object(object_name, max_bytes):
     return _gcs_get_allowed_object(object_name, max_bytes, "dashboard/v1/")
 
@@ -1323,8 +1335,8 @@ def route_dependencies():
         "load_report_metadata_v2": lambda item: load_report_metadata(
             item, load_object=_gcs_get_report_v2_object, version="v2"
         ),
-        "load_canonical_object": lambda object_path: json.loads(
-            _gcs_get_report_v2_object(object_path, 5_000_000)
+        "load_canonical_object": lambda object_path, max_bytes=5_000_000: load_canonical_object(
+            object_path, max_bytes=max_bytes
         ),
         "sample_report_path": SAMPLE_REPORT_PATH,
         "sample_report_filename": SAMPLE_REPORT_FILENAME,
