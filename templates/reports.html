@@ -64,10 +64,11 @@
           </article>
         {% endfor %}
       </div>
-    {% else %}
+    {% endif %}
+    {% if not reports_v2 and not reports %}
       <div class="empty-state" role="status">
         <h3>目前沒有可用的每日報告</h3>
-        <p>{% if unavailable %}報告服務暫時無法讀取，請稍後再試。{% else %}本地量化流程完成發布後，報告會顯示在這裡。{% endif %}</p>
+        <p>{% if unavailable %}報告服務暫時無法讀取，請稍後再試。{% else %}目前尚無已完成發布驗證的報告。{% endif %}</p>
       </div>
     {% endif %}
   </section>
