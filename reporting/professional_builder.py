@@ -86,11 +86,47 @@ def _executive_summary(
         "strongest_industries": strongest,
         "weakest_industries": weakest,
         "next_session_watch_conditions": [
-            "觀察站上 MA20 比例是否改善",
+            "觀察大盤站上 MA20 比例是否改善",
             "觀察最強產業是否獲得量能與廣度確認",
             "觀察市場波動率是否進一步擴張",
         ],
         "ai_reference_summary": None,
+    }
+
+
+def _build_next_session(market: Mapping[str, Any], source_date: str) -> dict[str, Any]:
+    breadth = market.get("ma20_breadth_pct")
+    positive = []
+    neutral = []
+    negative = []
+
+    if type(breadth) in (int, float):
+        if breadth >= 60:
+            positive.append("站上 MA20 比例 >= 60%，市場廣度維持強勢")
+        elif breadth <= 40:
+            negative.append("站上 MA20 比例 <= 40%，市場廣度偏弱")
+        else:
+            neutral.append("市場廣度處於中性區間")
+
+    volatility = market.get("realized_volatility_20d_pct")
+    if type(volatility) in (int, float) and volatility >= 20.0:
+        negative.append(f"20 日已實現波動率達 {volatility:.1f}%，需留意系統性風險")
+    
+    if not positive and not negative and not neutral:
+        neutral.append("目前缺乏足夠的結構化數據判定次日情境")
+
+    return {
+        "status": "available",
+        "data_as_of": source_date,
+        "data": {
+            "positive": positive,
+            "neutral": neutral,
+            "negative": negative,
+            "watch_conditions": [
+                "站上 MA20 比例",
+                "20 日已實現波動率",
+            ],
+        },
     }
 
 
@@ -210,8 +246,8 @@ def build_professional_post_close_report(
         "capital_flows": {
             "status": "available",
             "data_as_of": source_date,
-            "data": copy.deepcopy(content.get("capital_flows")),
-        } if content.get("capital_flows") else {
+            "data": copy.deepcopy(content["capital_flows"]),
+        } if isinstance(content.get("capital_flows"), dict) else {
             "status": "unavailable",
             "reason": "法人流向尚未納入目前的已驗證 Observation Artifact",
             "data": {},
@@ -264,19 +300,7 @@ def build_professional_post_close_report(
                 "gate_detail_status": "not_present_in_observation_metadata",
             },
         },
-        "next_session": {
-            "status": "available",
-            "data_as_of": source_date,
-            "data": {
-                "positive": [f for f in daily_focus if "強" in str(f) or "多" in str(f) or "上漲" in str(f)],
-                "neutral": [f for f in daily_focus if not ("強" in str(f) or "多" in str(f) or "上漲" in str(f) or "弱" in str(f) or "空" in str(f) or "下跌" in str(f))],
-                "negative": [f for f in daily_focus if "弱" in str(f) or "空" in str(f) or "下跌" in str(f)],
-                "watch_conditions": [
-                    "站上 MA20 比例",
-                    "20 日已實現波動率",
-                ],
-            },
-        },
+        "next_session": _build_next_session(market, source_date),
         "governance": {
             "status": "available",
             "data_as_of": source_date,

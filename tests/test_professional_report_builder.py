@@ -1,4 +1,5 @@
 import unittest
+import copy
 
 from reporting.professional_builder import build_professional_post_close_report
 from reporting.professional_schema import ProfessionalPostCloseReport, compute_content_sha256
@@ -34,17 +35,19 @@ class ProfessionalReportBuilderTests(unittest.TestCase):
                     "realized_volatility_20d_pct": 18.2,
                 },
                 "industry_observations": [
-                    {"name": "半導體製造", "available_count": 6, "component_count": 6, "relative_return_5d_pct": 4.31},
-                    {"name": "航運", "available_count": 8, "component_count": 9, "relative_return_5d_pct": -3.20},
+                    {"name": "半導體", "available_count": 6, "component_count": 6, "relative_return_5d_pct": 4.31},
+                    {"name": "光電", "available_count": 8, "component_count": 9, "relative_return_5d_pct": -3.20},
                 ],
                 "heatmap": [],
                 "stock_events": [
-                    {"symbol": "2330", "name": "台積電", "observation": "量能異常", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍"}
+                    {"symbol": "2330", "name": "台積電", "observation": "量能異常", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "volume_surge", "severity": "medium"},
+                    {"symbol": "0000", "name": "Test1", "observation": "風險", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "rsi_overbought", "severity": "high"},
+                    {"symbol": "1111", "name": "Test2", "observation": "未知", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "unknown_event", "severity": "low"}
                 ],
                 "etf_observations": [
-                    {"symbol": "0050", "name": "元大台灣50", "price": 205.2, "return_1d_pct": -0.6, "return_5d_pct": 1.1}
+                    {"symbol": "0050", "name": "台灣50", "price": 205.2, "return_1d_pct": -0.6, "return_5d_pct": 1.1}
                 ],
-                "daily_focus": ["市場廣度降至四成以下", "半導體相對大盤偏強"],
+                "daily_focus": ["市場廣度維持中性", "跌破 MA20 比例增加", "未知情緒測試文字"],
                 "data_quality": {
                     "coverage": 0.982,
                     "symbol_count": 1332,
@@ -62,10 +65,9 @@ class ProfessionalReportBuilderTests(unittest.TestCase):
         self.assertIsInstance(report, ProfessionalPostCloseReport)
         self.assertEqual(document["identity"]["product_tier"], "institutional")
         self.assertEqual(document["identity"]["product_mode"], "observation_with_research")
-        self.assertEqual(document["executive_summary"]["market_state"], "提高防守")
-        self.assertEqual(document["executive_summary"]["strongest_industries"], ["半導體製造"])
-        self.assertEqual(document["executive_summary"]["weakest_industries"], ["航運"])
-        self.assertEqual(document["industries"]["data"]["ranking"][0]["name"], "半導體製造")
+        self.assertEqual(document["executive_summary"]["strongest_industries"], ["半導體"])
+        self.assertEqual(document["executive_summary"]["weakest_industries"], ["光電"])
+        self.assertEqual(document["industries"]["data"]["ranking"][0]["name"], "半導體")
         self.assertEqual(document["validation"]["data"]["gates"]["promotion"], "BLOCKED")
         self.assertEqual(document["validation"]["data"]["gates"]["ranking"], "UNAVAILABLE")
         self.assertFalse(document["validation"]["data"]["probability_allowed"])
@@ -90,6 +92,70 @@ class ProfessionalReportBuilderTests(unittest.TestCase):
         metadata["prediction_capability"]["probability_allowed"] = True
         with self.assertRaisesRegex(ValueError, "probability"):
             build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+            
+    def test_capital_flows_absent_is_unavailable(self):
+        metadata = self._metadata()
+        report = build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(report.capital_flows.status, "unavailable")
+
+    def test_capital_flows_valid_is_available(self):
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {"foreign_net": 100}
+        report = build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(report.capital_flows.status, "available")
+        self.assertEqual(report.capital_flows.data["foreign_net"], 100)
+
+    def test_capital_flows_invalid_type_is_unavailable(self):
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = "some text"
+        report = build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(report.capital_flows.status, "unavailable")
+
+    def test_stock_event_classification(self):
+        metadata = self._metadata()
+        report = build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+        securities = report.securities.data
+        
+        positives = [e["symbol"] for e in securities["positive_observations"]]
+        risks = [e["symbol"] for e in securities["risk_observations"]]
+        high_anomalies = [e["symbol"] for e in securities["high_anomaly_observations"]]
+        
+        # volume_surge should be positive
+        self.assertIn("2330", positives)
+        self.assertNotIn("2330", risks)
+        
+        # rsi_overbought should be risk
+        self.assertIn("0000", risks)
+        self.assertNotIn("0000", positives)
+        
+        # unknown_event should be neither
+        self.assertNotIn("1111", positives)
+        self.assertNotIn("1111", risks)
+        
+        # high severity should be in high_anomaly
+        self.assertIn("0000", high_anomalies)
+        self.assertNotIn("2330", high_anomalies)
+        self.assertNotIn("1111", high_anomalies)
+        
+    def test_next_session_structured_logic(self):
+        metadata = self._metadata()
+        
+        # test weak state
+        metadata["content"]["market_observation"]["ma20_breadth_pct"] = 35.0
+        metadata["content"]["market_observation"]["realized_volatility_20d_pct"] = 25.0
+        report = build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+        next_session = report.next_session.data
+        self.assertTrue(any("偏弱" in s for s in next_session["negative"]))
+        self.assertTrue(any("系統性風險" in s for s in next_session["negative"]))
+        self.assertEqual(len(next_session["positive"]), 0)
+
+        # test strong state
+        metadata["content"]["market_observation"]["ma20_breadth_pct"] = 70.0
+        metadata["content"]["market_observation"]["realized_volatility_20d_pct"] = 15.0
+        report2 = build_professional_post_close_report(metadata, code_commit_sha="b" * 40)
+        next_session2 = report2.next_session.data
+        self.assertTrue(any("強勢" in s for s in next_session2["positive"]))
+        self.assertEqual(len(next_session2["negative"]), 0)
 
 
 if __name__ == "__main__":
