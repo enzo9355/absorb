@@ -121,7 +121,7 @@ def run_notification(args):
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("REPORT_PUBLIC_BASE_URL must be an HTTPS origin")
     if args.report_type == "post_close":
-        suffix = f"/reports/{metadata['applicable_trading_date']}/post-close"
+        suffix = f"/reports/{metadata['source_market_date']}/post-close"
     elif args.report_type == "pre_market":
         suffix = f"/reports/{metadata['applicable_trading_date']}/pre-market"
     else:

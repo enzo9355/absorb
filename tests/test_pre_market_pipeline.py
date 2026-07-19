@@ -1,3 +1,4 @@
+import copy
 import datetime
 import hashlib
 import json
@@ -184,6 +185,25 @@ class PreMarketPipelineTests(unittest.TestCase):
             self.assertEqual(calls, ["publish", "notify"])
             self.assertEqual(second["status"], "completed")
 
+
+
+    def test_pre_market_core_lineage_preserves_raw_observation_content(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = base_receipt()
+            raw_core_before = copy.deepcopy(base["metadata"]["content"])
+            published = []
+            pipeline = PreMarketPipeline(
+                Path(temporary),
+                applicable_trading_date=datetime.date(2026, 7, 15),
+                load_base=lambda: base,
+                source_loaders=[lambda: overnight("US futures", "risk_on")],
+                publish=lambda metadata: published.append(metadata) or {"content_sha256": "b" * 64},
+                notify=lambda _receipt: {"sent": True},
+            )
+            result = pipeline.run(now=datetime.datetime(2026, 7, 15, 0, tzinfo=UTC))
+            self.assertEqual(result["status"], "completed")
+            core_after = published[0]["content"]["core"]
+            self.assertEqual(raw_core_before, core_after)
 
 if __name__ == "__main__":
     unittest.main()
