@@ -785,6 +785,8 @@ def _restore(path, previous):
 
 def promote_observation_candidate(root, directory):
     from reporting.publisher import publish_report_v2
+    from reporting.professional_builder import build_professional_post_close_artifact
+    from reporting import git_commit_sha
 
     root = Path(root)
     documents = _read_observation_candidate(directory)
@@ -801,9 +803,20 @@ def promote_observation_candidate(root, directory):
             dashboard_latest.read_bytes() if dashboard_latest.exists() else None
         ),
     }
+
+    report_metadata = documents["post-close-report-v2.json"]
+    commit_sha = git_commit_sha()
+    import re
+    if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{7,64}", commit_sha):
+        raise ValueError("promote_observation_candidate failed to get a valid code_commit_sha")
+
+    prof_report = build_professional_post_close_artifact(
+        report_metadata, code_commit_sha=commit_sha
+    )
+
     try:
         report_result = publish_report_v2(
-            root, documents["post-close-report-v2.json"]
+            root, report_metadata, professional_report=prof_report
         )
         _write_atomic(dashboard_latest, dashboard_latest_bytes)
     except Exception:

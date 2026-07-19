@@ -19,9 +19,9 @@
         </div>
         <div class="report-actions">
           {% if report.report_type == 'post_close' %}
-            <a class="button" href="{{ url_for('post_close_report_page', trading_date=trading_date) }}">閱讀盤後觀察</a>
+            <a class="button" href="{{ url_for('post_close_report_page', trading_date=report.source_market_date) }}">閱讀盤後觀察</a>
           {% else %}
-            <a class="button" href="{{ url_for('pre_market_report_page', trading_date=trading_date) }}">閱讀盤前更新</a>
+            <a class="button" href="{{ url_for('pre_market_report_page', trading_date=report.applicable_trading_date) }}">閱讀盤前更新</a>
           {% endif %}
         </div>
       </article>

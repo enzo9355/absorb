@@ -26,6 +26,7 @@ def register_routes(app, dependencies):
         load_metadata=dependencies["load_report_metadata"],
         load_index_v2=dependencies["load_report_index_v2"],
         load_metadata_v2=dependencies["load_report_metadata_v2"],
+        load_canonical_object=dependencies["load_canonical_object"],
         prediction_capability=dependencies["prediction_capability"],
     )
     register_market_routes(

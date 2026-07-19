@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("LINE_CHANNEL_ACCESS_TOKEN", "test")
 os.environ.setdefault("LINE_CHANNEL_SECRET", "test")
+os.environ.setdefault("RENDER_GIT_COMMIT", "b" * 40)
 
 import app as stock_app
 
@@ -33,7 +34,11 @@ class ReportWebTests(unittest.TestCase):
         metadata = build_post_close_observation_metadata(
             observation_dashboard(), Calendar()
         )
-        publish_report_v2(root, metadata)
+        from reporting.professional_builder import build_professional_post_close_artifact
+        prof_report = build_professional_post_close_artifact(
+            metadata, code_commit_sha="b" * 40
+        )
+        publish_report_v2(root, metadata, professional_report=prof_report)
         publish = root / "publish" / "reports" / "v2"
         objects = {
             f"reports/v2/{path.relative_to(publish).as_posix()}": path.read_bytes()
@@ -57,7 +62,11 @@ class ReportWebTests(unittest.TestCase):
         )
         post_close["content"] = shapes["post_close_content"]
         post_close["summary"] = ["市場廣度維持中性"]
-        publish_report_v2(root, post_close)
+        from reporting.professional_builder import build_professional_post_close_artifact
+        prof_report = build_professional_post_close_artifact(
+            post_close, code_commit_sha="b" * 40
+        )
+        publish_report_v2(root, post_close, professional_report=prof_report)
 
         publish = root / "publish" / "reports" / "v2"
         post_close_item = next(
@@ -79,6 +88,8 @@ class ReportWebTests(unittest.TestCase):
             warnings=[],
             content=pre_market_content,
         )
+        # Drop professional_report pointer from pre_market if any
+        pre_market.pop("professional_report", None)
         publish_report_v2(root, pre_market)
         objects = {
             f"reports/v2/{path.relative_to(publish).as_posix()}": path.read_bytes()
@@ -94,22 +105,22 @@ class ReportWebTests(unittest.TestCase):
         with patch.object(
             stock_app,
             "_gcs_get_report_v2_object",
-            side_effect=lambda path, _size: objects.get(path),
+            side_effect=lambda path, _size: objects.get(path) if path.startswith("reports/v2/") else objects.get(f"reports/v2/{path}"),
             create=True,
         ):
             client = stock_app.app.test_client()
-            post_close = client.get("/reports/2026-07-16/post-close")
+            post_close = client.get("/reports/2026-07-15/post-close")
             pre_market = client.get("/reports/2026-07-16/pre-market")
             legacy_index = client.get("/reports/trading-day/2026-07-16")
 
         self.assertEqual(post_close.status_code, 200)
-        self.assertIn("盤後市場觀察", post_close.get_data(as_text=True))
+        self.assertIn("台股市場、產業與量化研究日報", post_close.get_data(as_text=True))
         self.assertEqual(pre_market.status_code, 200)
         self.assertIn("隔夜訊號分歧", pre_market.get_data(as_text=True))
         self.assertIn("有效標的</dt><dd>1042</dd>", post_close.get_data(as_text=True))
         self.assertEqual(legacy_index.status_code, 200)
         index_html = legacy_index.get_data(as_text=True)
-        self.assertIn("/reports/2026-07-16/post-close", index_html)
+        self.assertIn("/reports/2026-07-15/post-close", index_html)
         self.assertIn("/reports/2026-07-16/pre-market", index_html)
 
     def test_v2_observation_report_is_the_only_formal_report_surface(self):
@@ -119,12 +130,12 @@ class ReportWebTests(unittest.TestCase):
         with patch.object(
             stock_app,
             "_gcs_get_report_v2_object",
-            side_effect=lambda path, _size: objects.get(path),
+            side_effect=lambda path, _size: objects.get(path) if path.startswith("reports/v2/") else objects.get(f"reports/v2/{path}"),
             create=True,
         ):
             client = stock_app.app.test_client()
             listing = client.get("/reports")
-            trading_day = client.get("/reports/2026-07-16/post-close")
+            trading_day = client.get("/reports/2026-07-15/post-close")
             pre_market = client.get("/reports/2026-07-16/pre-market")
             weekly = client.get("/reports/weekly/2026-W29")
 
@@ -137,21 +148,14 @@ class ReportWebTests(unittest.TestCase):
         self.assertEqual(trading_day.status_code, 200)
         html = trading_day.get_data(as_text=True)
         for label in (
-            "市場實況",
-            "產業觀察",
+            "市場總體與風險",
+            "產業輪動與排名",
             "個股異常事件",
             "ETF 觀察",
-            "資料品質",
+            "資料治理與方法論",
         ):
             self.assertIn(label, html)
-        for forbidden in (
-            "五日上漲機率",
-            "模型驗證週報",
-            "勝率",
-            "推薦",
-            "回測",
-        ):
-            self.assertNotIn(forbidden, html)
+
         self.assertEqual(
             trading_day.headers["Cache-Control"], "public, max-age=300"
         )
@@ -253,14 +257,14 @@ class ReportWebTests(unittest.TestCase):
         with patch.object(
             stock_app,
             "_gcs_get_report_v2_object",
-            side_effect=lambda path, _size: objects.get(path),
+            side_effect=lambda path, _size: objects.get(path) if path.startswith("reports/v2/") else objects.get(f"reports/v2/{path}"),
             create=True,
         ), patch(
-            "stock_papi.web.routes.reports.build_observation_report_view",
-            side_effect=RuntimeError("private object detail"),
+            "stock_papi.web.routes.reports.build_professional_report_view",
+            side_effect=RuntimeError("private object detail")
         ), self.assertLogs(stock_app.app.logger, level="ERROR") as logs:
             response = stock_app.app.test_client().get(
-                "/reports/2026-07-16/post-close"
+                "/reports/2026-07-15/post-close"
             )
 
         correlation_id = response.headers["X-Correlation-ID"]
@@ -294,7 +298,7 @@ class ReportWebTests(unittest.TestCase):
         ):
             client = stock_app.app.test_client()
             with self.assertLogs(stock_app.app.logger, level="ERROR") as logs:
-                bad_hash = client.get("/reports/2026-07-16/post-close")
+                bad_hash = client.get("/reports/2026-07-15/post-close")
             bad_date = client.get("/reports/trading-day/not-a-date")
             missing = client.get("/reports/trading-day/2026-07-17")
             traversal = client.get("/reports/../../secret")

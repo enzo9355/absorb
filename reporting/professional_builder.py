@@ -19,6 +19,21 @@ def _require_mapping(value: Any, label: str) -> Mapping[str, Any]:
         raise ValueError(f"{label} must be an object")
     return value
 
+EVENT_CLASSIFICATION_POLICY_VERSION = "1.0"
+SEVERITIES = frozenset({"low", "medium", "high"})
+
+# Define formal event classification policy.
+# Keys are event_types, values are dicts containing 'category' (positive/risk) and 'severity'
+EVENT_POLICY_TABLE = {
+    "volume_surge": {"category": "positive", "severity": "medium"},
+    "new_high_20d": {"category": "positive", "severity": "high"},
+    "volume_dry_up": {"category": "risk", "severity": "medium"},
+    "new_low_20d": {"category": "risk", "severity": "high"},
+    "rsi_oversold": {"category": "risk", "severity": "medium"},
+    "rsi_overbought": {"category": "risk", "severity": "medium"},
+    "data_warning": {"category": "risk", "severity": "high"},
+}
+
 
 def _market_state(ma20_breadth_pct: Any) -> str:
     if type(ma20_breadth_pct) not in (int, float):
@@ -86,11 +101,105 @@ def _executive_summary(
         "strongest_industries": strongest,
         "weakest_industries": weakest,
         "next_session_watch_conditions": [
-            "觀察站上 MA20 比例是否改善",
+            "觀察大盤站上 MA20 比例是否改善",
             "觀察最強產業是否獲得量能與廣度確認",
             "觀察市場波動率是否進一步擴張",
         ],
         "ai_reference_summary": None,
+    }
+
+
+def _build_next_session(market: Mapping[str, Any], source_date: str) -> dict[str, Any]:
+    breadth = market.get("ma20_breadth_pct")
+    positive = []
+    neutral = []
+    negative = []
+
+    if type(breadth) in (int, float):
+        if breadth >= 60:
+            positive.append("站上 MA20 比例 >= 60%，市場廣度維持強勢")
+        elif breadth <= 40:
+            negative.append("站上 MA20 比例 <= 40%，市場廣度偏弱")
+        else:
+            neutral.append("市場廣度處於中性區間")
+
+    volatility = market.get("realized_volatility_20d_pct")
+    if type(volatility) in (int, float) and volatility >= 20.0:
+        negative.append(f"20 日已實現波動率達 {volatility:.1f}%，需留意系統性風險")
+    
+    if not positive and not negative and not neutral:
+        neutral.append("目前缺乏足夠的結構化數據判定次日情境")
+
+    return {
+        "status": "available",
+        "data_as_of": source_date,
+        "data": {
+            "positive": positive,
+            "neutral": neutral,
+            "negative": negative,
+            "watch_conditions": [
+                "站上 MA20 比例",
+                "20 日已實現波動率",
+            ],
+        },
+    }
+
+def _build_capital_flows(data: Any, source_date: str) -> dict[str, Any]:
+    if not isinstance(data, dict) or not data:
+        return {
+            "status": "unavailable",
+            "reason": "法人流向尚未納入目前的已驗證 Observation Artifact",
+            "data": {},
+        }
+    
+    if data.get("as_of") != source_date:
+        return {
+            "status": "unavailable",
+            "reason": "法人流向日期與報告基準日不符",
+            "data": {},
+        }
+    
+    if data.get("unit") != "TWD_million":
+        return {
+            "status": "unavailable",
+            "reason": "法人流向單位不符預期",
+            "data": {},
+        }
+
+    foreign_net = data.get("foreign_net")
+    investment_trust_net = data.get("investment_trust_net")
+    dealer_net = data.get("dealer_net")
+
+    import math
+
+    def validate_finite(val: Any) -> float | None:
+        if isinstance(val, bool) or type(val) not in (int, float):
+            return None
+        f = float(val)
+        return f if math.isfinite(f) else None
+
+    f_val = validate_finite(foreign_net)
+    it_val = validate_finite(investment_trust_net)
+    d_val = validate_finite(dealer_net)
+
+    if f_val is None and it_val is None and d_val is None:
+        return {
+            "status": "unavailable",
+            "reason": "缺乏有效的法人流向數值",
+            "data": {},
+        }
+
+    return {
+        "status": "available",
+        "data_as_of": source_date,
+        "data": {
+            "schema_version": 1,
+            "as_of": source_date,
+            "unit": "TWD_million",
+            "foreign_net": f_val,
+            "investment_trust_net": it_val,
+            "dealer_net": d_val,
+        },
     }
 
 
@@ -131,7 +240,7 @@ def _industry_section(items: list[Any]) -> dict[str, Any]:
     return {"ranking": normalized}
 
 
-def build_professional_post_close_report(
+def build_professional_post_close_artifact(
     metadata: Mapping[str, Any], *, code_commit_sha: str
 ) -> ProfessionalPostCloseReport:
     """Convert verified observation post-close metadata into the canonical report."""
@@ -168,6 +277,32 @@ def build_professional_post_close_report(
     applicable_date = str(metadata.get("applicable_trading_date") or "")
     published_at = str(metadata.get("published_at") or "")
     industry_data = _industry_section(industries)
+    positive_observations = []
+    risk_observations = []
+    high_anomaly_observations = []
+    uncategorized_event_count = 0
+
+    for e in stock_events:
+        if not isinstance(e, dict):
+            continue
+        event_type = e.get("event_type")
+        policy = EVENT_POLICY_TABLE.get(event_type)
+        if not policy:
+            uncategorized_event_count += 1
+            continue
+        
+        ev = copy.deepcopy(e)
+        if ev.get("severity") not in SEVERITIES:
+            ev["severity"] = policy["severity"]
+        
+        if policy["category"] == "positive":
+            positive_observations.append(ev)
+        elif policy["category"] == "risk":
+            risk_observations.append(ev)
+        
+        if ev.get("severity") == "high":
+            high_anomaly_observations.append(ev)
+
     document = {
         "schema_version": 1,
         "kind": "absorb-professional-post-close-report",
@@ -207,11 +342,7 @@ def build_professional_post_close_report(
             "data_as_of": source_date,
             "data": copy.deepcopy(dict(market)),
         },
-        "capital_flows": {
-            "status": "unavailable",
-            "reason": "法人流向尚未納入目前的已驗證 Observation Artifact",
-            "data": {},
-        },
+        "capital_flows": _build_capital_flows(content.get("capital_flows"), source_date),
         "industries": {
             "status": "available",
             "data_as_of": source_date,
@@ -221,11 +352,13 @@ def build_professional_post_close_report(
             "status": "available",
             "data_as_of": source_date,
             "data": {
+                "policy_version": EVENT_CLASSIFICATION_POLICY_VERSION,
                 "stock_events": copy.deepcopy(stock_events),
                 "etf_observations": copy.deepcopy(etfs),
-                "positive_observations": [],
-                "risk_observations": [],
-                "high_anomaly_observations": copy.deepcopy(stock_events),
+                "positive_observations": positive_observations,
+                "risk_observations": risk_observations,
+                "high_anomaly_observations": high_anomaly_observations,
+                "uncategorized_event_count": uncategorized_event_count,
             },
         },
         "quantitative_research": {
@@ -251,20 +384,7 @@ def build_professional_post_close_report(
                 "gate_detail_status": "not_present_in_observation_metadata",
             },
         },
-        "next_session": {
-            "status": "available",
-            "data_as_of": source_date,
-            "data": {
-                "positive": ["市場廣度回升且主要產業量能同步改善"],
-                "neutral": ["市場廣度維持區間，產業輪動缺乏一致方向"],
-                "negative": ["市場廣度續降且波動率擴張"],
-                "watch_conditions": [
-                    "站上 MA20 比例",
-                    "最強產業量能與內部廣度",
-                    "20 日已實現波動率",
-                ],
-            },
-        },
+        "next_session": _build_next_session(market, source_date),
         "governance": {
             "status": "available",
             "data_as_of": source_date,

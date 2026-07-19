@@ -162,7 +162,7 @@ class ProfessionalReportIdentity:
         if source_date > applicable_date or generated_at > published_at:
             raise ValueError("identity date semantics are invalid")
         if _MANIFEST_RE.fullmatch(source_manifest) is None:
-            raise ValueError("source_manifest is invalid")
+            raise ValueError(f"source_manifest is invalid: {source_manifest}")
         if _SHA256_RE.fullmatch(source_manifest_sha256) is None:
             raise ValueError("source_manifest_sha256 is invalid")
         if _SHA256_RE.fullmatch(content_sha256) is None:

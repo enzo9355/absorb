@@ -33,7 +33,7 @@
               {% if report.report_type == 'weekly_model' %}
                 <a class="button" href="{{ url_for('weekly_report_page', week_id=report.week_id) }}">閱讀週報</a>
               {% elif report.report_type == 'post_close' %}
-                <a class="button" href="{{ url_for('post_close_report_page', trading_date=report.applicable_trading_date) }}">閱讀盤後觀察</a>
+                <a class="button" href="{{ url_for('post_close_report_page', trading_date=report.source_market_date) }}">閱讀盤後觀察</a>
               {% else %}
                 <a class="button" href="{{ url_for('pre_market_report_page', trading_date=report.applicable_trading_date) }}">閱讀盤前更新</a>
               {% endif %}

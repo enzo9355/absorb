@@ -1,6 +1,7 @@
 """Public HTML report routes and legacy compatibility redirects."""
 
 import datetime
+import os
 import re
 import uuid
 
@@ -8,6 +9,7 @@ from flask import abort, make_response, redirect, render_template, url_for
 
 from reporting.exceptions import ReportWebError
 from reporting.web import find_report
+from reporting.professional_html import build_professional_report_view
 from stock_papi.services.report_view import build_observation_report_view
 from werkzeug.exceptions import HTTPException
 
@@ -22,7 +24,7 @@ def _valid_report_date(report_date):
 
 def register_report_routes(
     app, *, load_index, load_metadata, load_index_v2, load_metadata_v2,
-    prediction_capability=None,
+    load_canonical_object=None, prediction_capability=None,
 ):
     observation_mode = (
         prediction_capability is not None
@@ -79,26 +81,39 @@ def register_report_routes(
             and item.get("report_type") in {"post_close", "pre_market"}
         ]
 
-    def _observation_page(trading_date, report_type):
+    def _observation_page(date_param: str, report_type: str):
         try:
-            daily_items = _daily_items(trading_date)
-            item = next(
-                (value for value in daily_items
-                 if value.get("report_type") == report_type),
-                None,
-            )
+            reports = _v2_reports(required=True)
+            if report_type == "post_close":
+                # For post_close, date_param is source_market_date
+                item = next(
+                    (value for value in reports
+                     if value.get("report_type") == report_type
+                     and value.get("source_market_date") == date_param),
+                    None,
+                )
+            else:
+                # For pre_market, date_param is applicable_trading_date
+                item = next(
+                    (value for value in reports
+                     if value.get("report_type") == report_type
+                     and value.get("applicable_trading_date") == date_param),
+                    None,
+                )
+
             if item is None:
                 abort(404)
             metadata = load_metadata_v2(item)
             if metadata is None:
                 raise ReportWebError("報告內容暫時無法使用")
-            expected_base_metadata_sha256 = None
+            
             if report_type == "pre_market":
+                expected_base_metadata_sha256 = None
                 post_close_item = next(
                     (
-                        value
-                        for value in daily_items
+                        value for value in reports
                         if value.get("report_type") == "post_close"
+                        and value.get("applicable_trading_date") == date_param
                     ),
                     None,
                 )
@@ -107,19 +122,47 @@ def register_report_routes(
                 expected_base_metadata_sha256 = post_close_item.get(
                     "metadata_sha256"
                 )
-            report = build_observation_report_view(
-                metadata,
-                expected_base_metadata_sha256=expected_base_metadata_sha256,
-            )
-            response = make_response(
-                render_template("report_observation.html", report=report)
-            )
+                report = build_observation_report_view(
+                    metadata,
+                    expected_base_metadata_sha256=expected_base_metadata_sha256,
+                )
+                response = make_response(
+                    render_template("report_observation.html", report=report)
+                )
+            elif report_type == "post_close":
+                canonical_ptr = metadata.get("professional_report")
+                if not isinstance(canonical_ptr, dict) or not canonical_ptr.get("object"):
+                    raise ReportWebError("報告 Canonical Object 指標遺失")
+                if load_canonical_object is None:
+                    raise ReportWebError("系統未提供 load_canonical_object")
+                
+                import hashlib
+                try:
+                    canonical_doc = load_canonical_object(canonical_ptr["object"])
+                except Exception as exc:
+                    raise ReportWebError("無法讀取 Canonical Object") from exc
+                
+                from reporting.professional_schema import ProfessionalPostCloseReport
+                try:
+                    prof_report = ProfessionalPostCloseReport.from_document(canonical_doc)
+                except ValueError as exc:
+                    raise ReportWebError("Canonical Object 驗證失敗") from exc
+
+                pdf_download_url = None
+                view_model = build_professional_report_view(
+                    prof_report, pdf_download_url=pdf_download_url
+                )
+                response = make_response(
+                    render_template("reports/post_close_professional.html", report=view_model)
+                )
+            else:
+                abort(404)
             return _secure_response(response)
         except ReportWebError as exc:
             return _report_error(
                 503,
                 report_type=report_type,
-                report_date=trading_date,
+                report_date=date_param,
                 exc=exc,
             )
         except HTTPException:
@@ -128,7 +171,7 @@ def register_report_routes(
             return _report_error(
                 500,
                 report_type=report_type,
-                report_date=trading_date,
+                report_date=date_param,
                 exc=exc,
             )
 

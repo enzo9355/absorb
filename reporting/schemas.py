@@ -33,6 +33,7 @@ class ReportMetadataV2:
     observation_start_date: datetime.date | None = None
     observation_end_date: datetime.date | None = None
     prediction_capability: dict[str, Any] | None = None
+    professional_report: dict[str, Any] | None = None
 
     @classmethod
     def from_document(cls, document: dict[str, Any]) -> "ReportMetadataV2":
@@ -66,6 +67,7 @@ class ReportMetadataV2:
         observation_start = None
         observation_end = None
         prediction_capability = None
+        professional_report = None
         if product_mode == "observation":
             try:
                 observation_start = datetime.date.fromisoformat(
@@ -77,6 +79,31 @@ class ReportMetadataV2:
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError("report metadata v2 observation dates 不合法") from exc
             prediction_capability = document.get("prediction_capability")
+            professional_report = document.get("professional_report")
+
+            if professional_report is not None:
+                if report_type != "post_close":
+                    raise ValueError("professional_report 只能存在於 post_close")
+                if not isinstance(professional_report, dict):
+                    raise ValueError("professional_report 必須是 dict")
+                if professional_report.get("schema_version") != 1:
+                    raise ValueError("professional_report schema_version 必須為支援版本")
+                obj_path = str(professional_report.get("object") or "")
+                if not re.fullmatch(r"objects/canonical/[0-9a-f]{64}\.json", obj_path):
+                    raise ValueError("professional_report.object 不合法")
+                if not re.fullmatch(r"[0-9a-f]{64}", str(professional_report.get("sha256") or "")):
+                    raise ValueError("professional_report.sha256 不合法")
+                if not re.fullmatch(r"[0-9a-f]{64}", str(professional_report.get("content_sha256") or "")):
+                    raise ValueError("professional_report.content_sha256 不合法")
+                gen_version = professional_report.get("generator_version")
+                if not isinstance(gen_version, str) or not gen_version:
+                    raise ValueError("professional_report.generator_version 必須是非空字串")
+                commit_sha = professional_report.get("code_commit_sha")
+                if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{7,64}", commit_sha):
+                    raise ValueError("professional_report.code_commit_sha 必須是有效 SHA")
+        elif document.get("professional_report") is not None:
+            raise ValueError("professional_report 只能存在於 observation 模式下的 post_close")
+
         if (
             report_type not in REPORT_TYPES
             or product_mode not in {None, "observation"}
@@ -165,6 +192,7 @@ class ReportMetadataV2:
                 if prediction_capability is None
                 else dict(prediction_capability)
             ),
+            professional_report=dict(professional_report) if professional_report else None,
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -200,6 +228,8 @@ class ReportMetadataV2:
                 observation_end_date=self.observation_end_date.isoformat(),
                 prediction_capability=dict(self.prediction_capability or {}),
             )
+            if self.professional_report is not None:
+                document["professional_report"] = dict(self.professional_report)
         return document
 
 

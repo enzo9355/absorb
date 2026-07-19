@@ -4,6 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 from . import REPORT_GENERATOR_VERSION, REPORT_SCHEMA_VERSION, git_commit_sha
 from .config import ReportConfig
@@ -68,9 +69,12 @@ def publish_report_v2(
     pdf_path: Path | None = None,
     page_count: int | None = None,
     config: ReportConfig | None = None,
+    professional_report: Any = None,
 ) -> Path:
     """發布 v2 post-close、pre-market 或 weekly report；latest 永遠最後寫。"""
     settings = config or ReportConfig(root=Path(root))
+    
+    # 1. 驗證 Observation Metadata 結構
     try:
         schema = ReportMetadataV2.from_document(metadata)
     except ValueError as exc:
@@ -79,7 +83,10 @@ def publish_report_v2(
         raise ValueError("pre_market report must not include PDF")
     if pdf_path is None and page_count is not None:
         raise ValueError("page_count requires PDF")
+    if schema.report_type != "post_close" and professional_report is not None:
+        raise ValueError("only post_close can include professional_report")
 
+    # 2. 處理 PDF
     pdf_bytes = None
     pdf_sha = None
     if pdf_path is not None:
@@ -93,10 +100,56 @@ def publish_report_v2(
             raise ReportPublishError("report v2 PDF size is invalid")
         pdf_sha = hashlib.sha256(pdf_bytes).hexdigest()
 
+    publish = Path(root) / "publish" / "reports" / "v2"
     document = schema.to_document()
     document["content_sha256"] = hashlib.sha256(
         _json_bytes(document["content"])
     ).hexdigest()
+    
+    # 3. 處理 Canonical Report (ProfessionalPostCloseReport)
+    if professional_report is not None:
+        try:
+            canonical_doc = professional_report.to_document()
+            canonical_bytes = _json_bytes(canonical_doc)
+            canonical_sha = hashlib.sha256(canonical_bytes).hexdigest()
+        except Exception as exc:
+            raise ReportPublishError("failed to serialize canonical report") from exc
+        
+        canonical_relative = f"objects/canonical/{canonical_sha}.json"
+        canonical_path = publish / canonical_relative
+        
+        # 4. 寫入 Canonical Object 並驗證
+        if canonical_path.exists():
+            if canonical_path.read_bytes() != canonical_bytes:
+                raise ReportPublishError("immutable canonical object conflict")
+        else:
+            _write_atomic(canonical_path, canonical_bytes)
+            try:
+                if hashlib.sha256(canonical_path.read_bytes()).hexdigest() != canonical_sha:
+                    raise ReportPublishError("canonical object read-back verification failed")
+            except OSError as exc:
+                raise ReportPublishError("failed to read back canonical object") from exc
+        
+        # 5. 更新 metadata 的 pointer
+        document["professional_report"] = {
+            "object": canonical_relative,
+            "sha256": canonical_sha,
+            "content_sha256": canonical_doc["identity"]["content_sha256"],
+            "schema_version": 1,
+            "generator_version": canonical_doc["identity"]["generator_version"],
+            "code_commit_sha": canonical_doc["identity"]["code_commit_sha"],
+        }
+        # re-validate after injection
+        try:
+            schema = ReportMetadataV2.from_document(document)
+            document = schema.to_document()
+        except ValueError as exc:
+            raise ReportPublishError("invalid metadata after injecting professional_report") from exc
+
+    document["content_sha256"] = hashlib.sha256(
+        _json_bytes(document["content"])
+    ).hexdigest()
+
     if pdf_bytes is not None:
         document.update(
             pdf_path=f"objects/{pdf_sha}.pdf",
@@ -107,7 +160,6 @@ def publish_report_v2(
     metadata_bytes = _json_bytes(document)
     metadata_sha = hashlib.sha256(metadata_bytes).hexdigest()
     metadata_relative = f"metadata/{metadata_sha}.json"
-    publish = Path(root) / "publish" / "reports" / "v2"
     index_path = publish / "index-TW.json"
     previous_index = index_path.read_bytes() if index_path.exists() else None
     if previous_index is not None:

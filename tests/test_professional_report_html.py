@@ -3,7 +3,7 @@ import unittest
 
 from jinja2 import DictLoader, Environment
 
-from reporting.professional_builder import build_professional_post_close_report
+from reporting.professional_builder import build_professional_post_close_artifact
 from reporting.professional_html import build_professional_report_view
 
 
@@ -48,7 +48,7 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         }
 
     def _view(self):
-        report = build_professional_post_close_report(
+        report = build_professional_post_close_artifact(
             self._metadata(), code_commit_sha="b" * 40
         )
         return build_professional_report_view(

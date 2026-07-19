@@ -1323,6 +1323,9 @@ def route_dependencies():
         "load_report_metadata_v2": lambda item: load_report_metadata(
             item, load_object=_gcs_get_report_v2_object, version="v2"
         ),
+        "load_canonical_object": lambda object_path: json.loads(
+            _gcs_get_report_v2_object(object_path, 5_000_000)
+        ),
         "sample_report_path": SAMPLE_REPORT_PATH,
         "sample_report_filename": SAMPLE_REPORT_FILENAME,
         "max_pdf_bytes": REPORT_PDF_MAX_BYTES,
