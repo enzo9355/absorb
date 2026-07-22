@@ -16,7 +16,7 @@
   - NO LightGBM training or SHAP execution.
   - NO probability, win rate, or trading signal generation.
   - NO prediction capability gate modifications (gates remain BLOCKED / UNAVAILABLE).
-  - NO sample or mock data generation in production builders (`production_regression_source_adapter_ready = false`, `production_regression_input_ready = false`, `production_regression_artifact_available = false`).
+  - NO sample or mock data generation in production report builders (`production_regression_source_adapter_ready = false`, `production_regression_input_ready = false`, `production_regression_artifact_available = false`, `aggregate_manifest_interval_validation_ready = false`).
   - NO Cloud Run deployment, Production GCS updates, backfills, or LINE notifications.
   - NO Task D execution.
 
@@ -46,9 +46,9 @@
   - `[NEW] tests/test_regression_input_schema.py`
 - **RED Test**: `tests/test_regression_input_schema.py::test_input_dataset_validates_rows_and_hashes`
 - **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_input_schema'`
-- **Minimal Implementation**: Implements `RegressionInputDataset.from_document()` validating `row_count == len(rows)`, ascending `feature_session` order, exact factor column keys, `factor_value_stage == "raw"`, finite float values, and `canonical_rows_sha256` verification.
+- **Minimal Implementation**: Implements `RegressionInputDataset.from_document()` validating `row_count == len(rows)`, ascending `feature_session` order, exact factor column keys, `factor_value_stage == "raw"`, finite float values, `aggregate_manifest_object` path format, `aggregate_manifest_sha256` (64 lowercase hex), `schema_version == 1`, and `canonical_rows_sha256` verification.
 - **Focused Command**: `python -m unittest tests.test_regression_input_schema -v`
-- **Acceptance Criteria**: Validates 252-row matrix schema, computes `canonical_rows_sha256` and `content_sha256`, and rejects duplicate sessions or non-finite values.
+- **Acceptance Criteria**: Validates 252-row matrix schema, computes `canonical_rows_sha256` and `content_sha256`, validates aggregate manifest metadata format, and rejects duplicate sessions or non-finite values.
 - **Commit Message**: `feat(reporting): define self-contained regression input dataset schema and row serializers`
 - **Rollback Boundary**: Delete `reporting/regression_input_schema.py` and `tests/test_regression_input_schema.py`.
 
@@ -69,17 +69,17 @@
 
 ---
 
-### Task B3: Input Dataset Builder & Readiness
-- **Goal**: Build `build_regression_input_dataset()`, enforcing Option B readiness declarations (`production_regression_source_adapter_ready = false`, `production_regression_input_ready = false`, `production_regression_artifact_available = false`). Builder returns `None` when source objects are incomplete and NEVER generates mock data in production.
+### Task B3: Input Dataset Builder & Production Orchestrator Readiness
+- **Goal**: Build pure builder `build_regression_input_dataset(source_objects, ...)` and production orchestrator readiness checks (`production_regression_source_adapter_ready = false`, `production_regression_input_ready = false`, `production_regression_artifact_available = false`, `aggregate_manifest_interval_validation_ready = false`). Pure builder constructs valid datasets from verified source objects for unit tests/fixtures, while production orchestrator gates off building/publishing in production reports.
 - **Exact Files**:
   - `[NEW] reporting/regression_input_builder.py`
   - `[NEW] tests/test_regression_input_builder.py`
-- **RED Test**: `tests/test_regression_input_builder.py::test_builder_returns_none_when_input_sources_incomplete`
+- **RED Test**: `tests/test_regression_input_builder.py::test_production_orchestrator_does_not_build_or_publish_when_readiness_false`
 - **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_input_builder'`
-- **Minimal Implementation**: Orchestrates input row aggregation from verified source manifests. Returns `None` when sources are missing or incomplete.
+- **Minimal Implementation**: Implements pure builder for valid source datasets, and production orchestrator guard returning `None` and preventing production artifact publishing when readiness flags are `false`.
 - **Focused Command**: `python -m unittest tests.test_regression_input_builder -v`
-- **Acceptance Criteria**: Builder constructs valid input dataset when sources exist, or returns `None` without generating mock data.
-- **Commit Message**: `feat(reporting): implement regression input dataset builder and readiness checks`
+- **Acceptance Criteria**: Pure builder constructs valid input dataset when provided valid source objects; production orchestrator returns `None` without invoking builder or publishing fixtures when readiness flags are `false`.
+- **Commit Message**: `feat(reporting): implement regression input dataset builder and production orchestrator readiness gates`
 - **Rollback Boundary**: Delete `reporting/regression_input_builder.py` and `tests/test_regression_input_builder.py`.
 
 ---
@@ -147,17 +147,17 @@
 
 ---
 
-### Task F: Regression Artifact Builder
-- **Goal**: Build `build_regression_research_artifact(...)` orchestrator to generate content-addressed `RegressionResearchArtifact` documents from verified `RegressionInputDataset` objects. Returns `None` if input dataset is absent (never generates mock data).
+### Task F: Regression Artifact Pure Builder
+- **Goal**: Build pure builder `build_regression_research_artifact(validated_input_dataset, ...)` orchestrator to generate content-addressed `RegressionResearchArtifact` documents from verified `RegressionInputDataset` objects. Pure builder constructs valid artifacts when provided valid input datasets (used in unit tests, offline fixtures, and future source adapters). Decouple pure builder execution from production orchestrator when readiness flags are `false`.
 - **Exact Files**:
   - `[NEW] reporting/regression_builder.py`
   - `[NEW] tests/test_regression_builder.py`
 - **RED Test**: `tests/test_regression_builder.py::test_builds_valid_regression_research_artifact`
 - **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_builder'`
-- **Minimal Implementation**: Orchestrates adapter computation, validation engine, mandatory disclaimers, and content-addressed `content_sha256` generation. Returns `None` on missing input dataset or Hard Failures.
+- **Minimal Implementation**: Orchestrates adapter computation, validation engine, mandatory disclaimers, and content-addressed `content_sha256` generation.
 - **Focused Command**: `python -m unittest tests.test_regression_builder -v`
-- **Acceptance Criteria**: Successfully builds content-addressed `RegressionResearchArtifact` when `RegressionInputDataset` is present, or returns `None` on missing data.
-- **Commit Message**: `feat(reporting): implement regression research artifact builder with input dataset lineage`
+- **Acceptance Criteria**: Successfully builds content-addressed `RegressionResearchArtifact` when provided valid `RegressionInputDataset`, or raises `ValueError` / returns `None` on invalid data.
+- **Commit Message**: `feat(reporting): implement regression research artifact pure builder`
 - **Rollback Boundary**: Delete `reporting/regression_builder.py` and `tests/test_regression_builder.py`.
 
 ---
@@ -317,7 +317,7 @@
   - `python -m compileall reporting stock_papi tests`
   - `node --check static/app.js`
   - `git diff --check`
-- **Commit Message**: `docs: close regression source lineage and input publication contracts`
+- **Commit Message**: `docs: align regression builder and source readiness contracts`
 - **Acceptance Criteria**: All 717+ unit tests pass, zero compile errors, zero git diff formatting warnings.
 - **Rollback Boundary**: N/A.
 
