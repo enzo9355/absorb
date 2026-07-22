@@ -145,7 +145,7 @@ MAX_REGRESSION_ARTIFACT_BYTES: int = 2_000_000  # 2MB strict size limit
     "observation_unit": "daily_session",
     "model_family": "ols_linear_factor",
     "dependent_variable": "five_session_forward_return",
-    "dependent_variable_definition": "5-session session forward return over official TAIEX daily closing prices",
+    "dependent_variable_definition": "5-session forward return over official TAIEX daily closing prices",
     "independent_variables": [
       "volume_surge_ratio",
       "foreign_net_flow_ratio",
@@ -238,7 +238,7 @@ MAX_REGRESSION_ARTIFACT_BYTES: int = 2_000_000  # 2MB strict size limit
   },
   "presentation": {
     "headline": "近 245 個交易日因子迴歸分析顯示外資動向與成交量異常具有統計顯著相關性",
-    "summary": "在控制 20 日波動度與產業動能後，外資買賣超比率與成交量放大比率對大盤 5 日相對報酬展現正向係數關係 (p < 0.01)。",
+    "summary": "在控制 20 日波動度與產業動能後，外資買賣超比率與成交量放大比率對大盤 5 日未來報酬展現正向係數關係 (p < 0.01)。",
     "key_exposures": [
       "外資買賣超比率: 係數 +0.0812 (t=4.16, p < 0.001)",
       "成交量放大比率: 係數 +0.0425 (t=3.79, p < 0.001)"
