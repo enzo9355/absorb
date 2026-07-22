@@ -1,24 +1,202 @@
 # -*- coding: utf-8 -*-
-"""Dataclass definitions and canonical serializer for Regression Research Artifacts."""
+"""Strict schema and canonical serializer for regression research artifacts."""
 
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+import datetime as dt
+from dataclasses import asdict, dataclass, field
 import hashlib
 import json
+import math
+import re
 from typing import Any
+
+from reporting.regression_input_schema import AGGREGATE_MANIFEST_PATH_RE, HEX_40_RE, HEX_64_RE, V1_FACTORS
+
 
 REGRESSION_ARTIFACT_SCHEMA_VERSION = 1
 REGRESSION_ARTIFACT_KIND = "absorb-regression-research-artifact"
 MAX_REGRESSION_ARTIFACT_BYTES = 2_000_000
-
+MANDATORY_DISCLOSURE = "模型尚未通過 Ranking、Calibration、Quality 與 Transaction Value，因此不提供正式預測機率。"
+INPUT_DATASET_OBJECT_RE = re.compile(r"^objects/regression-input/([0-9a-f]{64})\.json$")
 FORBIDDEN_WORDS = (
     "Probability",
-    "\u52dd\u7387",  # 勝率
-    "\u4e0a\u6f35\u6a5f\u7387",  # 上漲機率
-    "\u4e0b\u8dcc\u6a5f\u7387",  # 下跌機率
-    "\u6b63\u5f0f\u9810\u6e2c",  # 正式預測
-    "\u8cb7\u9032\u8a0a\u865f",  # 買進訊號
-    "\u8ce3\u51fa\u8a0a\u865f",  # 賣出訊號
+    "勝率",
+    "上漲機率",
+    "下跌機率",
+    "正式預測",
+    "買進訊號",
+    "賣出訊號",
+    "保證獲利",
 )
+
+_TOP_LEVEL_KEYS = {
+    "schema_version",
+    "kind",
+    "identity",
+    "regression_spec",
+    "results",
+    "fit_statistics",
+    "diagnostics",
+    "presentation",
+}
+_IDENTITY_KEYS = {
+    "artifact_id",
+    "market",
+    "source_market_date",
+    "applicable_trading_date",
+    "generated_at",
+    "source_manifest",
+    "source_manifest_sha256",
+    "input_dataset_object",
+    "input_dataset_sha256",
+    "input_dataset_content_sha256",
+    "input_dataset_rows_sha256",
+    "code_commit_sha",
+    "generator_version",
+    "content_sha256",
+    "regression_spec_version",
+}
+_SPEC_KEYS = {
+    "analysis_scope",
+    "entity_type",
+    "universe_definition",
+    "observation_unit",
+    "model_family",
+    "dependent_variable",
+    "dependent_variable_definition",
+    "independent_variables",
+    "intercept",
+    "frequency",
+    "first_feature_session",
+    "last_feature_session",
+    "first_label_end_session",
+    "last_label_end_session",
+    "label_horizon_sessions",
+    "sample_count",
+    "missing_value_policy",
+    "standardization_policy",
+    "outlier_policy",
+    "covariance_estimator",
+    "hac_max_lags",
+    "confidence_level",
+}
+_SPEC_FIXED = {
+    "analysis_scope": "market_level_daily",
+    "entity_type": "market_index",
+    "universe_definition": "TWSE_TAIEX",
+    "observation_unit": "daily_session",
+    "model_family": "ols_linear_factor",
+    "dependent_variable": "five_session_forward_return",
+    "intercept": True,
+    "frequency": "daily",
+    "label_horizon_sessions": 5,
+    "missing_value_policy": "listwise_deletion",
+    "standardization_policy": "z_score",
+    "outlier_policy": "winsorize_1_99",
+    "covariance_estimator": "newey_west_hac",
+    "hac_max_lags": 4,
+    "confidence_level": 0.95,
+}
+_RESULT_KEYS = {
+    "factor_name",
+    "display_label",
+    "coefficient",
+    "standard_error",
+    "t_statistic",
+    "p_value",
+    "confidence_interval_low",
+    "confidence_interval_high",
+    "direction",
+    "economic_magnitude",
+    "display_status",
+}
+_FIT_KEYS = {
+    "r_squared",
+    "adjusted_r_squared",
+    "residual_standard_error",
+    "degrees_of_freedom",
+    "f_statistic",
+    "f_p_value",
+}
+_DIAGNOSTIC_KEYS = {
+    "multicollinearity",
+    "heteroskedasticity",
+    "autocorrelation",
+    "residual_normality",
+    "data_quality",
+    "warnings",
+}
+_PRESENTATION_KEYS = {"headline", "summary", "key_exposures", "limitations", "disclosure"}
+
+
+def _exact_keys(value: Any, expected: set[str], label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != expected:
+        raise ValueError(f"{label} keys must match schema exactly")
+    return value
+
+
+def _date(value: Any, label: str) -> dt.date:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be ISO 8601 YYYY-MM-DD")
+    try:
+        parsed = dt.date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be ISO 8601 YYYY-MM-DD") from exc
+    if parsed.isoformat() != value:
+        raise ValueError(f"{label} must be ISO 8601 YYYY-MM-DD")
+    return parsed
+
+
+def _timestamp(value: Any, label: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be timezone-aware ISO 8601")
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{label} must be timezone-aware ISO 8601") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{label} must be timezone-aware ISO 8601")
+    return value
+
+
+def _sha(value: Any, pattern: re.Pattern[str], label: str) -> str:
+    if not isinstance(value, str) or pattern.fullmatch(value) is None:
+        raise ValueError(f"{label} must be lowercase hexadecimal")
+    return value
+
+
+def _number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{label} must be numeric and bool is not allowed")
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise ValueError(f"{label} must be finite")
+    return converted
+
+
+def _validate_finite_tree(value: Any, label: str) -> None:
+    if isinstance(value, bool):
+        raise TypeError(f"{label} must not contain bool numeric values")
+    if isinstance(value, (int, float)):
+        _number(value, label)
+    elif isinstance(value, dict):
+        for key, child in value.items():
+            _validate_finite_tree(child, f"{label}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_finite_tree(child, f"{label}[{index}]")
+
+
+def _visible_strings(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from _visible_strings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _visible_strings(child)
 
 
 @dataclass(frozen=True)
@@ -40,43 +218,12 @@ class RegressionIdentity:
     regression_spec_version: str = "1.0"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "artifact_id": self.artifact_id,
-            "market": self.market,
-            "source_market_date": self.source_market_date,
-            "applicable_trading_date": self.applicable_trading_date,
-            "generated_at": self.generated_at,
-            "source_manifest": self.source_manifest,
-            "source_manifest_sha256": self.source_manifest_sha256,
-            "input_dataset_object": self.input_dataset_object,
-            "input_dataset_sha256": self.input_dataset_sha256,
-            "input_dataset_content_sha256": self.input_dataset_content_sha256,
-            "input_dataset_rows_sha256": self.input_dataset_rows_sha256,
-            "code_commit_sha": self.code_commit_sha,
-            "generator_version": self.generator_version,
-            "content_sha256": self.content_sha256,
-            "regression_spec_version": self.regression_spec_version,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RegressionIdentity":
-        return cls(
-            artifact_id=data["artifact_id"],
-            market=data["market"],
-            source_market_date=data["source_market_date"],
-            applicable_trading_date=data["applicable_trading_date"],
-            generated_at=data["generated_at"],
-            source_manifest=data["source_manifest"],
-            source_manifest_sha256=data["source_manifest_sha256"],
-            input_dataset_object=data["input_dataset_object"],
-            input_dataset_sha256=data["input_dataset_sha256"],
-            input_dataset_content_sha256=data["input_dataset_content_sha256"],
-            input_dataset_rows_sha256=data["input_dataset_rows_sha256"],
-            code_commit_sha=data["code_commit_sha"],
-            generator_version=data["generator_version"],
-            content_sha256=data.get("content_sha256", ""),
-            regression_spec_version=data.get("regression_spec_version", "1.0"),
-        )
+        _exact_keys(data, _IDENTITY_KEYS, "identity")
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -105,57 +252,12 @@ class RegressionSpec:
     confidence_level: float
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "analysis_scope": self.analysis_scope,
-            "entity_type": self.entity_type,
-            "universe_definition": self.universe_definition,
-            "observation_unit": self.observation_unit,
-            "model_family": self.model_family,
-            "dependent_variable": self.dependent_variable,
-            "dependent_variable_definition": self.dependent_variable_definition,
-            "independent_variables": list(self.independent_variables),
-            "intercept": self.intercept,
-            "frequency": self.frequency,
-            "first_feature_session": self.first_feature_session,
-            "last_feature_session": self.last_feature_session,
-            "first_label_end_session": self.first_label_end_session,
-            "last_label_end_session": self.last_label_end_session,
-            "label_horizon_sessions": self.label_horizon_sessions,
-            "sample_count": self.sample_count,
-            "missing_value_policy": self.missing_value_policy,
-            "standardization_policy": self.standardization_policy,
-            "outlier_policy": self.outlier_policy,
-            "covariance_estimator": self.covariance_estimator,
-            "hac_max_lags": self.hac_max_lags,
-            "confidence_level": self.confidence_level,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RegressionSpec":
-        return cls(
-            analysis_scope=data["analysis_scope"],
-            entity_type=data["entity_type"],
-            universe_definition=data["universe_definition"],
-            observation_unit=data["observation_unit"],
-            model_family=data["model_family"],
-            dependent_variable=data["dependent_variable"],
-            dependent_variable_definition=data["dependent_variable_definition"],
-            independent_variables=list(data["independent_variables"]),
-            intercept=data["intercept"],
-            frequency=data["frequency"],
-            first_feature_session=data["first_feature_session"],
-            last_feature_session=data["last_feature_session"],
-            first_label_end_session=data["first_label_end_session"],
-            last_label_end_session=data["last_label_end_session"],
-            label_horizon_sessions=data["label_horizon_sessions"],
-            sample_count=data["sample_count"],
-            missing_value_policy=data["missing_value_policy"],
-            standardization_policy=data["standardization_policy"],
-            outlier_policy=data["outlier_policy"],
-            covariance_estimator=data["covariance_estimator"],
-            hac_max_lags=data["hac_max_lags"],
-            confidence_level=data["confidence_level"],
-        )
+        _exact_keys(data, _SPEC_KEYS, "regression_spec")
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -173,47 +275,12 @@ class RegressionResultItem:
     display_status: str
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "factor_name": self.factor_name,
-            "display_label": self.display_label,
-            "coefficient": self.coefficient,
-            "standard_error": self.standard_error,
-            "t_statistic": self.t_statistic,
-            "p_value": self.p_value,
-            "confidence_interval_low": self.confidence_interval_low,
-            "confidence_interval_high": self.confidence_interval_high,
-            "direction": self.direction,
-            "economic_magnitude": self.economic_magnitude,
-            "display_status": self.display_status,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RegressionResultItem":
-        coef = data["coefficient"]
-        low = data["confidence_interval_low"]
-        high = data["confidence_interval_high"]
-        se = data["standard_error"]
-        if not (isinstance(coef, (int, float)) and isinstance(low, (int, float)) and isinstance(high, (int, float))):
-            raise TypeError("Coefficient and CI bounds must be numbers")
-        if isinstance(coef, bool) or isinstance(low, bool) or isinstance(high, bool):
-            raise TypeError("Bools not allowed as floats")
-        if low > coef or coef > high:
-            raise ValueError(f"CI bounds invalid: low={low}, coef={coef}, high={high}")
-        if se < 0:
-            raise ValueError(f"Standard error must be non-negative, got {se}")
-        return cls(
-            factor_name=data["factor_name"],
-            display_label=data["display_label"],
-            coefficient=float(coef),
-            standard_error=float(se),
-            t_statistic=float(data["t_statistic"]),
-            p_value=float(data["p_value"]),
-            confidence_interval_low=float(low),
-            confidence_interval_high=float(high),
-            direction=data["direction"],
-            economic_magnitude=data["economic_magnitude"],
-            display_status=data["display_status"],
-        )
+        _exact_keys(data, _RESULT_KEYS, "result")
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -226,32 +293,12 @@ class RegressionFitStatistics:
     f_p_value: float
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "r_squared": self.r_squared,
-            "adjusted_r_squared": self.adjusted_r_squared,
-            "residual_standard_error": self.residual_standard_error,
-            "degrees_of_freedom": self.degrees_of_freedom,
-            "f_statistic": self.f_statistic,
-            "f_p_value": self.f_p_value,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RegressionFitStatistics":
-        r2 = data["r_squared"]
-        adj_r2 = data["adjusted_r_squared"]
-        df = data["degrees_of_freedom"]
-        if not (0 <= r2 <= 1):
-            raise ValueError(f"r_squared must be between 0 and 1, got {r2}")
-        if df <= 0:
-            raise ValueError(f"degrees_of_freedom must be > 0, got {df}")
-        return cls(
-            r_squared=float(r2),
-            adjusted_r_squared=float(adj_r2),
-            residual_standard_error=float(data["residual_standard_error"]),
-            degrees_of_freedom=int(df),
-            f_statistic=float(data["f_statistic"]),
-            f_p_value=float(data["f_p_value"]),
-        )
+        _exact_keys(data, _FIT_KEYS, "fit_statistics")
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -264,25 +311,12 @@ class RegressionDiagnostics:
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "multicollinearity": dict(self.multicollinearity),
-            "heteroskedasticity": dict(self.heteroskedasticity),
-            "autocorrelation": dict(self.autocorrelation),
-            "residual_normality": dict(self.residual_normality),
-            "data_quality": dict(self.data_quality),
-            "warnings": list(self.warnings),
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RegressionDiagnostics":
-        return cls(
-            multicollinearity=dict(data["multicollinearity"]),
-            heteroskedasticity=dict(data["heteroskedasticity"]),
-            autocorrelation=dict(data["autocorrelation"]),
-            residual_normality=dict(data["residual_normality"]),
-            data_quality=dict(data["data_quality"]),
-            warnings=list(data.get("warnings", [])),
-        )
+        _exact_keys(data, _DIAGNOSTIC_KEYS, "diagnostics")
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -294,28 +328,12 @@ class RegressionPresentation:
     disclosure: str
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "headline": self.headline,
-            "summary": self.summary,
-            "key_exposures": list(self.key_exposures),
-            "limitations": self.limitations,
-            "disclosure": self.disclosure,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RegressionPresentation":
-        pres = cls(
-            headline=data["headline"],
-            summary=data["summary"],
-            key_exposures=list(data["key_exposures"]),
-            limitations=data["limitations"],
-            disclosure=data["disclosure"],
-        )
-        body_text = f"{pres.headline} {pres.summary} {' '.join(pres.key_exposures)} {pres.limitations}"
-        for word in FORBIDDEN_WORDS:
-            if word in body_text:
-                raise ValueError(f"Forbidden word '{word}' found in presentation")
-        return pres
+        _exact_keys(data, _PRESENTATION_KEYS, "presentation")
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -330,49 +348,196 @@ class RegressionResearchArtifact:
     presentation: RegressionPresentation
 
     def to_document(self) -> dict[str, Any]:
-        doc = {
+        return {
             "schema_version": self.schema_version,
             "kind": self.kind,
             "identity": self.identity.to_dict(),
             "regression_spec": self.regression_spec.to_dict(),
-            "results": [r.to_dict() for r in self.results],
+            "results": [item.to_dict() for item in self.results],
             "fit_statistics": self.fit_statistics.to_dict(),
             "diagnostics": self.diagnostics.to_dict(),
             "presentation": self.presentation.to_dict(),
         }
-        return doc
 
     @classmethod
     def from_document(cls, document: dict[str, Any]) -> "RegressionResearchArtifact":
-        if not isinstance(document, dict) or not document:
-            raise ValueError("Document must be a non-empty dict")
-        if document.get("schema_version") != REGRESSION_ARTIFACT_SCHEMA_VERSION:
-            raise ValueError(f"Invalid schema_version: {document.get('schema_version')}")
-        if document.get("kind") != REGRESSION_ARTIFACT_KIND:
-            raise ValueError(f"Invalid kind: {document.get('kind')}")
+        top = _exact_keys(document, _TOP_LEVEL_KEYS, "artifact top-level")
+        if top["schema_version"] != REGRESSION_ARTIFACT_SCHEMA_VERSION:
+            raise ValueError("Invalid schema_version")
+        if top["kind"] != REGRESSION_ARTIFACT_KIND:
+            raise ValueError("Invalid kind")
 
-        identity = RegressionIdentity.from_dict(document["identity"])
-        spec = RegressionSpec.from_dict(document["regression_spec"])
-        results = [RegressionResultItem.from_dict(r) for r in document["results"]]
-        fit_stats = RegressionFitStatistics.from_dict(document["fit_statistics"])
-        diagnostics = RegressionDiagnostics.from_dict(document["diagnostics"])
-        presentation = RegressionPresentation.from_dict(document["presentation"])
+        identity_data = _exact_keys(top["identity"], _IDENTITY_KEYS, "identity")
+        if identity_data["market"] != "TW":
+            raise ValueError("identity.market must be TW")
+        if not isinstance(identity_data["artifact_id"], str) or not identity_data["artifact_id"]:
+            raise ValueError("artifact_id must be non-empty")
+        source_date = _date(identity_data["source_market_date"], "source_market_date")
+        applicable_date = _date(identity_data["applicable_trading_date"], "applicable_trading_date")
+        if applicable_date <= source_date:
+            raise ValueError("applicable_trading_date must be after source_market_date")
+        _timestamp(identity_data["generated_at"], "generated_at")
+        if not isinstance(identity_data["source_manifest"], str) or AGGREGATE_MANIFEST_PATH_RE.fullmatch(identity_data["source_manifest"]) is None:
+            raise ValueError("source_manifest path is invalid")
+        for field_name in (
+            "source_manifest_sha256",
+            "input_dataset_sha256",
+            "input_dataset_content_sha256",
+            "input_dataset_rows_sha256",
+            "content_sha256",
+        ):
+            _sha(identity_data[field_name], HEX_64_RE, field_name)
+        _sha(identity_data["code_commit_sha"], HEX_40_RE, "code_commit_sha")
+        path_match = INPUT_DATASET_OBJECT_RE.fullmatch(str(identity_data["input_dataset_object"]))
+        if path_match is None or path_match.group(1) != identity_data["input_dataset_sha256"]:
+            raise ValueError("input_dataset_object path must bind input_dataset_sha256")
+        if identity_data["regression_spec_version"] != "1.0":
+            raise ValueError("regression_spec_version must be 1.0")
+        if not isinstance(identity_data["generator_version"], str) or not identity_data["generator_version"]:
+            raise ValueError("generator_version must be non-empty")
 
-        artifact = cls(
-            schema_version=int(document["schema_version"]),
-            kind=str(document["kind"]),
-            identity=identity,
-            regression_spec=spec,
-            results=results,
-            fit_statistics=fit_stats,
-            diagnostics=diagnostics,
-            presentation=presentation,
+        spec_data = _exact_keys(top["regression_spec"], _SPEC_KEYS, "regression_spec")
+        for key, expected in _SPEC_FIXED.items():
+            if spec_data[key] != expected:
+                raise ValueError(f"regression_spec.{key} must be {expected!r}")
+        if spec_data["independent_variables"] != list(V1_FACTORS):
+            raise ValueError("independent_variables must be the three unique v1 factors")
+        if not isinstance(spec_data["dependent_variable_definition"], str) or not spec_data["dependent_variable_definition"]:
+            raise ValueError("dependent_variable_definition must be non-empty")
+        sample_count = spec_data["sample_count"]
+        if isinstance(sample_count, bool) or not isinstance(sample_count, int) or not 30 <= sample_count <= 252:
+            raise ValueError("sample_count must be between 30 and 252")
+        spec_dates = {
+            field_name: _date(spec_data[field_name], field_name)
+            for field_name in (
+                "first_feature_session",
+                "last_feature_session",
+                "first_label_end_session",
+                "last_label_end_session",
+            )
+        }
+        if spec_dates["first_feature_session"] > spec_dates["last_feature_session"]:
+            raise ValueError("feature session boundaries are reversed")
+        if spec_dates["first_label_end_session"] > spec_dates["last_label_end_session"]:
+            raise ValueError("label session boundaries are reversed")
+        if spec_dates["last_label_end_session"] > source_date:
+            raise ValueError("last_label_end_session must not exceed source_market_date")
+
+        results_data = top["results"]
+        if not isinstance(results_data, list):
+            raise ValueError("results must be a list")
+        results: list[RegressionResultItem] = []
+        factor_names = []
+        for item in results_data:
+            data = _exact_keys(item, _RESULT_KEYS, "result")
+            factor_names.append(data["factor_name"])
+            coefficient = _number(data["coefficient"], "coefficient")
+            standard_error = _number(data["standard_error"], "standard_error")
+            t_statistic = _number(data["t_statistic"], "t_statistic")
+            p_value = _number(data["p_value"], "p_value")
+            ci_low = _number(data["confidence_interval_low"], "confidence_interval_low")
+            ci_high = _number(data["confidence_interval_high"], "confidence_interval_high")
+            if standard_error < 0:
+                raise ValueError("standard_error must be >= 0")
+            if not 0 <= p_value <= 1:
+                raise ValueError("p_value must be between 0 and 1")
+            if not ci_low <= coefficient <= ci_high:
+                raise ValueError("confidence interval must contain coefficient")
+            expected_direction = "positive" if coefficient > 0 else "negative" if coefficient < 0 else "neutral"
+            if data["direction"] != expected_direction:
+                raise ValueError("direction must match coefficient sign")
+            expected_status = "statistically_significant" if p_value < 0.05 else "statistically_insignificant"
+            if data["display_status"] != expected_status:
+                raise ValueError("display_status must match p_value")
+            if data["economic_magnitude"] not in {"weak", "moderate", "strong"}:
+                raise ValueError("economic_magnitude is invalid")
+            if not isinstance(data["display_label"], str) or not data["display_label"]:
+                raise ValueError("display_label must be non-empty")
+            results.append(
+                RegressionResultItem(
+                    factor_name=data["factor_name"],
+                    display_label=data["display_label"],
+                    coefficient=coefficient,
+                    standard_error=standard_error,
+                    t_statistic=t_statistic,
+                    p_value=p_value,
+                    confidence_interval_low=ci_low,
+                    confidence_interval_high=ci_high,
+                    direction=data["direction"],
+                    economic_magnitude=data["economic_magnitude"],
+                    display_status=data["display_status"],
+                )
+            )
+        if factor_names != list(V1_FACTORS):
+            raise ValueError("results factors must match independent_variables exactly once")
+
+        fit_data = _exact_keys(top["fit_statistics"], _FIT_KEYS, "fit_statistics")
+        r_squared = _number(fit_data["r_squared"], "r_squared")
+        adjusted_r_squared = _number(fit_data["adjusted_r_squared"], "adjusted_r_squared")
+        residual_standard_error = _number(fit_data["residual_standard_error"], "residual_standard_error")
+        f_statistic = _number(fit_data["f_statistic"], "f_statistic")
+        f_p_value = _number(fit_data["f_p_value"], "f_p_value")
+        degrees_of_freedom = fit_data["degrees_of_freedom"]
+        if not 0 <= r_squared <= 1:
+            raise ValueError("r_squared must be between 0 and 1")
+        if adjusted_r_squared > 1:
+            raise ValueError("adjusted_r_squared must be <= 1")
+        if residual_standard_error < 0:
+            raise ValueError("residual_standard_error must be >= 0")
+        if isinstance(degrees_of_freedom, bool) or not isinstance(degrees_of_freedom, int) or degrees_of_freedom <= 0:
+            raise ValueError("degrees_of_freedom must be a positive integer")
+        if not 0 <= f_p_value <= 1:
+            raise ValueError("f_p_value must be between 0 and 1")
+        fit_statistics = RegressionFitStatistics(
+            r_squared=r_squared,
+            adjusted_r_squared=adjusted_r_squared,
+            residual_standard_error=residual_standard_error,
+            degrees_of_freedom=degrees_of_freedom,
+            f_statistic=f_statistic,
+            f_p_value=f_p_value,
         )
-        return artifact
+
+        diagnostics_data = _exact_keys(top["diagnostics"], _DIAGNOSTIC_KEYS, "diagnostics")
+        _validate_finite_tree(diagnostics_data, "diagnostics")
+        if not isinstance(diagnostics_data["warnings"], list) or not all(isinstance(item, str) for item in diagnostics_data["warnings"]):
+            raise ValueError("diagnostics.warnings must be a list of strings")
+        presentation_data = _exact_keys(top["presentation"], _PRESENTATION_KEYS, "presentation")
+        if presentation_data["disclosure"] != MANDATORY_DISCLOSURE:
+            raise ValueError("presentation.disclosure must match mandatory disclosure")
+        if not isinstance(presentation_data["key_exposures"], list) or not all(isinstance(item, str) for item in presentation_data["key_exposures"]):
+            raise ValueError("presentation.key_exposures must be a list of strings")
+
+        visible = {
+            "results": results_data,
+            "warnings": diagnostics_data["warnings"],
+            "presentation": presentation_data,
+        }
+        for text in _visible_strings(visible):
+            for forbidden in FORBIDDEN_WORDS:
+                if forbidden.lower() in text.lower():
+                    if (
+                        text == MANDATORY_DISCLOSURE
+                        and forbidden == "正式預測"
+                    ):
+                        continue
+                    raise ValueError(f"Forbidden word found in user-visible text: {forbidden}")
+
+        if compute_regression_artifact_content_sha256(document) != identity_data["content_sha256"]:
+            raise ValueError("content_sha256 mismatch")
+
+        return cls(
+            schema_version=REGRESSION_ARTIFACT_SCHEMA_VERSION,
+            kind=REGRESSION_ARTIFACT_KIND,
+            identity=RegressionIdentity.from_dict(identity_data),
+            regression_spec=RegressionSpec.from_dict(spec_data),
+            results=results,
+            fit_statistics=fit_statistics,
+            diagnostics=RegressionDiagnostics.from_dict(diagnostics_data),
+            presentation=RegressionPresentation.from_dict(presentation_data),
+        )
 
 
 def serialize_regression_artifact(document: dict[str, Any]) -> bytes:
-    """Serialize artifact dict into canonical UTF-8 JSON bytes."""
     serialized = json.dumps(
         document,
         ensure_ascii=False,
@@ -380,15 +545,12 @@ def serialize_regression_artifact(document: dict[str, Any]) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
-    if len(serialized) > MAX_REGRESSION_ARTIFACT_BYTES:
-        raise ValueError(f"Serialized regression artifact exceeds size limit: {len(serialized)} > {MAX_REGRESSION_ARTIFACT_BYTES}")
+    if not serialized or len(serialized) > MAX_REGRESSION_ARTIFACT_BYTES:
+        raise ValueError("Serialized regression artifact size is outside allowed range")
     return serialized
 
 
 def compute_regression_artifact_content_sha256(document: dict[str, Any]) -> str:
-    """Compute semantic content SHA-256 over canonical bytes with content_sha256=''."""
-    doc_copy = json.loads(json.dumps(document))
-    if "identity" in doc_copy:
-        doc_copy["identity"]["content_sha256"] = ""
-    canonical_bytes = serialize_regression_artifact(doc_copy)
-    return hashlib.sha256(canonical_bytes).hexdigest()
+    doc_copy = json.loads(json.dumps(document, allow_nan=False))
+    doc_copy["identity"]["content_sha256"] = ""
+    return hashlib.sha256(serialize_regression_artifact(doc_copy)).hexdigest()

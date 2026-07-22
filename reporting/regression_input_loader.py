@@ -9,8 +9,10 @@ import re
 from typing import Any
 
 from reporting.regression_input_schema import (
+    HEX_64_RE,
     MAX_REGRESSION_INPUT_DATASET_BYTES,
     RegressionInputDataset,
+    TradingCalendar,
     compute_canonical_rows_sha256,
 )
 
@@ -31,7 +33,7 @@ def get_raw_object_bytes(object_path: str, max_bytes: int = MAX_REGRESSION_INPUT
         if len(data) > max_bytes or len(data) == 0:
             return None
         return data
-    except Exception:
+    except OSError:
         return None
 
 
@@ -39,11 +41,13 @@ def load_regression_input_dataset(
     object_path: str,
     expected_sha256: str,
     max_bytes: int = MAX_REGRESSION_INPUT_DATASET_BYTES,
+    *,
+    trading_calendar: TradingCalendar,
 ) -> RegressionInputDataset | None:
     """Load, verify bytes/SHA, parse, and validate RegressionInputDataset object."""
     if not isinstance(object_path, str) or not INPUT_DATASET_PATH_RE.fullmatch(object_path):
         return None
-    if not isinstance(expected_sha256, str) or len(expected_sha256) != 64:
+    if not isinstance(expected_sha256, str) or HEX_64_RE.fullmatch(expected_sha256) is None:
         return None
     if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or not (1 <= max_bytes <= MAX_REGRESSION_INPUT_DATASET_BYTES):
         return None
@@ -65,11 +69,14 @@ def load_regression_input_dataset(
         document = json.loads(text)
         if not isinstance(document, dict):
             return None
-        dataset = RegressionInputDataset.from_document(document)
+        dataset = RegressionInputDataset.from_document(
+            document,
+            trading_calendar=trading_calendar,
+        )
         expected_rows_sha = dataset.identity.canonical_rows_sha256
         actual_rows_sha = compute_canonical_rows_sha256(document.get("rows", []))
         if not hmac.compare_digest(actual_rows_sha, expected_rows_sha.lower()):
             return None
         return dataset
-    except Exception:
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None

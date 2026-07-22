@@ -1,154 +1,163 @@
-# -*- coding: utf-8 -*-
-"""Tests for RegressionInputDataset schema and canonical serializers."""
+"""Contract tests for RegressionInputDataset parsing and semantic hashes."""
 
+import copy
+import math
 import unittest
+
+from reporting.regression_input_schema import RegressionInputDataset
+from tests.regression_fixtures import (
+    FACTORS,
+    input_rows,
+    make_input_document,
+    rehash_input_document,
+    trading_calendar,
+)
 
 
 class TestRegressionInputSchema(unittest.TestCase):
+    def setUp(self):
+        self.calendar = trading_calendar()
+        self.document = make_input_document(calendar=self.calendar)
 
-    def test_input_dataset_validates_rows_and_hashes(self):
-        from reporting.regression_input_schema import (
-            RegressionInputDataset,
-            serialize_regression_input_dataset,
-            serialize_regression_rows,
-            compute_canonical_rows_sha256,
+    def parse(self, document=None):
+        return RegressionInputDataset.from_document(
+            document or self.document,
+            trading_calendar=self.calendar,
         )
-        doc = {
-            "schema_version": 1,
-            "kind": "absorb-regression-input-dataset",
-            "identity": {
-                "dataset_id": "TW-20260717-input-dataset-v1",
-                "market": "TW",
-                "analysis_scope": "market_level_daily",
-                "source_market_date": "2026-07-17",
-                "first_feature_session": "2025-07-10",
-                "last_feature_session": "2026-07-10",
-                "first_label_end_session": "2025-07-17",
-                "last_label_end_session": "2026-07-17",
-                "first_source_session": "2025-06-10",
-                "last_source_session": "2026-07-17",
-                "lookback_start_session": "2025-06-10",
-                "source_object_count": 1,
-                "aggregate_manifest_object": "quant/v1/manifests/TW-20260717T103000Z-a1b2c3d4e5f6.json",
-                "aggregate_manifest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                "aggregate_manifest_schema_version": 1,
-                "row_count": 1,
-                "calendar_id": "TWSE_TRADING_CALENDAR",
-                "calendar_version": "2026.1",
-                "calendar_sha256": "c1a2b3e4f5d6a789901234567890abcdefc1a2b3e4f5d6a789901234567890ab",
-                "canonical_rows_sha256": "82bf6ef3ebfc26f2fb7072ea63ddff6d31bb9bfbdcf9a5a40b90cfc8cfbdce1a",
-                "code_commit_sha": "da25d594d3b76865da22b891285ac0c85e710d86",
-                "content_sha256": ""
-            },
-            "source_objects": [
-                {
-                    "object": "quant/v1/manifests/TW-20260717T103000Z-a1b2c3d4e5f6.json",
-                    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                    "kind": "absorb-quant-manifest",
-                    "schema_version": 1,
-                    "source_market_date": "2026-07-17"
-                }
-            ],
-            "factor_definitions": [
-                {
-                    "name": "volume_surge_ratio",
-                    "source_object_kind": "twse_market_daily_summary",
-                    "source_field": "total_shares_traded",
-                    "unit": "ratio",
-                    "formula": "Session t total shares traded divided by 20-session arithmetic mean volume",
-                    "lookback_sessions": 20,
-                    "lag_sessions": 0,
-                    "missing_policy": "listwise_deletion",
-                    "winsorization_policy": "1st_99th_percentile_linear_interpolation",
-                    "standardization_policy": "z_score_sample_std_ddof_1"
-                }
-            ],
-            "preprocessing_policy": {
-                "factor_value_stage": "raw",
-                "missing_value_policy": "listwise_deletion",
-                "winsorization_policy": "1st_99th_percentile_linear_interpolation",
-                "standardization_policy": "z_score_sample_std_ddof_1"
-            },
-            "rows": [
-                {
-                    "feature_session": "2025-07-10",
-                    "label_end_session": "2025-07-17",
-                    "taiex_close_t": 22450.15,
-                    "taiex_close_t_plus_5": 22810.40,
-                    "five_session_forward_return": 0.016046663385589028,
-                    "factor_values": {
-                        "volume_surge_ratio": 1.25
-                    }
-                }
-            ]
-        }
-        dataset = RegressionInputDataset.from_document(doc)
-        self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.kind, "absorb-regression-input-dataset")
-        rows_sha = compute_canonical_rows_sha256(doc["rows"])
-        self.assertIsInstance(rows_sha, str)
-        self.assertEqual(len(rows_sha), 64)
-        serialized = serialize_regression_input_dataset(doc)
-        self.assertIsInstance(serialized, bytes)
 
-    def test_non_ascending_sessions_rejected(self):
-        from reporting.regression_input_schema import RegressionInputDataset
-        doc = {
-            "schema_version": 1,
-            "kind": "absorb-regression-input-dataset",
-            "identity": {
-                "dataset_id": "TW-20260717-input-dataset-v1",
-                "market": "TW",
-                "analysis_scope": "market_level_daily",
-                "source_market_date": "2026-07-17",
-                "first_feature_session": "2025-07-10",
-                "last_feature_session": "2026-07-10",
-                "first_label_end_session": "2025-07-17",
-                "last_label_end_session": "2026-07-17",
-                "first_source_session": "2025-06-10",
-                "last_source_session": "2026-07-17",
-                "lookback_start_session": "2025-06-10",
-                "source_object_count": 1,
-                "aggregate_manifest_object": "quant/v1/manifests/TW-20260717T103000Z-a1b2c3d4e5f6.json",
-                "aggregate_manifest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                "aggregate_manifest_schema_version": 1,
-                "row_count": 2,
-                "calendar_id": "TWSE_TRADING_CALENDAR",
-                "calendar_version": "2026.1",
-                "calendar_sha256": "c1a2b3e4f5d6a789901234567890abcdefc1a2b3e4f5d6a789901234567890ab",
-                "canonical_rows_sha256": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
-                "code_commit_sha": "da25d594d3b76865da22b891285ac0c85e710d86",
-                "content_sha256": ""
-            },
-            "source_objects": [],
-            "factor_definitions": [],
-            "preprocessing_policy": {
-                "factor_value_stage": "raw",
-                "missing_value_policy": "listwise_deletion",
-                "winsorization_policy": "1st_99th_percentile_linear_interpolation",
-                "standardization_policy": "z_score_sample_std_ddof_1"
-            },
-            "rows": [
-                {
-                    "feature_session": "2025-07-11",
-                    "label_end_session": "2025-07-18",
-                    "taiex_close_t": 100.0,
-                    "taiex_close_t_plus_5": 105.0,
-                    "five_session_forward_return": 0.05,
-                    "factor_values": {}
-                },
-                {
-                    "feature_session": "2025-07-10",
-                    "label_end_session": "2025-07-17",
-                    "taiex_close_t": 100.0,
-                    "taiex_close_t_plus_5": 105.0,
-                    "five_session_forward_return": 0.05,
-                    "factor_values": {}
-                }
-            ]
+    def test_valid_document_uses_injected_trading_calendar(self):
+        dataset = self.parse()
+        self.assertEqual(dataset.identity.row_count, len(dataset.rows))
+        self.assertEqual(dataset.rows[0].feature_session, "2026-05-01")
+
+    def test_unknown_top_level_key_is_rejected(self):
+        document = copy.deepcopy(self.document)
+        document["unexpected"] = True
+        with self.assertRaisesRegex(ValueError, "top-level keys"):
+            self.parse(document)
+
+    def test_nested_objects_require_exact_keys(self):
+        for path in ("identity", "rows", "factor_definitions", "preprocessing_policy"):
+            with self.subTest(path=path):
+                document = copy.deepcopy(self.document)
+                target = document[path]
+                (target[0] if isinstance(target, list) else target)["unexpected"] = True
+                rehash_input_document(document)
+                with self.assertRaisesRegex(ValueError, "keys"):
+                    self.parse(document)
+
+    def test_identity_formats_counts_and_boundaries_are_enforced(self):
+        invalid_values = {
+            "market": "US",
+            "analysis_scope": "security_level",
+            "source_market_date": "2026-07-32",
+            "source_object_count": 2,
+            "row_count": True,
+            "aggregate_manifest_object": "../manifest.json",
+            "aggregate_manifest_sha256": "A" * 64,
+            "calendar_sha256": "not-a-sha",
+            "code_commit_sha": "d" * 39,
+            "first_feature_session": "2026-05-04",
         }
-        with self.assertRaises(ValueError):
-            RegressionInputDataset.from_document(doc)
+        for field, value in invalid_values.items():
+            with self.subTest(field=field):
+                document = copy.deepcopy(self.document)
+                document["identity"][field] = value
+                rehash_input_document(document)
+                with self.assertRaises((ValueError, TypeError)):
+                    self.parse(document)
+
+    def test_calendar_enforces_real_sessions_and_exact_plus_five_shift(self):
+        calendar = trading_calendar(closed_2026=("2026-05-11",))
+        rows = input_rows(calendar, start="2026-05-08", count=1)
+        self.assertEqual(rows[0]["label_end_session"], "2026-05-18")
+
+        document = make_input_document(
+            calendar=calendar,
+            rows=rows,
+            source_market_date="2026-05-18",
+        )
+        RegressionInputDataset.from_document(document, trading_calendar=calendar)
+
+        document["rows"][0]["label_end_session"] = "2026-05-15"
+        document["identity"]["first_label_end_session"] = "2026-05-15"
+        document["identity"]["last_label_end_session"] = "2026-05-15"
+        rehash_input_document(document)
+        with self.assertRaisesRegex(ValueError, "five trading sessions"):
+            RegressionInputDataset.from_document(document, trading_calendar=calendar)
+
+    def test_row_dates_must_be_sessions_sorted_unique_and_mature(self):
+        cases = []
+
+        weekend = copy.deepcopy(self.document)
+        weekend["rows"][0]["feature_session"] = "2026-05-02"
+        cases.append(("trading session", weekend))
+
+        duplicate = copy.deepcopy(self.document)
+        duplicate["rows"][1]["feature_session"] = duplicate["rows"][0]["feature_session"]
+        cases.append(("strictly", duplicate))
+
+        immature = copy.deepcopy(self.document)
+        immature["identity"]["source_market_date"] = "2026-05-01"
+        cases.append(("source_market_date", immature))
+
+        for message, document in cases:
+            with self.subTest(message=message):
+                rehash_input_document(document)
+                with self.assertRaisesRegex(ValueError, message):
+                    self.parse(document)
+
+    def test_prices_returns_and_factor_values_are_finite_non_bool_and_consistent(self):
+        mutations = (
+            ("taiex_close_t", 0.0),
+            ("taiex_close_t_plus_5", -1.0),
+            ("five_session_forward_return", True),
+            ("five_session_forward_return", math.inf),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field, value=value):
+                document = copy.deepcopy(self.document)
+                document["rows"][0][field] = value
+                if math.isfinite(value) if isinstance(value, float) else True:
+                    rehash_input_document(document)
+                with self.assertRaises((ValueError, TypeError)):
+                    self.parse(document)
+
+        document = copy.deepcopy(self.document)
+        document["rows"][0]["five_session_forward_return"] += 1.1e-6
+        rehash_input_document(document)
+        with self.assertRaisesRegex(ValueError, "forward return"):
+            self.parse(document)
+
+    def test_factor_contract_and_raw_preprocessing_are_exact(self):
+        document = copy.deepcopy(self.document)
+        document["rows"][0]["factor_values"].pop(FACTORS[-1])
+        rehash_input_document(document)
+        with self.assertRaisesRegex(ValueError, "factor"):
+            self.parse(document)
+
+        document = copy.deepcopy(self.document)
+        document["factor_definitions"].pop()
+        rehash_input_document(document)
+        with self.assertRaisesRegex(ValueError, "factor definitions"):
+            self.parse(document)
+
+        document = copy.deepcopy(self.document)
+        document["preprocessing_policy"]["factor_value_stage"] = "winsorized"
+        rehash_input_document(document)
+        with self.assertRaisesRegex(ValueError, "raw"):
+            self.parse(document)
+
+    def test_rows_and_content_hashes_are_recomputed(self):
+        document = copy.deepcopy(self.document)
+        document["rows"][0]["factor_values"][FACTORS[0]] += 0.01
+        with self.assertRaisesRegex(ValueError, "canonical_rows_sha256"):
+            self.parse(document)
+
+        document = copy.deepcopy(self.document)
+        document["identity"]["dataset_id"] += "-tampered"
+        with self.assertRaisesRegex(ValueError, "content_sha256"):
+            self.parse(document)
 
 
 if __name__ == "__main__":

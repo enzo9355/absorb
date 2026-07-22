@@ -11,6 +11,7 @@ from stock_papi.research.regression_deps import (
     get_statsmodels_api,
     get_vif_calculator,
 )
+from reporting.regression_input_schema import V1_FACTORS
 
 FACTOR_DISPLAY_LABELS = {
     "volume_surge_ratio": "成交量異常放大比率",
@@ -23,16 +24,25 @@ def compute_ols_hac_regression(
     dependent_series: list[float],
     factor_matrix: list[list[float]],
     factor_names: list[str],
-    lags: int = 4,
-    confidence_level: float = 0.95,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
     """Compute OLS regression estimates with Newey-West HAC covariance."""
     sm = get_statsmodels_api()
     import numpy as np
 
+    if not 30 <= len(dependent_series) <= 252:
+        raise ValueError("v1 regression requires between 30 and 252 rows")
+    if factor_names != list(V1_FACTORS):
+        raise ValueError("factor_names must be the three v1 factors in contract order")
+    if any(isinstance(value, bool) for value in dependent_series) or any(
+        isinstance(value, bool) for row in factor_matrix for value in row
+    ):
+        raise TypeError("bool is not a valid regression numeric value")
+
     y = np.array(dependent_series, dtype=float)
     X_raw = np.array(factor_matrix, dtype=float)
 
+    if X_raw.ndim != 2 or X_raw.shape[1] != len(factor_names):
+        raise ValueError("factor matrix columns must match factor_names")
     if len(y) != len(X_raw):
         raise ValueError(f"Sample length mismatch: y has {len(y)} rows, X has {len(X_raw)} rows")
 
@@ -40,7 +50,7 @@ def compute_ols_hac_regression(
         raise ValueError("Non-finite values (NaN, Inf) found in dependent or factor matrix")
 
     # Add constant intercept to design matrix
-    X = sm.add_constant(X_raw)
+    X = sm.add_constant(X_raw, has_constant="add")
 
     # Rank check: design matrix full rank requirement
     rank = np.linalg.matrix_rank(X)
@@ -52,7 +62,7 @@ def compute_ols_hac_regression(
     fit_res = model.fit(
         cov_type="HAC",
         cov_kwds={
-            "maxlags": lags,
+            "maxlags": 4,
             "kernel": "bartlett",
             "use_correction": True,
         },
@@ -69,8 +79,7 @@ def compute_ols_hac_regression(
     }
 
     # Calculate 95% confidence intervals
-    alpha = 1.0 - confidence_level
-    conf_int = fit_res.conf_int(alpha=alpha)
+    conf_int = fit_res.conf_int(alpha=0.05)
 
     results = []
     # Intercept is index 0; factor columns are indices 1..k

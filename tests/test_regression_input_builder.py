@@ -1,51 +1,61 @@
-# -*- coding: utf-8 -*-
-"""Tests for regression input dataset builder and production readiness gates."""
+"""Tests for the pure input builder and fail-closed readiness declarations."""
 
 import unittest
+from unittest import mock
+
+from reporting.regression_input_builder import (
+    PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE,
+    PRODUCTION_REGRESSION_INPUT_READY,
+    PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY,
+    AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY,
+    build_regression_input_dataset,
+)
+from reporting.regression_input_schema import RegressionInputDataset
+from tests.regression_fixtures import COMMIT_SHA, SHA_A, input_rows, trading_calendar
 
 
 class TestRegressionInputBuilder(unittest.TestCase):
+    def setUp(self):
+        self.calendar = trading_calendar()
+        self.rows = input_rows(self.calendar)
 
-    def test_production_orchestrator_does_not_build_or_publish_when_readiness_false(self):
-        from reporting.regression_input_builder import (
-            is_production_regression_input_ready,
-            orchestrate_production_regression_input,
-            BUILDER_READINESS_SOURCE_ADAPTER,
-            BUILDER_READINESS_INPUT_READY,
-            BUILDER_READINESS_ARTIFACT_AVAILABLE,
-            BUILDER_READINESS_AGGREGATE_INTERVAL_VALIDATION,
+    def build(self, **overrides):
+        arguments = {
+            "source_market_date": "2026-07-17",
+            "rows": self.rows,
+            "aggregate_manifest_object": "quant/v1/manifests/TW-20260717T103000Z-a1b2c3d4e5f6.json",
+            "aggregate_manifest_sha256": SHA_A,
+            "code_commit_sha": COMMIT_SHA,
+            "trading_calendar": self.calendar,
+            "calendar_sha256": "c" * 64,
+        }
+        arguments.update(overrides)
+        return build_regression_input_dataset(**arguments)
+
+    def test_all_production_readiness_declarations_remain_false(self):
+        self.assertFalse(PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY)
+        self.assertFalse(PRODUCTION_REGRESSION_INPUT_READY)
+        self.assertFalse(PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE)
+        self.assertFalse(AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY)
+
+    def test_pure_builder_constructs_calendar_valid_hashed_dataset(self):
+        document = self.build()
+        dataset = RegressionInputDataset.from_document(
+            document,
+            trading_calendar=self.calendar,
         )
-        self.assertFalse(BUILDER_READINESS_SOURCE_ADAPTER)
-        self.assertFalse(BUILDER_READINESS_INPUT_READY)
-        self.assertFalse(BUILDER_READINESS_ARTIFACT_AVAILABLE)
-        self.assertFalse(BUILDER_READINESS_AGGREGATE_INTERVAL_VALIDATION)
-        self.assertFalse(is_production_regression_input_ready())
+        self.assertEqual(dataset.identity.code_commit_sha, COMMIT_SHA)
+        self.assertLess(dataset.identity.lookback_start_session, dataset.identity.first_feature_session)
+        self.assertEqual(dataset.identity.row_count, len(self.rows))
 
-        res = orchestrate_production_regression_input(metadata={"source_market_date": "2026-07-17"})
-        self.assertIsNone(res)
+    def test_missing_commit_uses_repository_sha_and_fails_closed(self):
+        with mock.patch("reporting.regression_input_builder.git_commit_sha", return_value="e" * 40):
+            document = self.build(code_commit_sha=None)
+        self.assertEqual(document["identity"]["code_commit_sha"], "e" * 40)
 
-    def test_pure_builder_constructs_valid_dataset_from_fixture_rows(self):
-        from reporting.regression_input_builder import build_regression_input_dataset
-        rows = [
-            {
-                "feature_session": "2025-07-10",
-                "label_end_session": "2025-07-17",
-                "taiex_close_t": 22450.15,
-                "taiex_close_t_plus_5": 22810.40,
-                "five_session_forward_return": 0.016046663385589028,
-                "factor_values": {"volume_surge_ratio": 1.25}
-            }
-        ]
-        doc = build_regression_input_dataset(
-            source_market_date="2026-07-17",
-            rows=rows,
-            aggregate_manifest_object="quant/v1/manifests/TW-20260717T103000Z-a1b2c3d4e5f6.json",
-            aggregate_manifest_sha256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            code_commit_sha="da25d594d3b76865da22b891285ac0c85e710d86",
-        )
-        self.assertIsNotNone(doc)
-        self.assertEqual(doc["identity"]["row_count"], 1)
-        self.assertEqual(doc["identity"]["aggregate_manifest_object"], "quant/v1/manifests/TW-20260717T103000Z-a1b2c3d4e5f6.json")
+        with mock.patch("reporting.regression_input_builder.git_commit_sha", return_value="unknown"):
+            with self.assertRaisesRegex(ValueError, "code_commit_sha"):
+                self.build(code_commit_sha=None)
 
 
 if __name__ == "__main__":

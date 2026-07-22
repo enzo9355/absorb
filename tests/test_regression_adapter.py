@@ -1,58 +1,69 @@
-# -*- coding: utf-8 -*-
-"""Tests for OLS factor regression adapter with Newey-West HAC covariance."""
+"""Reference and boundary tests for the fixed v1 OLS/HAC adapter."""
 
 import unittest
 
+import numpy as np
+import statsmodels.api as sm
+
+from reporting.regression_adapter import compute_ols_hac_regression
+from tests.regression_fixtures import FACTORS
+
 
 class TestRegressionAdapter(unittest.TestCase):
+    def setUp(self):
+        rng = np.random.default_rng(42)
+        self.matrix = rng.normal(size=(80, 3))
+        noise = rng.normal(scale=0.01, size=80)
+        self.y = 0.01 + self.matrix @ np.array([0.04, -0.03, 0.02]) + noise
 
-    def test_computes_newey_west_hac_estimates(self):
-        from reporting.regression_adapter import compute_ols_hac_regression
-
-        # Synthetic 100-session dataset with deterministic linear relationship
-        import numpy as np
-        np.random.seed(42)
-        n = 100
-        x1 = np.random.normal(0, 1, n)
-        x2 = np.random.normal(0, 1, n)
-        # y = 0.05 + 0.04*x1 + 0.08*x2 + e
-        e = np.random.normal(0, 0.01, n)
-        y = 0.05 + 0.04 * x1 + 0.08 * x2 + e
-
-        dependent_series = y.tolist()
-        factor_matrix = np.column_stack([x1, x2]).tolist()
-        factor_names = ["volume_surge_ratio", "foreign_net_flow_ratio"]
-
-        fit_stats, results, diag = compute_ols_hac_regression(
-            dependent_series=dependent_series,
-            factor_matrix=factor_matrix,
-            factor_names=factor_names,
-            lags=4,
+    def test_matches_direct_statsmodels_hac_reference_within_1e_5(self):
+        fit_stats, results, diagnostics = compute_ols_hac_regression(
+            dependent_series=self.y.tolist(),
+            factor_matrix=self.matrix.tolist(),
+            factor_names=list(FACTORS),
         )
 
-        self.assertGreater(fit_stats["r_squared"], 0.8)
-        self.assertEqual(len(results), 2)
-        item1 = next(r for r in results if r["factor_name"] == "volume_surge_ratio")
-        self.assertAlmostEqual(item1["coefficient"], 0.04, delta=0.01)
-        self.assertGreater(item1["t_statistic"], 0)
-        self.assertLess(item1["p_value"], 0.05)
-        self.assertIn("multicollinearity", diag)
+        design = sm.add_constant(self.matrix, has_constant="add")
+        reference = sm.OLS(self.y, design).fit(
+            cov_type="HAC",
+            cov_kwds={"maxlags": 4, "kernel": "bartlett", "use_correction": True},
+            use_t=True,
+        )
+        confidence_intervals = reference.conf_int(alpha=0.05)
 
-    def test_rank_deficient_matrix_raises_value_error(self):
-        from reporting.regression_adapter import compute_ols_hac_regression
+        for index, item in enumerate(results, start=1):
+            with self.subTest(factor=item["factor_name"]):
+                self.assertAlmostEqual(item["coefficient"], reference.params[index], places=5)
+                self.assertAlmostEqual(item["standard_error"], reference.bse[index], places=5)
+                self.assertAlmostEqual(item["t_statistic"], reference.tvalues[index], places=5)
+                self.assertAlmostEqual(item["p_value"], reference.pvalues[index], places=5)
+                self.assertAlmostEqual(item["confidence_interval_low"], confidence_intervals[index, 0], places=5)
+                self.assertAlmostEqual(item["confidence_interval_high"], confidence_intervals[index, 1], places=5)
+        self.assertAlmostEqual(fit_stats["r_squared"], reference.rsquared, places=5)
+        self.assertEqual(set(diagnostics["multicollinearity"]["vif_details"]), set(FACTORS))
 
-        # Dependent and collinear factor columns
-        y = [0.01 * i for i in range(50)]
-        x1 = [1.0 * i for i in range(50)]
-        x2 = [2.0 * i for i in range(50)]  # Perfect collinearity with x1
-
-        with self.assertRaises((ValueError, RuntimeError)):
+    def test_fixed_v1_parameters_cannot_be_overridden(self):
+        with self.assertRaises(TypeError):
             compute_ols_hac_regression(
-                dependent_series=y,
-                factor_matrix=[[a, b] for a, b in zip(x1, x2)],
-                factor_names=["x1", "x2"],
-                lags=4,
+                self.y.tolist(), self.matrix.tolist(), list(FACTORS), lags=1
             )
+        with self.assertRaises(TypeError):
+            compute_ols_hac_regression(
+                self.y.tolist(), self.matrix.tolist(), list(FACTORS), confidence_level=0.9
+            )
+
+    def test_rejects_short_malformed_nonfinite_and_rank_deficient_inputs(self):
+        cases = (
+            (self.y[:29].tolist(), self.matrix[:29].tolist(), list(FACTORS)),
+            (self.y.tolist(), self.matrix[:, :2].tolist(), list(FACTORS)),
+            (self.y.tolist(), self.matrix.tolist(), list(FACTORS[:2])),
+            (self.y.tolist(), [[True, *row[1:]] for row in self.matrix.tolist()], list(FACTORS)),
+            (self.y.tolist(), np.column_stack([self.matrix[:, 0], self.matrix[:, 0], self.matrix[:, 2]]).tolist(), list(FACTORS)),
+        )
+        for dependent, matrix, names in cases:
+            with self.subTest(rows=len(dependent), factors=len(names)):
+                with self.assertRaises((ValueError, TypeError)):
+                    compute_ols_hac_regression(dependent, matrix, names)
 
 
 if __name__ == "__main__":

@@ -5,9 +5,11 @@ import datetime
 from typing import Any
 import numpy as np
 
+from reporting import git_commit_sha
 from reporting.regression_adapter import compute_ols_hac_regression
-from reporting.regression_input_schema import RegressionInputDataset
+from reporting.regression_input_schema import HEX_40_RE, RegressionInputDataset, TradingCalendar, V1_FACTORS
 from reporting.regression_schema import (
+    INPUT_DATASET_OBJECT_RE,
     RegressionResearchArtifact,
     compute_regression_artifact_content_sha256,
 )
@@ -41,22 +43,57 @@ def build_regression_research_artifact(
     source_market_date: str,
     applicable_trading_date: str,
     generator_version: str = "1.0.0",
-    code_commit_sha: str = "da25d594d3b76865da22b891285ac0c85e710d86",
+    generated_at: str | None = None,
+    code_commit_sha: str | None = None,
+    trading_calendar: TradingCalendar | None = None,
 ) -> dict[str, Any] | None:
     """Pure builder function constructing a RegressionResearchArtifact dict from a verified input dataset."""
+    if trading_calendar is None:
+        raise ValueError("trading_calendar is required")
     if isinstance(input_dataset, RegressionInputDataset):
-        dataset_obj = input_dataset
-        ds_doc = dataset_obj.to_document()
+        ds_doc = input_dataset.to_document()
     else:
         ds_doc = input_dataset
-        dataset_obj = RegressionInputDataset.from_document(ds_doc)
+    dataset_obj = RegressionInputDataset.from_document(
+        ds_doc,
+        trading_calendar=trading_calendar,
+    )
+
+    if dataset_obj.identity.source_market_date != source_market_date:
+        raise ValueError("source_market_date must match input dataset identity")
+    source_date = datetime.date.fromisoformat(source_market_date)
+    applicable_date = datetime.date.fromisoformat(applicable_trading_date)
+    if (
+        not trading_calendar.is_session(source_date)
+        or not trading_calendar.is_session(applicable_date)
+        or trading_calendar.session_offset(source_date, 1) != applicable_date
+    ):
+        raise ValueError("applicable_trading_date must be the next trading session")
+    path_match = INPUT_DATASET_OBJECT_RE.fullmatch(input_dataset_object_path)
+    if path_match is None or path_match.group(1) != input_dataset_object_sha256:
+        raise ValueError("input dataset object path must bind its SHA256")
+
+    resolved_commit_sha = (code_commit_sha or git_commit_sha()).lower()
+    if HEX_40_RE.fullmatch(resolved_commit_sha) is None:
+        raise ValueError("code_commit_sha must be lowercase 40-hex")
 
     rows = ds_doc.get("rows", [])
     if not rows:
         return None
 
-    # Step 1 & 2: Select mature sessions (label_end_session <= source_market_date)
-    mature_rows = [r for r in rows if r["label_end_session"] <= source_market_date]
+    # Recheck every PIT boundary with the same verified calendar used by the input schema.
+    mature_rows = []
+    for row in rows:
+        feature_date = datetime.date.fromisoformat(row["feature_session"])
+        label_date = datetime.date.fromisoformat(row["label_end_session"])
+        if (
+            not trading_calendar.is_session(feature_date)
+            or not trading_calendar.is_session(label_date)
+            or trading_calendar.session_offset(feature_date, 5) != label_date
+        ):
+            raise ValueError("invalid trading-calendar PIT row")
+        if label_date <= source_date:
+            mature_rows.append(row)
     if len(mature_rows) < 30:
         # Sample count < 30 returns None or hard failure
         return None
@@ -65,7 +102,7 @@ def build_regression_research_artifact(
     mature_rows = mature_rows[-252:]
 
     # Step 3: Listwise deletion
-    factor_names = ["volume_surge_ratio", "foreign_net_flow_ratio", "volatility_20d"]
+    factor_names = list(V1_FACTORS)
     valid_rows = []
     for r in mature_rows:
         fv = r.get("factor_values", {})
@@ -89,15 +126,11 @@ def build_regression_research_artifact(
     factor_matrix = np.column_stack(X_processed).tolist()
 
     # Step 6 & 7: OLS & Newey-West HAC
-    try:
-        fit_stats, results, diagnostics = compute_ols_hac_regression(
-            dependent_series=y_raw.tolist(),
-            factor_matrix=factor_matrix,
-            factor_names=factor_names,
-            lags=4,
-        )
-    except Exception:
-        return None
+    fit_stats, results, diagnostics = compute_ols_hac_regression(
+        dependent_series=y_raw.tolist(),
+        factor_matrix=factor_matrix,
+        factor_names=factor_names,
+    )
 
     # Validation Engine
     summary_status, failure_reason, validation_warnings = validate_regression_diagnostics(
@@ -116,7 +149,7 @@ def build_regression_research_artifact(
     first_label_end = valid_rows[0]["label_end_session"]
     last_label_end = valid_rows[-1]["label_end_session"]
 
-    gen_time = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    gen_time = generated_at or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     artifact_doc = {
         "schema_version": 1,
@@ -133,7 +166,7 @@ def build_regression_research_artifact(
             "input_dataset_sha256": input_dataset_object_sha256,
             "input_dataset_content_sha256": dataset_obj.identity.content_sha256,
             "input_dataset_rows_sha256": dataset_obj.identity.canonical_rows_sha256,
-            "code_commit_sha": code_commit_sha,
+            "code_commit_sha": resolved_commit_sha,
             "generator_version": generator_version,
             "content_sha256": "",
             "regression_spec_version": "1.0",

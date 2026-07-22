@@ -2,9 +2,11 @@
 """Data lineage, Point-In-Time (PIT) safety, and factor preprocessing tests."""
 
 import unittest
+import datetime as dt
 import numpy as np
 
 from reporting.regression_builder import winsorize_1_99, z_score_standardize
+from tests.regression_fixtures import trading_calendar
 
 
 class TestRegressionLineage(unittest.TestCase):
@@ -29,15 +31,14 @@ class TestRegressionLineage(unittest.TestCase):
         self.assertAlmostEqual(float(np.mean(z_arr)), expected_mean, places=6)
         self.assertAlmostEqual(float(np.std(z_arr, ddof=1)), expected_std, places=6)
 
-    def test_pit_calendar_shift_excludes_future_labels(self):
-        source_market_date = "2026-07-17"
-        rows = [
-            {"feature_session": "2026-07-10", "label_end_session": "2026-07-17"},  # Mature: label_end_session <= source_market_date
-            {"feature_session": "2026-07-15", "label_end_session": "2026-07-22"},  # Immature: label_end_session > source_market_date
-        ]
-        mature_rows = [r for r in rows if r["label_end_session"] <= source_market_date]
-        self.assertEqual(len(mature_rows), 1)
-        self.assertEqual(mature_rows[0]["feature_session"], "2026-07-10")
+    def test_real_calendar_shift_counts_five_sessions_across_weekend(self):
+        calendar = trading_calendar()
+        self.assertEqual(
+            calendar.session_offset(dt.date(2026, 7, 10), 5).isoformat(),
+            "2026-07-17",
+        )
+        self.assertFalse(calendar.is_session(dt.date(2026, 7, 11)))
+        self.assertFalse(calendar.is_session(dt.date(2026, 7, 12)))
 
 
 if __name__ == "__main__":
