@@ -16,7 +16,7 @@
   - NO LightGBM training or SHAP execution.
   - NO probability, win rate, or trading signal generation.
   - NO prediction capability gate modifications (gates remain BLOCKED / UNAVAILABLE).
-  - NO sample or mock data generation in production builders.
+  - NO sample or mock data generation in production builders (`production_regression_input_ready = false`).
   - NO Cloud Run deployment, Production GCS updates, backfills, or LINE notifications.
   - NO Task D execution.
 
@@ -39,47 +39,78 @@
 
 ---
 
-### Task B: Input Dataset Lineage & Point-in-Time Session Contract
-- **Goal**: Implement `RegressionInputDataset` schema validation and point-in-time session boundary validator enforcing `first_feature_session`, `last_feature_session`, `first_label_end_session`, `last_label_end_session`, `label_horizon_sessions = 5` with calendar-based trading session alignment (`feature_session_t < label_end_session_t <= source_market_date`).
+### Task B1: Self-Contained RegressionInputDataset Schema & Hash Serializers
+- **Goal**: Define `RegressionInputDataset`, `RegressionInputRow`, and factor definition schemas with canonical serializers `serialize_regression_input_dataset()` and `serialize_regression_rows()`.
 - **Exact Files**:
-  - `[NEW] reporting/regression_pit.py`
-  - `[NEW] tests/test_regression_pit.py`
-- **RED Test**: `tests/test_regression_pit.py::test_label_end_session_exceeding_source_market_date_fails`
-- **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_pit'`
-- **Minimal Implementation**: `validate_point_in_time_bounds()` and `RegressionInputDataset.from_document()` returning `is_valid: bool` and error reason. Rejects future look-ahead label leakage, network fallbacks, and unhashed local CSVs.
-- **Focused Command**: `python -m unittest tests.test_regression_pit -v`
-- **Acceptance Criteria**: Validates trading calendar session bounds and rejects any dataset where label end session extends past source market date.
-- **Commit Message**: `feat(reporting): implement regression input dataset lineage and PIT validator`
-- **Rollback Boundary**: Delete `reporting/regression_pit.py` and `tests/test_regression_pit.py`.
+  - `[NEW] reporting/regression_input_schema.py`
+  - `[NEW] tests/test_regression_input_schema.py`
+- **RED Test**: `tests/test_regression_input_schema.py::test_input_dataset_validates_rows_and_hashes`
+- **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_input_schema'`
+- **Minimal Implementation**: Implements `RegressionInputDataset.from_document()` validating `row_count == len(rows)`, ascending `feature_session` order, exact factor column keys, finite float values, and `canonical_rows_sha256` verification.
+- **Focused Command**: `python -m unittest tests.test_regression_input_schema -v`
+- **Acceptance Criteria**: Validates 252-row matrix schema, computes `canonical_rows_sha256` and `content_sha256`, and rejects duplicate sessions or non-finite values.
+- **Commit Message**: `feat(reporting): define self-contained regression input dataset schema and row serializers`
+- **Rollback Boundary**: Delete `reporting/regression_input_schema.py` and `tests/test_regression_input_schema.py`.
 
 ---
 
-### Task C: Dependency Manifest & Cold-Start Guard Test
-- **Goal**: Update `requirements-report.txt` with `statsmodels` version constraint, create `stock_papi/research/regression_deps.py`, and build cold-start guard test verifying heavy econometric libraries (`statsmodels`) are NEVER imported at top level of `stock_papi.application`, HTTP routes, or Cloud Run cold-start paths.
+### Task B2: Offline Input Dataset Loader & Validation
+- **Goal**: Build `load_regression_input_dataset(object_path, expected_sha256, max_bytes=MAX_REGRESSION_INPUT_DATASET_BYTES)` loader for fetching and verifying raw dataset bytes against size limit `MAX_REGRESSION_INPUT_DATASET_BYTES = 5_000_000` (5MB).
+- **Exact Files**:
+  - `[NEW] reporting/regression_input_loader.py`
+  - `[NEW] tests/test_regression_input_loader.py`
+- **RED Test**: `tests/test_regression_input_loader.py::test_load_regression_input_dataset_validates_bytes_and_sha`
+- **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_input_loader'`
+- **Minimal Implementation**: Implements raw bytes fetch, size check `<= 5MB`, `object_sha256` hash verification, UTF-8 decode, JSON parse, schema validation, and `canonical_rows_sha256` cross-check.
+- **Focused Command**: `python -m unittest tests.test_regression_input_loader -v`
+- **Acceptance Criteria**: Loader verifies dataset bytes, path regex `^objects/regression-input/[0-9a-f]{64}\.json$`, and returns parsed `RegressionInputDataset`.
+- **Commit Message**: `feat(reporting): implement offline regression input dataset raw bytes loader`
+- **Rollback Boundary**: Delete `reporting/regression_input_loader.py` and `tests/test_regression_input_loader.py`.
+
+---
+
+### Task B3: Input Dataset Builder & Publisher Readiness
+- **Goal**: Build `build_regression_input_dataset()` and publisher module, ensuring `production_regression_input_ready = false` in Task C v1 if source objects are incomplete (builder returns `None` and does NOT publish partial/mock datasets).
+- **Exact Files**:
+  - `[NEW] reporting/regression_input_builder.py`
+  - `[NEW] tests/test_regression_input_builder.py`
+- **RED Test**: `tests/test_regression_input_builder.py::test_builder_returns_none_when_input_sources_incomplete`
+- **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_input_builder'`
+- **Minimal Implementation**: Orchestrates input row aggregation from verified source manifests. Returns `None` when sources are missing or incomplete.
+- **Focused Command**: `python -m unittest tests.test_regression_input_builder -v`
+- **Acceptance Criteria**: Builder constructs valid input dataset when sources exist, or returns `None` without generating mock data.
+- **Commit Message**: `feat(reporting): implement regression input dataset builder and readiness checks`
+- **Rollback Boundary**: Delete `reporting/regression_input_builder.py` and `tests/test_regression_input_builder.py`.
+
+---
+
+### Task C: Dependency Manifest, Install Script & Cold-Start Guard Test
+- **Goal**: Update `requirements-report.txt` with `statsmodels>=0.14.4,<0.15.0`, create `scripts/install_report_runtime.ps1`, create `stock_papi/research/regression_deps.py`, and build cold-start guard test verifying heavy econometric libraries (`statsmodels`) are NEVER imported at top level of `stock_papi.application`, HTTP routes, or Cloud Run cold-start paths.
 - **Exact Files**:
   - `[MODIFY] requirements-report.txt`
+  - `[NEW] scripts/install_report_runtime.ps1`
   - `[NEW] stock_papi/research/regression_deps.py`
   - `[NEW] tests/test_cold_start_imports.py`
-- **RED Test**: `tests/test_cold_start_imports.py::test_statsmodels_not_imported_on_application_import`
-- **Expected Failure**: Assert `sys.modules` does not contain `statsmodels` when `import stock_papi.application` executes.
-- **Minimal Implementation**: Update `requirements-report.txt` with `statsmodels>=0.14.0,<0.15.0`. Implement lazy import wrapper inside `stock_papi/research/regression_deps.py` loading `statsmodels` exclusively inside function scope.
+- **Test Type**: Architecture Guard / Characterization Test
+- **Expected Result**: Pass before and after implementation.
+- **Minimal Implementation**: Update `requirements-report.txt` with `statsmodels>=0.14.4,<0.15.0`. Create `scripts/install_report_runtime.ps1` for Windows Scheduler runtime installation. Implement lazy import wrapper inside `stock_papi/research/regression_deps.py` loading `statsmodels` exclusively inside function scope.
 - **Focused Command**: `python -m unittest tests.test_cold_start_imports -v`
 - **Acceptance Criteria**: `stock_papi.application` and `stock_papi.web.routes.reports` can be imported without loading `statsmodels` into `sys.modules`.
 - **Commit Message**: `test(architecture): enforce cold start top level import isolation for statsmodels`
-- **Rollback Boundary**: `git checkout origin/main -- requirements-report.txt` and delete `stock_papi/research/regression_deps.py`, `tests/test_cold_start_imports.py`.
+- **Rollback Boundary**: `git checkout origin/main -- requirements-report.txt` and delete `scripts/install_report_runtime.ps1`, `stock_papi/research/regression_deps.py`, `tests/test_cold_start_imports.py`.
 
 ---
 
 ### Task D: OLS & Newey-West HAC Covariance Adapter
-- **Goal**: Build `compute_ols_hac_regression(dependent_series, factor_matrix, lags=4)` using `statsmodels` inside offline research module to compute OLS estimates, Newey-West HAC robust standard errors (`hac_max_lags = 4`), t-statistics, p-values, and 95% confidence intervals for `five_session_forward_return`.
+- **Goal**: Build `compute_ols_hac_regression(dependent_series, factor_matrix, lags=4)` using `statsmodels` inside offline research module to compute OLS estimates with Newey-West HAC robust covariance (`cov_type="HAC"`, `maxlags=4`, `kernel="bartlett"`, `use_correction=True`, `use_t=True`) for `five_session_forward_return`.
 - **Exact Files**:
   - `[NEW] reporting/regression_adapter.py`
   - `[NEW] tests/test_regression_adapter.py`
 - **RED Test**: `tests/test_regression_adapter.py::test_computes_newey_west_hac_estimates`
 - **Expected Failure**: `ModuleNotFoundError: No module named 'reporting.regression_adapter'`
-- **Minimal Implementation**: Calculates OLS estimates with Newey-West HAC covariance matrix adjustment for overlapping 5-session forward return series.
+- **Minimal Implementation**: Calculates OLS estimates with exact Newey-West HAC parameters for overlapping 5-session forward return series.
 - **Focused Command**: `python -m unittest tests.test_regression_adapter -v`
-- **Acceptance Criteria**: Estimates match reference HAC standard errors, t-statistics, and confidence intervals.
+- **Acceptance Criteria**: Estimates match reference HAC standard errors, t-statistics, and 95% confidence intervals within tolerance $10^{-5}$.
 - **Commit Message**: `feat(reporting): implement OLS factor regression adapter with Newey-West HAC covariance`
 - **Rollback Boundary**: Delete `reporting/regression_adapter.py` and `tests/test_regression_adapter.py`.
 
@@ -101,7 +132,7 @@
 ---
 
 ### Task F: Regression Artifact Builder
-- **Goal**: Build `build_regression_research_artifact(...)` orchestrator to generate content-addressed `RegressionResearchArtifact` documents from verified `RegressionInputDataset` manifests. Returns `None` if input dataset is absent (never generates mock data).
+- **Goal**: Build `build_regression_research_artifact(...)` orchestrator to generate content-addressed `RegressionResearchArtifact` documents from verified `RegressionInputDataset` objects. Returns `None` if input dataset is absent (never generates mock data).
 - **Exact Files**:
   - `[NEW] reporting/regression_builder.py`
   - `[NEW] tests/test_regression_builder.py`
@@ -234,13 +265,13 @@
 
 ---
 
-### Task O: Pre-market, Notification & PDF Non-regression Tests
+### Task O: Pre-market, Notification & PDF Non-regression Guard Tests
 - **Goal**: Verify pre-market core lineage (`content.core`), notification date semantics, and PDF generator remain 100% unaffected by regression explainer updates.
 - **Exact Files**:
   - `[MODIFY] tests/test_pre_market_pipeline.py`
   - `[MODIFY] tests/test_report_notification_dates.py`
-- **RED Test**: Run existing tests and verify zero regressions.
-- **Expected Failure**: N/A (Non-regression assertion).
+- **Test Type**: Architecture Guard / Non-Regression Guard Test
+- **Expected Result**: Pass before and after implementation.
 - **Minimal Implementation**: Ensures pre-market raw core lineage remains untouched and post-close notification URLs continue using `source_market_date`.
 - **Focused Command**: `python -m unittest tests.test_pre_market_pipeline tests.test_report_notification_dates -v`
 - **Acceptance Criteria**: All 100% of pre-market and notification tests pass cleanly with zero regressions.
@@ -249,12 +280,12 @@
 
 ---
 
-### Task P: Cold-start, Secret & Sample-Data Scans
+### Task P: Cold-start, Secret & Sample-Data Guard Scans
 - **Goal**: Execute security and code hygiene scans asserting zero secrets, zero legacy persona references, zero sample data leaks, and zero statsmodels top-level imports in web paths.
 - **Exact Files**:
   - `[MODIFY] tests/test_absorb_security.py`
-- **RED Test**: `tests/test_absorb_security.py::test_no_statsmodels_import_in_web_routes`
-- **Expected Failure**: Test asserts web routes do not import statsmodels.
+- **Test Type**: Security Guard Test
+- **Expected Result**: Pass before and after implementation.
 - **Minimal Implementation**: Scans codebase AST for forbidden top-level imports and hardcoded credentials.
 - **Focused Command**: `python -m unittest tests.test_absorb_security -v`
 - **Acceptance Criteria**: All security and import isolation checks pass.
@@ -270,7 +301,7 @@
   - `python -m compileall reporting stock_papi tests`
   - `node --check static/app.js`
   - `git diff --check`
-- **Commit Message**: `docs: close regression input lineage and execution contracts`
+- **Commit Message**: `docs: finalize regression input dataset reproducibility contract`
 - **Acceptance Criteria**: All 717+ unit tests pass, zero compile errors, zero git diff formatting warnings.
 - **Rollback Boundary**: N/A.
 
