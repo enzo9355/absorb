@@ -69,6 +69,7 @@ class ReportMetadataV2:
         observation_end = None
         prediction_capability = None
         professional_report = None
+        regression_research = None
         if product_mode == "observation":
             try:
                 observation_start = datetime.date.fromisoformat(
