@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from typing import Any
 
 from .professional_schema import ProfessionalPostCloseReport, compute_content_sha256
+from .regression_schema import RegressionResearchArtifact
 from .schemas import ReportMetadataV2
 
 
@@ -99,3 +101,83 @@ def validate_professional_report_binding(
             raise ValueError("pointer generator_version does not match report identity generator_version")
         if ptr_commit_sha is not None and ptr_commit_sha != identity.code_commit_sha:
             raise ValueError("pointer code_commit_sha does not match report identity code_commit_sha")
+
+
+def validate_regression_research_binding(
+    *,
+    metadata: ReportMetadataV2 | dict[str, Any],
+    professional_report: ProfessionalPostCloseReport | dict[str, Any],
+    pointer: dict[str, Any],
+    regression_artifact: RegressionResearchArtifact | dict[str, Any],
+) -> None:
+    """Bind an optional regression artifact to metadata and canonical report lineage."""
+    meta_obj = (
+        metadata
+        if isinstance(metadata, ReportMetadataV2)
+        else ReportMetadataV2.from_document(metadata)
+    )
+    report_obj = (
+        professional_report
+        if isinstance(professional_report, ProfessionalPostCloseReport)
+        else ProfessionalPostCloseReport.from_document(professional_report)
+    )
+    if isinstance(regression_artifact, RegressionResearchArtifact):
+        artifact_obj = regression_artifact
+    else:
+        artifact_obj = RegressionResearchArtifact.from_document(regression_artifact)
+    if not isinstance(pointer, dict):
+        raise ValueError("regression pointer must be a dict")
+
+    if meta_obj.report_type != "post_close" or meta_obj.product_mode != "observation":
+        raise ValueError("regression metadata must be post_close observation mode")
+    report_identity = report_obj.identity
+    artifact_identity = artifact_obj.identity
+    if report_identity.product_mode != "observation_with_research":
+        raise ValueError("professional report product_mode is invalid")
+
+    for label, actual, expected in (
+        ("metadata source_market_date", meta_obj.source_market_date.isoformat(), artifact_identity.source_market_date),
+        ("metadata applicable_trading_date", meta_obj.applicable_trading_date.isoformat(), artifact_identity.applicable_trading_date),
+        ("metadata source_manifest", meta_obj.source_manifest, artifact_identity.source_manifest),
+        ("metadata source_manifest_sha256", meta_obj.source_manifest_sha256, artifact_identity.source_manifest_sha256),
+        ("report source_market_date", report_identity.source_market_date.isoformat(), artifact_identity.source_market_date),
+        ("report applicable_trading_date", report_identity.applicable_trading_date.isoformat(), artifact_identity.applicable_trading_date),
+        ("report source_manifest", report_identity.source_manifest, artifact_identity.source_manifest),
+        ("report source_manifest_sha256", report_identity.source_manifest_sha256, artifact_identity.source_manifest_sha256),
+    ):
+        if actual != expected:
+            raise ValueError(f"{label} mismatch")
+
+    object_sha256 = pointer.get("sha256")
+    if not isinstance(object_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", object_sha256) is None:
+        raise ValueError("regression pointer sha256 is invalid")
+    expected_pointer = {
+        "object": f"objects/regression/{object_sha256}.json",
+        "sha256": object_sha256,
+        "content_sha256": artifact_identity.content_sha256,
+        "schema_version": 1,
+        "generator_version": artifact_identity.generator_version,
+        "code_commit_sha": artifact_identity.code_commit_sha,
+    }
+    if pointer != expected_pointer:
+        raise ValueError("regression pointer does not bind exact artifact identity")
+    if meta_obj.regression_research != expected_pointer:
+        raise ValueError("metadata regression_research does not match pointer")
+
+    input_sha = artifact_identity.input_dataset_sha256
+    if artifact_identity.input_dataset_object != f"objects/regression-input/{input_sha}.json":
+        raise ValueError("input dataset object path does not bind object SHA")
+
+    reference = report_obj.quantitative_research.data.get("regression_reference")
+    expected_status = (
+        "available_with_limited_sample_warning"
+        if artifact_obj.regression_spec.sample_count < 60
+        else "available"
+    )
+    expected_reference = {
+        "object_sha256": object_sha256,
+        "content_sha256": artifact_identity.content_sha256,
+        "summary_status": expected_status,
+    }
+    if report_obj.quantitative_research.status != "available" or reference != expected_reference:
+        raise ValueError("professional quantitative_research regression_reference mismatch")
