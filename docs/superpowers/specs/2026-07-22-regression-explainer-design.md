@@ -121,8 +121,8 @@ MAX_REGRESSION_ARTIFACT_BYTES: int = 2_000_000  # 2MB strict size limit
 ```
 
 ### Hash Definitions:
-- `object_sha256`: SHA-256 hex digest computed over the exact canonical UTF-8 JSON bytes written to storage (`json.dumps(..., sort_keys=True, separators=(',', ':'))`).
-- `content_sha256`: Semantic content SHA-256 hex digest computed over canonical JSON bytes with `identity.content_sha256` set to `""`.
+- `object_sha256`: SHA-256 hex digest computed over the exact canonical UTF-8 JSON bytes written to storage (`json.dumps(..., sort_keys=True, separators=(',', ':'))`). `object_sha256` serves as the content-addressed file key `objects/regression/<object_sha256>.json` and metadata pointer attribute `sha256`. It is NOT embedded inside `identity` to prevent circular hash dependencies.
+- `content_sha256`: Semantic content SHA-256 hex digest stored in `identity.content_sha256`. Computed over canonical JSON bytes with `identity.content_sha256` set to `""`.
 
 ### JSON Structure:
 ```json
@@ -141,7 +141,6 @@ MAX_REGRESSION_ARTIFACT_BYTES: int = 2_000_000  # 2MB strict size limit
     "code_commit_sha": "da25d594d3b76865da22b891285ac0c85e710d86",
     "generator_version": "1.0.0",
     "content_sha256": "a1b2c3d4...64hex",
-    "object_sha256": "b2c3d4e5...64hex",
     "regression_spec_version": "1.0"
   },
   "regression_spec": {
