@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from typing import Any, Mapping
 
 from .professional_schema import ProfessionalPostCloseReport, compute_content_sha256
@@ -144,6 +145,22 @@ def _build_next_session(market: Mapping[str, Any], source_date: str) -> dict[str
         },
     }
 
+ALLOWED_CAPITAL_FLOWS_KEYS = frozenset(
+    {"as_of", "unit", "foreign_net", "investment_trust_net", "dealer_net"}
+)
+
+
+def _validate_flow_value(val: Any) -> tuple[bool, float | None]:
+    if val is None:
+        return True, None
+    if isinstance(val, bool) or not isinstance(val, (int, float)):
+        return False, None
+    f = float(val)
+    if not math.isfinite(f):
+        return False, None
+    return True, f
+
+
 def _build_capital_flows(data: Any, source_date: str) -> dict[str, Any]:
     if not isinstance(data, dict) or not data:
         return {
@@ -151,14 +168,21 @@ def _build_capital_flows(data: Any, source_date: str) -> dict[str, Any]:
             "reason": "法人流向尚未納入目前的已驗證 Observation Artifact",
             "data": {},
         }
-    
+
+    if not set(data.keys()).issubset(ALLOWED_CAPITAL_FLOWS_KEYS):
+        return {
+            "status": "unavailable",
+            "reason": "法人流向鍵值包含未授權屬性",
+            "data": {},
+        }
+
     if data.get("as_of") != source_date:
         return {
             "status": "unavailable",
             "reason": "法人流向日期與報告基準日不符",
             "data": {},
         }
-    
+
     if data.get("unit") != "TWD_million":
         return {
             "status": "unavailable",
@@ -166,23 +190,23 @@ def _build_capital_flows(data: Any, source_date: str) -> dict[str, Any]:
             "data": {},
         }
 
-    foreign_net = data.get("foreign_net")
-    investment_trust_net = data.get("investment_trust_net")
-    dealer_net = data.get("dealer_net")
+    net_flow_keys = ("foreign_net", "investment_trust_net", "dealer_net")
+    validated_flows = {}
+    valid_count = 0
 
-    import math
+    for key in net_flow_keys:
+        is_valid, parsed_val = _validate_flow_value(data.get(key))
+        if not is_valid:
+            return {
+                "status": "unavailable",
+                "reason": "法人流向數值包含非法格式或非有限數值",
+                "data": {},
+            }
+        validated_flows[key] = parsed_val
+        if parsed_val is not None:
+            valid_count += 1
 
-    def validate_finite(val: Any) -> float | None:
-        if isinstance(val, bool) or type(val) not in (int, float):
-            return None
-        f = float(val)
-        return f if math.isfinite(f) else None
-
-    f_val = validate_finite(foreign_net)
-    it_val = validate_finite(investment_trust_net)
-    d_val = validate_finite(dealer_net)
-
-    if f_val is None and it_val is None and d_val is None:
+    if valid_count == 0:
         return {
             "status": "unavailable",
             "reason": "缺乏有效的法人流向數值",
@@ -196,9 +220,9 @@ def _build_capital_flows(data: Any, source_date: str) -> dict[str, Any]:
             "schema_version": 1,
             "as_of": source_date,
             "unit": "TWD_million",
-            "foreign_net": f_val,
-            "investment_trust_net": it_val,
-            "dealer_net": d_val,
+            "foreign_net": validated_flows["foreign_net"],
+            "investment_trust_net": validated_flows["investment_trust_net"],
+            "dealer_net": validated_flows["dealer_net"],
         },
     }
 
@@ -281,6 +305,7 @@ def build_professional_post_close_artifact(
     risk_observations = []
     high_anomaly_observations = []
     uncategorized_event_count = 0
+    invalid_event_count = 0
 
     for e in stock_events:
         if not isinstance(e, dict):
@@ -291,15 +316,18 @@ def build_professional_post_close_artifact(
             uncategorized_event_count += 1
             continue
         
+        severity = e.get("severity")
+        if severity not in SEVERITIES:
+            invalid_event_count += 1
+            continue
+
         ev = copy.deepcopy(e)
-        if ev.get("severity") not in SEVERITIES:
-            ev["severity"] = policy["severity"]
-        
+
         if policy["category"] == "positive":
             positive_observations.append(ev)
         elif policy["category"] == "risk":
             risk_observations.append(ev)
-        
+
         if ev.get("severity") == "high":
             high_anomaly_observations.append(ev)
 
@@ -359,6 +387,7 @@ def build_professional_post_close_artifact(
                 "risk_observations": risk_observations,
                 "high_anomaly_observations": high_anomaly_observations,
                 "uncategorized_event_count": uncategorized_event_count,
+                "invalid_event_count": invalid_event_count,
             },
         },
         "quantitative_research": {

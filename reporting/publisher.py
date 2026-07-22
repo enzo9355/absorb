@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from . import REPORT_GENERATOR_VERSION, REPORT_SCHEMA_VERSION, git_commit_sha
-from .config import ReportConfig
+from .config import MAX_CANONICAL_REPORT_BYTES, ReportConfig
 from .exceptions import ReportPublishError
 from .public_report import build_public_report
+from .professional_binding import validate_professional_report_binding
+from .professional_schema import ProfessionalPostCloseReport, compute_content_sha256
 from .schemas import (
     DailyIndustryReport,
     LoadedReportSource,
@@ -69,7 +71,7 @@ def publish_report_v2(
     pdf_path: Path | None = None,
     page_count: int | None = None,
     config: ReportConfig | None = None,
-    professional_report: Any = None,
+    professional_report: ProfessionalPostCloseReport | None = None,
 ) -> Path:
     """發布 v2 post-close、pre-market 或 weekly report；latest 永遠最後寫。"""
     settings = config or ReportConfig(root=Path(root))
@@ -106,31 +108,59 @@ def publish_report_v2(
         _json_bytes(document["content"])
     ).hexdigest()
     
-    # 3. 處理 Canonical Report (ProfessionalPostCloseReport)
+    newly_created_canonical_path: Path | None = None
+    newly_created_metadata_path: Path | None = None
+
+    # 3. Process Canonical Report (ProfessionalPostCloseReport)
     if professional_report is not None:
         try:
-            canonical_doc = professional_report.to_document()
+            if not isinstance(professional_report, ProfessionalPostCloseReport):
+                raise TypeError("professional_report must be ProfessionalPostCloseReport")
+
+            canonical_obj = professional_report
+            validate_professional_report_binding(metadata=schema, report=canonical_obj)
+            canonical_doc = canonical_obj.to_document()
+            recalc_sha = compute_content_sha256(canonical_doc)
+            if canonical_doc["identity"]["content_sha256"] != recalc_sha:
+                raise ValueError("canonical report content_sha256 mismatch")
             canonical_bytes = _json_bytes(canonical_doc)
+            if not 0 < len(canonical_bytes) <= MAX_CANONICAL_REPORT_BYTES:
+                raise ReportPublishError("canonical report object size invalid")
             canonical_sha = hashlib.sha256(canonical_bytes).hexdigest()
+        except ReportPublishError:
+            raise
         except Exception as exc:
-            raise ReportPublishError("failed to serialize canonical report") from exc
-        
+            raise ReportPublishError("failed to process canonical report") from exc
+
         canonical_relative = f"objects/canonical/{canonical_sha}.json"
         canonical_path = publish / canonical_relative
-        
-        # 4. 寫入 Canonical Object 並驗證
+
+        # 4. Write Canonical Object and verify
         if canonical_path.exists():
             if canonical_path.read_bytes() != canonical_bytes:
                 raise ReportPublishError("immutable canonical object conflict")
         else:
-            _write_atomic(canonical_path, canonical_bytes)
             try:
-                if hashlib.sha256(canonical_path.read_bytes()).hexdigest() != canonical_sha:
+                _write_atomic(canonical_path, canonical_bytes)
+                newly_created_canonical_path = canonical_path
+                readback_bytes = canonical_path.read_bytes()
+                if not 0 < len(readback_bytes) <= MAX_CANONICAL_REPORT_BYTES:
+                    raise ReportPublishError("canonical read-back size invalid")
+                if hashlib.sha256(readback_bytes).hexdigest() != canonical_sha:
                     raise ReportPublishError("canonical object read-back verification failed")
-            except OSError as exc:
-                raise ReportPublishError("failed to read back canonical object") from exc
-        
-        # 5. 更新 metadata 的 pointer
+                readback_doc = json.loads(readback_bytes.decode("utf-8"))
+                readback_obj = ProfessionalPostCloseReport.from_document(readback_doc)
+                validate_professional_report_binding(metadata=schema, report=readback_obj)
+            except ReportPublishError:
+                if newly_created_canonical_path and newly_created_canonical_path.exists():
+                    newly_created_canonical_path.unlink(missing_ok=True)
+                raise
+            except Exception as exc:
+                if newly_created_canonical_path and newly_created_canonical_path.exists():
+                    newly_created_canonical_path.unlink(missing_ok=True)
+                raise ReportPublishError("failed to write/verify canonical object") from exc
+
+        # 5. Update metadata pointer
         document["professional_report"] = {
             "object": canonical_relative,
             "sha256": canonical_sha,
@@ -144,8 +174,9 @@ def publish_report_v2(
             schema = ReportMetadataV2.from_document(document)
             document = schema.to_document()
         except ValueError as exc:
+            if newly_created_canonical_path and newly_created_canonical_path.exists():
+                newly_created_canonical_path.unlink(missing_ok=True)
             raise ReportPublishError("invalid metadata after injecting professional_report") from exc
-
     document["content_sha256"] = hashlib.sha256(
         _json_bytes(document["content"])
     ).hexdigest()
@@ -223,9 +254,28 @@ def publish_report_v2(
             _write_atomic(object_path, pdf_bytes)
     metadata_path = publish / metadata_relative
     if metadata_path.exists() and metadata_path.read_bytes() != metadata_bytes:
+        if newly_created_canonical_path and newly_created_canonical_path.exists():
+            newly_created_canonical_path.unlink(missing_ok=True)
         raise ReportPublishError("immutable report v2 metadata conflict")
     if not metadata_path.exists():
-        _write_atomic(metadata_path, metadata_bytes)
+        try:
+            _write_atomic(metadata_path, metadata_bytes)
+            newly_created_metadata_path = metadata_path
+            readback_meta = metadata_path.read_bytes()
+            if hashlib.sha256(readback_meta).hexdigest() != metadata_sha:
+                raise ReportPublishError("metadata read-back SHA256 mismatch")
+        except ReportPublishError:
+            if newly_created_metadata_path and newly_created_metadata_path.exists():
+                newly_created_metadata_path.unlink(missing_ok=True)
+            if newly_created_canonical_path and newly_created_canonical_path.exists():
+                newly_created_canonical_path.unlink(missing_ok=True)
+            raise
+        except Exception as exc:
+            if newly_created_metadata_path and newly_created_metadata_path.exists():
+                newly_created_metadata_path.unlink(missing_ok=True)
+            if newly_created_canonical_path and newly_created_canonical_path.exists():
+                newly_created_canonical_path.unlink(missing_ok=True)
+            raise ReportPublishError("failed to write/verify metadata") from exc
 
     if not existing:
         reports.append(entry)
@@ -254,10 +304,14 @@ def publish_report_v2(
     if document.get("product_mode") is not None:
         latest["product_mode"] = document["product_mode"]
     latest_path = publish / f"latest-TW-{document['report_type']}.json"
-    _write_atomic(index_path, index_bytes)
     try:
+        _write_atomic(index_path, index_bytes)
         _write_atomic(latest_path, _json_bytes(latest))
-    except OSError:
+    except Exception:
+        if newly_created_metadata_path and newly_created_metadata_path.exists():
+            newly_created_metadata_path.unlink(missing_ok=True)
+        if newly_created_canonical_path and newly_created_canonical_path.exists():
+            newly_created_canonical_path.unlink(missing_ok=True)
         _restore_atomic(index_path, previous_index)
         raise
     return latest_path
