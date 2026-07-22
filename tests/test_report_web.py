@@ -317,6 +317,27 @@ class ReportWebTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(traversal.status_code, 404)
 
+    def test_post_close_integrity_failure_returns_safe_503(self):
+        temporary, objects, _metadata = self._objects()
+        self.addCleanup(temporary.cleanup)
+        canonical_key = next(k for k in objects if "objects/canonical/" in k)
+        objects[canonical_key] = b'{"corrupted": true}'
+
+        with patch.object(
+            stock_app,
+            "_gcs_get_report_v2_object",
+            side_effect=lambda path, _size: objects.get(path) if path.startswith("reports/v2/") else objects.get(f"reports/v2/{path}"),
+            create=True,
+        ):
+            client = stock_app.app.test_client()
+            response = client.get("/reports/2026-07-15/post-close")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertEqual(response.headers["Retry-After"], "60")
+        self.assertNotIn("corrupted", response.get_data(as_text=True))
+        self.assertNotIn("objects/canonical", response.get_data(as_text=True))
+
 
 if __name__ == "__main__":
     unittest.main()

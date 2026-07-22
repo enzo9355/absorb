@@ -167,5 +167,109 @@ class ProfessionalReportBuilderTests(unittest.TestCase):
         self.assertEqual(len(next_session2["negative"]), 0)
 
 
+
+    def test_event_severity_and_unknown_event_type_policy(self):
+        metadata = self._metadata()
+        metadata["content"]["stock_events"] = [
+            {"symbol": "2330", "name": "台積電", "observation": "量能異常", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "volume_surge", "severity": "medium"},
+            {"symbol": "0000", "name": "Test1", "observation": "風險", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "rsi_overbought", "severity": "high"},
+            {"symbol": "1111", "name": "Test2", "observation": "未知", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "unknown_event", "severity": "low"},
+            {"symbol": "2222", "name": "Test3", "observation": "無效嚴重度", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "volume_surge", "severity": "super_high"},
+            {"symbol": "3333", "name": "Test4", "observation": "無嚴重度", "as_of": "2026-07-17", "metric_value": 1.4, "unit": "倍", "event_type": "new_high_20d", "severity": None},
+        ]
+        report = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        securities = report.securities.data
+
+        self.assertEqual(securities["policy_version"], "1.0")
+        self.assertEqual(securities["uncategorized_event_count"], 1)
+        self.assertEqual(securities["invalid_event_count"], 2)
+
+        positives = [e["symbol"] for e in securities["positive_observations"]]
+        risks = [e["symbol"] for e in securities["risk_observations"]]
+        high_anomalies = [e["symbol"] for e in securities["high_anomaly_observations"]]
+
+        self.assertIn("2330", positives)
+        self.assertIn("0000", risks)
+        self.assertIn("0000", high_anomalies)
+
+        for s in ("1111", "2222", "3333"):
+            self.assertNotIn(s, positives)
+            self.assertNotIn(s, risks)
+            self.assertNotIn(s, high_anomalies)
+
+        raw_events = {e["symbol"]: e for e in securities["stock_events"]}
+        self.assertEqual(raw_events["2222"]["severity"], "super_high")
+        self.assertIsNone(raw_events["3333"]["severity"])
+
+    def test_capital_flows_strict_validation(self):
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {}
+        r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(r.capital_flows.status, "unavailable")
+
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {
+            "as_of": "2026-07-17",
+            "unit": "TWD_million",
+            "foreign_net": 100,
+            "extra_unauthorized_key": 50,
+        }
+        r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(r.capital_flows.status, "unavailable")
+
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {
+            "as_of": "2026-07-16",
+            "unit": "TWD_million",
+            "foreign_net": 100,
+        }
+        r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(r.capital_flows.status, "unavailable")
+
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {
+            "as_of": "2026-07-17",
+            "unit": "TWD",
+            "foreign_net": 100,
+        }
+        r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(r.capital_flows.status, "unavailable")
+
+        for bad_val in (True, False, float("nan"), float("inf"), float("-inf"), "100"):
+            with self.subTest(bad_val=bad_val):
+                metadata = self._metadata()
+                metadata["content"]["capital_flows"] = {
+                    "as_of": "2026-07-17",
+                    "unit": "TWD_million",
+                    "foreign_net": bad_val,
+                }
+                r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+                self.assertEqual(r.capital_flows.status, "unavailable")
+
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {
+            "as_of": "2026-07-17",
+            "unit": "TWD_million",
+            "foreign_net": None,
+            "investment_trust_net": None,
+            "dealer_net": None,
+        }
+        r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(r.capital_flows.status, "unavailable")
+
+        metadata = self._metadata()
+        metadata["content"]["capital_flows"] = {
+            "as_of": "2026-07-17",
+            "unit": "TWD_million",
+            "foreign_net": 150.5,
+            "investment_trust_net": None,
+            "dealer_net": None,
+        }
+        r = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        self.assertEqual(r.capital_flows.status, "available")
+        self.assertEqual(r.capital_flows.data["foreign_net"], 150.5)
+        self.assertIsNone(r.capital_flows.data["investment_trust_net"])
+        self.assertIsNone(r.capital_flows.data["dealer_net"])
+
 if __name__ == "__main__":
     unittest.main()

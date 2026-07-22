@@ -83,24 +83,35 @@ class ReportMetadataV2:
 
             if professional_report is not None:
                 if report_type != "post_close":
-                    raise ValueError("professional_report 只能存在於 post_close")
+                    raise ValueError("professional_report is only allowed in post_close")
                 if not isinstance(professional_report, dict):
-                    raise ValueError("professional_report 必須是 dict")
+                    raise ValueError("professional_report must be dict")
+                allowed_keys = {
+                    "object",
+                    "sha256",
+                    "content_sha256",
+                    "schema_version",
+                    "generator_version",
+                    "code_commit_sha",
+                }
+                if set(professional_report.keys()) != allowed_keys:
+                    raise ValueError("professional_report contains unknown keys or missing required keys")
                 if professional_report.get("schema_version") != 1:
-                    raise ValueError("professional_report schema_version 必須為支援版本")
+                    raise ValueError("professional_report schema_version unsupported")
+                sha256_val = str(professional_report.get("sha256") or "")
+                if not re.fullmatch(r"[0-9a-f]{64}", sha256_val):
+                    raise ValueError("professional_report.sha256 invalid")
                 obj_path = str(professional_report.get("object") or "")
-                if not re.fullmatch(r"objects/canonical/[0-9a-f]{64}\.json", obj_path):
-                    raise ValueError("professional_report.object 不合法")
-                if not re.fullmatch(r"[0-9a-f]{64}", str(professional_report.get("sha256") or "")):
-                    raise ValueError("professional_report.sha256 不合法")
+                if obj_path != f"objects/canonical/{sha256_val}.json":
+                    raise ValueError("professional_report.object invalid")
                 if not re.fullmatch(r"[0-9a-f]{64}", str(professional_report.get("content_sha256") or "")):
-                    raise ValueError("professional_report.content_sha256 不合法")
+                    raise ValueError("professional_report.content_sha256 invalid")
                 gen_version = professional_report.get("generator_version")
-                if not isinstance(gen_version, str) or not gen_version:
-                    raise ValueError("professional_report.generator_version 必須是非空字串")
+                if not isinstance(gen_version, str) or not (1 <= len(gen_version) <= 100):
+                    raise ValueError("professional_report.generator_version invalid")
                 commit_sha = professional_report.get("code_commit_sha")
-                if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{7,64}", commit_sha):
-                    raise ValueError("professional_report.code_commit_sha 必須是有效 SHA")
+                if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
+                    raise ValueError("professional_report.code_commit_sha invalid")
         elif document.get("professional_report") is not None:
             raise ValueError("professional_report 只能存在於 observation 模式下的 post_close")
 

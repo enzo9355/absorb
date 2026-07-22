@@ -32,6 +32,9 @@ def _environment_path(name: str) -> Path | None:
     return Path(value) if value else None
 
 
+MAX_CANONICAL_REPORT_BYTES: int = 5_000_000
+
+
 @dataclass(frozen=True)
 class ReportConfig:
     """日報驗證、分析、回測與輸出的集中設定。"""
@@ -58,6 +61,7 @@ class ReportConfig:
     max_uncompressed_bytes: int = 50 * 1024 * 1024
     max_pdf_bytes: int = 15 * 1024 * 1024
     max_index_bytes: int = 1024 * 1024
+    max_canonical_report_bytes: int = MAX_CANONICAL_REPORT_BYTES
     target_pdf_bytes: int = 8 * 1024 * 1024
     market_factor_tolerance: float = 0.02
     max_watchlist: int = 10
