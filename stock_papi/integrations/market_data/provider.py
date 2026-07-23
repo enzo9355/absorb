@@ -1,5 +1,106 @@
 """FinMind, Yahoo Finance and ticker lookup adapters."""
 
+import datetime
+
+
+class FinMindFetchError(RuntimeError):
+    def __init__(
+        self,
+        category,
+        dataset,
+        data_id,
+        start_date,
+        end_date,
+        *,
+        http_status=None,
+        exception_type=None,
+        blocked_until=None,
+        retry_after_seconds=None,
+    ):
+        self.category = str(category)
+        self.dataset = str(dataset)[:80]
+        self.data_id = str(data_id)[:80]
+        self.start_date = str(start_date)[:32]
+        self.end_date = str(end_date)[:32]
+        self.http_status = http_status if type(http_status) is int else None
+        self.exception_type = (
+            str(exception_type)[:80] if exception_type is not None else None
+        )
+        self.blocked_until = (
+            float(blocked_until) if blocked_until is not None else None
+        )
+        self.retry_after_seconds = (
+            int(retry_after_seconds)
+            if retry_after_seconds is not None
+            else None
+        )
+        self.provider_wide = self.category != "empty_dataset"
+        status = self.http_status if self.http_status is not None else "none"
+        prefix = (
+            "FinMind empty dataset"
+            if self.category == "empty_dataset"
+            else "FinMind provider blocked"
+            if self.blocked_until is not None
+            else "FinMind provider failure"
+        )
+        self.safe_message = (
+            f"{prefix}: dataset={self.dataset} status={status} "
+            f"category={self.category}"
+        )
+        if self.blocked_until is not None:
+            blocked_at = datetime.datetime.fromtimestamp(
+                self.blocked_until,
+                datetime.timezone.utc,
+            ).isoformat().replace("+00:00", "Z")
+            self.safe_message += f" blocked_until={blocked_at}"
+        super().__init__(self.safe_message)
+
+    def to_dict(self):
+        return {
+            "category": self.category,
+            "dataset": self.dataset,
+            "data_id": self.data_id,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "http_status": self.http_status,
+            "exception_type": self.exception_type,
+            "blocked_until": self.blocked_until,
+            "retry_after_seconds": self.retry_after_seconds,
+            "safe_message": self.safe_message,
+        }
+
+
+def _finmind_failure(
+    category,
+    dataset,
+    code,
+    start_date,
+    end_date,
+    logger,
+    **details,
+):
+    error = FinMindFetchError(
+        category,
+        dataset,
+        code,
+        start_date,
+        end_date,
+        **details,
+    )
+    if category == "empty_dataset":
+        logger.info("%s", error.safe_message)
+    else:
+        logger.warning("%s", error.safe_message)
+    raise error
+
+
+def _retry_after_seconds(response, default):
+    try:
+        seconds = int((getattr(response, "headers", {}) or {}).get("Retry-After"))
+    except (TypeError, ValueError):
+        return default
+    return seconds if 0 < seconds <= 86400 else default
+
 
 def finmind_login(current_token, user, password, requests_module):
     if current_token or not user or not password:
@@ -32,8 +133,23 @@ def fetch_finmind_dataset(
     logger,
 ):
     timestamp = now()
+
+    def fail(category, **details):
+        _finmind_failure(
+            category,
+            dataset,
+            code,
+            start_date,
+            end_date,
+            logger,
+            **details,
+        )
+
     if timestamp < blocked_until:
-        return pd.DataFrame(), blocked_until
+        fail(
+            "blocked",
+            blocked_until=blocked_until,
+        )
     login()
     params = {
         "dataset": dataset,
@@ -50,15 +166,75 @@ def fetch_finmind_dataset(
             params=params,
             timeout=8,
         )
-        if response.status_code in (402, 403):
-            blocked_until = timestamp + (
-                60 if response.status_code == 402 else 30
-            ) * 60
-        response.raise_for_status()
-        return pd.DataFrame(response.json().get("data", [])), blocked_until
-    except (requests_module.RequestException, ValueError, TypeError):
-        logger.warning("FinMind %s 讀取失敗", dataset)
-        return pd.DataFrame(), blocked_until
+    except requests_module.Timeout as exc:
+        fail(
+            "timeout",
+            exception_type=type(exc).__name__,
+        )
+    except requests_module.ConnectionError as exc:
+        fail(
+            "network_error",
+            exception_type=type(exc).__name__,
+        )
+    except requests_module.RequestException as exc:
+        fail(
+            "network_error",
+            exception_type=type(exc).__name__,
+        )
+
+    status = getattr(response, "status_code", None)
+    if type(status) is not int:
+        fail(
+            "invalid_payload",
+            exception_type="InvalidStatusCode",
+        )
+    if status >= 400:
+        category = {
+            402: "quota_or_rate_limit",
+            403: "authentication_or_permission",
+            429: "quota_or_rate_limit",
+        }.get(status, "http_error")
+        retry_after = (
+            _retry_after_seconds(response, 1800)
+            if status == 429
+            else 3600
+            if status == 402
+            else 1800
+            if status == 403
+            else None
+        )
+        blocked_until = (
+            timestamp + retry_after if retry_after is not None else None
+        )
+        fail(
+            category,
+            http_status=status,
+            exception_type="HTTPError",
+            blocked_until=blocked_until,
+            retry_after_seconds=retry_after,
+        )
+
+    try:
+        payload = response.json()
+    except (TypeError, ValueError) as exc:
+        fail(
+            "invalid_json",
+            exception_type=type(exc).__name__,
+        )
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        fail(
+            "invalid_payload",
+            exception_type="InvalidPayload",
+        )
+    if not payload["data"]:
+        fail("empty_dataset")
+    try:
+        return pd.DataFrame(payload["data"]), blocked_until
+    except (TypeError, ValueError) as exc:
+        fail(
+            "invalid_payload",
+            exception_type=type(exc).__name__,
+        )
 
 
 def fetch_yfinance_price_history(

@@ -117,6 +117,7 @@ from stock_papi.integrations.line.state import (
 )
 from stock_papi.integrations.market_data.tw_exchange import fetch_market_activity
 from stock_papi.integrations.market_data.provider import (
+    FinMindFetchError,
     fetch_finmind_dataset as _provider_fetch_finmind_dataset,
     fetch_option_context_history as _provider_fetch_option_context_history,
     fetch_yfinance_price_history as _provider_fetch_yfinance_price_history,
@@ -351,19 +352,26 @@ def finmind_login():
 
 def fetch_finmind_dataset(dataset, code, start_date, end_date):
     global _FINMIND_BLOCKED_UNTIL
-    frame, _FINMIND_BLOCKED_UNTIL = _provider_fetch_finmind_dataset(
-        dataset,
-        code,
-        start_date,
-        end_date,
-        blocked_until=_FINMIND_BLOCKED_UNTIL,
-        now=time.time,
-        login=finmind_login,
-        token=lambda: finmind_token,
-        requests_module=requests,
-        pd=pd,
-        logger=logger,
-    )
+    try:
+        frame, _FINMIND_BLOCKED_UNTIL = _provider_fetch_finmind_dataset(
+            dataset,
+            code,
+            start_date,
+            end_date,
+            blocked_until=_FINMIND_BLOCKED_UNTIL,
+            now=time.time,
+            login=finmind_login,
+            token=lambda: finmind_token,
+            requests_module=requests,
+            pd=pd,
+            logger=logger,
+        )
+    except FinMindFetchError as exc:
+        if exc.blocked_until is not None:
+            _FINMIND_BLOCKED_UNTIL = exc.blocked_until
+        if exc.category == "empty_dataset":
+            return pd.DataFrame()
+        raise
     return frame
 
 
