@@ -6,6 +6,17 @@ import copy
 from typing import Any
 
 from .professional_schema import ProfessionalPostCloseReport, ProfessionalSection
+from .regression_schema import RegressionResearchArtifact
+
+
+REGRESSION_UNAVAILABLE_REASON = "量化回歸研究目前無法安全顯示。"
+REGRESSION_ARTIFACT_UNAVAILABLE_REASON = "量化回歸研究尚未提供。"
+REGRESSION_UNAVAILABLE_REASONS = frozenset(
+    {
+        REGRESSION_UNAVAILABLE_REASON,
+        REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+    }
+)
 
 
 def _section_view(section: ProfessionalSection) -> dict[str, Any]:
@@ -18,13 +29,64 @@ def _section_view(section: ProfessionalSection) -> dict[str, Any]:
 
 
 def build_professional_report_view(
-    report: ProfessionalPostCloseReport, *, pdf_download_url: str | None = None
+    report: ProfessionalPostCloseReport,
+    *,
+    regression_artifact: RegressionResearchArtifact | None = None,
+    regression_unavailable_reason: str | None = None,
+    pdf_download_url: str | None = None,
 ) -> dict[str, Any]:
     """Return a Jinja-safe view model without internal object paths or raw metadata."""
 
     if not isinstance(report, ProfessionalPostCloseReport):
         raise TypeError("report must be ProfessionalPostCloseReport")
+    if regression_artifact is not None and not isinstance(
+        regression_artifact, RegressionResearchArtifact
+    ):
+        raise TypeError("regression_artifact must be RegressionResearchArtifact")
+
     identity = report.identity
+    if regression_artifact is None:
+        safe_reason = (
+            regression_unavailable_reason
+            if isinstance(regression_unavailable_reason, str)
+            and regression_unavailable_reason in REGRESSION_UNAVAILABLE_REASONS
+            else REGRESSION_UNAVAILABLE_REASON
+        )
+        quantitative_research = {
+            "status": "unavailable",
+            "reason": safe_reason,
+            "data": {},
+        }
+    else:
+        spec = regression_artifact.regression_spec
+        diagnostics = regression_artifact.diagnostics
+        presentation = regression_artifact.presentation
+        quantitative_research = {
+            "status": "available",
+            "reason": None,
+            "data": {},
+            "ai_label": "AI 模型參考建議",
+            "output_name": "模型方向參考",
+            "headline": presentation.headline,
+            "summary": presentation.summary,
+            "sample_count": spec.sample_count,
+            "first_feature_session": spec.first_feature_session,
+            "last_feature_session": spec.last_feature_session,
+            "dependent_variable": spec.dependent_variable,
+            "covariance_estimator": spec.covariance_estimator,
+            "hac_max_lags": spec.hac_max_lags,
+            "confidence_level": spec.confidence_level,
+            "confidence_level_pct": int(round(spec.confidence_level * 100)),
+            "factors": [item.to_dict() for item in regression_artifact.results],
+            "fit_statistics": regression_artifact.fit_statistics.to_dict(),
+            "r_squared": regression_artifact.fit_statistics.r_squared,
+            "adjusted_r_squared": regression_artifact.fit_statistics.adjusted_r_squared,
+            "diagnostics": diagnostics.to_dict(),
+            "warnings": copy.deepcopy(diagnostics.warnings),
+            "key_exposures": copy.deepcopy(presentation.key_exposures),
+            "limitations": presentation.limitations,
+            "disclosure": presentation.disclosure,
+        }
     return {
         "title": "ABSORB 台股市場、產業與量化研究日報",
         "identity": {
@@ -46,7 +108,7 @@ def build_professional_report_view(
         "capital_flows": _section_view(report.capital_flows),
         "industries": _section_view(report.industries),
         "securities": _section_view(report.securities),
-        "quantitative_research": _section_view(report.quantitative_research),
+        "quantitative_research": quantitative_research,
         "validation": _section_view(report.validation),
         "next_session": _section_view(report.next_session),
         "governance": _section_view(report.governance),

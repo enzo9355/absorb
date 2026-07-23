@@ -137,12 +137,15 @@ class TradingCalendarSet:
         return candidate
 
     def session_offset(self, value, offset):
-        if type(offset) is not int or offset < 0:
-            raise CalendarError("交易日 offset 必須是非負整數")
+        if type(offset) is not int:
+            raise CalendarError("交易日 offset 必須是整數")
         if not self.is_session(value):
             raise CalendarError("起始日期不是交易日")
         result = value
-        for _ in range(offset):
-            result = self.next_session(result)
+        direction = 1 if offset >= 0 else -1
+        for _ in range(abs(offset)):
+            result += datetime.timedelta(days=direction)
+            while not self.is_session(result):
+                result += datetime.timedelta(days=direction)
         return result
 

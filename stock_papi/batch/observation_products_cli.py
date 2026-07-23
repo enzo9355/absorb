@@ -17,7 +17,7 @@ def _calendars(paths):
     )
 
 
-def build(args):
+def build(args, *, today=None):
     from reporting.cli import _load_industry_map
     from reporting.config import ReportConfig
     from reporting.observation_v2 import build_post_close_observation_metadata
@@ -44,6 +44,7 @@ def build(args):
         generated_at=datetime.datetime.fromisoformat(
             source.manifest.generated_at.replace("Z", "+00:00")
         ),
+        today=today,
     )
     metadata = build_post_close_observation_metadata(
         dashboard,
@@ -61,7 +62,7 @@ def build(args):
     }
 
 
-def main(argv=None):
+def main(argv=None, *, today=None):
     parser = argparse.ArgumentParser(description="ABSORB Observation products")
     subparsers = parser.add_subparsers(dest="command", required=True)
     create = subparsers.add_parser("build")
@@ -85,7 +86,7 @@ def main(argv=None):
     promote.add_argument("--candidate", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "build":
-        result = build(args)
+        result = build(args, today=today)
     else:
         from stock_papi.batch.observation_products import (
             promote_observation_candidate,

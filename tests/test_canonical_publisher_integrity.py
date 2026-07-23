@@ -13,6 +13,7 @@ from reporting.professional_schema import (
     compute_content_sha256,
 )
 from reporting.publisher import publish_report_v2
+from tests.regression_fixtures import make_artifact_document, rehash_artifact_document
 from tests.test_professional_report_schema import ProfessionalReportSchemaTests
 
 
@@ -23,6 +24,39 @@ class CanonicalPublisherIntegrityTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp_dir.cleanup()
+
+    def test_publishes_regression_artifact_with_single_hash_ownership(self):
+        report_doc = self._base_report_doc()
+        metadata_doc = self._base_metadata_doc(report_doc)
+        prof_report = ProfessionalPostCloseReport.from_document(report_doc)
+        reg_artifact_doc = make_artifact_document()
+        reg_artifact_doc["identity"]["source_manifest"] = prof_report.identity.source_manifest
+        reg_artifact_doc["identity"]["source_manifest_sha256"] = prof_report.identity.source_manifest_sha256
+        rehash_artifact_document(reg_artifact_doc)
+
+        latest_path = publish_report_v2(
+            self.root,
+            metadata_doc,
+            professional_report=prof_report,
+            regression_artifact=reg_artifact_doc,
+        )
+        self.assertTrue(latest_path.exists())
+        latest_doc = json.loads(latest_path.read_text(encoding="utf-8"))
+        self.assertIn("metadata", latest_doc)
+        meta_file = self.root / "publish" / "reports" / "v2" / latest_doc["metadata"]
+        published_meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        self.assertIn("regression_research", published_meta)
+        reg_ptr = published_meta["regression_research"]
+        reg_file = self.root / "publish" / "reports" / "v2" / reg_ptr["object"]
+        self.assertTrue(reg_file.exists())
+        canonical_ptr = published_meta["professional_report"]
+        canonical_file = self.root / "publish" / "reports" / "v2" / canonical_ptr["object"]
+        canonical = json.loads(canonical_file.read_text(encoding="utf-8"))
+        self.assertEqual(canonical["quantitative_research"]["status"], "available")
+        self.assertEqual(
+            canonical["quantitative_research"]["data"]["regression_reference"]["object_sha256"],
+            reg_ptr["sha256"],
+        )
 
     def _base_report_doc(self):
         return ProfessionalReportSchemaTests()._document()
@@ -195,15 +229,17 @@ class CanonicalPublisherIntegrityTests(unittest.TestCase):
         metadata_doc = self._base_metadata_doc(report_doc)
         professional_report = ProfessionalPostCloseReport.from_document(report_doc)
 
-        original_write_atomic = reporting.publisher._write_atomic
+        original_write_immutable = reporting.publisher._write_immutable
 
-        def fake_write_atomic(path, content):
+        def fake_write_immutable(path, content, conflict_message):
             if "objects/canonical" in path.as_posix():
-                original_write_atomic(path, b"x" * (MAX_CANONICAL_REPORT_BYTES + 1))
-            else:
-                original_write_atomic(path, content)
+                content = b"x" * (MAX_CANONICAL_REPORT_BYTES + 1)
+            return original_write_immutable(path, content, conflict_message)
 
-        with patch("reporting.publisher._write_atomic", side_effect=fake_write_atomic):
+        with patch(
+            "reporting.publisher._write_immutable",
+            side_effect=fake_write_immutable,
+        ):
             with self.assertRaises(ReportPublishError) as cm:
                 publish_report_v2(
                     root=self.root,

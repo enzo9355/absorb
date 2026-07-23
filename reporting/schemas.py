@@ -34,6 +34,7 @@ class ReportMetadataV2:
     observation_end_date: datetime.date | None = None
     prediction_capability: dict[str, Any] | None = None
     professional_report: dict[str, Any] | None = None
+    regression_research: dict[str, Any] | None = None
 
     @classmethod
     def from_document(cls, document: dict[str, Any]) -> "ReportMetadataV2":
@@ -68,6 +69,7 @@ class ReportMetadataV2:
         observation_end = None
         prediction_capability = None
         professional_report = None
+        regression_research = None
         if product_mode == "observation":
             try:
                 observation_start = datetime.date.fromisoformat(
@@ -112,8 +114,43 @@ class ReportMetadataV2:
                 commit_sha = professional_report.get("code_commit_sha")
                 if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
                     raise ValueError("professional_report.code_commit_sha invalid")
+
+            regression_research = document.get("regression_research")
+            if regression_research is not None:
+                if report_type != "post_close":
+                    raise ValueError("regression_research 只能存在於 post_close")
+                if not isinstance(regression_research, dict):
+                    raise ValueError("regression_research must be dict")
+                allowed_keys = {
+                    "object",
+                    "sha256",
+                    "content_sha256",
+                    "schema_version",
+                    "generator_version",
+                    "code_commit_sha",
+                }
+                if set(regression_research.keys()) != allowed_keys:
+                    raise ValueError("regression_research contains unknown keys or missing required keys")
+                if regression_research.get("schema_version") != 1:
+                    raise ValueError("regression_research schema_version unsupported")
+                sha256_val = str(regression_research.get("sha256") or "")
+                if not re.fullmatch(r"[0-9a-f]{64}", sha256_val):
+                    raise ValueError("regression_research.sha256 invalid")
+                obj_path = str(regression_research.get("object") or "")
+                if obj_path != f"objects/regression/{sha256_val}.json":
+                    raise ValueError("regression_research.object invalid")
+                if not re.fullmatch(r"[0-9a-f]{64}", str(regression_research.get("content_sha256") or "")):
+                    raise ValueError("regression_research.content_sha256 invalid")
+                gen_version = regression_research.get("generator_version")
+                if not isinstance(gen_version, str) or not (1 <= len(gen_version) <= 100):
+                    raise ValueError("regression_research.generator_version invalid")
+                commit_sha = regression_research.get("code_commit_sha")
+                if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
+                    raise ValueError("regression_research.code_commit_sha invalid")
         elif document.get("professional_report") is not None:
             raise ValueError("professional_report 只能存在於 observation 模式下的 post_close")
+        elif document.get("regression_research") is not None:
+            raise ValueError("regression_research 只能存在於 observation 模式下的 post_close")
 
         if (
             report_type not in REPORT_TYPES
@@ -204,6 +241,7 @@ class ReportMetadataV2:
                 else dict(prediction_capability)
             ),
             professional_report=dict(professional_report) if professional_report else None,
+            regression_research=dict(regression_research) if regression_research else None,
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -241,6 +279,8 @@ class ReportMetadataV2:
             )
             if self.professional_report is not None:
                 document["professional_report"] = dict(self.professional_report)
+            if self.regression_research is not None:
+                document["regression_research"] = dict(self.regression_research)
         return document
 
 

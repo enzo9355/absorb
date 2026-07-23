@@ -805,6 +805,22 @@ def promote_observation_candidate(root, directory):
     }
 
     report_metadata = documents["post-close-report-v2.json"]
+    from reporting.regression_input_builder import (
+        AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY,
+        PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE,
+        PRODUCTION_REGRESSION_INPUT_READY,
+        PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY,
+    )
+    regression_ready = all(
+        (
+            PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY,
+            PRODUCTION_REGRESSION_INPUT_READY,
+            PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE,
+            AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY,
+        )
+    )
+    if not regression_ready and report_metadata.get("regression_research") is not None:
+        raise ValueError("production regression is not ready; metadata pointer is forbidden")
     commit_sha = git_commit_sha()
     import re
     if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-f]{7,64}", commit_sha):

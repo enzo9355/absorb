@@ -234,6 +234,24 @@ class ObservationProductsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "finite"):
             self.build(non_finite)
 
+    def test_source_freshness_accepts_day_7_and_rejects_day_8(self):
+        source = _source(
+            copy.deepcopy(self.stocks),
+            as_of=datetime.date(2026, 7, 16),
+        )
+
+        accepted = self.build(
+            copy.deepcopy(source),
+            today=datetime.date(2026, 7, 23),
+        )
+        self.assertEqual(accepted["data_quality"]["source_age_days"], 7)
+
+        with self.assertRaisesRegex(ValueError, "stale"):
+            self.build(
+                copy.deepcopy(source),
+                today=datetime.date(2026, 7, 24),
+            )
+
     def test_output_order_is_deterministic(self):
         first = self.build(_source(copy.deepcopy(self.stocks)))
         second = self.build(_source(list(reversed(copy.deepcopy(self.stocks)))))

@@ -1,3 +1,4 @@
+import datetime
 import json
 import tempfile
 import unittest
@@ -42,7 +43,8 @@ class ObservationProductsCliTests(unittest.TestCase):
                         latest["manifest_sha256"],
                         "--calendar-artifact",
                         str(calendar),
-                    ]
+                    ],
+                    today=datetime.date(2026, 7, 23),
                 )
             receipt = json.loads(output[-1])
 
@@ -85,6 +87,9 @@ class ObservationProductsCliTests(unittest.TestCase):
             "MODEL_VERSION",
             "allow-degraded-bootstrap",
             "recommendation_engine",
+            "--today",
+            "--ignore-freshness",
+            "--allow-stale",
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)

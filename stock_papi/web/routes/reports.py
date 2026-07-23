@@ -1,5 +1,6 @@
 """Public HTML report routes and legacy compatibility redirects."""
 
+import copy
 import datetime
 import hashlib
 import hmac
@@ -12,7 +13,19 @@ from flask import abort, make_response, redirect, render_template, url_for
 
 from reporting.exceptions import ReportWebError
 from reporting.web import find_report
-from reporting.professional_html import build_professional_report_view
+from reporting.professional_html import (
+    REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+    build_professional_report_view,
+)
+from reporting.professional_binding import (
+    validate_professional_report_binding,
+    validate_regression_research_binding,
+)
+from reporting.regression_schema import (
+    MAX_REGRESSION_ARTIFACT_BYTES,
+    RegressionResearchArtifact,
+)
+from reporting.schemas import ReportMetadataV2
 from stock_papi.services.report_view import build_observation_report_view
 from reporting.config import MAX_CANONICAL_REPORT_BYTES
 from werkzeug.exceptions import HTTPException
@@ -28,7 +41,8 @@ def _valid_report_date(report_date):
 
 def register_report_routes(
     app, *, load_index, load_metadata, load_index_v2, load_metadata_v2,
-    load_canonical_object=None, prediction_capability=None,
+    load_canonical_object=None, load_regression_artifact=None,
+    prediction_capability=None,
 ):
     observation_mode = (
         prediction_capability is not None
@@ -84,6 +98,52 @@ def register_report_routes(
             if item.get("applicable_trading_date") == trading_date
             and item.get("report_type") in {"post_close", "pre_market"}
         ]
+
+    def _optional_regression_overlay(*, metadata, report):
+        pointer = metadata.get("regression_research")
+        if pointer is None:
+            return None
+        try:
+            metadata_obj = ReportMetadataV2.from_document(metadata)
+            pointer = metadata_obj.regression_research
+            if pointer is None or load_regression_artifact is None:
+                raise ValueError("regression artifact loader or pointer unavailable")
+
+            object_path = pointer["object"]
+            expected_sha = pointer["sha256"]
+            raw_bytes = load_regression_artifact(
+                object_path,
+                max_bytes=MAX_REGRESSION_ARTIFACT_BYTES,
+            )
+            if (
+                not isinstance(raw_bytes, bytes)
+                or not raw_bytes
+                or len(raw_bytes) > MAX_REGRESSION_ARTIFACT_BYTES
+            ):
+                raise ValueError("regression artifact size invalid")
+            actual_sha = hashlib.sha256(raw_bytes).hexdigest()
+            if not hmac.compare_digest(actual_sha, expected_sha):
+                raise ValueError("regression artifact SHA mismatch")
+            if object_path != f"objects/regression/{actual_sha}.json":
+                raise ValueError("regression artifact path mismatch")
+
+            document = json.loads(raw_bytes.decode("utf-8"))
+            if not isinstance(document, dict):
+                raise ValueError("regression artifact must be an object")
+            artifact = RegressionResearchArtifact.from_document(document)
+            validate_regression_research_binding(
+                metadata=metadata_obj,
+                professional_report=report,
+                pointer=pointer,
+                regression_artifact=artifact,
+            )
+            return artifact
+        except Exception as exc:
+            app.logger.warning(
+                "optional_regression_overlay_unavailable error_type=%s",
+                type(exc).__name__,
+            )
+            return None
 
     def _observation_page(date_param: str, report_type: str):
         try:
@@ -189,11 +249,12 @@ def register_report_routes(
                 except (ValueError, TypeError, KeyError) as exc:
                     raise ReportWebError("Canonical Object 驗證失敗") from exc
 
-                from reporting.professional_binding import validate_professional_report_binding
                 try:
+                    canonical_metadata = copy.deepcopy(metadata)
+                    canonical_metadata.pop("regression_research", None)
                     validate_professional_report_binding(
                         route_source_date=date_param,
-                        metadata=metadata,
+                        metadata=canonical_metadata,
                         pointer=canonical_ptr,
                         report=prof_report,
                     )
@@ -201,8 +262,15 @@ def register_report_routes(
                     raise ReportWebError("Professional Report 綁定驗證失敗") from exc
 
                 pdf_download_url = None
+                regression_artifact = _optional_regression_overlay(
+                    metadata=metadata,
+                    report=prof_report,
+                )
                 view_model = build_professional_report_view(
-                    prof_report, pdf_download_url=pdf_download_url
+                    prof_report,
+                    regression_artifact=regression_artifact,
+                    regression_unavailable_reason=REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+                    pdf_download_url=pdf_download_url,
                 )
                 response = make_response(
                     render_template("reports/post_close_professional.html", report=view_model)

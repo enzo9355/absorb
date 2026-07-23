@@ -81,7 +81,56 @@
 
   <section class="panel" id="quantitative-research">
     <p class="eyebrow">QUANTITATIVE RESEARCH</p><h2>量化回歸與模型</h2>
-    {% if report.quantitative_research.status == 'available' %}<pre>{{ report.quantitative_research.data }}</pre>{% else %}<div class="empty-state">{{ report.quantitative_research.reason }}</div>{% endif %}
+    {% if report.quantitative_research.status == 'available' %}
+      {% set research = report.quantitative_research %}
+      <p class="action-label">{{ research.ai_label }}｜{{ research.output_name }}</p>
+      <h3>{{ research.headline }}</h3>
+      <p>{{ research.summary }}</p>
+      <dl class="report-meta">
+        <div><dt>研究期間</dt><dd>{{ research.first_feature_session }} 至 {{ research.last_feature_session }}</dd></div>
+        <div><dt>樣本數</dt><dd>{{ research.sample_count }}</dd></div>
+        <div><dt>依變數</dt><dd>{{ research.dependent_variable }}</dd></div>
+        <div><dt>估計方法</dt><dd>OLS / Newey-West HAC（max lags={{ research.hac_max_lags }}）</dd></div>
+      </dl>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>因子</th><th>係數</th><th>HAC 標準誤</th><th>t-stat</th><th>p-value</th><th>{{ research.confidence_level_pct }}% CI</th><th>方向</th></tr></thead>
+          <tbody>
+          {% for factor in research.factors %}
+            <tr>
+              <td>{{ factor.display_label }}</td>
+              <td>{{ '%.6f'|format(factor.coefficient) }}</td>
+              <td>{{ '%.6f'|format(factor.standard_error) }}</td>
+              <td>{{ '%.4f'|format(factor.t_statistic) }}</td>
+              <td>{{ '%.4f'|format(factor.p_value) }}</td>
+              <td>[{{ '%.6f'|format(factor.confidence_interval_low) }}, {{ '%.6f'|format(factor.confidence_interval_high) }}]</td>
+              <td>{{ factor.direction }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <h3>模型配適</h3>
+      <dl class="report-meta">
+        <div><dt>R²</dt><dd>{{ '%.4f'|format(research.fit_statistics.r_squared) }}</dd></div>
+        <div><dt>Adjusted R²</dt><dd>{{ '%.4f'|format(research.fit_statistics.adjusted_r_squared) }}</dd></div>
+        <div><dt>殘差標準誤</dt><dd>{{ '%.6f'|format(research.fit_statistics.residual_standard_error) }}</dd></div>
+        <div><dt>F 檢定 p-value</dt><dd>{{ '%.4f'|format(research.fit_statistics.f_p_value) }}</dd></div>
+      </dl>
+      <h3>診斷</h3>
+      <dl class="report-meta">
+        <div><dt>VIF</dt><dd>{{ research.diagnostics.multicollinearity.max_vif }}</dd></div>
+        <div><dt>Breusch-Pagan</dt><dd>p-value {{ research.diagnostics.heteroskedasticity.p_value }}</dd></div>
+        <div><dt>Durbin-Watson</dt><dd>{{ research.diagnostics.autocorrelation.durbin_watson }}</dd></div>
+        <div><dt>Jarque-Bera</dt><dd>p-value {{ research.diagnostics.residual_normality.jarque_bera_p_value }}</dd></div>
+      </dl>
+      {% if research.diagnostics.warnings %}<h3>警示</h3><ul>{% for item in research.diagnostics.warnings %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+      {% if research.key_exposures %}<h3>主要暴露</h3><ul>{% for item in research.key_exposures %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+      <p><strong>限制：</strong>{{ research.limitations }}</p>
+      <p class="muted small">{{ research.disclosure }}</p>
+    {% else %}
+      <div class="empty-state">{{ report.quantitative_research.reason }}</div>
+    {% endif %}
   </section>
 
   <section class="panel" id="model-validation">

@@ -432,6 +432,7 @@ def _gcs_get_report_v2_object(object_name, max_bytes):
 
 
 _CANONICAL_OBJECT_PATH_RE = re.compile(r"^objects/canonical/[0-9a-f]{64}\.json$")
+_REGRESSION_OBJECT_PATH_RE = re.compile(r"^objects/regression/[0-9a-f]{64}\.json$")
 
 
 def load_canonical_object(object_path, max_bytes=MAX_CANONICAL_REPORT_BYTES):
@@ -442,6 +443,22 @@ def load_canonical_object(object_path, max_bytes=MAX_CANONICAL_REPORT_BYTES):
     ):
         return None
     if not isinstance(object_path, str) or not _CANONICAL_OBJECT_PATH_RE.match(object_path):
+        return None
+    full_object_name = f"reports/v2/{object_path}"
+    data = _gcs_get_report_v2_object(full_object_name, max_bytes)
+    if not isinstance(data, bytes) or len(data) == 0 or len(data) > max_bytes:
+        return None
+    return data
+
+
+def load_regression_artifact(object_path, max_bytes=2_000_000):
+    if (
+        isinstance(max_bytes, bool)
+        or not isinstance(max_bytes, int)
+        or not (1 <= max_bytes <= 2_000_000)
+    ):
+        return None
+    if not isinstance(object_path, str) or not _REGRESSION_OBJECT_PATH_RE.fullmatch(object_path):
         return None
     full_object_name = f"reports/v2/{object_path}"
     data = _gcs_get_report_v2_object(full_object_name, max_bytes)
@@ -1345,6 +1362,9 @@ def route_dependencies():
             item, load_object=_gcs_get_report_v2_object, version="v2"
         ),
         "load_canonical_object": lambda object_path, max_bytes=5_000_000: load_canonical_object(
+            object_path, max_bytes=max_bytes
+        ),
+        "load_regression_artifact": lambda object_path, max_bytes=2_000_000: load_regression_artifact(
             object_path, max_bytes=max_bytes
         ),
         "sample_report_path": SAMPLE_REPORT_PATH,
