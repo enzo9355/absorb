@@ -19,6 +19,9 @@ from tests.regression_fixtures import rehash_artifact_document
 from tests import test_regression_binding as binding_helpers
 
 
+REGRESSION_ARTIFACT_UNAVAILABLE_REASON = "量化回歸研究尚未提供。"
+
+
 def _json_bytes(document):
     return json.dumps(
         document,
@@ -155,7 +158,7 @@ class TestRegressionRouteIntegration(unittest.TestCase):
         response = client.get("/reports/2026-07-17/post-close")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(calls, [])
-        self.assertIn("量化回歸研究目前無法安全顯示", response.get_data(as_text=True))
+        self.assertIn(REGRESSION_ARTIFACT_UNAVAILABLE_REASON, response.get_data(as_text=True))
 
     def test_valid_artifact_is_loaded_once_and_rendered_as_structured_html(self):
         client, calls = self._client()
@@ -193,7 +196,7 @@ class TestRegressionRouteIntegration(unittest.TestCase):
                 response = client.get("/reports/2026-07-17/post-close")
                 body = response.get_data(as_text=True)
                 self.assertEqual(response.status_code, 200)
-                self.assertIn("量化回歸研究目前無法安全顯示", body)
+                self.assertIn(REGRESSION_ARTIFACT_UNAVAILABLE_REASON, body)
                 self.assertNotIn("private/secret", body)
                 self.assertNotIn("tampered", body)
 
@@ -213,7 +216,7 @@ class TestRegressionRouteIntegration(unittest.TestCase):
                 body = response.get_data(as_text=True)
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(len(calls), 1)
-                self.assertIn("量化回歸研究目前無法安全顯示", body)
+                self.assertIn(REGRESSION_ARTIFACT_UNAVAILABLE_REASON, body)
                 self.assertNotIn("private object", body)
 
     def test_schema_valid_but_cross_object_binding_mismatch_degrades(self):
@@ -226,7 +229,10 @@ class TestRegressionRouteIntegration(unittest.TestCase):
         response = client.get("/reports/2026-07-17/post-close")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(calls), 1)
-        self.assertIn("量化回歸研究目前無法安全顯示", response.get_data(as_text=True))
+        self.assertIn(
+            REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+            response.get_data(as_text=True),
+        )
 
     def test_canonical_corruption_remains_fatal(self):
         client, calls = self._client(canonical_raw=b"corrupted")

@@ -13,7 +13,10 @@ from flask import abort, make_response, redirect, render_template, url_for
 
 from reporting.exceptions import ReportWebError
 from reporting.web import find_report
-from reporting.professional_html import build_professional_report_view
+from reporting.professional_html import (
+    REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+    build_professional_report_view,
+)
 from reporting.professional_binding import (
     validate_professional_report_binding,
     validate_regression_research_binding,
@@ -266,6 +269,7 @@ def register_report_routes(
                 view_model = build_professional_report_view(
                     prof_report,
                     regression_artifact=regression_artifact,
+                    regression_unavailable_reason=REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
                     pdf_download_url=pdf_download_url,
                 )
                 response = make_response(

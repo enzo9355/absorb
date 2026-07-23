@@ -10,6 +10,13 @@ from .regression_schema import RegressionResearchArtifact
 
 
 REGRESSION_UNAVAILABLE_REASON = "量化回歸研究目前無法安全顯示。"
+REGRESSION_ARTIFACT_UNAVAILABLE_REASON = "量化回歸研究尚未提供。"
+REGRESSION_UNAVAILABLE_REASONS = frozenset(
+    {
+        REGRESSION_UNAVAILABLE_REASON,
+        REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+    }
+)
 
 
 def _section_view(section: ProfessionalSection) -> dict[str, Any]:
@@ -39,9 +46,15 @@ def build_professional_report_view(
 
     identity = report.identity
     if regression_artifact is None:
+        safe_reason = (
+            regression_unavailable_reason
+            if isinstance(regression_unavailable_reason, str)
+            and regression_unavailable_reason in REGRESSION_UNAVAILABLE_REASONS
+            else REGRESSION_UNAVAILABLE_REASON
+        )
         quantitative_research = {
             "status": "unavailable",
-            "reason": REGRESSION_UNAVAILABLE_REASON,
+            "reason": safe_reason,
             "data": {},
         }
     else:

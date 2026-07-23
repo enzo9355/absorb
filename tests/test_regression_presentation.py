@@ -5,11 +5,17 @@ import unittest
 
 from flask import Flask, render_template
 
-from reporting.professional_html import build_professional_report_view
+from reporting.professional_html import (
+    REGRESSION_UNAVAILABLE_REASON,
+    build_professional_report_view,
+)
 from reporting.professional_schema import ProfessionalPostCloseReport
 from reporting.regression_schema import RegressionResearchArtifact
 from tests.regression_fixtures import DISCLOSURE, make_artifact_document
 from tests.test_professional_report_schema import ProfessionalReportSchemaTests
+
+
+REGRESSION_ARTIFACT_UNAVAILABLE_REASON = "量化回歸研究尚未提供。"
 
 
 class TestRegressionPresentation(unittest.TestCase):
@@ -41,7 +47,23 @@ class TestRegressionPresentation(unittest.TestCase):
         self.assertNotIn("objects/regression", serialized_view)
         self.assertNotIn(self.artifact.identity.content_sha256, serialized_view)
 
-    def test_unavailable_overlay_uses_fixed_safe_reason(self):
+    def test_unavailable_overlay_uses_default_reason(self):
+        view = build_professional_report_view(self.report)
+        self.assertEqual(
+            view["quantitative_research"]["reason"],
+            REGRESSION_UNAVAILABLE_REASON,
+        )
+
+    def test_unavailable_overlay_accepts_only_whitelisted_reason(self):
+        view = build_professional_report_view(
+            self.report,
+            regression_unavailable_reason=REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+        )
+        self.assertEqual(
+            view["quantitative_research"]["reason"],
+            REGRESSION_ARTIFACT_UNAVAILABLE_REASON,
+        )
+
         view = build_professional_report_view(
             self.report,
             regression_unavailable_reason="private bucket/path exception",
@@ -49,7 +71,18 @@ class TestRegressionPresentation(unittest.TestCase):
         research = view["quantitative_research"]
         self.assertEqual(research["status"], "unavailable")
         self.assertNotIn("private", research["reason"])
+        self.assertEqual(research["reason"], REGRESSION_UNAVAILABLE_REASON)
         self.assertEqual(research["data"], {})
+
+        view = build_professional_report_view(
+            self.report,
+            regression_unavailable_reason=RuntimeError("raw database exception"),
+        )
+        self.assertEqual(
+            view["quantitative_research"]["reason"],
+            REGRESSION_UNAVAILABLE_REASON,
+        )
+        self.assertNotIn("database", repr(view))
 
     def test_real_flask_response_renders_structured_statistics_without_raw_dict(self):
         app = Flask(
