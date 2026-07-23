@@ -34,20 +34,6 @@ def is_production_regression_input_ready() -> bool:
     )
 
 
-def _previous_session(calendar: TradingCalendar, value: dt.date) -> dt.date:
-    candidate = value - dt.timedelta(days=1)
-    while not calendar.is_session(candidate):
-        candidate -= dt.timedelta(days=1)
-    return candidate
-
-
-def _session_offset_back(calendar: TradingCalendar, value: dt.date, count: int) -> dt.date:
-    result = value
-    for _ in range(count):
-        result = _previous_session(calendar, result)
-    return result
-
-
 def orchestrate_production_regression_input(metadata: dict[str, Any]) -> dict[str, Any] | None:
     """Production orchestrator entry point. Returns None when readiness flags are False."""
     if not is_production_regression_input_ready():
@@ -87,7 +73,7 @@ def build_regression_input_dataset(
     source_date = dt.date.fromisoformat(source_market_date)
     if not trading_calendar.is_session(source_date):
         raise ValueError("source_market_date must be a trading session")
-    lookback_start = _session_offset_back(trading_calendar, first_feature_date, 20).isoformat()
+    lookback_start = trading_calendar.session_offset(first_feature_date, -20).isoformat()
 
     if source_objects is None:
         source_objects = [
@@ -131,8 +117,9 @@ def build_regression_input_dataset(
                 "source_object_kind": "twse_taiex_daily_closing",
                 "source_field": "closing_price",
                 "unit": "daily_std",
-                "formula": "20-session sample standard deviation (ddof=1) of daily log returns over closing prices (sessions t-19 to t)",
+                "formula": "20-session sample standard deviation (ddof=1) of daily log returns generated from closing prices P[t-20] through P[t]",
                 "lookback_sessions": 20,
+                "required_price_observations": 21,
                 "lag_sessions": 0,
                 "missing_policy": "listwise_deletion",
                 "winsorization_policy": "1st_99th_percentile_linear_interpolation",

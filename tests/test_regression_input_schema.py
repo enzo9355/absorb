@@ -1,6 +1,7 @@
 """Contract tests for RegressionInputDataset parsing and semantic hashes."""
 
 import copy
+import datetime as dt
 import math
 import unittest
 
@@ -146,6 +147,53 @@ class TestRegressionInputSchema(unittest.TestCase):
         document["preprocessing_policy"]["factor_value_stage"] = "winsorized"
         rehash_input_document(document)
         with self.assertRaisesRegex(ValueError, "raw"):
+            self.parse(document)
+
+    def test_volatility_contract_requires_twenty_returns_and_twenty_one_prices(self):
+        volatility = next(
+            item
+            for item in self.document["factor_definitions"]
+            if item["name"] == "volatility_20d"
+        )
+        self.assertEqual(volatility["lookback_sessions"], 20)
+        self.assertEqual(volatility["required_price_observations"], 21)
+        self.assertEqual(
+            volatility["formula"],
+            "20-session sample standard deviation (ddof=1) of daily log returns generated from closing prices P[t-20] through P[t]",
+        )
+
+        for mutation in ("missing", "too_few"):
+            with self.subTest(mutation=mutation):
+                document = copy.deepcopy(self.document)
+                definition = next(
+                    item
+                    for item in document["factor_definitions"]
+                    if item["name"] == "volatility_20d"
+                )
+                if mutation == "missing":
+                    definition.pop("required_price_observations")
+                else:
+                    definition["required_price_observations"] = 20
+                rehash_input_document(document)
+                with self.assertRaisesRegex(ValueError, "factor definition"):
+                    self.parse(document)
+
+    def test_lookback_start_is_exactly_twenty_sessions_before_first_feature(self):
+        first_feature = self.document["identity"]["first_feature_session"]
+        expected = self.calendar.session_offset(
+            dt.date.fromisoformat(first_feature),
+            -20,
+        ).isoformat()
+        self.assertEqual(self.document["identity"]["lookback_start_session"], expected)
+
+        document = copy.deepcopy(self.document)
+        document["identity"]["lookback_start_session"] = self.calendar.session_offset(
+            dt.date.fromisoformat(first_feature),
+            -19,
+        ).isoformat()
+        document["identity"]["first_source_session"] = document["identity"]["lookback_start_session"]
+        rehash_input_document(document)
+        with self.assertRaisesRegex(ValueError, "lookback_start_session"):
             self.parse(document)
 
     def test_rows_and_content_hashes_are_recomputed(self):

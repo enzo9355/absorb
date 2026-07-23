@@ -1,5 +1,6 @@
 """Tests for the pure input builder and fail-closed readiness declarations."""
 
+import datetime as dt
 import unittest
 from unittest import mock
 
@@ -45,8 +46,19 @@ class TestRegressionInputBuilder(unittest.TestCase):
             trading_calendar=self.calendar,
         )
         self.assertEqual(dataset.identity.code_commit_sha, COMMIT_SHA)
-        self.assertLess(dataset.identity.lookback_start_session, dataset.identity.first_feature_session)
+        first_feature = dt.date.fromisoformat(dataset.identity.first_feature_session)
+        self.assertEqual(
+            dataset.identity.lookback_start_session,
+            self.calendar.session_offset(first_feature, -20).isoformat(),
+        )
         self.assertEqual(dataset.identity.row_count, len(self.rows))
+        volatility = next(
+            item
+            for item in dataset.factor_definitions
+            if item["name"] == "volatility_20d"
+        )
+        self.assertEqual(volatility["lookback_sessions"], 20)
+        self.assertEqual(volatility["required_price_observations"], 21)
 
     def test_missing_commit_uses_repository_sha_and_fails_closed(self):
         with mock.patch("reporting.regression_input_builder.git_commit_sha", return_value="e" * 40):

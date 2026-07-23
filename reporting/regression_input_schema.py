@@ -67,18 +67,6 @@ _SOURCE_OBJECT_KEYS = {
     "schema_version",
     "source_market_date",
 }
-_FACTOR_DEFINITION_KEYS = {
-    "name",
-    "source_object_kind",
-    "source_field",
-    "unit",
-    "formula",
-    "lookback_sessions",
-    "lag_sessions",
-    "missing_policy",
-    "winsorization_policy",
-    "standardization_policy",
-}
 _PREPROCESSING_POLICY = {
     "factor_value_stage": "raw",
     "missing_value_policy": "listwise_deletion",
@@ -112,8 +100,9 @@ _FACTOR_DEFINITIONS = {
         "source_object_kind": "twse_taiex_daily_closing",
         "source_field": "closing_price",
         "unit": "daily_std",
-        "formula": "20-session sample standard deviation (ddof=1) of daily log returns over closing prices (sessions t-19 to t)",
+        "formula": "20-session sample standard deviation (ddof=1) of daily log returns generated from closing prices P[t-20] through P[t]",
         "lookback_sessions": 20,
+        "required_price_observations": 21,
     },
 }
 _FACTOR_COMMON = {
@@ -295,6 +284,18 @@ class RegressionInputDataset:
             raise ValueError("label session boundaries are reversed")
         if dates["first_source_session"] > dates["last_source_session"]:
             raise ValueError("source session boundaries are reversed")
+        expected_lookback_start = trading_calendar.session_offset(
+            dates["first_feature_session"],
+            -20,
+        )
+        if dates["lookback_start_session"] != expected_lookback_start:
+            raise ValueError(
+                "identity.lookback_start_session must be twenty trading sessions before first_feature_session"
+            )
+        if dates["first_source_session"] != dates["lookback_start_session"]:
+            raise ValueError(
+                "identity.first_source_session must equal lookback_start_session"
+            )
 
         source_objects = top["source_objects"]
         factor_definitions = top["factor_definitions"]
@@ -329,11 +330,22 @@ class RegressionInputDataset:
 
         names = []
         for definition in factor_definitions:
-            _exact_keys(definition, _FACTOR_DEFINITION_KEYS, "factor definition")
-            name = definition["name"]
+            if not isinstance(definition, dict):
+                raise ValueError("factor definition keys must match schema exactly")
+            name = definition.get("name")
             names.append(name)
             expected = _FACTOR_DEFINITIONS.get(name)
-            if expected is None or any(definition.get(key) != value for key, value in {**expected, **_FACTOR_COMMON}.items()):
+            if expected is None:
+                raise ValueError("factor definitions must match the three v1 contracts")
+            _exact_keys(
+                definition,
+                {"name", *expected, *_FACTOR_COMMON},
+                "factor definition",
+            )
+            if any(
+                definition.get(key) != value
+                for key, value in {**expected, **_FACTOR_COMMON}.items()
+            ):
                 raise ValueError("factor definitions must match the three v1 contracts")
         if tuple(names) != V1_FACTORS:
             raise ValueError("factor definitions must contain the three v1 factors exactly once")

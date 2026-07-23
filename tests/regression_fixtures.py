@@ -124,8 +124,9 @@ def factor_definitions() -> list[dict]:
             "source_object_kind": "twse_taiex_daily_closing",
             "source_field": "closing_price",
             "unit": "daily_std",
-            "formula": "20-session sample standard deviation (ddof=1) of daily log returns over closing prices (sessions t-19 to t)",
+            "formula": "20-session sample standard deviation (ddof=1) of daily log returns generated from closing prices P[t-20] through P[t]",
             "lookback_sessions": 20,
+            "required_price_observations": 21,
         },
     ]
 
@@ -151,9 +152,15 @@ def make_input_document(
             "last_feature_session": rows[-1]["feature_session"],
             "first_label_end_session": rows[0]["label_end_session"],
             "last_label_end_session": rows[-1]["label_end_session"],
-            "first_source_session": rows[0]["feature_session"],
+            "first_source_session": calendar.session_offset(
+                dt.date.fromisoformat(rows[0]["feature_session"]),
+                -20,
+            ).isoformat(),
             "last_source_session": source_market_date,
-            "lookback_start_session": rows[0]["feature_session"],
+            "lookback_start_session": calendar.session_offset(
+                dt.date.fromisoformat(rows[0]["feature_session"]),
+                -20,
+            ).isoformat(),
             "source_object_count": 1,
             "aggregate_manifest_object": manifest,
             "aggregate_manifest_sha256": SHA_A,
