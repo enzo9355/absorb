@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -15,6 +16,7 @@ from reporting.professional_schema import ProfessionalPostCloseReport
 from reporting.publisher import _write_atomic as real_write_atomic
 from reporting.publisher import _write_immutable as real_write_immutable
 from reporting.publisher import publish_report_v2
+from reporting.publish_lock import report_v2_publish_lock
 from reporting.regression_schema import serialize_regression_artifact
 from tests import test_canonical_publisher_integrity as canonical_helpers
 from tests.regression_fixtures import make_artifact_document, rehash_artifact_document
@@ -35,6 +37,7 @@ class TestRegressionPublisherRollback(unittest.TestCase):
         self.regression_bytes = serialize_regression_artifact(self.artifact)
         self.regression_sha = hashlib.sha256(self.regression_bytes).hexdigest()
         self.publish_dir = self.root / "publish" / "reports" / "v2"
+        self.lock_path = self.publish_dir / ".publish-transaction-lock"
         self.index_path = self.publish_dir / "index-TW.json"
         self.latest_path = self.publish_dir / "latest-TW-post_close.json"
         self.previous_index = json.dumps(
@@ -148,6 +151,94 @@ class TestRegressionPublisherRollback(unittest.TestCase):
             with self.assertRaises(Exception):
                 self.publish()
         self.assert_previous_pointers_restored()
+
+    def test_lock_is_acquired_before_previous_pointer_snapshot(self):
+        real_exists = Path.exists
+        pointer_reads = []
+
+        def exists(path):
+            if path in {self.index_path, self.latest_path}:
+                self.assertTrue(real_exists(self.lock_path))
+                pointer_reads.append(path)
+            return real_exists(path)
+
+        with mock.patch.object(Path, "exists", autospec=True, side_effect=exists), mock.patch(
+            "reporting.publisher._publish_report_v2_impl",
+            return_value=self.latest_path,
+        ):
+            self.assertEqual(self.publish(), self.latest_path)
+
+        self.assertEqual(pointer_reads, [self.index_path, self.latest_path])
+        self.assertFalse(self.lock_path.exists())
+
+    def test_contending_transaction_cannot_interleave_with_successful_publish(self):
+        real_impl = publisher_module._publish_report_v2_impl
+        first_published = threading.Event()
+        release_first = threading.Event()
+        first_thread = None
+        first_errors = []
+        impl_threads = []
+
+        def controlled_impl(*args, **kwargs):
+            result = real_impl(*args, **kwargs)
+            impl_threads.append(threading.current_thread())
+            if threading.current_thread() is first_thread:
+                first_published.set()
+                if not release_first.wait(10):
+                    raise RuntimeError("timed out holding publish transaction lock")
+            return result
+
+        def publish_first():
+            try:
+                self.publish()
+            except BaseException as exc:
+                first_errors.append(exc)
+
+        with mock.patch(
+            "reporting.publisher._publish_report_v2_impl",
+            side_effect=controlled_impl,
+        ):
+            first_thread = threading.Thread(target=publish_first)
+            first_thread.start()
+            try:
+                self.assertTrue(first_published.wait(10))
+                successful_state = {
+                    path.relative_to(self.publish_dir): path.read_bytes()
+                    for path in self.publish_dir.rglob("*")
+                    if path.is_file() and self.lock_path not in path.parents
+                }
+
+                with self.assertRaisesRegex(ReportPublishError, "already held"):
+                    self.publish()
+
+                contended_state = {
+                    path.relative_to(self.publish_dir): path.read_bytes()
+                    for path in self.publish_dir.rglob("*")
+                    if path.is_file() and self.lock_path not in path.parents
+                }
+                self.assertEqual(contended_state, successful_state)
+                self.assertEqual(impl_threads, [first_thread])
+            finally:
+                release_first.set()
+                first_thread.join(10)
+
+            self.assertFalse(first_thread.is_alive())
+            self.assertEqual(first_errors, [])
+            self.assertEqual(self.publish(), self.latest_path)
+
+        self.assertEqual(len(impl_threads), 2)
+        self.assertFalse(self.lock_path.exists())
+
+    def test_lock_released_after_successful_rollback(self):
+        with mock.patch(
+            "reporting.publisher._write_atomic",
+            side_effect=self.fail_write_for("index-TW.json"),
+        ):
+            with self.assertRaises(OSError):
+                self.publish()
+
+        self.assert_previous_pointers_restored()
+        self.assertFalse(self.lock_path.exists())
 
     def test_regression_readback_mismatch_rolls_back_new_object(self):
         original_read = Path.read_bytes
@@ -324,6 +415,7 @@ class TestRegressionPublisherRollback(unittest.TestCase):
             with self.assertRaisesRegex(ReportPublishError, "rollback"):
                 self.publish()
         self.assert_previous_pointers_restored()
+        self.assertFalse(self.lock_path.exists())
 
     def test_rollback_only_deletes_paths_created_by_this_publication(self):
         unrelated = self.publish_dir / "objects" / "regression" / "unrelated.json"

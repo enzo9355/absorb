@@ -16,6 +16,7 @@ from .professional_binding import (
     validate_regression_research_binding,
 )
 from .professional_schema import ProfessionalPostCloseReport, compute_content_sha256
+from .publish_lock import report_v2_publish_lock
 from .regression_schema import (
     MAX_REGRESSION_ARTIFACT_BYTES,
     RegressionResearchArtifact,
@@ -463,46 +464,47 @@ def publish_report_v2(
     regression_artifact: dict | Any | None = None,
 ) -> Path:
     """Run report-v2 publication inside one rollback boundary."""
-    schema = ReportMetadataV2.from_document(metadata)
-    publish = Path(root) / "publish" / "reports" / "v2"
-    index_path = publish / "index-TW.json"
-    latest_path = publish / f"latest-TW-{schema.report_type}.json"
-    previous_index = index_path.read_bytes() if index_path.exists() else None
-    previous_latest = latest_path.read_bytes() if latest_path.exists() else None
-    newly_created_paths: list[Path] = []
+    with report_v2_publish_lock(Path(root)):
+        schema = ReportMetadataV2.from_document(metadata)
+        publish = Path(root) / "publish" / "reports" / "v2"
+        index_path = publish / "index-TW.json"
+        latest_path = publish / f"latest-TW-{schema.report_type}.json"
+        previous_index = index_path.read_bytes() if index_path.exists() else None
+        previous_latest = latest_path.read_bytes() if latest_path.exists() else None
+        newly_created_paths: list[Path] = []
 
-    try:
-        return _publish_report_v2_impl(
-            root,
-            metadata,
-            pdf_path=pdf_path,
-            page_count=page_count,
-            config=config,
-            professional_report=professional_report,
-            regression_artifact=regression_artifact,
-            _transaction_created=newly_created_paths,
-        )
-    except Exception as original:
-        rollback_errors = []
-        for path in reversed(newly_created_paths):
-            try:
-                path.unlink(missing_ok=True)
-            except OSError as exc:
-                rollback_errors.append(exc)
-        for path, previous in (
-            (index_path, previous_index),
-            (latest_path, previous_latest),
-        ):
-            try:
-                if previous is None:
+        try:
+            return _publish_report_v2_impl(
+                root,
+                metadata,
+                pdf_path=pdf_path,
+                page_count=page_count,
+                config=config,
+                professional_report=professional_report,
+                regression_artifact=regression_artifact,
+                _transaction_created=newly_created_paths,
+            )
+        except Exception as original:
+            rollback_errors = []
+            for path in reversed(newly_created_paths):
+                try:
                     path.unlink(missing_ok=True)
-                else:
-                    _RESTORE_WRITE_ATOMIC(path, previous)
-            except OSError as exc:
-                rollback_errors.append(exc)
-        if rollback_errors:
-            raise ReportPublishError("report v2 rollback failed") from original
-        raise
+                except OSError as exc:
+                    rollback_errors.append(exc)
+            for path, previous in (
+                (index_path, previous_index),
+                (latest_path, previous_latest),
+            ):
+                try:
+                    if previous is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        _RESTORE_WRITE_ATOMIC(path, previous)
+                except OSError as exc:
+                    rollback_errors.append(exc)
+            if rollback_errors:
+                raise ReportPublishError("report v2 rollback failed") from original
+            raise
 
 
 def _write_local_mirror(
