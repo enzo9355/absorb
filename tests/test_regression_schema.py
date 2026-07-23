@@ -20,6 +20,16 @@ class TestRegressionSchema(unittest.TestCase):
     def parse(self, document=None):
         return RegressionResearchArtifact.from_document(document or self.document)
 
+    def assert_invalid_diagnostics(self, mutate):
+        document = copy.deepcopy(self.document)
+        mutate(document["diagnostics"])
+        try:
+            rehash_artifact_document(document)
+        except ValueError:
+            pass
+        with self.assertRaises((ValueError, TypeError)):
+            self.parse(document)
+
     def test_valid_document_recomputes_content_hash(self):
         artifact = self.parse()
         self.assertEqual(artifact.regression_spec.independent_variables, list(FACTORS))
@@ -128,6 +138,112 @@ class TestRegressionSchema(unittest.TestCase):
                 rehash_artifact_document(document)
                 with self.assertRaises((ValueError, TypeError)):
                     self.parse(document)
+
+    def test_diagnostic_nested_keys_are_exact(self):
+        for name in (
+            "multicollinearity",
+            "heteroskedasticity",
+            "autocorrelation",
+            "residual_normality",
+            "data_quality",
+        ):
+            with self.subTest(name=name, mutation="extra"):
+                self.assert_invalid_diagnostics(
+                    lambda diagnostics, name=name: diagnostics[name].__setitem__("unexpected", 1)
+                )
+            with self.subTest(name=name, mutation="missing"):
+                first_key = next(iter(self.document["diagnostics"][name]))
+                self.assert_invalid_diagnostics(
+                    lambda diagnostics, name=name, key=first_key: diagnostics[name].pop(key)
+                )
+
+    def test_multicollinearity_contract_is_strict_and_consistent(self):
+        mutations = (
+            lambda value: value.__setitem__("status", "invalid"),
+            lambda value: value.__setitem__("max_vif", None),
+            lambda value: value.__setitem__("max_vif", "1.5"),
+            lambda value: value.__setitem__("max_vif", math.nan),
+            lambda value: value.__setitem__("max_vif", math.inf),
+            lambda value: value.__setitem__("max_vif", True),
+            lambda value: value.__setitem__("max_vif", 0.99),
+            lambda value: value.__setitem__("note", ""),
+            lambda value: value.__setitem__("note", "   "),
+            lambda value: value.__setitem__("vif_details", {FACTORS[0]: 1.5}),
+            lambda value: value["vif_details"].__setitem__(FACTORS[0], 0.99),
+            lambda value: value["vif_details"].__setitem__(FACTORS[0], "1.5"),
+            lambda value: value["vif_details"].__setitem__(FACTORS[0], True),
+            lambda value: value.__setitem__("max_vif", 1.6),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(index=index):
+                self.assert_invalid_diagnostics(
+                    lambda diagnostics, mutate=mutate: mutate(diagnostics["multicollinearity"])
+                )
+
+    def test_heteroskedasticity_contract_is_strict_and_consistent(self):
+        mutations = (
+            lambda value: value.__setitem__("status", "invalid"),
+            lambda value: value.__setitem__("test_name", "white"),
+            lambda value: value.__setitem__("test_statistic", -0.1),
+            lambda value: value.__setitem__("test_statistic", "1.0"),
+            lambda value: value.__setitem__("p_value", -0.1),
+            lambda value: value.__setitem__("p_value", 1.1),
+            lambda value: value.__setitem__("p_value", None),
+            lambda value: value.__setitem__("threshold", 0.1),
+            lambda value: value.__setitem__("threshold", True),
+            lambda value: value.__setitem__("status", "warning"),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(index=index):
+                self.assert_invalid_diagnostics(
+                    lambda diagnostics, mutate=mutate: mutate(diagnostics["heteroskedasticity"])
+                )
+
+        self.assert_invalid_diagnostics(
+            lambda diagnostics: diagnostics["heteroskedasticity"].update(
+                status="passed",
+                p_value=0.049,
+            )
+        )
+
+    def test_autocorrelation_and_normality_statuses_match_statistics(self):
+        mutations = (
+            lambda diagnostics: diagnostics["autocorrelation"].update(status="invalid"),
+            lambda diagnostics: diagnostics["autocorrelation"].update(durbin_watson=-0.1),
+            lambda diagnostics: diagnostics["autocorrelation"].update(durbin_watson=4.1),
+            lambda diagnostics: diagnostics["autocorrelation"].update(durbin_watson="2.0"),
+            lambda diagnostics: diagnostics["autocorrelation"].update(status="warning"),
+            lambda diagnostics: diagnostics["autocorrelation"].update(status="passed", durbin_watson=1.49),
+            lambda diagnostics: diagnostics["residual_normality"].update(status="invalid"),
+            lambda diagnostics: diagnostics["residual_normality"].update(jarque_bera_p_value=-0.1),
+            lambda diagnostics: diagnostics["residual_normality"].update(jarque_bera_p_value=1.1),
+            lambda diagnostics: diagnostics["residual_normality"].update(jarque_bera_p_value=True),
+            lambda diagnostics: diagnostics["residual_normality"].update(status="warning"),
+            lambda diagnostics: diagnostics["residual_normality"].update(
+                status="passed",
+                jarque_bera_p_value=0.049,
+            ),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(index=index):
+                self.assert_invalid_diagnostics(mutate)
+
+    def test_data_quality_and_warnings_contracts_are_strict(self):
+        mutations = (
+            lambda diagnostics: diagnostics["data_quality"].update(missing_rate=-0.1),
+            lambda diagnostics: diagnostics["data_quality"].update(missing_rate=1.1),
+            lambda diagnostics: diagnostics["data_quality"].update(missing_rate="0.1"),
+            lambda diagnostics: diagnostics["data_quality"].update(outlier_count=-1),
+            lambda diagnostics: diagnostics["data_quality"].update(outlier_count=1.5),
+            lambda diagnostics: diagnostics["data_quality"].update(outlier_count=True),
+            lambda diagnostics: diagnostics.update(warnings=None),
+            lambda diagnostics: diagnostics.update(warnings=[""]),
+            lambda diagnostics: diagnostics.update(warnings=["   "]),
+            lambda diagnostics: diagnostics.update(warnings=[1]),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(index=index):
+                self.assert_invalid_diagnostics(mutate)
 
     def test_disclosure_is_exact_and_all_other_visible_text_is_scanned(self):
         self.assertEqual(self.document["presentation"]["disclosure"], DISCLOSURE)

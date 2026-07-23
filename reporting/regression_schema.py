@@ -127,6 +127,19 @@ _DIAGNOSTIC_KEYS = {
     "data_quality",
     "warnings",
 }
+_MULTICOLLINEARITY_KEYS = {"status", "max_vif", "note", "vif_details"}
+_HETEROSKEDASTICITY_KEYS = {
+    "status",
+    "test_name",
+    "test_statistic",
+    "p_value",
+    "threshold",
+}
+_AUTOCORRELATION_KEYS = {"status", "durbin_watson"}
+_RESIDUAL_NORMALITY_KEYS = {"status", "jarque_bera_p_value"}
+_DATA_QUALITY_KEYS = {"missing_rate", "outlier_count"}
+_DIAGNOSTIC_STATUSES = {"passed", "warning"}
+_VIF_MATCH_TOLERANCE = 1e-9
 _PRESENTATION_KEYS = {"headline", "summary", "key_exposures", "limitations", "disclosure"}
 
 
@@ -197,6 +210,121 @@ def _visible_strings(value: Any):
     elif isinstance(value, list):
         for child in value:
             yield from _visible_strings(child)
+
+
+def _validate_diagnostics(data: dict[str, Any]) -> None:
+    multicollinearity = _exact_keys(
+        data["multicollinearity"],
+        _MULTICOLLINEARITY_KEYS,
+        "diagnostics.multicollinearity",
+    )
+    if multicollinearity["status"] not in _DIAGNOSTIC_STATUSES:
+        raise ValueError("diagnostics.multicollinearity.status is invalid")
+    max_vif = _number(
+        multicollinearity["max_vif"],
+        "diagnostics.multicollinearity.max_vif",
+    )
+    if max_vif < 1:
+        raise ValueError("diagnostics.multicollinearity.max_vif must be >= 1")
+    note = multicollinearity["note"]
+    if not isinstance(note, str) or not note.strip():
+        raise ValueError("diagnostics.multicollinearity.note must be non-empty")
+    vif_details = _exact_keys(
+        multicollinearity["vif_details"],
+        set(V1_FACTORS),
+        "diagnostics.multicollinearity.vif_details",
+    )
+    vif_values = [
+        _number(vif_details[name], f"diagnostics.multicollinearity.vif_details.{name}")
+        for name in V1_FACTORS
+    ]
+    if any(value < 1 for value in vif_values):
+        raise ValueError("diagnostics.multicollinearity VIF values must be >= 1")
+    if not math.isclose(
+        max_vif,
+        max(vif_values),
+        rel_tol=0.0,
+        abs_tol=_VIF_MATCH_TOLERANCE,
+    ):
+        raise ValueError("diagnostics.multicollinearity.max_vif must match vif_details")
+
+    heteroskedasticity = _exact_keys(
+        data["heteroskedasticity"],
+        _HETEROSKEDASTICITY_KEYS,
+        "diagnostics.heteroskedasticity",
+    )
+    if heteroskedasticity["test_name"] != "breusch_pagan":
+        raise ValueError("diagnostics.heteroskedasticity.test_name is invalid")
+    test_statistic = _number(
+        heteroskedasticity["test_statistic"],
+        "diagnostics.heteroskedasticity.test_statistic",
+    )
+    p_value = _number(
+        heteroskedasticity["p_value"],
+        "diagnostics.heteroskedasticity.p_value",
+    )
+    threshold = _number(
+        heteroskedasticity["threshold"],
+        "diagnostics.heteroskedasticity.threshold",
+    )
+    if test_statistic < 0 or not 0 <= p_value <= 1 or threshold != 0.05:
+        raise ValueError("diagnostics.heteroskedasticity values are invalid")
+    expected_status = "passed" if p_value >= threshold else "warning"
+    if heteroskedasticity["status"] != expected_status:
+        raise ValueError("diagnostics.heteroskedasticity.status is inconsistent")
+
+    autocorrelation = _exact_keys(
+        data["autocorrelation"],
+        _AUTOCORRELATION_KEYS,
+        "diagnostics.autocorrelation",
+    )
+    durbin_watson = _number(
+        autocorrelation["durbin_watson"],
+        "diagnostics.autocorrelation.durbin_watson",
+    )
+    if not 0 <= durbin_watson <= 4:
+        raise ValueError("diagnostics.autocorrelation.durbin_watson must be between 0 and 4")
+    expected_status = "passed" if 1.5 <= durbin_watson <= 2.5 else "warning"
+    if autocorrelation["status"] != expected_status:
+        raise ValueError("diagnostics.autocorrelation.status is inconsistent")
+
+    residual_normality = _exact_keys(
+        data["residual_normality"],
+        _RESIDUAL_NORMALITY_KEYS,
+        "diagnostics.residual_normality",
+    )
+    jarque_bera_p_value = _number(
+        residual_normality["jarque_bera_p_value"],
+        "diagnostics.residual_normality.jarque_bera_p_value",
+    )
+    if not 0 <= jarque_bera_p_value <= 1:
+        raise ValueError(
+            "diagnostics.residual_normality.jarque_bera_p_value must be between 0 and 1"
+        )
+    expected_status = "passed" if jarque_bera_p_value >= 0.05 else "warning"
+    if residual_normality["status"] != expected_status:
+        raise ValueError("diagnostics.residual_normality.status is inconsistent")
+
+    data_quality = _exact_keys(
+        data["data_quality"],
+        _DATA_QUALITY_KEYS,
+        "diagnostics.data_quality",
+    )
+    missing_rate = _number(
+        data_quality["missing_rate"],
+        "diagnostics.data_quality.missing_rate",
+    )
+    outlier_count = data_quality["outlier_count"]
+    if not 0 <= missing_rate <= 1:
+        raise ValueError("diagnostics.data_quality.missing_rate must be between 0 and 1")
+    if isinstance(outlier_count, bool) or not isinstance(outlier_count, int) or outlier_count < 0:
+        raise ValueError("diagnostics.data_quality.outlier_count must be a non-negative integer")
+
+    warnings = data["warnings"]
+    if not isinstance(warnings, list) or not all(
+        isinstance(item, str) and bool(item.strip()) for item in warnings
+    ):
+        raise ValueError("diagnostics.warnings must be a list of non-empty strings")
 
 
 @dataclass(frozen=True)
@@ -499,8 +627,7 @@ class RegressionResearchArtifact:
 
         diagnostics_data = _exact_keys(top["diagnostics"], _DIAGNOSTIC_KEYS, "diagnostics")
         _validate_finite_tree(diagnostics_data, "diagnostics")
-        if not isinstance(diagnostics_data["warnings"], list) or not all(isinstance(item, str) for item in diagnostics_data["warnings"]):
-            raise ValueError("diagnostics.warnings must be a list of strings")
+        _validate_diagnostics(diagnostics_data)
         presentation_data = _exact_keys(top["presentation"], _PRESENTATION_KEYS, "presentation")
         if presentation_data["disclosure"] != MANDATORY_DISCLOSURE:
             raise ValueError("presentation.disclosure must match mandatory disclosure")
