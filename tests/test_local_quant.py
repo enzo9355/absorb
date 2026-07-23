@@ -1,10 +1,14 @@
+import contextlib
 import datetime
+import io
 import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+from stock_papi.integrations.market_data.provider import FinMindFetchError
 
 from local_quant import (
     LAYOUT_DIRS,
@@ -391,6 +395,54 @@ class LocalQuantTests(unittest.TestCase):
             self.assertEqual(result, 0)
             closed_cleanup.assert_not_called()
             closed_loader.assert_not_called()
+
+    def test_cli_returns_nonzero_without_publish_on_provider_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            pipeline = type(
+                "Pipeline",
+                (),
+                {"industry_map": {"全市場": ["2330", "2317"]}},
+            )()
+            error = FinMindFetchError(
+                "quota_or_rate_limit",
+                "TaiwanStockPrice",
+                "2330",
+                "2026-07-01",
+                "2026-07-23",
+                http_status=402,
+                exception_type="HTTPError",
+                blocked_until=2000,
+                retry_after_seconds=3600,
+            )
+            stderr = io.StringIO()
+            with (
+                patch("local_quant.validate_data_root", return_value=root),
+                patch("local_quant.cleanup_expired_data", return_value={}),
+                patch("local_quant.load_stock_pipeline", return_value=pipeline),
+                patch("local_quant.run_market_batch", side_effect=error),
+                patch("local_quant.publish_market_snapshot") as publish,
+                contextlib.redirect_stderr(stderr),
+            ):
+                result = main(
+                    [
+                        "--root",
+                        str(root),
+                        "--run",
+                        "--market",
+                        "TW",
+                        "--delay",
+                        "0",
+                    ],
+                    now=at(6, 0),
+                    free_bytes=200 * 1024**3,
+                )
+
+            self.assertEqual(result, 2)
+            publish.assert_not_called()
+            self.assertIn("category=quota_or_rate_limit", stderr.getvalue())
+            self.assertNotIn("token", stderr.getvalue().lower())
 
     def test_cli_all_runs_taiwan_then_us_with_independent_batches(self):
         with tempfile.TemporaryDirectory() as temporary:

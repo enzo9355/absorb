@@ -42,6 +42,7 @@ from market_insights import (
     normalize_etf_holdings,
     parse_mops_items,
 )
+from stock_papi.integrations.market_data.provider import FinMindFetchError
 
 
 TAIPEI = datetime.timezone(datetime.timedelta(hours=8), "Asia/Taipei")
@@ -1000,6 +1001,37 @@ def run_market_batch(
             state["cycle_completed_on"] = checked_at.date().isoformat()
         save_checkpoint(root, state, market=market)
 
+    def fail_provider(symbol, error):
+        state = {
+            "stage": "market_batch",
+            "market": market,
+            "next_index": next_index,
+            "failed": failures
+            + [
+                {
+                    "symbol": symbol,
+                    "error": type(error).__name__,
+                    "category": error.category,
+                }
+            ],
+            "updated_at": checked_at.isoformat(),
+            "provider": "FinMind",
+            "dataset": error.dataset,
+            "category": error.category,
+            "http_status": error.http_status,
+            "blocked_until": error.blocked_until,
+            "first_failed_symbol": symbol,
+            "attempted_count": attempted,
+            "successful_count": completed,
+            "failed_count": 1,
+            "timestamp": checked_at.isoformat(),
+            "safe_message": error.safe_message,
+        }
+        if batch_identity is not None:
+            state["batch_identity"] = batch_identity
+        save_checkpoint(root, state, market=market)
+        raise error
+
     # Retry failures
     for retry in list(failures):
         if attempted:
@@ -1014,6 +1046,8 @@ def run_market_batch(
         failures = [item for item in failures if item["symbol"] != symbol]
         try:
             payload = analyze_symbol(symbol)
+        except FinMindFetchError as exc:
+            fail_provider(symbol, exc)
         except Exception as exc:
             exc_str = str(exc)
             import yfinance as yf
@@ -1072,6 +1106,8 @@ def run_market_batch(
         attempted += 1
         try:
             payload = analyze_symbol(symbol)
+        except FinMindFetchError as exc:
+            fail_provider(symbol, exc)
         except Exception as exc:
             exc_str = str(exc)
             import yfinance as yf

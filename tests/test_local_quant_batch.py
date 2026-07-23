@@ -24,6 +24,7 @@ from local_quant import (
     save_checkpoint,
     write_stock_artifact,
 )
+from stock_papi.integrations.market_data.provider import FinMindFetchError
 
 
 class LocalQuantBatchTests(unittest.TestCase):
@@ -221,6 +222,76 @@ File Creation Time: 07082026||||||
             checkpoint = load_checkpoint(root)
             self.assertEqual(checkpoint["next_index"], 2)
             self.assertNotIn("secret upstream response", json.dumps(checkpoint))
+
+    def test_market_batch_fails_fast_and_preserves_provider_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            calls = []
+            warnings = []
+
+            def analyze(symbol):
+                calls.append(symbol)
+                if symbol == "2330":
+                    return {"as_of": "2026-07-23"}
+                error = FinMindFetchError(
+                    "quota_or_rate_limit",
+                    "TaiwanStockPrice",
+                    symbol,
+                    "2026-07-01",
+                    "2026-07-23",
+                    http_status=402,
+                    exception_type="HTTPError",
+                    blocked_until=2000,
+                    retry_after_seconds=3600,
+                )
+                warnings.append(error.safe_message)
+                raise error
+
+            with self.assertRaises(FinMindFetchError):
+                run_market_batch(
+                    root,
+                    "TW",
+                    ["2330", "2317", "2454"],
+                    analyze,
+                    now_fn=lambda: datetime.datetime(
+                        2026, 7, 23, 17, 14, 3, tzinfo=TAIPEI
+                    ),
+                    delay=0,
+                    enforce_window=False,
+                    batch_identity={
+                        "target_market_date": "2026-07-23",
+                        "product_mode": "observation",
+                    },
+                )
+
+            self.assertEqual(calls, ["2330", "2317"])
+            self.assertEqual(len(warnings), 1)
+            checkpoint = load_checkpoint(root)
+            self.assertEqual(checkpoint["stage"], "market_batch")
+            self.assertEqual(checkpoint["provider"], "FinMind")
+            self.assertEqual(checkpoint["dataset"], "TaiwanStockPrice")
+            self.assertEqual(checkpoint["category"], "quota_or_rate_limit")
+            self.assertEqual(checkpoint["http_status"], 402)
+            self.assertEqual(checkpoint["blocked_until"], 2000)
+            self.assertEqual(checkpoint["first_failed_symbol"], "2317")
+            self.assertEqual(checkpoint["attempted_count"], 2)
+            self.assertEqual(checkpoint["successful_count"], 1)
+            self.assertEqual(checkpoint["failed_count"], 1)
+            self.assertEqual(
+                checkpoint["timestamp"],
+                "2026-07-23T17:14:03+08:00",
+            )
+            self.assertIn(
+                "category=quota_or_rate_limit",
+                checkpoint["safe_message"],
+            )
+            serialized = json.dumps(checkpoint)
+            self.assertNotIn("token", serialized.lower())
+            self.assertNotIn("password", serialized.lower())
+            self.assertFalse(
+                list((root / "publish" / "quant" / "v1").glob("manifests/*.json"))
+            )
 
     def test_market_batch_retries_previous_failures_before_new_symbols(self):
         with tempfile.TemporaryDirectory() as temporary:
