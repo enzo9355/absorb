@@ -1,3 +1,4 @@
+import io
 import json
 import tempfile
 import unittest
@@ -8,6 +9,19 @@ from tests.report_fixtures import stock_document, write_quant_publish
 
 
 class DailyReportCliTests(unittest.TestCase):
+    def test_status_json_falls_back_to_ascii_escapes_for_narrow_stream_encoding(self):
+        from reporting.cli import _print_status_json
+
+        buffer = io.BytesIO()
+        stream = io.TextIOWrapper(buffer, encoding="cp1252", newline="\n")
+
+        _print_status_json({"message": "測試狀態"}, stream=stream)
+        stream.flush()
+        encoded = buffer.getvalue()
+
+        self.assertTrue(encoded.isascii())
+        self.assertEqual(json.loads(encoded.decode("ascii")), {"message": "測試狀態"})
+
     def test_dry_run_validates_real_snapshot_without_publishing_mock_report(self):
         from reporting.cli import main
 
