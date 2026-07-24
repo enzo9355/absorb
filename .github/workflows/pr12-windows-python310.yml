@@ -34,9 +34,12 @@ jobs:
       - name: Run runtime resolver tests and capture result
         shell: powershell
         run: |
-          python -m unittest tests.test_python_runtime_wrapper -v 2>&1 |
+          $ErrorActionPreference = 'Continue'
+          & python -m unittest tests.test_python_runtime_wrapper -v 2>&1 |
             Tee-Object -FilePath runtime-tests.log
-          $LASTEXITCODE | Set-Content -LiteralPath runtime-exit-code.txt -Encoding ascii
+          $code = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          $code | Set-Content -LiteralPath runtime-exit-code.txt -Encoding ascii
           exit 0
 
       - name: Post bounded diagnostic to PR
