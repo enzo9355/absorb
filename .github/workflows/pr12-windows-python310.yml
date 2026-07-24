@@ -48,8 +48,29 @@ jobs:
           python -m pip check
 
       - name: Run runtime resolver tests
+        id: runtime_tests
+        continue-on-error: true
         shell: powershell
-        run: python -m unittest tests.test_python_runtime_wrapper -v
+        run: |
+          python -m unittest tests.test_python_runtime_wrapper -v 2>&1 |
+            Tee-Object -FilePath runtime-tests.log
+          exit $LASTEXITCODE
+
+      - name: Upload runtime resolver test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr12-runtime-tests
+          path: runtime-tests.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Stop after runtime resolver failure
+        if: steps.runtime_tests.outcome == 'failure'
+        shell: powershell
+        run: |
+          Get-Content -LiteralPath runtime-tests.log
+          exit 1
 
       - name: Run scheduler tests
         shell: powershell
