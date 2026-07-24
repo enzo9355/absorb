@@ -275,6 +275,7 @@ File Creation Time: 07082026||||||
             self.assertEqual(checkpoint["http_status"], 402)
             self.assertEqual(checkpoint["blocked_until"], 2000)
             self.assertEqual(checkpoint["first_failed_symbol"], "2317")
+            self.assertEqual(checkpoint["next_index"], 2)
             self.assertEqual(checkpoint["attempted_count"], 2)
             self.assertEqual(checkpoint["successful_count"], 1)
             self.assertEqual(checkpoint["failed_count"], 1)
@@ -349,6 +350,7 @@ File Creation Time: 07082026||||||
             self.assertEqual(checkpoint["failed_count"], 3)
             self.assertEqual(checkpoint["provider_failure_count"], 1)
             self.assertEqual(checkpoint["first_failed_symbol"], "2454")
+            self.assertEqual(checkpoint["next_index"], 3)
             self.assertGreaterEqual(
                 checkpoint["attempted_count"],
                 checkpoint["successful_count"] + len(failed),
@@ -357,6 +359,121 @@ File Creation Time: 07082026||||||
             self.assertNotIn("raw upstream credential", serialized)
             self.assertNotIn("token", serialized)
             self.assertNotIn("password", serialized)
+
+    def test_provider_failure_resumes_retry_then_next_main_symbol_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            first_calls = []
+
+            def first_analyze(symbol):
+                first_calls.append(symbol)
+                if symbol == "2330":
+                    return {"as_of": "2026-07-23"}
+                raise FinMindFetchError(
+                    "quota_or_rate_limit",
+                    "TaiwanStockPrice",
+                    symbol,
+                    "2026-07-01",
+                    "2026-07-23",
+                    http_status=429,
+                    exception_type="HTTPError",
+                    blocked_until=2000,
+                    retry_after_seconds=17,
+                )
+
+            with self.assertRaises(FinMindFetchError):
+                run_market_batch(
+                    root,
+                    "TW",
+                    ["2330", "2317", "2454"],
+                    first_analyze,
+                    limit=2,
+                    now_fn=lambda: datetime.datetime(
+                        2026, 7, 23, 17, 14, 3, tzinfo=TAIPEI
+                    ),
+                    delay=0,
+                    enforce_window=False,
+                )
+
+            first_checkpoint = load_checkpoint(root)
+            self.assertEqual(first_calls, ["2330", "2317"])
+            self.assertEqual(
+                [item["symbol"] for item in first_checkpoint["failed"]],
+                ["2317"],
+            )
+            self.assertEqual(first_checkpoint["next_index"], 2)
+
+            resumed_calls = []
+            summary = run_market_batch(
+                root,
+                "TW",
+                ["2330", "2317", "2454"],
+                lambda symbol: resumed_calls.append(symbol)
+                or {"as_of": "2026-07-23"},
+                limit=2,
+                now_fn=lambda: datetime.datetime(
+                    2026, 7, 23, 17, 15, 3, tzinfo=TAIPEI
+                ),
+                delay=0,
+                enforce_window=False,
+            )
+
+            self.assertEqual(resumed_calls, ["2317", "2454"])
+            self.assertEqual(resumed_calls.count("2317"), 1)
+            self.assertEqual(resumed_calls.count("2454"), 1)
+            self.assertEqual(summary["attempted"], 2)
+            self.assertEqual(summary["completed"], 2)
+            self.assertEqual(summary["failed"], [])
+            self.assertEqual(summary["next_index"], 3)
+            final_checkpoint = load_checkpoint(root)
+            self.assertEqual(final_checkpoint["next_index"], 3)
+            self.assertEqual(final_checkpoint["failed"], [])
+
+    def test_retry_provider_failure_does_not_advance_main_cursor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 2,
+                    "failed": [{"symbol": "2317", "error": "TimeoutError"}],
+                },
+            )
+
+            def fail_provider_retry(symbol):
+                raise FinMindFetchError(
+                    "timeout",
+                    "TaiwanStockPrice",
+                    symbol,
+                    "2026-07-01",
+                    "2026-07-23",
+                    exception_type="Timeout",
+                )
+
+            with self.assertRaises(FinMindFetchError):
+                run_market_batch(
+                    root,
+                    "TW",
+                    ["2330", "2317", "2454"],
+                    fail_provider_retry,
+                    limit=1,
+                    now_fn=lambda: datetime.datetime(
+                        2026, 7, 23, 17, 14, 3, tzinfo=TAIPEI
+                    ),
+                    delay=0,
+                    enforce_window=False,
+                )
+
+            checkpoint = load_checkpoint(root)
+            self.assertEqual(checkpoint["next_index"], 2)
+            self.assertEqual(
+                [item["symbol"] for item in checkpoint["failed"]],
+                ["2317"],
+            )
 
     def test_market_batch_retries_previous_failures_before_new_symbols(self):
         with tempfile.TemporaryDirectory() as temporary:

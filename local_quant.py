@@ -1001,7 +1001,7 @@ def run_market_batch(
             state["cycle_completed_on"] = checked_at.date().isoformat()
         save_checkpoint(root, state, market=market)
 
-    def fail_provider(symbol, error):
+    def fail_provider(symbol, error, *, checkpoint_next_index):
         failed_items = []
         failed_symbols = set()
         for item in failures:
@@ -1024,7 +1024,7 @@ def run_market_batch(
         state = {
             "stage": "market_batch",
             "market": market,
-            "next_index": next_index,
+            "next_index": checkpoint_next_index,
             "failed": failed_items,
             "updated_at": checked_at.isoformat(),
             "provider": "FinMind",
@@ -1060,7 +1060,11 @@ def run_market_batch(
         try:
             payload = analyze_symbol(symbol)
         except FinMindFetchError as exc:
-            fail_provider(symbol, exc)
+            fail_provider(
+                symbol,
+                exc,
+                checkpoint_next_index=next_index,
+            )
         except Exception as exc:
             exc_str = str(exc)
             import yfinance as yf
@@ -1120,7 +1124,11 @@ def run_market_batch(
         try:
             payload = analyze_symbol(symbol)
         except FinMindFetchError as exc:
-            fail_provider(symbol, exc)
+            fail_provider(
+                symbol,
+                exc,
+                checkpoint_next_index=next_index + 1,
+            )
         except Exception as exc:
             exc_str = str(exc)
             import yfinance as yf
