@@ -1002,18 +1002,30 @@ def run_market_batch(
         save_checkpoint(root, state, market=market)
 
     def fail_provider(symbol, error):
+        failed_items = []
+        failed_symbols = set()
+        for item in failures:
+            failed_symbol = str(item.get("symbol", ""))
+            if (
+                not failed_symbol
+                or failed_symbol == str(symbol)
+                or failed_symbol in failed_symbols
+            ):
+                continue
+            failed_items.append(item)
+            failed_symbols.add(failed_symbol)
+        failed_items.append(
+            {
+                "symbol": str(symbol),
+                "error": type(error).__name__,
+                "category": error.category,
+            }
+        )
         state = {
             "stage": "market_batch",
             "market": market,
             "next_index": next_index,
-            "failed": failures
-            + [
-                {
-                    "symbol": symbol,
-                    "error": type(error).__name__,
-                    "category": error.category,
-                }
-            ],
+            "failed": failed_items,
             "updated_at": checked_at.isoformat(),
             "provider": "FinMind",
             "dataset": error.dataset,
@@ -1023,7 +1035,8 @@ def run_market_batch(
             "first_failed_symbol": symbol,
             "attempted_count": attempted,
             "successful_count": completed,
-            "failed_count": 1,
+            "failed_count": len(failed_items),
+            "provider_failure_count": 1,
             "timestamp": checked_at.isoformat(),
             "safe_message": error.safe_message,
         }

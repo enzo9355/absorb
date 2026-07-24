@@ -278,6 +278,7 @@ File Creation Time: 07082026||||||
             self.assertEqual(checkpoint["attempted_count"], 2)
             self.assertEqual(checkpoint["successful_count"], 1)
             self.assertEqual(checkpoint["failed_count"], 1)
+            self.assertEqual(checkpoint["provider_failure_count"], 1)
             self.assertEqual(
                 checkpoint["timestamp"],
                 "2026-07-23T17:14:03+08:00",
@@ -292,6 +293,70 @@ File Creation Time: 07082026||||||
             self.assertFalse(
                 list((root / "publish" / "quant" / "v1").glob("manifests/*.json"))
             )
+
+    def test_provider_failure_keeps_prior_failures_and_consistent_counts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ensure_layout(root)
+            save_checkpoint(
+                root,
+                {
+                    "stage": "market_batch",
+                    "market": "TW",
+                    "next_index": 2,
+                    "failed": [
+                        {"symbol": "2330", "error": "TimeoutError"},
+                        {"symbol": "2317", "error": "ValueError"},
+                        {"symbol": "2330", "error": "DuplicateMustBeRemoved"},
+                    ],
+                },
+            )
+
+            def analyze(symbol):
+                if symbol in {"2330", "2317"}:
+                    raise ValueError("raw upstream credential must not persist")
+                raise FinMindFetchError(
+                    "quota_or_rate_limit",
+                    "TaiwanStockPrice",
+                    symbol,
+                    "2026-07-01",
+                    "2026-07-23",
+                    http_status=429,
+                    exception_type="HTTPError",
+                    blocked_until=2000,
+                    retry_after_seconds=17,
+                )
+
+            with self.assertRaises(FinMindFetchError):
+                run_market_batch(
+                    root,
+                    "TW",
+                    ["2330", "2317", "2454"],
+                    analyze,
+                    now_fn=lambda: datetime.datetime(
+                        2026, 7, 23, 17, 14, 3, tzinfo=TAIPEI
+                    ),
+                    delay=0,
+                    enforce_window=False,
+                )
+
+            checkpoint = load_checkpoint(root)
+            failed = checkpoint["failed"]
+            symbols = [item["symbol"] for item in failed]
+            self.assertEqual(symbols, ["2330", "2317", "2454"])
+            self.assertEqual(len(symbols), len(set(symbols)))
+            self.assertEqual(checkpoint["failed_count"], len(failed))
+            self.assertEqual(checkpoint["failed_count"], 3)
+            self.assertEqual(checkpoint["provider_failure_count"], 1)
+            self.assertEqual(checkpoint["first_failed_symbol"], "2454")
+            self.assertGreaterEqual(
+                checkpoint["attempted_count"],
+                checkpoint["successful_count"] + len(failed),
+            )
+            serialized = json.dumps(checkpoint).lower()
+            self.assertNotIn("raw upstream credential", serialized)
+            self.assertNotIn("token", serialized)
+            self.assertNotIn("password", serialized)
 
     def test_market_batch_retries_previous_failures_before_new_symbols(self):
         with tempfile.TemporaryDirectory() as temporary:
