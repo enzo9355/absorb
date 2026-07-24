@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import TextIO
 
 from .config import ReportConfig
 from .industry_analytics import build_daily_report
@@ -26,6 +27,18 @@ def _write_json_atomic(path: Path, document: dict) -> None:
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _print_status_json(document: dict, *, stream: TextIO | None = None) -> None:
+    target = stream or sys.stdout
+    text = json.dumps(document, ensure_ascii=False)
+    encoding = getattr(target, "encoding", None)
+    if encoding:
+        try:
+            text.encode(encoding)
+        except (LookupError, UnicodeEncodeError):
+            text = json.dumps(document, ensure_ascii=True)
+    print(text, file=target)
 
 
 def _load_industry_map(root: Path) -> dict[str, list[str]]:
@@ -105,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
                 warnings=report.warnings + ["dry-run：未生成或發布 PDF。"],
             )
             _write_json_atomic(status_path, status)
-            print(json.dumps(status, ensure_ascii=False))
+            _print_status_json(status)
             return 0
         if any(stock.sample_data for stock in source.stocks):
             raise ValueError("SAMPLE / TEST DATA 不得發布為正式日報")
@@ -116,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
                 warnings=["相同來源 manifest 已發布，跳過重複生成。"],
             )
             _write_json_atomic(status_path, status)
-            print(json.dumps(status, ensure_ascii=False))
+            _print_status_json(status)
             return 0
 
         output_dir = args.output_dir or (root / "reports" / args.market)
@@ -139,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             warnings=generation.warnings,
         )
         _write_json_atomic(status_path, status)
-        print(json.dumps(status, ensure_ascii=False))
+        _print_status_json(status)
         return 0
     except Exception as exc:
         status = _status(success=False, report_date=report_date, error=exc)
@@ -147,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
             _write_json_atomic(status_path, status)
         except OSError:
             pass
-        print(json.dumps(status, ensure_ascii=False), file=sys.stderr)
+        _print_status_json(status, stream=sys.stderr)
         return 1
 
 
