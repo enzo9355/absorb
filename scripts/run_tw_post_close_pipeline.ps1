@@ -10,7 +10,10 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'python_runtime.ps1')
 $PythonExe = Resolve-AbsorbPythonExecutable -RepoRoot $RepoRoot
 Assert-AbsorbPythonRuntime -PythonExe $PythonExe -RepoRoot $RepoRoot
-$env:PYTHONPATH = Join-Path $RepoRoot '.deps'
+$env:PYTHONPATH = [string]::Join(
+    [IO.Path]::PathSeparator,
+    @($RepoRoot, (Join-Path $RepoRoot '.deps'))
+)
 try { [DateTime]::ParseExact($TargetDate, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture) | Out-Null } catch { throw 'TargetDate must be YYYY-MM-DD' }
 $Year = (Get-Date).Year
 $CalendarPath = if ($env:TWSE_CALENDAR_ARTIFACT) { $env:TWSE_CALENDAR_ARTIFACT } else { Join-Path $DataRoot "publish\calendars\v1\TW-$Year.json" }
