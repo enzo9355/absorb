@@ -1,4 +1,4 @@
-name: PR12 Windows Python 3.10 verification
+name: PR13 clean-head Windows Python 3.10 verification
 
 on:
   pull_request:
@@ -14,15 +14,28 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  verify-clean-head:
     runs-on: windows-latest
     timeout-minutes: 120
 
     steps:
-      - name: Check out branch
+      - name: Check out exact clean PR 13 head
         uses: actions/checkout@v4
         with:
+          ref: bc3cfd7ec08a5c8cce102b49f1656a6027180fde
           fetch-depth: 0
+
+      - name: Verify exact clean head identity
+        shell: powershell
+        run: |
+          $expected = 'bc3cfd7ec08a5c8cce102b49f1656a6027180fde'
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $expected) {
+            throw "Unexpected clean head: $actual"
+          }
+          if (Test-Path -LiteralPath '.github/workflows/pr12-windows-python310.yml') {
+            throw 'Temporary diagnostic workflow leaked into clean branch'
+          }
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
