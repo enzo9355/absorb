@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +52,7 @@ class PythonRuntimeWrapperTests(unittest.TestCase):
                 encoding="utf-8",
                 errors="replace",
                 check=False,
+                cwd=root,
                 env=env,
             )
 
@@ -178,6 +180,20 @@ class PythonRuntimeWrapperTests(unittest.TestCase):
                 "Python executable was not found",
                 result.stdout + result.stderr,
             )
+
+    def test_runtime_smoke_check_imports_from_repo_root_outside_working_directory(self):
+        repo = Path(__file__).parents[1].resolve()
+        result = self.run_powershell(
+            (
+                "Assert-AbsorbPythonRuntime "
+                f"-PythonExe '{self.ps_quote(Path(sys.executable).resolve())}' "
+                f"-RepoRoot '{self.ps_quote(repo)}'",
+                "[Console]::WriteLine('ok')",
+            )
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
 
     def test_runtime_smoke_check_is_fail_closed_and_does_not_echo_child_output(self):
         with tempfile.TemporaryDirectory() as temporary:
