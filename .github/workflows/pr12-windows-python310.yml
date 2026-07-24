@@ -16,9 +16,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  diagnose-full-suite:
+  diagnose-daily-report-cli:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
 
     steps:
       - name: Check out branch
@@ -54,58 +54,39 @@ jobs:
           python -m pip install --quiet -r requirements-report.txt
           python -m pip check
 
-      - name: Run full suite and capture result
+      - name: Run daily report CLI tests and capture output
         shell: powershell
         run: |
           $ErrorActionPreference = 'Continue'
-          & cmd.exe /d /s /c "python -m unittest discover -s tests -v > full-suite.log 2>&1"
+          & cmd.exe /d /s /c "python -m unittest tests.test_daily_report_cli -v > daily-report-cli.log 2>&1"
           $code = $LASTEXITCODE
           $ErrorActionPreference = 'Stop'
-          $code | Set-Content -LiteralPath full-suite-exit-code.txt -Encoding ascii
+          $code | Set-Content -LiteralPath daily-report-cli-exit-code.txt -Encoding ascii
           exit 0
 
-      - name: Post all failure blocks to PR
+      - name: Post daily report CLI diagnostic to PR
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $log = Get-Content -LiteralPath full-suite.log -Raw
-          $separator = '======================================================================'
-          $blocks = [regex]::Split($log, '(?m)^={70}\r?$')
-          $failureBlocks = New-Object System.Collections.Generic.List[string]
-          foreach ($block in $blocks) {
-            if ($block -match '(?m)^(FAIL|ERROR):') {
-              $failureBlocks.Add($separator + "`r`n" + $block.Trim())
-            }
-          }
-          $totals = [regex]::Match(
-            $log,
-            '(?ms)-{70}\r?\nRan\s+\d+\s+tests?.*?\z'
-          ).Value
-          $summary = [string]::Join("`r`n`r`n", $failureBlocks)
-          if ($totals) {
-            $summary += "`r`n`r`n" + $totals.Trim()
-          }
-          if (-not $summary) {
-            $summary = 'No unittest FAIL/ERROR block was parsed.'
-          }
-          if ($summary.Length -gt 24000) {
-            $summary = $summary.Substring(0, 24000) + "`r`n[TRUNCATED]"
+          $log = Get-Content -LiteralPath daily-report-cli.log -Raw
+          if ($log.Length -gt 20000) {
+            $log = $log.Substring($log.Length - 20000)
           }
           $body = @"
-          ### Windows Python 3.10 all full-suite failures
+          ### Windows Python 3.10 daily-report CLI diagnostic
 
           Commit: $env:GITHUB_SHA
 
           ``````text
-          $summary
+          $log
           ``````
           "@
-          Set-Content -LiteralPath full-suite-comment.md -Value $body -Encoding utf8
-          gh pr comment 12 --repo enzo9355/absorb --body-file full-suite-comment.md
+          Set-Content -LiteralPath cli-comment.md -Value $body -Encoding utf8
+          gh pr comment 12 --repo enzo9355/absorb --body-file cli-comment.md
 
-      - name: Preserve full-suite failure status
+      - name: Preserve CLI test status
         shell: powershell
         run: |
-          $code = [int](Get-Content -LiteralPath full-suite-exit-code.txt -Raw)
+          $code = [int](Get-Content -LiteralPath daily-report-cli-exit-code.txt -Raw)
           if ($code -ne 0) { exit $code }
