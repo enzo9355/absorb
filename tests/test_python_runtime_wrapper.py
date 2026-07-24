@@ -62,6 +62,12 @@ class PythonRuntimeWrapperTests(unittest.TestCase):
         path.write_bytes(content)
         return path.resolve()
 
+    @staticmethod
+    def assert_resolved_file(result, expected):
+        actual = result.stdout.strip().splitlines()[-1]
+        if not os.path.samefile(actual, expected):
+            raise AssertionError(f"resolved {actual!r}, expected {str(expected)!r}")
+
     def test_explicit_absolute_override_has_highest_priority(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -82,7 +88,7 @@ class PythonRuntimeWrapperTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip().splitlines()[-1], str(override))
+            self.assert_resolved_file(result, override)
 
     def test_runner_local_venv_precedes_system_python(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -108,7 +114,7 @@ class PythonRuntimeWrapperTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip().splitlines()[-1], str(venv_python))
+            self.assert_resolved_file(result, venv_python)
 
     def test_system_python_is_used_only_when_override_and_venv_are_absent(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -131,7 +137,7 @@ class PythonRuntimeWrapperTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip().splitlines()[-1], str(system_python))
+            self.assert_resolved_file(result, system_python)
 
     def test_invalid_present_override_fails_closed_without_falling_back(self):
         with tempfile.TemporaryDirectory() as temporary:
