@@ -162,31 +162,114 @@ class NativeProcessWrapperTests(unittest.TestCase):
         self.assertNotIn("y" * 100, redacted_secret)
 
     def test_redacts_composite_authorization_cookie_and_prefixed_keys(self):
-        secret = "composite-" + "credential"
-        second_secret = "csrf-" + "credential"
+        access_key = "AK" + "IAFAKEACCESS1234"
+        signature = "sigv4-" + "credential"
+        nonce = "digest-" + "nonce"
+        response = "digest-" + "response"
+        custom_key = "custom-" + "key"
+        custom_second = "custom-" + "second"
+        cookie = "session-" + "credential"
+        csrf = "csrf-" + "credential"
+        prefixed = "prefixed-" + "credential"
         cases = (
-            (f"Authorization: Basic {secret}", (secret,)),
-            (f"Authorization: ApiKey {secret}", (secret,)),
-            (f'"authorization": "Custom {secret}"', (secret,)),
-            (f"--authorization Basic {secret}", (secret,)),
-            (f'--authorization "Basic {secret}"', (secret,)),
             (
-                f"Cookie: session={secret}; csrf={second_secret}",
-                (secret, second_secret),
+                "aws_sigv4_header",
+                "Authorization: AWS4-HMAC-SHA256 "
+                f"Credential={access_key},SignedHeaders=host,"
+                f"Signature={signature}",
+                (access_key, signature),
             ),
-            ("FINMIND_" + f"TOKEN={secret}", (secret,)),
-            ("LINE_CHANNEL_" + f"SECRET={secret}", (secret,)),
-            ("SERVICE_PASS" + f"WORD={secret}", (secret,)),
-            ("ACCESS_" + f"TOKEN={secret}", (secret,)),
-            ("CLIENT_" + f"SECRET={secret}", (secret,)),
-            ("API_" + f"KEY={secret}", (secret,)),
-            ("SERVICE_" + f"COOKIE={secret}", (secret,)),
-            ("SERVICE_" + f"AUTHORIZATION=Basic {secret}", (secret,)),
-            ("SERVICE_" + f"API_KEY={secret}", (secret,)),
+            (
+                "digest_header",
+                'Authorization: Digest username="user", realm="x", '
+                f'nonce="{nonce}", response="{response}"',
+                (nonce, response),
+            ),
+            (
+                "custom_header",
+                f"Authorization: Custom key={custom_key}; second={custom_second}",
+                (custom_key, custom_second),
+            ),
+            (
+                "quoted_json_authorization",
+                '"authorization": '
+                f'"Custom key={custom_key}, second={custom_second}"',
+                (custom_key, custom_second),
+            ),
+            (
+                "prefixed_authorization_environment",
+                "SERVICE_"
+                "AUTHORIZATION=AWS4-HMAC-SHA256 "
+                f"Credential={access_key},Signature={signature}",
+                (access_key, signature),
+            ),
+            (
+                "aws_sigv4_cli",
+                "--authorization AWS4-HMAC-SHA256 "
+                f"Credential={access_key},Signature={signature}",
+                (access_key, signature),
+            ),
+            (
+                "digest_cli",
+                f'--authorization "Digest username=x, nonce={nonce}"',
+                (nonce,),
+            ),
+            (
+                "composite_cookie_cli",
+                f"--cookie session={cookie}; csrf={csrf}",
+                (cookie, csrf),
+            ),
+            (
+                "quoted_composite_cookie_cli",
+                f'--cookie "session={cookie}; csrf={csrf}"',
+                (cookie, csrf),
+            ),
+            ("basic_header", f"Authorization: Basic {prefixed}", (prefixed,)),
+            ("api_key_header", f"Authorization: ApiKey {prefixed}", (prefixed,)),
+            ("basic_cli", f"--authorization Basic {prefixed}", (prefixed,)),
+            (
+                "quoted_basic_cli",
+                f'--authorization "Basic {prefixed}"',
+                (prefixed,),
+            ),
+            (
+                "cookie_header",
+                f"Cookie: session={cookie}; csrf={csrf}",
+                (cookie, csrf),
+            ),
+            ("finmind_token", "FINMIND_" + f"TOKEN={prefixed}", (prefixed,)),
+            (
+                "line_channel_secret",
+                "LINE_CHANNEL_" + f"SECRET={prefixed}",
+                (prefixed,),
+            ),
+            (
+                "service_password",
+                "SERVICE_PASS" + f"WORD={prefixed}",
+                (prefixed,),
+            ),
+            ("access_token", "ACCESS_" + f"TOKEN={prefixed}", (prefixed,)),
+            ("client_secret", "CLIENT_" + f"SECRET={prefixed}", (prefixed,)),
+            ("api_key", "API_" + f"KEY={prefixed}", (prefixed,)),
+            (
+                "service_cookie",
+                "SERVICE_" + f"COOKIE={prefixed}",
+                (prefixed,),
+            ),
+            (
+                "service_authorization",
+                "SERVICE_" + f"AUTHORIZATION=Basic {prefixed}",
+                (prefixed,),
+            ),
+            (
+                "service_api_key",
+                "SERVICE_" + f"API_KEY={prefixed}",
+                (prefixed,),
+            ),
         )
 
-        for value, secrets in cases:
-            with self.subTest(prefix=value.split(secret)[0]):
+        for label, value, secrets in cases:
+            with self.subTest(label=label, surface="return"):
                 redacted = self.redact(value)
                 combined = (
                     redacted
@@ -197,6 +280,22 @@ class NativeProcessWrapperTests(unittest.TestCase):
                 for original in secrets:
                     self.assertNotIn(original, combined)
 
+        command_body = "".join(
+            f"echo({value}\r\n>&2 echo({value}\r\n"
+            for _, value, _ in cases
+        ) + "exit /b 0\r\n"
+        captured = self.run_helper(command_body, allow_failure=False)
+        self.assertEqual(captured.returncode, 0, captured.stderr)
+        captured_combined = captured.stdout + captured.stderr
+        self.assertGreaterEqual(
+            captured_combined.count("[REDACTED]"),
+            len(cases) * 2,
+        )
+        for label, _, secrets in cases:
+            with self.subTest(label=label, surface="stdout_stderr"):
+                for original in secrets:
+                    self.assertNotIn(original, captured_combined)
+
         for ordinary in (
             "token_count=42",
             "secret_count=3",
@@ -205,13 +304,14 @@ class NativeProcessWrapperTests(unittest.TestCase):
             with self.subTest(ordinary=ordinary):
                 self.assertEqual(self.redact(ordinary), ordinary)
 
-        command_body = "".join(
-            f">&2 echo({value}\r\n" for value, _ in cases
+        failing_command_body = "".join(
+            f"echo({value}\r\n>&2 echo({value}\r\n"
+            for _, value, _ in cases
         ) + "exit /b 7\r\n"
         failed, log = self.run_streaming(
-            command_body,
+            failing_command_body,
             allow_failure=False,
-            tail_line_count=len(cases),
+            tail_line_count=len(cases) * 2,
         )
         self.assertNotEqual(failed.returncode, 0)
         combined = (
@@ -219,10 +319,12 @@ class NativeProcessWrapperTests(unittest.TestCase):
             + failed.stderr
             + log.read_text(encoding="utf-8-sig", errors="replace")
         )
-        self.assertGreaterEqual(combined.count("[REDACTED]"), len(cases))
-        for _, secrets in cases:
-            for original in secrets:
-                self.assertNotIn(original, combined)
+        self.assertIn("exit code 7", failed.stdout + failed.stderr)
+        self.assertGreaterEqual(combined.count("[REDACTED]"), len(cases) * 2)
+        for label, _, secrets in cases:
+            with self.subTest(label=label, surface="stream_log_exception"):
+                for original in secrets:
+                    self.assertNotIn(original, combined)
 
     def test_stderr_progress_with_zero_exit_is_success_and_redacted(self):
         result = self.run_helper(

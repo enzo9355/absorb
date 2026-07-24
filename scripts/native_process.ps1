@@ -16,19 +16,12 @@ function Protect-NativeProcessText {
         "(?:$QuotedValue|" +
         "[^\s,;}\]\r\n&#]{1,$MaxTextLength})"
     )
-    $AuthorizationValue = (
-        "(?:$QuotedValue|" +
-        "[A-Za-z][A-Za-z0-9._-]{0,64}\s+" +
-        "[^\s,;\r\n]{1,$MaxTextLength}|" +
-        "[^\s,;\r\n]{1,$MaxTextLength})"
-    )
     $HeaderValue = (
         "(?:$QuotedValue|[^\r\n]{1,$MaxTextLength})"
     )
     $PrefixedKey = (
         "[A-Za-z][A-Za-z0-9_]{0,127}_" +
-        "(?:token|password|secret|cookie|authorization|" +
-        "api_key|access_token|client_secret)"
+        "(?:token|password|secret|api_key|access_token|client_secret)"
     )
     $AuthorizationPrefix = (
         "(?i)((?<![A-Za-z0-9_])[""']?" +
@@ -43,22 +36,22 @@ function Protect-NativeProcessText {
     )
     $KeyPrefix = (
         "(?i)((?<![A-Za-z0-9_])[""']?" +
-        "(?:token|password|authorization|cookie|secret|api_key|" +
+        "(?:token|password|secret|api_key|" +
         "$PrefixedKey)[""']?" +
         "\s*[:=]\s*)"
     )
     $CliPrefix = (
-        '(?i)(--(?:token|password|authorization|cookie|secret)\s+)'
+        '(?i)(--(?:token|password|secret)\s+)'
     )
-    $CliAuthorizationPrefix = '(?i)(--authorization\s+)'
+    $CliCompositePrefix = '(?i)(--(?:authorization|cookie)\s+)'
     $Safe = [regex]::Replace(
         $Safe,
-        $AuthorizationPrefix + $AuthorizationValue,
+        $AuthorizationPrefix + $HeaderValue,
         '$1[REDACTED]'
     )
     $Safe = [regex]::Replace(
         $Safe,
-        $CliAuthorizationPrefix + $AuthorizationValue,
+        $CliCompositePrefix + $HeaderValue,
         '$1[REDACTED]'
     )
     $Safe = [regex]::Replace(
