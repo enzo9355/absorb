@@ -12,13 +12,11 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 jobs:
-  diagnose-daily-report-cli:
+  verify:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
 
     steps:
       - name: Check out branch
@@ -35,58 +33,111 @@ jobs:
             requirements.txt
             requirements-report.txt
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
       - name: Provision pinned Noto CJK test fonts
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           $commit = 'f8d157532fbfaeda587e826d4cd5b21a49186f7c'
-          Invoke-WebRequest -UseBasicParsing `
-            -Uri "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Sans/Variable/TTF/Subset/NotoSansTC-VF.ttf" `
-            -OutFile 'C:\Windows\Fonts\NotoSansTC-VF.ttf'
-          Invoke-WebRequest -UseBasicParsing `
-            -Uri "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Serif/Variable/TTF/Subset/NotoSerifTC-VF.ttf" `
-            -OutFile 'C:\Windows\Fonts\NotoSerifTC-VF.ttf'
+          $fonts = @(
+            @{
+              Uri = "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Sans/Variable/TTF/Subset/NotoSansTC-VF.ttf"
+              Destination = 'C:\Windows\Fonts\NotoSansTC-VF.ttf'
+            },
+            @{
+              Uri = "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Serif/Variable/TTF/Subset/NotoSerifTC-VF.ttf"
+              Destination = 'C:\Windows\Fonts\NotoSerifTC-VF.ttf'
+            }
+          )
+          foreach ($font in $fonts) {
+            Invoke-WebRequest -UseBasicParsing -Uri $font.Uri -OutFile $font.Destination
+            $item = Get-Item -LiteralPath $font.Destination
+            if ($item.Length -lt 1MB) {
+              throw "Downloaded test font is unexpectedly small: $($font.Destination)"
+            }
+          }
 
       - name: Install Python dependencies
         shell: powershell
         run: |
-          python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet -r requirements.txt
-          python -m pip install --quiet -r requirements-report.txt
+          python --version
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-report.txt
           python -m pip check
 
-      - name: Run daily report CLI tests and capture output
+      - name: Run runtime resolver tests
+        shell: powershell
+        run: python -m unittest tests.test_python_runtime_wrapper -v
+
+      - name: Repeat runtime resolver tests
+        shell: powershell
+        run: python -m unittest tests.test_python_runtime_wrapper -v
+
+      - name: Run scheduler tests
+        shell: powershell
+        run: python -m unittest tests.test_pipeline_scheduler -v
+
+      - name: Run daily report CLI tests
+        shell: powershell
+        run: python -m unittest tests.test_daily_report_cli -v
+
+      - name: Run focused reliability tests
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Continue'
-          & cmd.exe /d /s /c "python -m unittest tests.test_daily_report_cli -v > daily-report-cli.log 2>&1"
-          $code = $LASTEXITCODE
+          python -m unittest `
+            tests.test_python_runtime_wrapper `
+            tests.test_pipeline_scheduler `
+            tests.test_native_process_wrapper `
+            tests.test_local_quant_task `
+            tests.test_daily_report_cli `
+            -v
+
+      - name: Run full test suite
+        shell: powershell
+        run: python -m unittest discover -s tests -v
+
+      - name: Compile Python
+        shell: powershell
+        run: |
+          python -m compileall -q reporting stock_papi tests
+          python -m py_compile local_quant.py
+
+      - name: Check JavaScript syntax
+        shell: powershell
+        run: node --check static/app.js
+
+      - name: Validate Windows PowerShell 5.1 syntax
+        shell: powershell
+        run: |
           $ErrorActionPreference = 'Stop'
-          $code | Set-Content -LiteralPath daily-report-cli-exit-code.txt -Encoding ascii
-          exit 0
-
-      - name: Post daily report CLI diagnostic to PR
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $log = Get-Content -LiteralPath daily-report-cli.log -Raw
-          if ($log.Length -gt 20000) {
-            $log = $log.Substring($log.Length - 20000)
+          $paths = @(
+            'scripts/python_runtime.ps1',
+            'scripts/run_tw_post_close_pipeline.ps1',
+            'scripts/run_tw_pre_market_pipeline.ps1',
+            'scripts/invoke_pipeline_task.ps1',
+            'scripts/native_process.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path).Path,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -ne 0) {
+              $errors | Format-List * | Out-String | Write-Error
+              throw "PowerShell parser failed: $path"
+            }
           }
-          $body = @"
-          ### Windows Python 3.10 daily-report CLI diagnostic
 
-          Commit: $env:GITHUB_SHA
-
-          ``````text
-          $log
-          ``````
-          "@
-          Set-Content -LiteralPath cli-comment.md -Value $body -Encoding utf8
-          gh pr comment 12 --repo enzo9355/absorb --body-file cli-comment.md
-
-      - name: Preserve CLI test status
+      - name: Verify diff and safety invariants
         shell: powershell
         run: |
-          $code = [int](Get-Content -LiteralPath daily-report-cli-exit-code.txt -Raw)
-          if ($code -ne 0) { exit $code }
+          git diff --check origin/main...HEAD
+          python -c "from pathlib import Path; from reporting.regression_input_builder import PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY, PRODUCTION_REGRESSION_INPUT_READY, PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE, AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY; assert not any((PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY, PRODUCTION_REGRESSION_INPUT_READY, PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE, AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY)); assert not Path('backtests/v1/latest-TW.json').exists()"
