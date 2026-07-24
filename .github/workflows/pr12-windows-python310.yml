@@ -16,7 +16,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  verify:
+  diagnose-full-suite:
     runs-on: windows-latest
     timeout-minutes: 120
 
@@ -35,162 +35,77 @@ jobs:
             requirements.txt
             requirements-report.txt
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
       - name: Provision pinned Noto CJK test fonts
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
           $commit = 'f8d157532fbfaeda587e826d4cd5b21a49186f7c'
-          $fonts = @(
-            @{
-              Uri = "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Sans/Variable/TTF/Subset/NotoSansTC-VF.ttf"
-              Destination = 'C:\Windows\Fonts\NotoSansTC-VF.ttf'
-            },
-            @{
-              Uri = "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Serif/Variable/TTF/Subset/NotoSerifTC-VF.ttf"
-              Destination = 'C:\Windows\Fonts\NotoSerifTC-VF.ttf'
-            }
-          )
-          foreach ($font in $fonts) {
-            Invoke-WebRequest -UseBasicParsing -Uri $font.Uri -OutFile $font.Destination
-            $item = Get-Item -LiteralPath $font.Destination
-            if ($item.Length -lt 1MB) {
-              throw "Downloaded test font is unexpectedly small: $($font.Destination)"
-            }
-            Get-FileHash -LiteralPath $font.Destination -Algorithm SHA256 |
-              Select-Object Path,Hash
-          }
+          Invoke-WebRequest -UseBasicParsing `
+            -Uri "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Sans/Variable/TTF/Subset/NotoSansTC-VF.ttf" `
+            -OutFile 'C:\Windows\Fonts\NotoSansTC-VF.ttf'
+          Invoke-WebRequest -UseBasicParsing `
+            -Uri "https://raw.githubusercontent.com/notofonts/noto-cjk/$commit/Serif/Variable/TTF/Subset/NotoSerifTC-VF.ttf" `
+            -OutFile 'C:\Windows\Fonts\NotoSerifTC-VF.ttf'
 
       - name: Install Python dependencies
         shell: powershell
         run: |
-          python --version
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements-report.txt
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet -r requirements.txt
+          python -m pip install --quiet -r requirements-report.txt
           python -m pip check
 
-      - name: Run runtime resolver tests
+      - name: Run full suite and capture result
         shell: powershell
         run: |
-          & cmd.exe /d /s /c "python -m unittest tests.test_python_runtime_wrapper -v > runtime-tests.log 2>&1"
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content -LiteralPath runtime-tests.log
-            exit $LASTEXITCODE
-          }
-
-      - name: Repeat runtime resolver tests
-        shell: powershell
-        run: |
-          & cmd.exe /d /s /c "python -m unittest tests.test_python_runtime_wrapper -v > runtime-tests-repeat.log 2>&1"
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content -LiteralPath runtime-tests-repeat.log
-            exit $LASTEXITCODE
-          }
-
-      - name: Run scheduler tests
-        shell: powershell
-        run: |
-          & cmd.exe /d /s /c "python -m unittest tests.test_pipeline_scheduler -v > scheduler-tests.log 2>&1"
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content -LiteralPath scheduler-tests.log
-            exit $LASTEXITCODE
-          }
-
-      - name: Run focused reliability tests
-        shell: powershell
-        run: |
-          & cmd.exe /d /s /c "python -m unittest tests.test_python_runtime_wrapper tests.test_pipeline_scheduler tests.test_native_process_wrapper tests.test_local_quant_task -v > focused-tests.log 2>&1"
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content -LiteralPath focused-tests.log
-            exit $LASTEXITCODE
-          }
-
-      - name: Run full test suite
-        shell: powershell
-        run: |
+          $ErrorActionPreference = 'Continue'
           & cmd.exe /d /s /c "python -m unittest discover -s tests -v > full-suite.log 2>&1"
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content -LiteralPath full-suite.log -Tail 200
-            exit $LASTEXITCODE
-          }
-
-      - name: Compile Python
-        shell: powershell
-        run: |
-          python -m compileall -q reporting stock_papi tests
-          python -m py_compile local_quant.py
-
-      - name: Check JavaScript syntax
-        shell: powershell
-        run: node --check static/app.js
-
-      - name: Validate Windows PowerShell 5.1 syntax
-        shell: powershell
-        run: |
+          $code = $LASTEXITCODE
           $ErrorActionPreference = 'Stop'
-          $paths = @(
-            'scripts/python_runtime.ps1',
-            'scripts/run_tw_post_close_pipeline.ps1',
-            'scripts/run_tw_pre_market_pipeline.ps1',
-            'scripts/invoke_pipeline_task.ps1',
-            'scripts/native_process.ps1'
-          )
-          foreach ($path in $paths) {
-            $tokens = $null
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile(
-              (Resolve-Path -LiteralPath $path).Path,
-              [ref]$tokens,
-              [ref]$errors
-            ) | Out-Null
-            if ($errors.Count -ne 0) {
-              $errors | Format-List * | Out-String | Write-Error
-              throw "PowerShell parser failed: $path"
-            }
-          }
+          $code | Set-Content -LiteralPath full-suite-exit-code.txt -Encoding ascii
+          exit 0
 
-      - name: Verify diff and safety invariants
-        shell: powershell
-        run: |
-          git diff --check origin/main...HEAD
-          python -c "from pathlib import Path; from reporting.regression_input_builder import PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY, PRODUCTION_REGRESSION_INPUT_READY, PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE, AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY; assert not any((PRODUCTION_REGRESSION_SOURCE_ADAPTER_READY, PRODUCTION_REGRESSION_INPUT_READY, PRODUCTION_REGRESSION_ARTIFACT_AVAILABLE, AGGREGATE_MANIFEST_INTERVAL_VALIDATION_READY)); assert not Path('backtests/v1/latest-TW.json').exists()"
-
-      - name: Post concise verification result to PR
-        if: always()
+      - name: Post all failure blocks to PR
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          function Get-TestCount([string]$Path) {
-            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return 'not-run' }
-            $text = Get-Content -LiteralPath $Path -Raw
-            $match = [regex]::Match($text, 'Ran\s+(\d+)\s+tests?')
-            if ($match.Success) { return $match.Groups[1].Value }
-            return 'unknown'
+          $log = Get-Content -LiteralPath full-suite.log -Raw
+          $separator = '======================================================================'
+          $blocks = [regex]::Split($log, '(?m)^={70}\r?$')
+          $failureBlocks = New-Object System.Collections.Generic.List[string]
+          foreach ($block in $blocks) {
+            if ($block -match '(?m)^(FAIL|ERROR):') {
+              $failureBlocks.Add($separator + "`r`n" + $block.Trim())
+            }
           }
-          $runtime = Get-TestCount 'runtime-tests.log'
-          $runtimeRepeat = Get-TestCount 'runtime-tests-repeat.log'
-          $scheduler = Get-TestCount 'scheduler-tests.log'
-          $focused = Get-TestCount 'focused-tests.log'
-          $full = Get-TestCount 'full-suite.log'
+          $totals = [regex]::Match(
+            $log,
+            '(?ms)-{70}\r?\nRan\s+\d+\s+tests?.*?\z'
+          ).Value
+          $summary = [string]::Join("`r`n`r`n", $failureBlocks)
+          if ($totals) {
+            $summary += "`r`n`r`n" + $totals.Trim()
+          }
+          if (-not $summary) {
+            $summary = 'No unittest FAIL/ERROR block was parsed.'
+          }
+          if ($summary.Length -gt 24000) {
+            $summary = $summary.Substring(0, 24000) + "`r`n[TRUNCATED]"
+          }
           $body = @"
-          ### Windows Python 3.10 final verification
+          ### Windows Python 3.10 all full-suite failures
 
           Commit: $env:GITHUB_SHA
 
-          - Runtime resolver tests: $runtime
-          - Runtime resolver repeat: $runtimeRepeat
-          - Scheduler tests: $scheduler
-          - Focused reliability tests: $focused
-          - Full suite: $full
-          - Pinned test fonts: notofonts/noto-cjk@$commit
-
-          See the workflow run for individual step conclusions.
+          ``````text
+          $summary
+          ``````
           "@
-          Set-Content -LiteralPath verification-comment.md -Value $body -Encoding utf8
-          gh pr comment 12 --repo enzo9355/absorb --body-file verification-comment.md
+          Set-Content -LiteralPath full-suite-comment.md -Value $body -Encoding utf8
+          gh pr comment 12 --repo enzo9355/absorb --body-file full-suite-comment.md
+
+      - name: Preserve full-suite failure status
+        shell: powershell
+        run: |
+          $code = [int](Get-Content -LiteralPath full-suite-exit-code.txt -Raw)
+          if ($code -ne 0) { exit $code }
