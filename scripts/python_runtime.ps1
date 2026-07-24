@@ -70,12 +70,16 @@ function Assert-AbsorbPythonRuntime {
         throw 'Repository root is unavailable'
     }
 
+    $ResolvedRepoRoot = (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).Path
+    $DepsRoot = Join-Path $ResolvedRepoRoot '.deps'
+    $RuntimePythonPath = [string]::Join(
+        [IO.Path]::PathSeparator,
+        @($ResolvedRepoRoot, $DepsRoot)
+    )
     $PreviousPythonPath = $env:PYTHONPATH
     $ExitCode = 1
     try {
-        $env:PYTHONPATH = Join-Path `
-            (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).Path `
-            '.deps'
+        $env:PYTHONPATH = $RuntimePythonPath
         try {
             & $PythonExe -c 'import stock_papi' 2>&1 | Out-Null
             $ExitCode = $LASTEXITCODE
