@@ -12,6 +12,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   diagnose-runtime:
@@ -29,13 +31,37 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Show runtime context
+      - name: Run runtime resolver tests and capture result
         shell: powershell
         run: |
-          python --version
-          Get-Command powershell.exe | Format-List Name,Source,Version
-          Get-Command python | Format-List Name,Source,CommandType
+          python -m unittest tests.test_python_runtime_wrapper -v 2>&1 |
+            Tee-Object -FilePath runtime-tests.log
+          $LASTEXITCODE | Set-Content -LiteralPath runtime-exit-code.txt -Encoding ascii
+          exit 0
 
-      - name: Run runtime resolver tests
+      - name: Post bounded diagnostic to PR
         shell: powershell
-        run: python -m unittest tests.test_python_runtime_wrapper -v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $log = Get-Content -LiteralPath runtime-tests.log -Raw
+          if ($log.Length -gt 30000) {
+            $log = $log.Substring($log.Length - 30000)
+          }
+          $body = @"
+          ### Windows Python 3.10 runtime-test diagnostic
+
+          Commit: `$env:GITHUB_SHA`
+
+          ``````text
+          $log
+          ``````
+          "@
+          Set-Content -LiteralPath runtime-comment.md -Value $body -Encoding utf8
+          gh pr comment 12 --repo enzo9355/absorb --body-file runtime-comment.md
+
+      - name: Preserve test failure status
+        shell: powershell
+        run: |
+          $code = [int](Get-Content -LiteralPath runtime-exit-code.txt -Raw)
+          if ($code -ne 0) { exit $code }
