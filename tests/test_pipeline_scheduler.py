@@ -91,6 +91,8 @@ class PipelineSchedulerTests(unittest.TestCase):
                 )
                 self.assertIn("Resolve-AbsorbPythonExecutable", source)
                 self.assertIn("Assert-AbsorbPythonRuntime", source)
+                self.assertIn("[IO.Path]::PathSeparator", source)
+                self.assertIn("@($RepoRoot, (Join-Path $RepoRoot '.deps'))", source)
                 self.assertNotIn("codex-runtimes", source)
                 self.assertNotIn("$BundledPython", source)
 
