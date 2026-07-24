@@ -54,22 +54,29 @@ jobs:
           $code | Set-Content -LiteralPath full-suite-exit-code.txt -Encoding ascii
           exit 0
 
-      - name: Post bounded full-suite diagnostic to PR
+      - name: Post final full-suite failure block to PR
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $log = Get-Content -LiteralPath full-suite.log -Raw
-          if ($log.Length -gt 45000) {
-            $log = $log.Substring($log.Length - 45000)
+          $separator = '======================================================================'
+          $index = $log.LastIndexOf($separator)
+          if ($index -ge 0) {
+            $summary = $log.Substring($index)
+          } else {
+            $summary = $log
+          }
+          if ($summary.Length -gt 12000) {
+            $summary = $summary.Substring($summary.Length - 12000)
           }
           $body = @"
-          ### Windows Python 3.10 full-suite diagnostic
+          ### Windows Python 3.10 full-suite final diagnostic
 
           Commit: $env:GITHUB_SHA
 
           ``````text
-          $log
+          $summary
           ``````
           "@
           Set-Content -LiteralPath full-suite-comment.md -Value $body -Encoding utf8
