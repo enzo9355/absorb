@@ -1,9 +1,13 @@
 name: PR12 Windows Python 3.10 verification
 
 on:
-  push:
+  pull_request:
     branches:
-      - assistant/production-runner-recovery
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
   workflow_dispatch:
 
 permissions:
