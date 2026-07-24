@@ -19,7 +19,10 @@ if ($env:TW_PREMARKET_SOURCE_FILES) {
         $Arguments += @('--source-file', $ResolvedSource)
     }
 }
-$env:PYTHONPATH = Join-Path $RepoRoot '.deps'
+$env:PYTHONPATH = [string]::Join(
+    [IO.Path]::PathSeparator,
+    @($RepoRoot, (Join-Path $RepoRoot '.deps'))
+)
 & $PythonExe @Arguments
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'upload_local_quant.ps1') -DataRoot $DataRoot -RequireReportV2 -ObservationOnly
