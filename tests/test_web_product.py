@@ -1089,6 +1089,7 @@ class WebProductTests(unittest.TestCase):
         stock_html = stock_app.app.test_client().get(
             "/stock/2330"
         ).get_data(as_text=True)
+        app_js = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
 
         self.assertIn("frame-ancestors 'none'", csp)
         self.assertIn("object-src 'none'", csp)
@@ -1096,6 +1097,8 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("'unsafe-inline'", csp)
         self.assertEqual(response.headers["X-Frame-Options"], "DENY")
         self.assertIn("lightweight-charts@4.2.2", stock_html)
+        self.assertIn("attributionLogo: false", app_js)
+        self.assertIn("https://www.tradingview.com/", stock_html)
         self.assertIn('integrity="sha384-', stock_html)
         self.assertNotIn("style=", stock_html)
 

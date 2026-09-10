@@ -463,7 +463,11 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   const chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height,
-    layout: { background: { color: "transparent" }, textColor: "#536575" },
+    layout: {
+      background: { color: "transparent" },
+      textColor: "#536575",
+      attributionLogo: false,
+    },
     grid: { vertLines: { color: "#cbd8de" }, horzLines: { color: "#cbd8de" } },
     rightPriceScale: { borderColor: "#aebfc8" },
     timeScale: { borderColor: "#aebfc8", rightOffset: predictionMarker ? 6 : 1 },
