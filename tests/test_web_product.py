@@ -994,6 +994,27 @@ class WebProductTests(unittest.TestCase):
         self.assertLess(pressed, chart)
         self.assertLess(panel, chart)
 
+    def test_replaced_index_chart_releases_its_resize_hooks(self):
+        script = Path(stock_app.app.static_folder, "app.js").read_text(
+            encoding="utf-8"
+        )
+        start = script.index("function createPriceChart")
+        create_body = script[start : script.index("\n}", start)]
+
+        # createPriceChart registers a ResizeObserver and a window resize
+        # listener that both close over the chart. Switching US index tabs
+        # replaces the chart, so those hooks must be released with it; a
+        # surviving hook resizes a removed chart and throws "Object is
+        # disposed" on the next viewport change.
+        self.assertIn("observer.disconnect()", create_body)
+        self.assertIn('window.removeEventListener("resize", resize)', create_body)
+        self.assertIn("chart.remove()", create_body)
+
+        start = script.index("function initUsIndexChart")
+        switch_body = script[start : script.index("\n}", start)]
+        self.assertIn("activeChart.destroy()", switch_body)
+        self.assertNotIn("activeChart.chart.remove()", switch_body)
+
     def test_us_stocks_disables_tw_dashboard_hydration(self):
         client = stock_app.app.test_client()
         with patch.object(
