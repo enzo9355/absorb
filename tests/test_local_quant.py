@@ -243,6 +243,47 @@ class LocalQuantTests(unittest.TestCase):
             self.assertEqual(summary["skipped_reparse_points"], int(linked))
             self.assertFalse((root / "cache" / "tmp" / "nested").exists())
 
+    def test_cleanup_expired_data_preserves_publish_graph(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "StockPapiData"
+            ensure_layout(root)
+            now = at(6, 0)
+            old = (now - datetime.timedelta(days=31)).timestamp()
+
+            publish_files = {
+                "quant_object": root / "publish" / "quant" / "v1" / "objects" / f"{'a' * 64}.json.gz",
+                "quant_manifest": root / "publish" / "quant" / "v1" / "manifests" / "TW-20260601T000000Z-aaaaaaaaaaaa.json",
+                "quant_latest": root / "publish" / "quant" / "v1" / "latest-TW.json",
+                "report_metadata": root / "publish" / "reports" / "v2" / "metadata" / f"{'b' * 64}.json",
+                "report_latest": root / "publish" / "reports" / "v2" / "latest-US-pre_market.json",
+                "report_index": root / "publish" / "reports" / "v2" / "index-US.json",
+            }
+            for path in publish_files.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(path.name, encoding="utf-8")
+                os.utime(path, (old, old))
+
+            pruned = {
+                "old_raw": root / "raw" / "old.json",
+                "old_log": root / "logs" / "old.log",
+                "old_cache": root / "cache" / "tmp" / "old.tmp",
+            }
+            for path in pruned.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(path.name, encoding="utf-8")
+                os.utime(path, (old, old))
+
+            with patch("local_quant.validate_data_root", return_value=root):
+                summary = cleanup_expired_data(root, now=now)
+
+            for name, path in publish_files.items():
+                self.assertTrue(path.exists(), name)
+            for name, path in pruned.items():
+                self.assertFalse(path.exists(), name)
+            self.assertEqual(summary["deleted_files"], 3)
+            self.assertEqual(summary["failed"], 0)
+
     def test_data_root_must_be_stock_papi_directory_on_d_drive(self):
         self.assertEqual(
             validate_data_root(Path("D:/StockPapiData")),

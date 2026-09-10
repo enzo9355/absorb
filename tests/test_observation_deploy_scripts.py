@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 
@@ -571,6 +572,143 @@ $Results -join ';'
         self.assertEqual(results["valid_us_v2"], "PASS")
         self.assertEqual(results["stale_symbol_v2"], "FAIL")
         self.assertEqual(results["stale_v3"], "FAIL")
+
+    def test_observation_manifest_gate_executes_us_v4_fixture_matrix(self) -> None:
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("PowerShell is required for executable verifier fixtures")
+
+        source = VERIFY.read_text(encoding="utf-8")
+        helper_start = source.index("function Test-ObservationJsonInteger")
+        helper_end = source.index("function Test-ObservationDashboardPointer")
+        helper = source[helper_start:helper_end]
+
+        target_date = "2026-08-07"
+        status_date = "2026-08-06"
+        evidence_sha = "c" * 64
+        status_sha = "b" * 64
+        symbols = {}
+        for index in range(18):
+            symbol = f"A{index}"
+            digest = f"{index + 1:064x}"
+            symbols[symbol] = {
+                "as_of": target_date,
+                "latest_regular_price_date": target_date,
+                "model_version": "observation-source-v1",
+                "observation_as_of": target_date,
+                "observation_kind": "regular_price",
+                "path": f"objects/{digest}.json.gz",
+                "sha256": digest,
+                "size": 100,
+                "uncompressed_size": 1000,
+            }
+        symbols["HALTED"] = {
+            "as_of": status_date,
+            "evidence_sha256": evidence_sha,
+            "latest_regular_price_date": status_date,
+            "model_version": "observation-source-v1",
+            "observation_as_of": target_date,
+            "observation_kind": "officially_suspended",
+            "path": f"objects/{status_sha}.json.gz",
+            "sha256": status_sha,
+            "size": 100,
+            "uncompressed_size": 1000,
+        }
+
+        # A published v4 manifest carries legitimate unavailable symbols with
+        # zero operational failures, so its operational_failure_rate is 0 even
+        # though the observation gap is not.
+        valid_us_v4 = {
+            "schema_version": 4,
+            "market": "US",
+            "generated_at": "2026-08-08T07:13:53.141589Z",
+            "target_market_date": target_date,
+            "observation_as_of": target_date,
+            "active_universe_count": 20,
+            "observation_count": 19,
+            "regular_price_symbol_count": 18,
+            "verified_non_price_symbol_count": 1,
+            "unavailable_count": 1,
+            "unavailable_symbols": ["BRK-B"],
+            "operational_failure_count": 0,
+            "operational_failed_symbols": [],
+            "operational_failure_rate": 0.0,
+            "observation_coverage": 0.95,
+            "regular_price_denominator": 18,
+            "regular_price_coverage": 1.0,
+            "expected_non_price_symbols": {
+                "HALTED": {
+                    "status": "officially_suspended",
+                    "evidence_sha256": evidence_sha,
+                    "artifact_sha256": status_sha,
+                    "latest_regular_price_date": status_date,
+                }
+            },
+            "symbols": symbols,
+        }
+        # The rate must still be checked: counting the unavailable partition
+        # into it is exactly the arithmetic this gate has to reject.
+        gap_rate_v4 = {**valid_us_v4, "operational_failure_rate": 0.05}
+        leaked_unavailable_v4 = {
+            **valid_us_v4,
+            "unavailable_symbols": ["A0"],
+        }
+        cases = {
+            "valid_us_v4": valid_us_v4,
+            "gap_rate_v4": gap_rate_v4,
+            "leaked_unavailable_v4": leaked_unavailable_v4,
+        }
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$MinimumCoverage = 0.95
+{helper}
+$Cases = @'
+{json.dumps(cases, ensure_ascii=False)}
+'@ | ConvertFrom-Json
+$Results = @()
+foreach ($Name in @('valid_us_v4', 'gap_rate_v4', 'leaked_unavailable_v4')) {{
+    try {{
+        $null = Get-ObservationManifestCoverage `
+            -Manifest $Cases.$Name `
+            -ExpectedMarket 'US' `
+            -FailureThreshold 0.25 `
+            -ExpectedModelVersion 'observation-source-v1'
+        $Results += "$Name=PASS"
+    }} catch {{ $Results += "$Name=FAIL" }}
+}}
+$Results -join ';'
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            harness_path = Path(temporary) / "v4_fixture_matrix.ps1"
+            # Run the harness from a file instead of -Command: the v4 matrix
+            # outgrows the Windows command-line limit and -Command would fail
+            # with WinError 206 before PowerShell starts. The BOM makes
+            # Windows PowerShell 5.1 decode the script as UTF-8.
+            harness_path.write_text(script, encoding="utf-8-sig")
+            completed = subprocess.run(
+                [
+                    powershell,
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(harness_path),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        results = dict(
+            item.split("=", 1) for item in completed.stdout.strip().split(";")
+        )
+        self.assertEqual(results["valid_us_v4"], "PASS")
+        self.assertEqual(results["gap_rate_v4"], "FAIL")
+        self.assertEqual(results["leaked_unavailable_v4"], "FAIL")
 
     def test_dashboard_source_gate_enforces_manifest_freshness(self) -> None:
         source = VERIFY.read_text(encoding="utf-8")

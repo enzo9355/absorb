@@ -160,52 +160,22 @@ def _fetch_and_classify_symbol(
             or 0
         )
         if df.empty:
-            # Empty dataframe from provider: check if authoritative halt evidence exists (N) or unavailable (M)
-            if halt_evidence_by_symbol and symbol in halt_evidence_by_symbol:
-                halt_doc = halt_evidence_by_symbol[symbol]
-                payload = {
-                    "schema_version": 2,
-                    "market": "US",
-                    "symbol": symbol,
-                    "as_of": target_iso,
-                    "target_market_date": target_iso,
-                    "observation_as_of": target_iso,
-                    "latest_regular_price_date": target_iso,
-                    "observation_kind": halt_doc.get("status", "officially_suspended"),
-                    "trading_status_evidence": halt_doc,
-                    "lineage": {
-                        "source_schema_version": "us-official-status-v1",
-                        "observation_as_of": target_iso,
-                        "latest_regular_price_date": target_iso,
-                        "observation_kind": halt_doc.get("status", "officially_suspended"),
-                        "trading_status_evidence_sha256": halt_doc.get("evidence_sha256"),
-                    },
-                    "rows": 0,
-                    "latest": {},
-                    "backtest": {},
-                    "daily": [],
-                }
-                write_stock_artifact(root, "US", symbol, payload)
-                return ObservationResult(
-                    symbol=symbol,
-                    kind="N",
-                    detail=halt_doc,
-                    reason_code="verified_halt",
-                    security_evidence=(security_evidence_by_symbol or {}).get(symbol),
-                    provider_result=_provider_result(
-                        df,
-                        status="healthy",
-                        target_observation="absent",
-                        dropped_placeholder_count=dropped_placeholder_count,
-                        primary_failure=primary_failure,
-                    ),
-                    official_status_evidence=halt_doc,
-                )
+            # No provider rows at all, so there is no last regular price date to
+            # bind. Halt evidence cannot turn that into a verified non-price
+            # observation: the manifest requires every published symbol to carry
+            # a real price history whose last date precedes the target session.
+            # It stays a legitimate unavailable and keeps the evidence for the
+            # audit record.
+            halt_doc = (halt_evidence_by_symbol or {}).get(symbol)
             return ObservationResult(
                 symbol=symbol,
                 kind="M",
-                detail="provider_healthy_no_target_observation",
-                reason_code="provider_healthy_no_target_observation",
+                detail=halt_doc or "provider_healthy_no_target_observation",
+                reason_code=(
+                    "verified_halt_without_price_history"
+                    if halt_doc
+                    else "provider_healthy_no_target_observation"
+                ),
                 security_evidence=(security_evidence_by_symbol or {}).get(symbol),
                 provider_result=_provider_result(
                     df,
@@ -214,6 +184,7 @@ def _fetch_and_classify_symbol(
                     dropped_placeholder_count=dropped_placeholder_count,
                     primary_failure=primary_failure,
                 ),
+                official_status_evidence=halt_doc,
             )
 
         daily = json.loads(

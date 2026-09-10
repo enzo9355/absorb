@@ -459,14 +459,18 @@ class TestUSAdversarialFailures(unittest.TestCase):
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USRateLimitError")
 
+        # 4 and 5 are the only branches that reach the Nasdaq fallback, so the
+        # fallback is stubbed: leaving it live would classify by whatever the
+        # real endpoint returns for the fake symbol instead of by the primary
+        # failure under test.
         # 4. USSchemaError -> OP_FAIL
-        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")):
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")),              patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=USProviderOperationalError("fallback unavailable")):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USSchemaError")
 
         # 5. USIntegrityError -> OP_FAIL
-        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")):
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")),              patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=USProviderOperationalError("fallback unavailable")):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USIntegrityError")
@@ -475,6 +479,123 @@ class TestUSAdversarialFailures(unittest.TestCase):
         with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=ValueError("unknown format error")):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
+
+    def _halt_evidence(self, symbol):
+        return create_us_status_evidence(
+            status="officially_suspended",
+            symbol=symbol,
+            target_market_date=self.target_date,
+            exchange="NASDAQ",
+            source_id="nasdaq_tradehalts_rss",
+            payload_sha256="d" * 64,
+            raw_fields={"effective_on_target_session": True},
+        )
+
+    def test_halt_without_any_price_history_stays_unavailable(self):
+        """Halt evidence for a symbol the provider returns nothing for cannot be
+        a verified non-price observation: there is no last regular price date to
+        bind, and the manifest rejects an artifact without one, which fails the
+        whole batch closed instead of publishing 39 healthy symbols."""
+        halt_doc = self._halt_evidence("TEST")
+        with patch(
+            "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+            return_value=pd.DataFrame(),
+        ):
+            res = _fetch_and_classify_symbol(
+                self.root, "TEST", self.target_date, {"TEST": halt_doc}
+            )
+
+        self.assertEqual(res.kind, "M")
+        self.assertEqual(res.reason_code, "verified_halt_without_price_history")
+        self.assertEqual(res.official_status_evidence, halt_doc)
+        self.assertFalse(
+            list((self.root / "artifacts").rglob("TEST.json"))
+            + list((self.root / "artifacts").rglob("TEST.json.gz"))
+        )
+
+    def test_halt_with_price_history_is_still_a_verified_non_price_observation(self):
+        """The guard above must not drop real verified non-price observations."""
+        history = self._make_valid_df("TEST", self.target_date).iloc[:-3]
+        halt_doc = self._halt_evidence("TEST")
+        with patch(
+            "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+            return_value=history,
+        ):
+            res = _fetch_and_classify_symbol(
+                self.root, "TEST", self.target_date, {"TEST": halt_doc}
+            )
+
+        self.assertEqual(res.kind, "N")
+        self.assertEqual(res.reason_code, "verified_halt")
+
+    def test_halted_symbol_without_history_does_not_block_the_batch(self):
+        """The batch publishes the remaining universe instead of failing closed."""
+        symbols = [f"SYM{index:03d}" for index in range(40)]
+        halted = symbols[0]
+        breakdown = USUniverseBreakdown(
+            configured_listed_count=40,
+            eligible_listed_count=40,
+            active_universe_count=40,
+            excluded_exchange_count=0,
+            excluded_crypto_count=0,
+            excluded_invalid_count=0,
+            excluded_derivative_count=0,
+            derivative_breakdown={},
+            terminated_delisted_count=0,
+            exchange_counts={"NASDAQ": 40},
+            symbols=symbols,
+            exclusions_by_symbol={},
+        )
+
+        def mock_fetch(sym, target_market_date=None, mock_df=None):
+            if sym == halted:
+                return pd.DataFrame()
+            return self._make_valid_df(sym, target_market_date)
+
+        with patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_universe_breakdown",
+            return_value=breakdown,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+            side_effect=mock_fetch,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_trading_status_snapshot",
+            return_value={halted: self._halt_evidence(halted)},
+        ):
+            promoted = run_us_post_close(self.root, self.target_date)
+
+        self.assertIsNotNone(promoted)
+        manifest_latest = json.loads(
+            (self.root / "publish" / "quant" / "v1" / "latest-US.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        manifest = json.loads(
+            (
+                self.root / "publish" / "quant" / "v1" / manifest_latest["manifest"]
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["unavailable_symbols"], [halted])
+        self.assertEqual(manifest["operational_failure_count"], 0)
+        self.assertEqual(manifest["observation_count"], 39)
+
+    def test_nasdaq_fallback_outcomes_are_bound_to_stubbed_provider(self):
+        """The Nasdaq fallback decides R / M / OP_FAIL after a primary schema or
+        integrity failure, so every outcome is asserted against a stubbed
+        provider rather than the live endpoint."""
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")),              patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", return_value=self._make_valid_df("TEST", self.target_date)) as fallback:
+            res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
+        self.assertEqual(res.kind, "R")
+        fallback.assert_called_once()
+
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")),              patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=USObservationUnavailable("no data")):
+            res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
+        self.assertEqual(res.kind, "M")
+
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")),              patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=OSError("connection reset")):
+            res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
+        self.assertEqual(res.kind, "OP_FAIL")
+        self.assertEqual(res.error_type, "USSchemaError")
 
 
 if __name__ == "__main__":

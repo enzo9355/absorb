@@ -50,6 +50,20 @@ function Add-Check {
     }) | Out-Null
 }
 
+function Get-CheckFailureDetail {
+    param([object]$ErrorRecord)
+
+    # Every `throw '...'` in this script surfaces as RuntimeException, so a
+    # detail of just the type name tells an operator nothing about which gate
+    # condition failed. Keep the message so BLOCKED evidence is actionable.
+    $Reason = $ErrorRecord.Exception.GetType().Name
+    $Message = ([string]$ErrorRecord.Exception.Message) -replace '\s+', ' '
+    $Message = $Message.Trim()
+    if ($Message.Length -gt 500) { $Message = $Message.Substring(0, 500) }
+    if (-not $Message -or $Message -eq $Reason) { return $Reason }
+    return "${Reason}: $Message"
+}
+
 function Invoke-Gcloud {
     param([string[]]$Arguments)
 
@@ -76,7 +90,7 @@ function Invoke-Checked {
         $Detail = & $Action
         Add-Check $Name $true ([string]$Detail)
     } catch {
-        Add-Check $Name $false $_.Exception.GetType().Name
+        Add-Check $Name $false (Get-CheckFailureDetail $_)
     }
 }
 
@@ -184,10 +198,13 @@ function Test-BucketSecurity {
     if ($PublicAccessPrevention -ne 'enforced') {
         throw 'Public access prevention is not enforced'
     }
-    if ($LifecycleRules.Count -lt 1) {
-        throw 'Lifecycle rule is missing'
+    foreach ($Rule in $LifecycleRules) {
+        if ($null -eq $Rule) { continue }
+        if ([string]$Rule.action.type -eq 'Delete') {
+            throw 'Lifecycle rule must not delete immutable objects'
+        }
     }
-    return 'Bucket is private with uniform access, public access prevention and lifecycle'
+    return 'Bucket is private with uniform access, public access prevention and no delete lifecycle rules'
 }
 
 function Test-CloudRunIdentity {
@@ -833,16 +850,21 @@ function Get-ObservationManifestCoverage {
     ) {
         throw 'Observation source manifest v3 regular price coverage is invalid'
     }
+    # operational_failure_rate covers operational failures only. In v4 the
+    # observation gap also holds the legitimate unavailable partition, so
+    # measuring the rate against the whole gap would reject every published
+    # manifest that carries one. v3 has no unavailable partition, so the two
+    # counts agree there.
     if (
         -not (Test-ObservationJsonNumber $Manifest.operational_failure_rate) -or
         [double]$Manifest.operational_failure_rate -lt 0 -or
         [double]$Manifest.operational_failure_rate -ge 0.05 -or
         [math]::Abs(
             [double]$Manifest.operational_failure_rate -
-            ($FailureCount / [double]$UniverseCount)
+            ([long]$Manifest.operational_failure_count / [double]$UniverseCount)
         ) -gt 1e-12
     ) {
-        throw 'Observation source manifest v3 failure rate is invalid'
+        throw 'Observation source manifest v3/v4 failure rate is invalid'
     }
 
     $ExpectedBySymbol = @{}
@@ -1228,7 +1250,7 @@ try {
             $ServiceAccount = Test-CloudRunIdentity
             Add-Check 'cloud_run_revision' $true 'Cloud Run has a ready revision and service account'
         } catch {
-            Add-Check 'cloud_run_revision' $false $_.Exception.GetType().Name
+            Add-Check 'cloud_run_revision' $false (Get-CheckFailureDetail $_)
         }
         if ($ServiceAccount) {
             Invoke-Checked 'cloud_run_iam' { Test-ServiceAccountAccess $ServiceAccount }
@@ -1265,7 +1287,7 @@ try {
             $ServiceAccount = Test-CloudRunIdentity
             Add-Check 'cloud_run_revision' $true 'Cloud Run has a ready revision and service account'
         } catch {
-            Add-Check 'cloud_run_revision' $false $_.Exception.GetType().Name
+            Add-Check 'cloud_run_revision' $false (Get-CheckFailureDetail $_)
         }
         if ($ServiceAccount) {
             Invoke-Checked 'cloud_run_iam' { Test-ServiceAccountAccess $ServiceAccount }

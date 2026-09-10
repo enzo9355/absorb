@@ -60,7 +60,6 @@ RETENTION_DAYS = {
     "cache/pycache": 30,
     "raw": 30,
     "logs": 30,
-    "publish": 30,
 }
 SEC_US_UNIVERSE_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 SEC_US_UNIVERSE_MAX_BYTES = 5 * 1024 * 1024

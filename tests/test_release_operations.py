@@ -60,6 +60,104 @@ class ReleaseOperationsTests(unittest.TestCase):
         self.assertIn("$LifecycleRules = @(", source)
         self.assertNotIn("$LifecycleRules = if (", source)
 
+    def test_cutover_bucket_security_rejects_lifecycle_delete_but_accepts_empty_and_transitions(self) -> None:
+        powershell = shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("Windows PowerShell 5.1 is required for bucket-security fixtures")
+
+        source = CUTOVER.read_text(encoding="utf-8")
+        security = source[
+            source.index("function Test-BucketSecurity"):
+            source.index("function Test-CloudRunIdentity")
+        ]
+        fixtures = {
+            "zero_rules": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle_config": {"rule": []},
+            },
+            "absent_lifecycle": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+            },
+            "set_storage_class": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle_config": {
+                    "rule": [{"action": {"type": "SetStorageClass"}, "condition": {"age": 30}}]
+                },
+            },
+            "delete_rule": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle_config": {
+                    "rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]
+                },
+            },
+            "uniform_disabled": {
+                "uniform_bucket_level_access": False,
+                "public_access_prevention": "enforced",
+                "lifecycle_config": {"rule": []},
+            },
+            "pap_not_enforced": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "disabled",
+                "lifecycle_config": {"rule": []},
+            },
+        }
+        case_lines = "\n".join(
+            f"    {name} = '{json.dumps(payload, separators=(',', ':'))}'"
+            for name, payload in fixtures.items()
+        )
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$Bucket = 'line-stock-bot-498908-quant-snapshots'
+function Invoke-Gcloud {{
+    param([string[]]$Arguments)
+    return $script:Payload
+}}
+{security}
+$Cases = [ordered]@{{
+{case_lines}
+}}
+$Results = foreach ($Name in $Cases.Keys) {{
+    $script:Payload = $Cases[$Name]
+    try {{
+        $null = Test-BucketSecurity
+        "$Name=PASS"
+    }} catch {{
+        "$Name=FAIL:$($_.Exception.Message)"
+    }}
+}}
+$Results -join ';'
+"""
+        completed = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
+        results = dict(item.split("=", 1) for item in completed.stdout.strip().split(";"))
+        self.assertEqual(results["zero_rules"], "PASS")
+        self.assertEqual(results["absent_lifecycle"], "PASS")
+        self.assertEqual(results["set_storage_class"], "PASS")
+        self.assertEqual(
+            results["delete_rule"],
+            "FAIL:Lifecycle rule must not delete immutable objects",
+        )
+        self.assertEqual(
+            results["uniform_disabled"],
+            "FAIL:Uniform bucket-level access is disabled",
+        )
+        self.assertEqual(
+            results["pap_not_enforced"],
+            "FAIL:Public access prevention is not enforced",
+        )
+
     def test_cutover_quant_pointer_supports_tw_v3_and_tw_us_v4(self) -> None:
         source = CUTOVER.read_text(encoding="utf-8")
         pointer = source[
@@ -242,6 +340,56 @@ $null = Invoke-Gcloud @('/c', 'echo warning 1>&2')
             invoke_gcloud,
         )
         self.assertIn("if ($ExitCode -ne 0)", invoke_gcloud)
+
+    def test_blocked_check_detail_names_the_failing_condition(self) -> None:
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("PowerShell is required to execute the check harness")
+
+        source = CUTOVER.read_text(encoding="utf-8")
+        helpers = source[
+            source.index("function Add-Check") : source.index("function Invoke-Gcloud")
+        ]
+        invoke = source[
+            source.index("function Invoke-Checked") : source.index("function Get-JsonFile")
+        ]
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$Checks = New-Object System.Collections.Generic.List[object]
+{helpers}
+{invoke}
+Invoke-Checked 'latest_us' {{ throw 'Observation source manifest v3/v4 failure rate is invalid' }}
+Invoke-Checked 'latest_tw' {{ 'TW latest pointer and manifest are verified' }}
+($Checks | ForEach-Object {{ "$($_.name)|$($_.status)|$($_.detail)" }}) -join ';;'
+"""
+        completed = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        rows = dict(
+            (row.split("|", 2)[0], row.split("|", 2)[1:])
+            for row in completed.stdout.strip().split(";;")
+        )
+
+        status, detail = rows["latest_us"]
+        self.assertEqual(status, "BLOCKED")
+        # Every `throw` in this script raises RuntimeException, so a detail of
+        # just the type name would leave an operator with no way to tell which
+        # of the gate conditions rejected the manifest.
+        self.assertIn(
+            "Observation source manifest v3/v4 failure rate is invalid", detail
+        )
+        self.assertNotEqual(detail, "RuntimeException")
+
+        status, detail = rows["latest_tw"]
+        self.assertEqual(status, "READY")
+        self.assertEqual(detail, "TW latest pointer and manifest are verified")
 
     def test_required_runbook_and_handover_documents_exist(self) -> None:
         documents = {

@@ -463,7 +463,11 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   const chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height,
-    layout: { background: { color: "transparent" }, textColor: "#536575" },
+    layout: {
+      background: { color: "transparent" },
+      textColor: "#536575",
+      attributionLogo: false,
+    },
     grid: { vertLines: { color: "#cbd8de" }, horzLines: { color: "#cbd8de" } },
     rightPriceScale: { borderColor: "#aebfc8" },
     timeScale: { borderColor: "#aebfc8", rightOffset: predictionMarker ? 6 : 1 },
@@ -499,15 +503,27 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
       text: "AI 5日",
     }]);
   }
+  let disposed = false;
   const resize = () => {
+    if (disposed) return;
     const nextHeight = compact
       ? Math.max(250, Math.min(350, Math.round(container.clientWidth * 0.46)))
       : measureChartHeight(container);
     chart.resize(container.clientWidth, nextHeight);
   };
-  if (window.ResizeObserver) new ResizeObserver(resize).observe(container);
+  const observer = window.ResizeObserver ? new ResizeObserver(resize) : null;
+  if (observer) observer.observe(container);
   window.addEventListener("resize", resize);
-  return { chart, length: candles.length };
+  // Resize hooks outlive the chart they drive, so a chart that is replaced must
+  // release them first: resizing a removed chart throws "Object is disposed".
+  const destroy = () => {
+    if (disposed) return;
+    disposed = true;
+    if (observer) observer.disconnect();
+    window.removeEventListener("resize", resize);
+    chart.remove();
+  };
+  return { chart, length: candles.length, destroy };
 }
 
 function setChartRange(days) {
@@ -553,7 +569,7 @@ function initUsIndexChart() {
       panel.hidden = panel.dataset.usIndexPanel !== symbol;
     });
     if (!container || !window.LightweightCharts) return;
-    if (activeChart) activeChart.chart.remove();
+    if (activeChart) activeChart.destroy();
     container.replaceChildren();
     activeChart = createPriceChart(container, {
       candles: item.candles,
