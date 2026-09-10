@@ -37,6 +37,42 @@ class AbsorbConversationWebTests(unittest.TestCase):
         self.assertEqual(kwargs["market_context"], "TW")
         self.assertEqual(kwargs["page_context"], "home")
 
+    def test_conversation_cookie_is_secure_behind_a_tls_terminating_proxy(self):
+        """Cloud Run terminates TLS at the front end, so every production
+        request reaches the app over plain HTTP and request.is_secure is False.
+        Deciding the Secure flag from it drops the flag exactly where it is
+        needed, leaving the conversation identifier sendable over plaintext."""
+        client = stock_app.app.test_client()
+        with patch.object(
+            stock_app,
+            "run_absorb_conversation",
+            return_value=ConversationAnswer("結論：等待確認", data_quality="partial"),
+        ):
+            response = client.post(
+                "/api/conversation",
+                json=self._payload(),
+                headers={"X-Forwarded-Proto": "https"},
+                base_url="http://absorb.example.run.app",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        cookie = response.headers["Set-Cookie"]
+        self.assertIn("Secure", cookie)
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=Lax", cookie)
+
+    def test_conversation_cookie_can_opt_out_of_secure_for_local_http(self):
+        client = stock_app.app.test_client()
+        with patch.dict(os.environ, {"AUTH_COOKIE_SECURE": "false"}), patch.object(
+            stock_app,
+            "run_absorb_conversation",
+            return_value=ConversationAnswer("結論：等待確認", data_quality="partial"),
+        ):
+            response = client.post("/api/conversation", json=self._payload())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Secure", response.headers["Set-Cookie"])
+
     def test_legacy_question_only_payload_defaults_to_tw_home(self):
         client = stock_app.app.test_client()
         with patch.object(

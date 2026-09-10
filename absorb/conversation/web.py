@@ -1,3 +1,4 @@
+import os
 import re
 import secrets
 
@@ -7,6 +8,23 @@ from absorb.conversation.renderers import render_web
 
 
 COOKIE_NAME = "absorb_conversation"
+
+
+def _cookie_secure() -> bool:
+    """Whether the conversation cookie carries Secure.
+
+    Cloud Run terminates TLS at the front end, so the app is reached over plain
+    HTTP and request.is_secure is False for every production request. Deciding
+    from it drops Secure exactly where it is needed, so this follows the same
+    AUTH_COOKIE_SECURE switch the login cookie already uses: secure by default,
+    opt out only for local HTTP development.
+    """
+
+    return (os.getenv("AUTH_COOKIE_SECURE") or "true").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+    }
 _SYMBOL_PATTERN = re.compile(r"^[A-Za-z0-9.-]{1,12}$")
 
 
@@ -60,7 +78,7 @@ def register_conversation_routes(app, *, converse, resolve_authenticated_identit
                 COOKIE_NAME,
                 cookie_value,
                 max_age=1800,
-                secure=request.is_secure,
+                secure=_cookie_secure(),
                 httponly=True,
                 samesite="Lax",
                 path="/",
