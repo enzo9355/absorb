@@ -401,7 +401,7 @@ class ReportWebTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("此歷史盤前報告沒有隔夜資料", html)
+        self.assertIn("此盤前報告沒有隔夜觀察資料", html)
         self.assertIn("以下內容僅為前一交易日盤後摘要", html)
 
     def test_v2_observation_report_is_the_only_formal_report_surface(self):

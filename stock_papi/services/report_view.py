@@ -153,7 +153,7 @@ def _overnight_overlay(value: Any) -> dict[str, Any]:
     ):
         return {
             "status": "legacy_unavailable",
-            "message": "此歷史盤前報告沒有隔夜資料。",
+            "message": "此盤前報告沒有隔夜觀察資料。",
             "symbols": [],
             "as_of": value["as_of"],
             "previous_as_of": None,

@@ -163,6 +163,38 @@ class TestUSDateSemantics(unittest.TestCase):
         # The matching session still publishes, so the guard is not a blanket stop.
         self.assertIsNotNone(run_us_pre_market(self.root, tuesday))
 
+    def test_published_pre_market_report_renders(self):
+        """The overnight overlay is validated on read, and the report view
+        accepts only a verified five-symbol signal or the no-overnight-data
+        state. A US pre-market artifact that declares anything else is
+        published successfully and then served as 503 forever, so the produced
+        artifact is rendered here rather than only inspected as metadata."""
+        import app as stock_app
+
+        wednesday = datetime.date(2026, 8, 19)
+        thursday = datetime.date(2026, 8, 20)
+        self._publish_post_close(wednesday)
+        run_us_pre_market(self.root, thursday)
+
+        published = self.root / "publish" / "reports" / "v2"
+        objects = {
+            f"reports/v2/{path.relative_to(published).as_posix()}": path.read_bytes()
+            for path in published.rglob("*")
+            if path.is_file()
+        }
+        with patch.object(
+            stock_app,
+            "_gcs_get_report_v2_object",
+            lambda path, _size: objects.get(path),
+            create=True,
+        ):
+            client = stock_app.app.test_client()
+            response = client.get(f"/reports/us/{thursday.isoformat()}/pre-market")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("以下內容僅為前一交易日盤後摘要，不是盤前訊號。", html)
+
     def test_pre_market_rejects_unbound_post_close_pointer_hash(self):
         """The pointer hash must match the metadata bytes it names."""
         friday = datetime.date(2026, 9, 4)

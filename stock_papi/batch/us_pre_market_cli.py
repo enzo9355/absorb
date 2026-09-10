@@ -86,8 +86,13 @@ def run_us_pre_market(
     content = {
         "base_metadata_sha256": post_close_meta_sha,
         "core": base_meta.get("content", {}),
+        # The report view accepts an overnight overlay in exactly two shapes: a
+        # verified five-symbol signal, or this no-overnight-data state. The US
+        # pre-market artifact carries the previous session's post-close core and
+        # no overnight observation, so it declares the latter; any other status
+        # renders as a 503 rather than a page.
         "overnight_overlay": {
-            "status": "mixed",
+            "status": "insufficient",
             "message": f"美股 {target_market_date} 開盤前觀察",
             "as_of": target_market_date.isoformat(),
             "available": [],
