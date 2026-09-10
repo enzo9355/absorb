@@ -243,6 +243,56 @@ $null = Invoke-Gcloud @('/c', 'echo warning 1>&2')
         )
         self.assertIn("if ($ExitCode -ne 0)", invoke_gcloud)
 
+    def test_blocked_check_detail_names_the_failing_condition(self) -> None:
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("PowerShell is required to execute the check harness")
+
+        source = CUTOVER.read_text(encoding="utf-8")
+        helpers = source[
+            source.index("function Add-Check") : source.index("function Invoke-Gcloud")
+        ]
+        invoke = source[
+            source.index("function Invoke-Checked") : source.index("function Get-JsonFile")
+        ]
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$Checks = New-Object System.Collections.Generic.List[object]
+{helpers}
+{invoke}
+Invoke-Checked 'latest_us' {{ throw 'Observation source manifest v3/v4 failure rate is invalid' }}
+Invoke-Checked 'latest_tw' {{ 'TW latest pointer and manifest are verified' }}
+($Checks | ForEach-Object {{ "$($_.name)|$($_.status)|$($_.detail)" }}) -join ';;'
+"""
+        completed = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        rows = dict(
+            (row.split("|", 2)[0], row.split("|", 2)[1:])
+            for row in completed.stdout.strip().split(";;")
+        )
+
+        status, detail = rows["latest_us"]
+        self.assertEqual(status, "BLOCKED")
+        # Every `throw` in this script raises RuntimeException, so a detail of
+        # just the type name would leave an operator with no way to tell which
+        # of the gate conditions rejected the manifest.
+        self.assertIn(
+            "Observation source manifest v3/v4 failure rate is invalid", detail
+        )
+        self.assertNotEqual(detail, "RuntimeException")
+
+        status, detail = rows["latest_tw"]
+        self.assertEqual(status, "READY")
+        self.assertEqual(detail, "TW latest pointer and manifest are verified")
+
     def test_required_runbook_and_handover_documents_exist(self) -> None:
         documents = {
             "runbook_incident_response.md": "手動回滾",
