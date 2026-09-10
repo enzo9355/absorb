@@ -653,10 +653,21 @@ $Results -join ';'
             **valid_us_v4,
             "unavailable_symbols": ["A0"],
         }
+        # An observation-source manifest binds every symbol to
+        # observation-source-v1. A publisher that omits it leaves the entries
+        # with a null model_version, which must stay a rejection.
+        null_model_version_v4 = {
+            **valid_us_v4,
+            "symbols": {
+                symbol: {**entry, "model_version": None}
+                for symbol, entry in symbols.items()
+            },
+        }
         cases = {
             "valid_us_v4": valid_us_v4,
             "gap_rate_v4": gap_rate_v4,
             "leaked_unavailable_v4": leaked_unavailable_v4,
+            "null_model_version_v4": null_model_version_v4,
         }
         script = f"""
 $ErrorActionPreference = 'Stop'
@@ -666,7 +677,7 @@ $Cases = @'
 {json.dumps(cases, ensure_ascii=False)}
 '@ | ConvertFrom-Json
 $Results = @()
-foreach ($Name in @('valid_us_v4', 'gap_rate_v4', 'leaked_unavailable_v4')) {{
+foreach ($Name in @('valid_us_v4', 'gap_rate_v4', 'leaked_unavailable_v4', 'null_model_version_v4')) {{
     try {{
         $null = Get-ObservationManifestCoverage `
             -Manifest $Cases.$Name `
@@ -709,6 +720,7 @@ $Results -join ';'
         self.assertEqual(results["valid_us_v4"], "PASS")
         self.assertEqual(results["gap_rate_v4"], "FAIL")
         self.assertEqual(results["leaked_unavailable_v4"], "FAIL")
+        self.assertEqual(results["null_model_version_v4"], "FAIL")
 
     def test_dashboard_source_gate_enforces_manifest_freshness(self) -> None:
         source = VERIFY.read_text(encoding="utf-8")

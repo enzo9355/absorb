@@ -579,6 +579,65 @@ class TestUSAdversarialFailures(unittest.TestCase):
         self.assertEqual(manifest["operational_failure_count"], 0)
         self.assertEqual(manifest["observation_count"], 39)
 
+    def test_published_manifest_binds_every_symbol_to_the_observation_source(self):
+        """Manifest v4 is an observation-source product, and the cutover verifier
+        rejects any entry whose model_version is not observation-source-v1.
+        The US publisher wrote no model_version at all, so every entry carried
+        null and latest_us was blocked at the first key in the sorted symbol
+        map - a single-letter ticker such as A, which is a report of where the
+        loop stopped rather than anything specific to that security."""
+        symbols = ["A", "AAPL", "MSFT", "NVDA", "T", "F"]
+        breakdown = USUniverseBreakdown(
+            configured_listed_count=len(symbols),
+            eligible_listed_count=len(symbols),
+            active_universe_count=len(symbols),
+            excluded_exchange_count=0,
+            excluded_crypto_count=0,
+            excluded_invalid_count=0,
+            excluded_derivative_count=0,
+            derivative_breakdown={},
+            terminated_delisted_count=0,
+            exchange_counts={"NASDAQ": len(symbols)},
+            symbols=symbols,
+            exclusions_by_symbol={},
+        )
+        halted = "T"
+        history = self._make_valid_df(halted, self.target_date).iloc[:-3]
+
+        def mock_fetch(sym, target_market_date=None, mock_df=None):
+            if sym == halted:
+                return history
+            return self._make_valid_df(sym, target_market_date)
+
+        with patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_universe_breakdown",
+            return_value=breakdown,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+            side_effect=mock_fetch,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_trading_status_snapshot",
+            return_value={halted: self._halt_evidence(halted)},
+        ):
+            run_us_post_close(self.root, self.target_date)
+
+        published = self.root / "publish" / "quant" / "v1"
+        latest = json.loads((published / "latest-US.json").read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (published / latest["manifest"]).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(manifest["schema_version"], 4)
+        # Both a regular price entry and a verified non-price entry are covered.
+        self.assertEqual(manifest["verified_non_price_symbol_count"], 1)
+        self.assertEqual(list(manifest["symbols"])[0], "A")
+        for symbol, entry in manifest["symbols"].items():
+            self.assertEqual(
+                entry.get("model_version"),
+                "observation-source-v1",
+                f"{symbol} is not bound to the observation source",
+            )
+
     def test_nasdaq_fallback_outcomes_are_bound_to_stubbed_provider(self):
         """The Nasdaq fallback decides R / M / OP_FAIL after a primary schema or
         integrity failure, so every outcome is asserted against a stubbed

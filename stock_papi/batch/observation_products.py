@@ -15,6 +15,22 @@ from stock_papi.integrations.market_data.tw_trading_status import (
 )
 
 
+def _status_validator(market):
+    """Return the authoritative status-evidence validator for a market.
+
+    US evidence declares a US market and a US exchange, so the TW validator
+    rejects every US verified non-price observation.
+    """
+
+    if market == "TW":
+        return validate_status_evidence
+    from stock_papi.integrations.market_data.us_trading_status import (
+        validate_us_status_evidence,
+    )
+
+    return validate_us_status_evidence
+
+
 MIN_SOURCE_COVERAGE = 0.95
 MAX_SOURCE_AGE_DAYS = 7
 TRADING_STATUS_LABELS = {
@@ -365,7 +381,7 @@ def _validate_source(source, today):
         ):
             raise ValueError("observation status source is invalid")
         try:
-            evidence = validate_status_evidence(
+            evidence = _status_validator(manifest.market)(
                 stock.trading_status_evidence,
                 symbol=stock.symbol,
                 target_date=target_date,

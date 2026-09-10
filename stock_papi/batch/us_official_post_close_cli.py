@@ -13,7 +13,11 @@ import sys
 from typing import Any
 import zoneinfo
 
-from local_quant import publish_market_snapshot, write_stock_artifact
+from local_quant import (
+    OBSERVATION_SOURCE_VERSION,
+    publish_market_snapshot,
+    write_stock_artifact,
+)
 from reporting.source_loader import load_report_source
 from stock_papi.batch.calendar import TradingCalendarSet
 from stock_papi.batch.observation_products import (
@@ -220,6 +224,7 @@ def _fetch_and_classify_symbol(
                 "observation_as_of": as_of,
                 "latest_regular_price_date": as_of,
                 "observation_kind": "regular_price",
+                "model_version": OBSERVATION_SOURCE_VERSION,
                 "lineage": {
                     "source_schema_version": getattr(df, "attrs", {}).get(
                         "source_schema_version", "us-market-data-v1"
@@ -286,6 +291,7 @@ def _fetch_and_classify_symbol(
                     "latest_regular_price_date": as_of,
                     "observation_kind": halt_doc.get("status", "officially_suspended"),
                     "trading_status_evidence": halt_doc,
+                    "model_version": OBSERVATION_SOURCE_VERSION,
                     "lineage": {
                         "source_schema_version": "us-official-status-v1",
                         "observation_as_of": target_iso,

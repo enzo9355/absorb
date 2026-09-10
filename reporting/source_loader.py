@@ -18,6 +18,24 @@ from stock_papi.integrations.market_data.tw_trading_status import (
     validate_status_evidence,
 )
 
+
+def _status_evidence_helpers(market: str):
+    """Return the authoritative status-evidence helpers for a market.
+
+    US evidence declares a US market and a US exchange, so the TW validator
+    rejects every US verified non-price observation. local_quant selects the
+    pair per market for the same reason.
+    """
+
+    if market == "TW":
+        return evidence_sha256, validate_status_evidence
+    from stock_papi.integrations.market_data.us_trading_status import (
+        evidence_sha256 as us_evidence_sha256,
+        validate_us_status_evidence,
+    )
+
+    return us_evidence_sha256, validate_us_status_evidence
+
 StockSnapshot = StockSnapshot
 
 _TW_SYMBOL_RE = re.compile(r"[0-9]{4,5}[0-9A-Z]?")
@@ -396,6 +414,7 @@ def _load_manifest_source(
     ):
         raise ReportSourceError("pointer and manifest generation mismatch")
     schema_version = int(manifest["schema_version"])
+    status_evidence_sha256, status_validator = _status_evidence_helpers(market)
     as_of = _manifest_as_of(manifest)
     if report_date is not None and as_of != report_date:
         raise ReportSourceError("requested report date does not match manifest")
@@ -502,7 +521,8 @@ def _load_manifest_source(
                 or status.get("symbol") != symbol
                 or status.get("target_market_date")
                 != manifest["target_market_date"]
-                or status.get("evidence_sha256") != evidence_sha256(status)
+                or status.get("evidence_sha256")
+                != status_evidence_sha256(status)
                 or entry.get("evidence_sha256")
                 != status.get("evidence_sha256")
                 or expected.get("evidence_sha256")
@@ -515,7 +535,7 @@ def _load_manifest_source(
                 raise ReportSourceError("status object evidence mismatch")
             if expected is not None:
                 try:
-                    validate_status_evidence(
+                    status_validator(
                         status,
                         symbol=symbol,
                         target_date=as_of,
