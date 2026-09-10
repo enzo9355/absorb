@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import json
 from pathlib import Path
+import re
 import zoneinfo
 
 from reporting.publisher import publish_report_v2
@@ -14,6 +15,38 @@ from stock_papi.batch.calendar import TradingCalendarSet
 from stock_papi.integrations.market_data.us_calendar import get_us_calendar_documents
 
 NEW_YORK = zoneinfo.ZoneInfo("America/New_York")
+
+
+def _assert_post_close_base(
+    base_meta: dict, target_market_date: datetime.date
+) -> None:
+    """Fail closed unless the bound post-close base applies to the target session.
+
+    The report route rejects a pre-market report whose base post-close does not
+    share its ``source_market_date`` and ``applicable_trading_date``, so a base
+    that applies to another session can only ever publish an unservable report.
+    """
+
+    capability = base_meta.get("prediction_capability")
+    if (
+        base_meta.get("schema_version") != 2
+        or base_meta.get("kind") not in {"absorb-report", "stock-papi-report"}
+        or base_meta.get("product_mode") != "observation"
+        or base_meta.get("report_type") != "post_close"
+        or base_meta.get("market") != "US"
+        or base_meta.get("applicable_trading_date")
+        != target_market_date.isoformat()
+        or base_meta.get("observation_start_date")
+        != base_meta.get("source_market_date")
+        or base_meta.get("observation_end_date")
+        != base_meta.get("applicable_trading_date")
+        or not isinstance(base_meta.get("content"), dict)
+        or not isinstance(capability, dict)
+    ):
+        raise RuntimeError(
+            "US pre-market post-close base does not apply to "
+            f"{target_market_date.isoformat()}"
+        )
 
 
 def run_us_pre_market(
@@ -37,10 +70,19 @@ def run_us_pre_market(
         raise RuntimeError("US pre-market requires published US post-close base")
 
     post_close_ptr = json.loads(post_close_path.read_text(encoding="utf-8"))
-    meta_rel = post_close_ptr["metadata"]
-    base_meta = json.loads((root / "publish" / "reports" / "v2" / meta_rel).read_text(encoding="utf-8"))
+    meta_rel = str(post_close_ptr.get("metadata") or "")
+    if re.fullmatch(r"metadata/[0-9a-f]{64}\.json", meta_rel) is None:
+        raise RuntimeError("US post-close base pointer is invalid")
+    base_bytes = (root / "publish" / "reports" / "v2" / meta_rel).read_bytes()
+    post_close_meta_sha = hashlib.sha256(base_bytes).hexdigest()
+    if (
+        meta_rel != f"metadata/{post_close_meta_sha}.json"
+        or str(post_close_ptr.get("metadata_sha256") or "") != post_close_meta_sha
+    ):
+        raise RuntimeError("US post-close base metadata hash is not bound")
+    base_meta = json.loads(base_bytes.decode("utf-8"))
+    _assert_post_close_base(base_meta, target_market_date)
 
-    post_close_meta_sha = base_meta.get("metadata_sha256") or post_close_ptr.get("metadata_sha256")
     content = {
         "base_metadata_sha256": post_close_meta_sha,
         "core": base_meta.get("content", {}),

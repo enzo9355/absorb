@@ -105,6 +105,83 @@ class TestUSDateSemantics(unittest.TestCase):
             self.assertEqual(pm_meta["source_market_date"], "2026-08-19")
             self.assertEqual(pm_meta["applicable_trading_date"], "2026-08-20")
 
+    def _publish_post_close(self, target_market_date):
+        symbols = ["AAPL", "MSFT"]
+        breakdown = USUniverseBreakdown(
+            configured_listed_count=2,
+            eligible_listed_count=2,
+            active_universe_count=2,
+            excluded_exchange_count=0,
+            excluded_crypto_count=0,
+            excluded_invalid_count=0,
+            excluded_derivative_count=0,
+            derivative_breakdown={},
+            terminated_delisted_count=0,
+            exchange_counts={"NASDAQ": 2},
+            symbols=symbols,
+            exclusions_by_symbol={},
+        )
+        with patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_universe_breakdown",
+            return_value=breakdown,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+            side_effect=lambda s, target_market_date=None, mock_df=None: self._make_valid_df(
+                s, target_market_date
+            ),
+        ):
+            return run_us_post_close(self.root, target_market_date)
+
+    def test_pre_market_rejects_base_applying_to_another_session(self):
+        """PostClose on 2026-09-04 applies to 2026-09-08 (Labor Day gap).
+
+        A pre-market run for 2026-09-09 must fail closed rather than bind that
+        base: the report route requires the base post-close to share the
+        pre-market applicable_trading_date, so publishing it can only produce a
+        report that is permanently unservable."""
+        friday = datetime.date(2026, 9, 4)
+        tuesday = datetime.date(2026, 9, 8)
+        wednesday = datetime.date(2026, 9, 9)
+
+        self.assertEqual(self.calendars.next_session(friday), tuesday)
+        self.assertTrue(self.calendars.is_session(wednesday))
+        self.assertIsNotNone(self._publish_post_close(friday))
+
+        with self.assertRaises(RuntimeError) as ctx:
+            run_us_pre_market(self.root, wednesday)
+        self.assertIn("2026-09-09", str(ctx.exception))
+        self.assertFalse(
+            (
+                self.root
+                / "publish"
+                / "reports"
+                / "v2"
+                / "latest-US-pre_market.json"
+            ).exists()
+        )
+
+        # The matching session still publishes, so the guard is not a blanket stop.
+        self.assertIsNotNone(run_us_pre_market(self.root, tuesday))
+
+    def test_pre_market_rejects_unbound_post_close_pointer_hash(self):
+        """The pointer hash must match the metadata bytes it names."""
+        friday = datetime.date(2026, 9, 4)
+        tuesday = datetime.date(2026, 9, 8)
+        self._publish_post_close(friday)
+
+        pointer_path = (
+            self.root / "publish" / "reports" / "v2" / "latest-US-post_close.json"
+        )
+        pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+        pointer["metadata_sha256"] = "f" * 64
+        pointer_path.write_text(
+            json.dumps(pointer, ensure_ascii=False), encoding="utf-8"
+        )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            run_us_pre_market(self.root, tuesday)
+        self.assertIn("not bound", str(ctx.exception))
+
     def test_friday_to_monday_session_transition(self):
         """Friday session next_session must resolve to Monday, skipping Saturday and Sunday."""
         friday = datetime.date(2026, 8, 21)
