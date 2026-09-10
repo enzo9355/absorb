@@ -14,6 +14,24 @@ from stock_papi.integrations.market_data.tw_trading_status import (
 )
 
 
+def _status_validator(market):
+    """Return the authoritative status-evidence validator for a market.
+
+    US evidence declares a US market and a US exchange, so the TW validator
+    raises for every US verified non-price observation. The caller swallows
+    that as a missing snapshot, which silently hides a published observation.
+    """
+
+    if market == "TW":
+        return validate_status_evidence
+    from stock_papi.integrations.market_data.us_trading_status import (
+        validate_us_status_evidence,
+    )
+
+    return validate_us_status_evidence
+
+
+
 QUANT_MANIFEST_CACHE_SECONDS = 300
 MAX_QUANT_ARTIFACT_COMPRESSED_BYTES = 5 * 1024 * 1024
 MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
@@ -356,7 +374,7 @@ def fetch_quant_snapshot(
                 != entry.get("evidence_sha256")
                 or status.get("evidence_sha256")
                 != expected.get("evidence_sha256")
-                or validate_status_evidence(
+                or _status_validator(market)(
                     status,
                     symbol=symbol,
                     target_date=datetime.date.fromisoformat(

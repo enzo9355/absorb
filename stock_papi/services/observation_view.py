@@ -7,6 +7,19 @@ import math
 from stock_papi.integrations.market_data.tw_trading_status import (
     validate_status_evidence,
 )
+
+
+def _status_validator(market):
+    """Return the authoritative status-evidence validator for a market."""
+
+    if market == "TW":
+        return validate_status_evidence
+    from stock_papi.integrations.market_data.us_trading_status import (
+        validate_us_status_evidence,
+    )
+
+    return validate_us_status_evidence
+
 from stock_papi.integrations.market_data.tw_security_master import is_taiwan_symbol
 
 
@@ -80,8 +93,9 @@ def _status_observation(snapshot, rows, *, get_stock_name=None):
     latest_regular = _date_text(snapshot.get("latest_regular_price_date"))
     latest_row_date = _date_text(rows[-1].get("Date"))
     status = snapshot.get("observation_kind")
+    market = snapshot.get("market")
     if (
-        snapshot.get("market") != "TW"
+        market not in {"TW", "US"}
         or status not in _STATUS_LABELS
         or target is None
         or target != observed
@@ -92,7 +106,7 @@ def _status_observation(snapshot, rows, *, get_stock_name=None):
     ):
         return None
     try:
-        evidence = validate_status_evidence(
+        evidence = _status_validator(market)(
             snapshot.get("trading_status_evidence"),
             symbol=snapshot.get("symbol"),
             target_date=datetime.date.fromisoformat(target),
@@ -104,7 +118,7 @@ def _status_observation(snapshot, rows, *, get_stock_name=None):
     result = {
         "code": str(snapshot.get("symbol") or ""),
         "name": _observation_name(snapshot, get_stock_name),
-        "market": "TW",
+        "market": market,
         "observation_kind": status,
         "status_label": _STATUS_LABELS[status],
         "observation_as_of": observed,

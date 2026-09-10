@@ -638,6 +638,81 @@ class TestUSAdversarialFailures(unittest.TestCase):
                 f"{symbol} is not bound to the observation source",
             )
 
+    def test_published_us_halt_is_readable_and_renders_its_status(self):
+        """A verified non-price observation is a published product: it is in the
+        manifest, counted in verified_non_price_symbol_count and bound to
+        official evidence. Validating that evidence with the TW validator makes
+        the reader raise, which the reader swallows as a missing snapshot, so
+        the halt disappears from the site with no error anywhere."""
+        from stock_papi.repositories.quant_snapshots import (
+            fetch_quant_snapshot,
+            published_quant_manifest,
+        )
+        from stock_papi.services.observation_view import build_stock_observation
+
+        symbols = ["A", "HALTED"] + [f"SYM{index:03d}" for index in range(38)]
+        breakdown = USUniverseBreakdown(
+            configured_listed_count=len(symbols),
+            eligible_listed_count=len(symbols),
+            active_universe_count=len(symbols),
+            excluded_exchange_count=0,
+            excluded_crypto_count=0,
+            excluded_invalid_count=0,
+            excluded_derivative_count=0,
+            derivative_breakdown={},
+            terminated_delisted_count=0,
+            exchange_counts={"NASDAQ": len(symbols)},
+            symbols=symbols,
+            exclusions_by_symbol={},
+        )
+        history = self._make_valid_df("HALTED", self.target_date).iloc[:-3]
+
+        def mock_fetch(sym, target_market_date=None, mock_df=None):
+            if sym == "HALTED":
+                return history
+            return self._make_valid_df(sym, target_market_date)
+
+        with patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_universe_breakdown",
+            return_value=breakdown,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+            side_effect=mock_fetch,
+        ), patch(
+            "stock_papi.batch.us_official_post_close_cli.get_us_trading_status_snapshot",
+            return_value={"HALTED": self._halt_evidence("HALTED")},
+        ):
+            run_us_post_close(self.root, self.target_date)
+
+        publish = self.root / "publish"
+
+        def load_object(name, max_bytes):
+            path = publish / name
+            if not path.is_file():
+                return None
+            payload = path.read_bytes()
+            return payload if len(payload) <= max_bytes else None
+
+        manifest = published_quant_manifest(
+            "US", today=self.target_date, load_object=load_object, cache={}
+        )
+        self.assertIsNotNone(manifest)
+        self.assertEqual(manifest["verified_non_price_symbol_count"], 1)
+
+        snapshot = fetch_quant_snapshot(
+            "US",
+            "HALTED",
+            load_manifest=lambda market, today=None: manifest,
+            load_object=load_object,
+        )
+        self.assertIsNotNone(snapshot, "the published halt was dropped by the reader")
+        self.assertEqual(snapshot["observation_kind"], "officially_suspended")
+
+        view = build_stock_observation(snapshot)
+        self.assertIsNotNone(view, "the published halt has no observation view")
+        self.assertEqual(view["market"], "US")
+        self.assertEqual(view["status_label"], "停止買賣")
+
     def test_nasdaq_fallback_outcomes_are_bound_to_stubbed_provider(self):
         """The Nasdaq fallback decides R / M / OP_FAIL after a primary schema or
         integrity failure, so every outcome is asserted against a stubbed
