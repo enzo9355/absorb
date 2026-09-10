@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 
@@ -677,15 +678,30 @@ foreach ($Name in @('valid_us_v4', 'gap_rate_v4', 'leaked_unavailable_v4')) {{
 }}
 $Results -join ';'
 """
-        completed = subprocess.run(
-            [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            harness_path = Path(temporary) / "v4_fixture_matrix.ps1"
+            # Run the harness from a file instead of -Command: the v4 matrix
+            # outgrows the Windows command-line limit and -Command would fail
+            # with WinError 206 before PowerShell starts. The BOM makes
+            # Windows PowerShell 5.1 decode the script as UTF-8.
+            harness_path.write_text(script, encoding="utf-8-sig")
+            completed = subprocess.run(
+                [
+                    powershell,
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(harness_path),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         results = dict(
             item.split("=", 1) for item in completed.stdout.strip().split(";")

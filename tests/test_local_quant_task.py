@@ -401,11 +401,10 @@ class LocalQuantTaskTests(unittest.TestCase):
             source.index("capture_observation_lkg.ps1"),
         )
 
-    def test_lifecycle_deletes_cloud_objects_after_thirty_days(self):
-        source = LIFECYCLE.read_text(encoding="utf-8")
+    def test_lifecycle_preserves_immutable_cloud_objects(self):
+        config = json.loads(LIFECYCLE.read_text(encoding="utf-8"))
 
-        self.assertIn('"type": "Delete"', source)
-        self.assertIn('"age": 30', source)
+        self.assertEqual(config["rule"], [])
 
     def test_installer_registers_separate_0935_upload_task(self):
         source = INSTALLER.read_text(encoding="utf-8")
