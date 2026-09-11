@@ -3,6 +3,7 @@ import inspect
 import json
 import os
 import re
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -1820,15 +1821,57 @@ class WebProductTests(unittest.TestCase):
             violations.append(normalized)
         self.assertEqual(violations, [])
 
-    def test_order2_css_has_single_token_namespace_and_imports(self):
+    def test_order2_css_bundle_is_in_sync_with_sources(self):
+        """app.css 由 scripts/build_css.py 串接產生，必須與六個原始檔同步。
+
+        改為建置時串接而非 @import：@import 會讓 STATIC_ASSET_VERSION 只覆蓋
+        app.css 那幾行匯入語句（部署後版本號不變、真正的樣式檔無版本參數），
+        並且多一層 render-blocking 的串行請求。
+        """
+        import subprocess
+
+        repo_root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [sys.executable, str(repo_root / "scripts" / "build_css.py"), "--check"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
         app_css = Path(stock_app.app.static_folder, "app.css").read_text(
             encoding="utf-8"
         )
+        self.assertNotIn("@import", app_css)
         for name in _CSS_FILES:
-            self.assertIn(f'@import url("{name}");', app_css)
             self.assertTrue(
                 (Path(stock_app.app.static_folder) / name).is_file(),
                 name,
+            )
+
+    def test_order2_every_referenced_custom_property_is_defined(self):
+        """每個 var(--x) 引用的 --x 都必須有定義。
+
+        未定義的自訂屬性會造成 invalid at computed-value time：可繼承屬性
+        （如 color）回退為繼承值，非繼承屬性回退為初始值。這種失效不會有
+        任何錯誤訊息，也不會被「hex 字面值數量」這類指標抓到 —— 把字面值
+        換成沒定義的 token 反而會讓該指標變好看。
+        """
+        css = css_bundle()
+        defined = set(re.findall(r"(--[A-Za-z0-9-]+)\s*:", css))
+        referenced = set(re.findall(r"var\(\s*(--[A-Za-z0-9-]+)", css))
+        self.assertEqual(sorted(referenced - defined), [])
+
+    def test_order2_css_sources_are_individually_parseable(self):
+        """每個原始檔的註解必須自成對，拆檔點不得落在註解中間。
+
+        若拆檔點切開註解，該檔單獨解析時開頭會是註解內文，CSS 解析器會把它
+        當成無效的選擇器前導，連同後面第一個規則區塊一起丟棄。
+        """
+        static_root = Path(stock_app.app.static_folder)
+        for name in _CSS_FILES:
+            source = (static_root / name).read_text(encoding="utf-8")
+            self.assertEqual(
+                source.count("/*"), source.count("*/"), f"{name} 註解不成對"
             )
         css = css_compact()
         self.assertNotIn("--command-", css)

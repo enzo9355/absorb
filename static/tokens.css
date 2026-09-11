@@ -6,6 +6,7 @@
   font-display:swap;
 }
 :root {
+    --absorb-pure-white:#fff;
     --absorb-navy:#183147;
     --absorb-navy-hover:#21445d;
     --absorb-navy-active:#0b1b31;

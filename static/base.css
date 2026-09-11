@@ -739,7 +739,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
 }
 .mobile-nav a.active,.mobile-more.active>summary {
   border-color:var(--absorb-blue);
-  background:var(--absorb-pale);
+  background:transparent;
   color:var(--absorb-navy);
   font-weight:800;
 }
@@ -770,7 +770,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   border:1px solid var(--line);
   border-radius:10px;
   background:var(--surface);
-  box-shadow:var(--shadow);
+  box-shadow:none;
 }
 .mobile-more:not([open]) div {
   display:none;
@@ -1652,4 +1652,3 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
     transition:none;
   }
 }
-/*

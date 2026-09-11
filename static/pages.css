@@ -1,4 +1,4 @@
- ==========================================================================;
+/* ==========================================================================;
    ABSORB Institutional Research Report Styling;
    ========================================================================== */;
 .professional-report {
@@ -61,7 +61,7 @@
 }
 .report-badge.highlight {
     border-color: var(--absorb-blue);
-    background: var(--absorb-pale);
+    background: transparent;
 }
 .badge-label {
     font-size: 11px;
@@ -79,7 +79,7 @@
     font-size: 11px;
     color: var(--muted);
 }
-/* Chapter Navigator */;
+/* Chapter Navigator */
 .report-chapter-nav {
     position: sticky;
     top: 10px;
@@ -91,7 +91,7 @@
     border: 1px solid var(--line);
     border-radius: 10px;
     overflow-x: auto;
-    box-shadow: var(--shadow);
+    box-shadow: none;
     scrollbar-width: none;
 }
 .report-chapter-nav::-webkit-scrollbar {
@@ -111,7 +111,7 @@
     background: var(--absorb-navy-soft);
     color: var(--text);
 }
-/* Report Sections */;
+/* Report Sections */
 .report-section {
     padding: 28px 32px;
 }
@@ -224,7 +224,7 @@
     margin: 0 0 12px;
     color: var(--text);
 }
-/* Event cards */;
+/* Event cards */
 .event-card-list {
     display: grid;
     gap: 10px;
@@ -262,7 +262,7 @@
     line-height: 1.55;
     margin: 0;
 }
-/* KPI Card Grid */;
+/* KPI Card Grid */
 .report-kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -300,7 +300,7 @@
     font-size: 11.5px;
     color: var(--muted);
 }
-/* Industry highlight */;
+/* Industry highlight */
 .industry-highlight-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -338,7 +338,7 @@
     background: rgb(239 68 68 / 12%);
     color: var(--absorb-red-strong);
 }
-/* Data Table */;
+/* Data Table */
 .data-table {
     width: 100%;
     border-collapse: collapse;
@@ -397,7 +397,7 @@
     background: var(--absorb-surface-red);
     color: var(--absorb-red);
 }
-/* Badges */;
+/* Badges */
 .badge {
     display: inline-block;
     padding: 3px 8px;
@@ -426,7 +426,7 @@
    color: var(--absorb-blue-strong);
    font-weight: 700;
 }
-/* Research Spec */;
+/* Research Spec */
 .research-spec-box {
     padding: 20px 24px;
     background: var(--surface-2);
@@ -481,7 +481,7 @@
     color: var(--muted);
     text-transform: uppercase;
 }
-/* Gate Grid */;
+/* Gate Grid */
 .gate-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -501,7 +501,7 @@
     font-size: 13px;
     font-weight: 650;
 }
-/* Scenario Grid */;
+/* Scenario Grid */
 .scenario-card-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

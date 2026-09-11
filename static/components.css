@@ -1310,7 +1310,7 @@
     border-radius:12px;
   }
 }
-/* Dashboard shell: text-led, opaque, and intentionally free of decorative icons. */;
+/* Dashboard shell: text-led, opaque, and intentionally free of decorative icons. */
 .site-header {
   position:sticky;
   top:0;
