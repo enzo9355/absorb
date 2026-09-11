@@ -1722,6 +1722,95 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("Math.min(460", js)
         self.assertIn("ResizeObserver", js)
 
+    def test_order1_price_direction_tokens_are_market_contextual(self):
+        css = Path(stock_app.app.static_folder, "app.css").read_text(
+            encoding="utf-8"
+        )
+        js = Path(stock_app.app.static_folder, "app.js").read_text(
+            encoding="utf-8"
+        )
+
+        # E-1: 全域 !important 覆蓋已移除
+        self.assertNotIn("command-sage)!important", css)
+        self.assertNotIn("command-coral)!important", css)
+
+        # E-2: 市場語境方向色 token（台股紅漲綠跌、美股綠漲紅跌）
+        self.assertIn(
+            'body[data-market="TW"]{--price-up:var(--absorb-danger);'
+            '--price-down:var(--absorb-success)}',
+            css,
+        )
+        self.assertIn(
+            'body[data-market="US"]{--price-up:var(--absorb-success);'
+            '--price-down:var(--absorb-danger)}',
+            css,
+        )
+        self.assertIn(".positive,.up{color:var(--price-up)}", css)
+        self.assertIn(".negative,.down{color:var(--price-down)}", css)
+
+        # 方向 class 各只宣告一次，且無 !important
+        for selector in (".positive,", ".negative,", ".up{", ".down{"):
+            with self.subTest(selector=selector):
+                self.assertLessEqual(css.count(selector), 1)
+        self.assertNotIn("var(--price-up)!important", css)
+        self.assertNotIn("var(--price-down)!important", css)
+
+        # E-1: 深色面板不再用範圍覆寫硬編碼方向色（on-dark token 定義除外）
+        self.assertNotIn(".forecast-panel .positive{", css)
+        self.assertNotIn(".us-index-forecast-list .positive{", css)
+
+        # E-1/E-3: K 線與預測線改讀 CSS 變數，無硬編碼色
+        self.assertNotIn('upColor: "#', js)
+        self.assertNotIn('downColor: "#', js)
+        self.assertNotIn('wickUpColor: "#', js)
+        self.assertNotIn('wickDownColor: "#', js)
+        self.assertIn('getPropertyValue("--price-up")', js)
+        self.assertIn('getPropertyValue("--price-down")', js)
+        self.assertIn('getPropertyValue("--absorb-info")', js)
+        self.assertNotIn("#2563eb", js)
+
+    def test_order1_direction_source_colors_reverse_whitelist(self):
+        """反向白名單：四個方向來源色（--command-coral / --command-sage /
+        --absorb-danger / --absorb-success）除了 token 定義與 --price-*
+        映射定義外，只允許出現在已逐條核對的非方向用途清單中；
+        清單外任何規則即失敗（E-1 Blocker 3 覆核第二輪）。"""
+        css = Path(stock_app.app.static_folder, "app.css").read_text(
+            encoding="utf-8"
+        )
+        source_tokens = (
+            "--command-coral",
+            "--command-sage",
+            "--absorb-danger",
+            "--absorb-success",
+        )
+        allowed_rules = {
+            ".error-banner",
+            ".event-item.severity-high",
+            ".risk-panel>p",
+            ".research-status span",
+            '.freshness-status[data-freshness-status="current"]',
+            ".confidence-card strong",
+        }
+        violations = []
+        for rule in css.split("}"):
+            if "{" not in rule:
+                continue
+            selector, body = rule.split("{", 1)
+            matched = [tok for tok in source_tokens if tok in body]
+            if not matched:
+                continue
+            if any(re.search(re.escape(tok) + r"\s*:", body) for tok in matched):
+                # token 定義（:root）本身
+                continue
+            if re.search(r"--price-(?:up|down)(?:-on-dark)?\s*:", body):
+                # --price-* 映射定義（:root / body[data-market]）
+                continue
+            normalized = re.sub(r"\s+", " ", selector.strip())
+            if normalized in allowed_rules:
+                continue
+            violations.append(normalized)
+        self.assertEqual(violations, [])
+
 
 if __name__ == "__main__":
     unittest.main()
