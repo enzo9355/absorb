@@ -1,0 +1,126 @@
+@font-face {
+  font-family:"ABSORB Wordmark";
+  src:url("fonts/absorb-wordmark.woff2") format("woff2");
+  font-style:normal;
+  font-weight:700;
+  font-display:swap;
+}
+:root {
+    --absorb-pure-white:#fff;
+    --absorb-navy:#183147;
+    --absorb-navy-hover:#21445d;
+    --absorb-navy-active:#0b1b31;
+    --absorb-navy-soft:#eaf0f7;
+    --absorb-white:var(--absorb-surface);
+    --absorb-canvas:#f1f4f4;
+    --absorb-surface:#f7f6f2;
+    --absorb-surface-raised:#faf9f6;
+    --absorb-ink:#152638;
+    --absorb-muted:#536575;
+    --absorb-subtle:#7a8798;
+    --absorb-hairline:#d9e1e2;
+    --absorb-focus:#2b6cb0;
+    --absorb-success:#18704a;
+    --absorb-warning:#8a5b00;
+    --absorb-danger:#a33a44;
+    --absorb-info:#245b91;
+    --bg:var(--absorb-canvas);
+    --surface:var(--absorb-surface);
+    --surface-2:var(--absorb-surface-raised);
+    --surface-3:var(--absorb-navy-soft);
+    --line:var(--absorb-hairline);
+    --line-strong:#b7c1cf;
+    --text:var(--absorb-ink);
+    --muted:var(--absorb-muted);
+    --mint:var(--absorb-navy);
+    --apricot:var(--absorb-warning);
+    --lavender:var(--absorb-info);
+    --amber:var(--absorb-warning);
+    --font-display:"Avenir Next",Avenir,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    --font-body:"Avenir Next",Avenir,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    --radius:10px;
+    --absorb-blue:#4e7d91;
+    --absorb-blue-light:#8fb9c8;
+    --absorb-coral:#b85f55;
+    --absorb-sage:#3f8060;
+    --absorb-sage-soft:#e3eee8;
+    --absorb-accent-surface:#e8eff1;
+    --absorb-content-max:3200px;
+    --absorb-border-soft:#ccd9df;
+    --absorb-border-mid:#cbd8de;
+    --absorb-border-faint:#dce5ea;
+    --absorb-border-track:#d3dfe4;
+    --absorb-border-dashed:#b9c8cf;
+    --absorb-border-hover:#b9c9d1;
+    --absorb-border-strong:#aebbc5;
+    --absorb-border-active:#a9bdc6;
+    --absorb-border-cool:#c8d5de;
+    --absorb-surface-highlight:#e2ecef;
+    --absorb-surface-warm:#ebe8e1;
+    --absorb-surface-neutral:#e6e1d8;
+    --absorb-surface-switch:#e7edf1;
+    --absorb-surface-sky:#edf3fa;
+    --absorb-surface-muted:#f2f5f7;
+    --absorb-surface-alert:#fff5f1;
+    --absorb-surface-amber:#fff8e8;
+    --absorb-surface-amber-deep:#fef3c7;
+    --absorb-surface-red:#fee2e2;
+    --absorb-surface-red-soft:#fff1f1;
+    --absorb-surface-green:#e7f4ed;
+    --absorb-surface-gold:#ead9aa;
+    --absorb-border-green:#a8cfc0;
+    --absorb-border-salmon:#d99b8b;
+    --absorb-danger-strong:#8b2e1e;
+    --absorb-ink-faint:#43515d;
+    --absorb-purple:#6b5b95;
+    --absorb-purple-deep:#5c557a;
+    --absorb-rose:#713548;
+    --absorb-olive:#75601f;
+    --absorb-brick:#8a4e38;
+    --absorb-rose-muted:#9b4d5c;
+    --absorb-green-deep:#176b57;
+    --absorb-green:#05a948;
+    --absorb-green-bright:#06c755;
+    --absorb-brown:#665f58;
+    --absorb-amber-strong:#b45309;
+    --absorb-amber-deep:#92400e;
+    --absorb-red:#991b1b;
+    --absorb-red-strong:#b91c1c;
+    --absorb-green-ok:#047857;
+    --absorb-blue-strong:#1d4ed8;
+    --absorb-amber-soft:#f59e0b;
+    --absorb-severity-high:#9b263e;
+    --absorb-severity-medium:#b7791f;
+}
+/* ORDER 1: 漲跌方向色依市場語境（E-1 E-2）。值取自既有 token，不新增 hex。 */
+:root {
+  --price-up:var(--absorb-danger);
+  --price-down:var(--absorb-success);
+}
+body[data-market="TW"] {
+  --price-up:var(--absorb-danger);
+  --price-down:var(--absorb-success);
+}
+body[data-market="US"] {
+  --price-up:var(--absorb-success);
+  --price-down:var(--absorb-danger);
+}
+/* ORDER 1: 深色面板方向色重映射，維持 WCAG AA（E-2）。 */
+:root {
+  --absorb-on-dark-up:#f2aaa3;
+  --absorb-on-dark-down:#a9dbc3;
+  --price-up-on-dark:var(--absorb-on-dark-up);
+  --price-down-on-dark:var(--absorb-on-dark-down);
+}
+body[data-market="TW"] {
+  --price-up-on-dark:var(--absorb-on-dark-up);
+  --price-down-on-dark:var(--absorb-on-dark-down);
+}
+body[data-market="US"] {
+  --price-up-on-dark:var(--absorb-on-dark-down);
+  --price-down-on-dark:var(--absorb-on-dark-up);
+}
+.forecast-panel,.us-index-forecast-list article {
+  --price-up:var(--price-up-on-dark);
+  --price-down:var(--price-down-on-dark);
+}
