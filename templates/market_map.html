@@ -20,10 +20,10 @@
         <span class="muted small">依已完成驗證的本地快照彙總</span>
       </div>
       <div class="map-kpi-grid">
-        <article><span>單日中位報酬</span><strong>{{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}</strong><small>全市場有效樣本中位數</small></article>
+        <article><span>單日中位報酬</span>{% if market.return_1d_pct is not none %}<strong>{{ '%+.2f%%'|format(market.return_1d_pct) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>全市場有效樣本中位數</small></article>
         <article><span>上漲／下跌家數</span><strong>{{ market.advancing_count }}／{{ market.declining_count }}</strong><small>平盤 {{ market.unchanged_count }} 檔</small></article>
-        <article><span>站上 MA20</span><strong>{{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '資料不足' }}</strong><small>市場廣度</small></article>
-        <article><span>20 日已實現波動</span><strong>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '資料不足' }}</strong><small>風險狀態 {{ {'normal':'一般', 'cautious':'謹慎', 'elevated':'升高'}.get(market.risk_state, '資料不足') }}</small></article>
+        <article><span>站上 MA20</span>{% if market.ma20_breadth_pct is not none %}<strong>{{ '%.1f%%'|format(market.ma20_breadth_pct) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>市場廣度</small></article>
+        <article><span>20 日已實現波動</span>{% if market.realized_volatility_20d_pct is not none %}<strong>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>風險狀態 {{ {'normal':'一般', 'cautious':'謹慎', 'elevated':'升高'}.get(market.risk_state, '資料不足') }}</small></article>
       </div>
     </section>
 

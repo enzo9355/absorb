@@ -51,9 +51,9 @@
     </div>
     <section class="summary-strip" aria-label="個股觀察摘要">
       <article class="summary-card"><span>最新收盤</span><strong>{{ '{:,.2f}'.format(d.price) }}</strong><small>資料日 {{ as_of }}</small></article>
-      <article class="summary-card"><span>MA20</span><strong>{{ '{:,.2f}'.format(ma20) if ma20 is not none else '資料不足' }}</strong><small>20 日移動平均</small></article>
-      <article class="summary-card"><span>MA60</span><strong>{{ '{:,.2f}'.format(ma60) if ma60 is not none else '資料不足' }}</strong><small>60 日移動平均</small></article>
-      <article class="summary-card"><span>量比</span><strong>{{ '%.2f'|format(volume_ratio) if volume_ratio is not none else '資料不足' }}</strong><small>相對近期常態量</small></article>
+      <article class="summary-card"><span>MA20</span>{% if ma20 is not none %}<strong>{{ '{:,.2f}'.format(ma20) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>20 日移動平均</small></article>
+      <article class="summary-card"><span>MA60</span>{% if ma60 is not none %}<strong>{{ '{:,.2f}'.format(ma60) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>60 日移動平均</small></article>
+      <article class="summary-card"><span>量比</span>{% if volume_ratio is not none %}<strong>{{ '%.2f'|format(volume_ratio) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>相對近期常態量</small></article>
     </section>
   </header>
 
@@ -89,20 +89,20 @@
     <section class="panel foreign-panel" id="chips">
       <div class="section-heading"><div><p class="eyebrow">CAPITAL FLOW</p><h2>籌碼觀察</h2></div></div>
       <div class="indicator-grid">
-        <article><span>外資近 5 日</span><strong>{{ '{:,.0f}'.format(foreign_net_5) if foreign_net_5 is not none else '資料不足' }}</strong><small>依已發布快照加總</small></article>
-        <article><span>外資近 20 日</span><strong>{{ '{:,.0f}'.format(foreign_net_20) if foreign_net_20 is not none else '資料不足' }}</strong><small>資料可能受市場揭露時差影響</small></article>
-        <article><span>機構淨流量比</span><strong>{{ '%+.2f%%'|format(institution_net_ratio_pct) if institution_net_ratio_pct is not none else '資料不足' }}</strong><small>最新資料列</small></article>
-        <article><span>量比</span><strong>{{ '%.2f'|format(volume_ratio) if volume_ratio is not none else '資料不足' }}</strong><small>成交量相對近期常態</small></article>
+        <article><span>外資近 5 日</span>{% if foreign_net_5 is not none %}<strong>{{ '{:,.0f}'.format(foreign_net_5) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>依已發布快照加總</small></article>
+        <article><span>外資近 20 日</span>{% if foreign_net_20 is not none %}<strong>{{ '{:,.0f}'.format(foreign_net_20) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>資料可能受市場揭露時差影響</small></article>
+        <article><span>機構淨流量比</span>{% if institution_net_ratio_pct is not none %}<strong>{{ '%+.2f%%'|format(institution_net_ratio_pct) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>最新資料列</small></article>
+        <article><span>量比</span>{% if volume_ratio is not none %}<strong>{{ '%.2f'|format(volume_ratio) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>成交量相對近期常態</small></article>
       </div>
     </section>
 
     <section class="panel" id="technicals">
       <div class="section-heading"><div><p class="eyebrow">TECHNICALS</p><h2>技術指標</h2></div></div>
       <div class="indicator-grid">
-        <article><span>RSI</span><strong>{{ '%.1f'|format(rsi) if rsi is not none else '資料不足' }}</strong><small>{% if rsi is none %}缺少資料{% elif rsi >= 70 %}過熱區{% elif rsi <= 30 %}超賣區{% else %}一般區間{% endif %}</small></article>
-        <article><span>MACD 柱狀體</span><strong>{{ '%+.3f'|format(macd_osc) if macd_osc is not none else '資料不足' }}</strong><small>正值與負值只描述當前動能</small></article>
-        <article><span>K 值</span><strong>{{ '%.1f'|format(k_value) if k_value is not none else '資料不足' }}</strong><small>隨機指標</small></article>
-        <article><span>D 值</span><strong>{{ '%.1f'|format(d_value) if d_value is not none else '資料不足' }}</strong><small>隨機指標平滑線</small></article>
+        <article><span>RSI</span>{% if rsi is not none %}<strong>{{ '%.1f'|format(rsi) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>{% if rsi is none %}缺少資料{% elif rsi >= 70 %}過熱區{% elif rsi <= 30 %}超賣區{% else %}一般區間{% endif %}</small></article>
+        <article><span>MACD 柱狀體</span>{% if macd_osc is not none %}<strong>{{ '%+.3f'|format(macd_osc) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>正值與負值只描述當前動能</small></article>
+        <article><span>K 值</span>{% if k_value is not none %}<strong>{{ '%.1f'|format(k_value) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>隨機指標</small></article>
+        <article><span>D 值</span>{% if d_value is not none %}<strong>{{ '%.1f'|format(d_value) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>隨機指標平滑線</small></article>
       </div>
     </section>
   </div>

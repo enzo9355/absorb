@@ -36,7 +36,7 @@
     {% set market = content.market_observation %}
     <section class="panel" aria-labelledby="tw-benchmark-title">
       <h2 id="tw-benchmark-title">前一日台股基準</h2>
-      <dl class="report-meta"><div><dt>單日中位報酬</dt><dd>{{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}</dd></div><div><dt>上漲／下跌家數</dt><dd>{{ market.advancing_count }}／{{ market.declining_count }}</dd></div><div><dt>資料基準日</dt><dd>{{ report.source_market_date }}</dd></div></dl>
+      <dl class="report-meta"><div><dt>單日中位報酬</dt>{% if market.return_1d_pct is not none %}<dd>{{ '%+.2f%%'|format(market.return_1d_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>上漲／下跌家數</dt><dd>{{ market.advancing_count }}／{{ market.declining_count }}</dd></div><div><dt>資料基準日</dt><dd>{{ report.source_market_date }}</dd></div></dl>
     </section>
     <p><a class="button button-secondary" href="{{ url_for('post_close_report_page', trading_date=report.source_market_date) }}">閱讀完整盤後報告</a></p>
   {% else %}
@@ -47,10 +47,10 @@
   <section class="panel" aria-labelledby="market-actuals-title">
     <h2 id="market-actuals-title">市場實況</h2>
     <dl class="report-meta">
-      <div><dt>單日中位報酬</dt><dd>{{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}</dd></div>
+      <div><dt>單日中位報酬</dt>{% if market.return_1d_pct is not none %}<dd>{{ '%+.2f%%'|format(market.return_1d_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
       <div><dt>上漲／下跌家數</dt><dd>{{ market.advancing_count }}／{{ market.declining_count }}</dd></div>
-      <div><dt>站上 MA20</dt><dd>{{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '資料不足' }}</dd></div>
-      <div><dt>20 日已實現波動</dt><dd>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '資料不足' }}</dd></div>
+      <div><dt>站上 MA20</dt>{% if market.ma20_breadth_pct is not none %}<dd>{{ '%.1f%%'|format(market.ma20_breadth_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>20 日已實現波動</dt>{% if market.realized_volatility_20d_pct is not none %}<dd>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
     </dl>
     <div class="report-evidence-bars" aria-label="市場視覺摘要">
       <div><span>上漲家數占比</span><progress value="{{ advancing_ratio or 0 }}" max="100">{{ advancing_ratio or 0 }}</progress><strong>{{ '%.1f%%'|format(advancing_ratio) if advancing_ratio is not none else '—' }}</strong></div>
@@ -63,7 +63,7 @@
     <h2 id="industry-report-title">產業觀察</h2>
     <div class="industry-detail-list">
       {% for industry in content.industry_observations[:12] %}
-        <article class="industry-detail"><header><div><h3>{{ industry.name }}</h3><p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用</p></div><strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct >= 0 else 'down' }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong></header>{% if industry.relative_return_5d_pct is not none %}<progress class="industry-strength-bar {{ 'negative' if industry.relative_return_5d_pct < 0 else '' }}" value="{{ industry.relative_return_5d_pct|abs }}" max="10">{{ industry.relative_return_5d_pct|abs }}</progress>{% endif %}</article>
+        <article class="industry-detail"><header><div><h3>{{ industry.name }}</h3><p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用</p></div><strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct >= 0 else 'down' }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong></header>{% if industry.relative_return_5d_pct is not none %}<progress class="industry-strength-bar {{ 'negative' if industry.relative_return_5d_pct < 0 else 'positive' if industry.relative_return_5d_pct > 0 else '' }}" value="{{ industry.relative_return_5d_pct|abs }}" max="10">{{ industry.relative_return_5d_pct|abs }}</progress>{% endif %}</article>
       {% else %}<div class="empty-state">產業觀察資料不足。</div>{% endfor %}
     </div>
   </section>
@@ -94,7 +94,7 @@
   {% set quality = content.data_quality %}
   <section class="panel" aria-labelledby="quality-report-title">
     <h2 id="quality-report-title">資料品質</h2>
-    <dl class="report-meta"><div><dt>覆蓋率</dt><dd>{{ '%.2f%%'|format(quality.coverage * 100) if quality.coverage is not none else '資料不足' }}</dd></div><div><dt>有效標的</dt><dd>{{ quality.symbol_count if quality.symbol_count is not none else '資料不足' }}</dd></div><div><dt>未納入標的</dt><dd>{{ quality.failure_count if quality.failure_count is not none else '資料不足' }}</dd></div></dl>
+    <dl class="report-meta"><div><dt>覆蓋率</dt>{% if quality.coverage is not none %}<dd>{{ '%.2f%%'|format(quality.coverage * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>有效標的</dt>{% if quality.symbol_count is not none %}<dd>{{ quality.symbol_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>未納入標的</dt>{% if quality.failure_count is not none %}<dd>{{ quality.failure_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div></dl>
     {% if report.warnings %}<ul>{% for warning in report.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
   </section>
 

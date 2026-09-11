@@ -2665,12 +2665,29 @@ progress {
   width:100%;
   height:6px;
   margin-top:9px;
+  /* ORDER 3（B-5）：原生 progress 在三個引擎的預設外觀差異極大，
+     必須同時關閉外觀、指定軌道底色，並為三種 pseudo-element 分別上色。
+     Firefox 的軌道是元素自身的 background，Chromium／WebKit 是
+     ::-webkit-progress-bar，兩者都要設，圓角也要分別設才不會露出直角。 */
+  -webkit-appearance:none;
   appearance:none;
   border:0;
   border-radius:999px;
   overflow:hidden;
   background:var(--absorb-border-faint);
+  color:var(--absorb-blue);        /* IE／舊版與未支援 pseudo-element 時的填色 */
 }
+progress::-webkit-progress-bar {
+  background:var(--absorb-border-faint);
+  border-radius:999px;
+}
+
+
+progress.positive::-webkit-progress-value { background:var(--price-up); }
+progress.positive::-moz-progress-bar { background:var(--price-up); }
+progress.negative::-webkit-progress-value { background:var(--price-down); }
+progress.negative::-moz-progress-bar { background:var(--price-down); }
+
 progress::-webkit-progress-bar {
   background:var(--absorb-border-faint);
 }
@@ -4299,6 +4316,72 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
     animation:none;
   }
 }
+
+/* ==========================================================================
+   ORDER 3：資料狀態系統（B-1 B-4）
+   DESIGN.md §19 定義了 available／partial／stale／unavailable 四種狀態，
+   但一直沒有對應的視覺語彙，導致「待更新」「資料不足」「尚未發布」
+   「暫時無法取得」四種不同語意長得完全一樣。
+
+   核心規則：缺值不是數值。unavailable 時該格不進入數值的字級與顏色軌道，
+   改用內文字級與 muted 色，整格的視覺重量必須低於有資料時。
+   ========================================================================== */
+.value-unavailable {
+  display:inline-block;
+  font-size:var(--type-body);
+  font-weight:400;
+  line-height:var(--lh-body);
+  color:var(--absorb-muted);
+  letter-spacing:0;
+}
+
+.state-chip {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:2px 9px;
+  border-radius:var(--radius-pill);
+  border:1px solid var(--absorb-hairline);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+  white-space:nowrap;
+}
+.state-chip::before {
+  content:"";
+  width:6px;
+  height:6px;
+  border-radius:var(--radius-pill);
+  background:currentColor;
+}
+/* partial：部分標的缺漏，仍可安全閱讀 —— 中性，不用語意色 */
+.state-chip.is-partial { color:var(--absorb-muted); }
+/* stale：有資料但已過期 —— 依 §9.6 warning 只用於過期與資料品質 */
+.state-chip.is-stale {
+  color:var(--absorb-warning);
+  border-color:var(--absorb-warning);
+  background:transparent;
+}
+/* unavailable：取不到 —— 中性，不用 danger。取不到不是錯誤，是狀態 */
+.state-chip.is-unavailable { color:var(--absorb-muted); }
+
+/* 區塊層級的降級說明。依原則第 1 條置於區塊最上方，不是最下方（A-1）。
+   同一區塊內若超過半數為 unavailable，收合為這一則，不逐格重複。 */
+.state-note {
+  display:grid;
+  gap:4px;
+  margin:0 0 14px;
+  padding:12px 14px;
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.state-note strong { font-weight:700; }
+.state-note span { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
 
 .market-summary-page {
   max-width:1160px;
