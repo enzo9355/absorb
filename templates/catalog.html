@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ABSORB 元件型錄（內部）</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css', v=STATIC_ASSET_VERSION) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='catalog.css', v=STATIC_ASSET_VERSION) }}">
+</head>
+<body data-market="TW">
+<main class="cat-page">
+  <h1>元件型錄</h1>
+  <p>ORDER 3 的產出：token 與元件的單一事實來源。這一頁不在導覽中，也不讀任何市場資料，只渲染設計系統本身。任何字級、圓角、顏色若不在這一頁出現，就不該出現在產品裡。</p>
+
+  <h2>字級</h2>
+  <p>八個級距為封閉集合。中文行高不低於 1.3。</p>
+  <div class="cat-row"><code>--type-display</code><span class="cat-key">32 / 1.35</span><span class="t-display">台股市場研究摘要</span></div>
+  <div class="cat-row"><code>--type-title</code><span class="cat-key">24 / 1.4</span><span class="t-title">市場指揮台</span></div>
+  <div class="cat-row"><code>--type-subtitle</code><span class="cat-key">19 / 1.5</span><span class="t-subtitle">今日焦點</span></div>
+  <div class="cat-row"><code>--type-body</code><span class="cat-key">15 / 1.75</span><span class="t-body">內文、白話解讀、缺值說明與限制陳述都用這一級</span></div>
+  <div class="cat-row"><code>--type-caption</code><span class="cat-key">13 / 1.65</span><span class="t-caption">次要說明與表格內容</span></div>
+  <div class="cat-row"><code>--type-label</code><span class="cat-key">11 / 1.5</span><span class="t-label">欄位標籤 · MA20</span></div>
+  <div class="cat-row"><code>--type-data-lg</code><span class="cat-key">28 / 1.2</span><span class="t-data-lg">+3.14%</span></div>
+  <div class="cat-row"><code>--type-data-md</code><span class="cat-key">19 / 1.3</span><span class="t-data-md">1,284</span></div>
+
+  <h2>圓角</h2>
+  <p>四個值為封閉集合：小元件、按鈕與輸入、卡片、狀態膠囊。</p>
+  <div class="cat-grid is-4">
+    <div class="cat-swatch cat-radius"><i class="r-sm"></i><b>小元件</b><span>--radius-sm 6px</span></div>
+    <div class="cat-swatch cat-radius"><i class="r-md"></i><b>按鈕／輸入</b><span>--radius-md 8px</span></div>
+    <div class="cat-swatch cat-radius"><i class="r-lg"></i><b>卡片</b><span>--radius-lg 10px</span></div>
+    <div class="cat-swatch cat-radius"><i class="r-pill"></i><b>狀態膠囊</b><span>--radius-pill 999px</span></div>
+  </div>
+
+  <h2>語意色</h2>
+  <p>每個顏色只有一個用途。品牌深藍不參與任何資料語意。括號內為紙面 #f7f6f2 上的對比。</p>
+  <div class="cat-grid is-4">
+    <div class="cat-swatch"><i class="bg-success"></i><b>success</b><span>#18704a · 5.62:1</span><span class="cat-note">漲跌方向來源色</span></div>
+    <div class="cat-swatch"><i class="bg-danger"></i><b>danger</b><span>#a33a44 · 5.98:1</span><span class="cat-note">漲跌方向來源色</span></div>
+    <div class="cat-swatch"><i class="bg-warning"></i><b>warning</b><span>#8a5b00</span><span class="cat-note">僅 stale 與資料品質</span></div>
+    <div class="cat-swatch"><i class="bg-info"></i><b>info</b><span>#245b91</span><span class="cat-note">僅「這是模型估計」</span></div>
+  </div>
+
+  <h2>漲跌方向色</h2>
+  <p>由 <code>body[data-market]</code> 決定，不可硬編碼。永遠同時有正負號或文字，灰階下仍須可辨識。深色面板另有一組色階以維持 WCAG AA。</p>
+  <div class="cat-grid is-2">
+    <div class="cat-demo ctx-tw">
+      <h3>台股 — 紅漲綠跌</h3>
+      <div class="cat-grid is-2">
+        <div class="cat-metric"><span>相對大盤報酬</span><strong class="positive">+3.14%</strong></div>
+        <div class="cat-metric"><span>相對大盤報酬</span><strong class="negative">−2.87%</strong></div>
+      </div>
+      <progress class="positive" value="72" max="100">72%</progress>
+      <progress class="negative" value="38" max="100">38%</progress>
+      <div class="cat-dark mt-14">
+        <span class="cat-note on-dark-note">深色面板</span>
+        <div><strong class="positive">+3.14%</strong>　<strong class="negative">−2.87%</strong></div>
+      </div>
+    </div>
+    <div class="cat-demo ctx-us">
+      <h3>美股 — 綠漲紅跌</h3>
+      <div class="cat-grid is-2">
+        <div class="cat-metric"><span>相對大盤報酬</span><strong class="positive">+3.14%</strong></div>
+        <div class="cat-metric"><span>相對大盤報酬</span><strong class="negative">−2.87%</strong></div>
+      </div>
+      <progress class="positive" value="72" max="100">72%</progress>
+      <progress class="negative" value="38" max="100">38%</progress>
+      <div class="cat-dark mt-14">
+        <span class="cat-note on-dark-note">深色面板</span>
+        <div><strong class="positive">+3.14%</strong>　<strong class="negative">−2.87%</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>資料狀態</h2>
+  <p>§19 的四種狀態。缺值不是數值 —— unavailable 時整格改用內文字級與 muted 色，視覺重量必須低於有資料時。</p>
+  <div class="cat-grid is-4">
+    <div class="cat-demo"><div class="cat-metric"><span>市場廣度</span><strong>62.4%</strong></div><p class="cat-note mt-8">available · 只標資料日</p></div>
+    <div class="cat-demo"><div class="cat-metric"><span>市場廣度</span><strong>58.1%</strong></div><span class="state-chip is-partial">部分</span><p class="cat-note mt-8">partial · 標覆蓋率</p></div>
+    <div class="cat-demo"><div class="cat-metric"><span>市場廣度</span><strong class="val-stale">61.0%</strong></div><span class="state-chip is-stale">過期</span><p class="cat-note mt-8">stale · 標資料日期</p></div>
+    <div class="cat-demo"><div class="cat-metric"><span>市場廣度</span><span class="value-unavailable">尚未驗證</span></div><span class="state-chip is-unavailable">未驗證</span><p class="cat-note mt-8">unavailable · 不顯示數值格</p></div>
+  </div>
+  <div class="state-note">
+    <strong>今天的市場觀察還沒完成驗證，因為交易所資料尚未更新。</strong>
+    <span>預計今天收盤後兩小時內會有。你仍可以看昨天的盤後報告。</span>
+  </div>
+  <p class="cat-note">區塊層級的降級說明。依原則第 1 條置於區塊最上方；同一區塊內超過半數缺值時收合為這一則，不逐格重複。</p>
+
+  <h2>UI 狀態</h2>
+  <div class="cat-grid is-2">
+    <div class="cat-demo">
+      <h3>loading</h3>
+      <span class="skeleton is-text w-40"></span>
+      <span class="skeleton is-value"></span>
+      <span class="skeleton is-text w-70"></span>
+      <p class="cat-note mt-10">固定尺寸，避免版面位移。遵守 reduced motion。</p>
+    </div>
+    <div class="cat-demo">
+      <h3>空結果</h3>
+      <p class="empty-state">找不到符合「2330x」的標的。可以改用代碼或公司名稱重新搜尋。</p>
+      <p class="cat-note">說明搜尋了什麼、可以改用什麼條件；不補 SAMPLE 資料。</p>
+    </div>
+  </div>
+
+  <h2>量條</h2>
+  <p>原生 <code>&lt;progress&gt;</code>，三個引擎的 pseudo-element 都已上色。未改用 div 自訂量條：CSP 為 <code>style-src 'self'</code>，動態寬度需要 inline style 屬性。</p>
+  <progress value="72" max="100">72%</progress>
+  <progress value="38" max="100">38%</progress>
+
+  <h2>限制陳述</h2>
+  <div class="risk-panel"><p>資料可能因來源揭露時差、休市或缺漏而延遲。所有事件、排序與摘要都不是買賣指令；AI 預測仍在研究中。</p></div>
+  <p class="cat-note">內文字級、ink 色。限制是常態說明而非暫時警示，不佔用語意色；縮小字級等同於淡化限制。</p>
+</main>
+</body>
+</html>

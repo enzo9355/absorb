@@ -1680,3 +1680,19 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
 }
 .state-note strong { font-weight:700; }
 .state-note span { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
+
+/* ORDER 3：loading 骨架（§21 既有規定「固定尺寸 skeleton 避免版面位移」，
+   但一直沒有對應元件）。不使用動畫以外的裝飾，並遵守 reduced motion。 */
+.skeleton {
+  display:block;
+  border-radius:var(--radius-sm);
+  background:var(--absorb-navy-soft);
+  opacity:.65;
+}
+.skeleton.is-text { height:15px; margin:6px 0; }
+.skeleton.is-value { height:28px; width:120px; }
+.skeleton.is-block { height:120px; }
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton { animation:skeleton-pulse 1.6s ease-in-out infinite; }
+  @keyframes skeleton-pulse { 0%,100% { opacity:.45 } 50% { opacity:.75 } }
+}

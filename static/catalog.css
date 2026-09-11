@@ -1,0 +1,73 @@
+/* 元件型錄頁專用樣式。只被 /_catalog 載入，不進 app.css bundle。 */
+.cat-page {
+  max-width:1120px;
+  margin:0 auto;
+  padding:40px 24px 80px;
+  font-family:var(--font-body);
+  color:var(--absorb-ink);
+}
+.cat-page h1 { font-size:var(--type-display); line-height:var(--lh-display); margin:0 0 8px; }
+.cat-page h2 {
+  font-size:var(--type-title);
+  line-height:var(--lh-title);
+  margin:48px 0 6px;
+  padding-top:20px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.cat-page p { font-size:var(--type-body); line-height:var(--lh-body); color:var(--absorb-muted); margin:0 0 18px; max-width:66ch; }
+.cat-note { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
+.cat-grid { display:grid; gap:14px; margin:18px 0; }
+.cat-grid.is-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.cat-grid.is-4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
+@media (max-width:700px) { .cat-grid.is-2, .cat-grid.is-4 { grid-template-columns:1fr; } }
+.cat-row {
+  display:grid;
+  grid-template-columns:170px 120px minmax(0,1fr);
+  gap:18px;
+  align-items:baseline;
+  padding:12px 0;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.cat-row code, .cat-key { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:var(--type-caption); color:var(--absorb-blue); }
+.cat-swatch { display:grid; gap:6px; }
+.cat-swatch i { display:block; height:56px; border-radius:var(--radius-md); border:1px solid var(--absorb-hairline); }
+.cat-swatch b { font-size:var(--type-caption); }
+.cat-swatch span { font-family:ui-monospace,monospace; font-size:var(--type-label); color:var(--absorb-muted); }
+.cat-radius i { display:block; height:56px; background:var(--absorb-navy-soft); border:1px solid var(--absorb-hairline); }
+.cat-dark { background:var(--absorb-navy); color:#fff; padding:18px; border-radius:var(--radius-lg); }
+/* 市場語境示範：型錄需要同頁並排兩種市場，覆寫 --price-* 即可 */
+.ctx-tw { --price-up:var(--absorb-danger); --price-down:var(--absorb-success); }
+.ctx-us { --price-up:var(--absorb-success); --price-down:var(--absorb-danger); }
+.ctx-tw .cat-dark, .ctx-us .cat-dark { --price-up:var(--price-up-on-dark); --price-down:var(--price-down-on-dark); }
+.ctx-tw { --price-up-on-dark:#f2aaa3; --price-down-on-dark:#a9dbc3; }
+.ctx-us { --price-up-on-dark:#a9dbc3; --price-down-on-dark:#f2aaa3; }
+.cat-demo { padding:16px; border:1px solid var(--absorb-hairline); border-radius:var(--radius-lg); }
+.cat-demo h3 { font-size:var(--type-subtitle); line-height:var(--lh-subtitle); margin:0 0 12px; }
+.cat-metric { display:grid; gap:2px; }
+.cat-metric span { font-size:var(--type-label); line-height:var(--lh-label); color:var(--absorb-muted); }
+.cat-metric strong { font-size:var(--type-data-lg); line-height:var(--lh-data-lg); font-variant-numeric:tabular-nums; }
+
+/* 型錄用工具類。CSP 為 style-src 'self'，型錄頁不得使用 inline style 屬性。 */
+.t-display  { font-size:var(--type-display);  line-height:var(--lh-display) }
+.t-title    { font-size:var(--type-title);    line-height:var(--lh-title) }
+.t-subtitle { font-size:var(--type-subtitle); line-height:var(--lh-subtitle) }
+.t-body     { font-size:var(--type-body);     line-height:var(--lh-body) }
+.t-caption  { font-size:var(--type-caption);  line-height:var(--lh-caption) }
+.t-label    { font-size:var(--type-label);    line-height:var(--lh-label); letter-spacing:.08em }
+.t-data-lg  { font-size:var(--type-data-lg);  line-height:var(--lh-data-lg); font-variant-numeric:tabular-nums }
+.t-data-md  { font-size:var(--type-data-md);  line-height:var(--lh-data-md); font-variant-numeric:tabular-nums }
+.r-sm   { border-radius:var(--radius-sm) }
+.r-md   { border-radius:var(--radius-md) }
+.r-lg   { border-radius:var(--radius-lg) }
+.r-pill { border-radius:var(--radius-pill) }
+.bg-success { background:var(--absorb-success) }
+.bg-danger  { background:var(--absorb-danger) }
+.bg-warning { background:var(--absorb-warning) }
+.bg-info    { background:var(--absorb-info) }
+.mt-8  { margin:8px 0 0 }
+.mt-10 { margin-top:10px }
+.mt-14 { margin-top:14px }
+.on-dark-note { color:rgb(255 255 255 / 62%) }
+.val-stale { color:var(--absorb-muted) }
+.w-40 { width:40% }
+.w-70 { width:70% }
