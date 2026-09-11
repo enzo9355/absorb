@@ -1755,9 +1755,7 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("var(--price-up)!important", css)
         self.assertNotIn("var(--price-down)!important", css)
 
-        # E-1: 任何 .positive/.negative/.up/.down 範圍覆寫不得再硬編碼方向色
-        self.assertNotIn("a9dbc3", css)
-        self.assertNotIn("f2aaa3", css)
+        # E-1: 深色面板不再用範圍覆寫硬編碼方向色（on-dark token 定義除外）
         self.assertNotIn(".forecast-panel .positive{", css)
         self.assertNotIn(".us-index-forecast-list .positive{", css)
 
@@ -1770,6 +1768,47 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('getPropertyValue("--price-down")', js)
         self.assertIn('getPropertyValue("--absorb-info")', js)
         self.assertNotIn("#2563eb", js)
+
+    def test_order1_direction_class_rules_use_price_tokens_only(self):
+        """白名單式：任何帶方向語意 class 的規則，其顏色宣告必須是
+        var(--price-up) / var(--price-down)（或深色面板 on-dark 映射）。
+        （E-1 Blocker 3 覆核加寬）"""
+        css = Path(stock_app.app.static_folder, "app.css").read_text(
+            encoding="utf-8"
+        )
+        direction_tokens = {
+            "up", "down", "positive", "negative", "surge", "fall",
+            "event-up", "event-down", "breadth-up", "breadth-down",
+        }
+        neutral_values = {
+            "#fff", "#ffffff", "white", "transparent", "currentcolor",
+            "inherit", "none", "0",
+        }
+        violations = []
+        for rule in css.split("}"):
+            if "{" not in rule:
+                continue
+            selector, body = rule.split("{", 1)
+            classes = set(re.findall(r"\.([A-Za-z0-9_-]+)", selector))
+            if not (classes & direction_tokens):
+                continue
+            for match in re.finditer(
+                r"(?:color|background|background-color|border-color|"
+                r"border-left-color|fill|stroke)\s*:\s*([^;}]+)",
+                body,
+            ):
+                value = match.group(1).strip()
+                if value in neutral_values:
+                    continue
+                if (
+                    "var(--price-up)" in value
+                    or "var(--price-down)" in value
+                    or "var(--price-up-on-dark)" in value
+                    or "var(--price-down-on-dark)" in value
+                ):
+                    continue
+                violations.append(f"{selector.strip()} -> {value}")
+        self.assertEqual(violations, [])
 
 
 if __name__ == "__main__":
