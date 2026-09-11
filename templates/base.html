@@ -45,7 +45,7 @@
   <header class="site-header">
     <div class="topbar">
       <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-controls="dashboard-sidebar" aria-expanded="true" aria-label="收合 Dashboard 導覽">‹</button>
-      <a class="brand-wordmark" data-brand-wordmark href="{{ dashboard_url }}" aria-label="回到 ABSORB 主畫面">ABSORB</a>
+      <a class="brand-wordmark" data-brand-wordmark href="{{ dashboard_url }}" aria-label="回到 ABSORB 主畫面">Absorb</a>
       <nav class="market-switch" data-market-switch aria-label="切換市場內容">
         <a class="{{ 'active' if not us_market_active else '' }}" href="/"{% if not us_market_active %} aria-current="true"{% endif %}>台股</a>
         <a class="{{ 'active' if us_market_active else '' }}" href="/us" title="前往美股已驗證研究摘要"{% if us_market_active %} aria-current="true"{% endif %}>美股</a>

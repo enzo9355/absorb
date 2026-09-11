@@ -855,6 +855,9 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("ABSORB", html)
         self.assertIn('class="brand-wordmark"', html)
         self.assertIn('data-brand-wordmark', html)
+        self.assertIn(
+            'aria-label="回到 ABSORB 主畫面">Absorb</a>', html
+        )
         self.assertIn('aria-label="回到 ABSORB 主畫面"', html)
         self.assertNotIn('class="brand-mark"', html)
         self.assertIn("今天市場", html)
@@ -1636,7 +1639,7 @@ class WebProductTests(unittest.TestCase):
 
     def test_web_shell_serves_one_wordmark_font_across_devices(self):
         client = stock_app.app.test_client()
-        response = client.get("/static/fonts/absorb-wordmark.woff2")
+        response = client.get("/static/fonts/absorb-wordmark-allura.woff2")
         font_payload = response.get_data()
         response.close()
         css = Path(stock_app.app.static_folder, "app.css").read_text(
@@ -1646,11 +1649,16 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertGreater(len(font_payload), 1_000)
         self.assertIn('font-family:"ABSORB Wordmark"', css)
-        self.assertIn('url("fonts/absorb-wordmark.woff2") format("woff2")', css)
+        self.assertIn(
+            'url("fonts/absorb-wordmark-allura.woff2") format("woff2")', css
+        )
         self.assertIn(
             'font-family:"ABSORB Wordmark","Segoe Script","Brush Script MT",cursive',
             css,
         )
+        self.assertIn("-webkit-text-stroke:.024em currentColor", css)
+        self.assertIn(".brand-wordmark{", css)
+        self.assertIn("font-size:30px;font-weight:400;letter-spacing:0", css)
 
     def test_web_shell_uses_softened_neutral_paper_surfaces(self):
         css = Path(stock_app.app.static_folder, "app.css").read_text(

@@ -4,7 +4,7 @@ ABSORB 是 AI 量化市場情報與決策輔助系統。介面先服務資料閱
 
 ## 1. Brand concept
 
-「吸收資料、辨識證據、形成可驗證判斷」。品牌名稱固定寫作 `ABSORB`，不得使用舊品牌、人格式暱稱或蝴蝶意象。
+「吸收資料、辨識證據、形成可驗證判斷」。品牌名稱在所有內文、標題、報告與 LINE 訊息中固定寫作 `ABSORB`；唯一例外是導覽文字標誌，依 §4 寫作 `Absorb`。不得使用舊品牌、人格式暱稱或蝴蝶意象。
 
 ## 2. Design principles
 
@@ -21,7 +21,8 @@ ABSORB 是 AI 量化市場情報與決策輔助系統。介面先服務資料閱
 
 - Canonical 圖形來源維持 `static/brand/absorb-mark.png`，SHA-256 `2e7b3950809748d5e02648dfc26b0b403f7cabd2d706ce3130b28bad86c9443d`，供 favicon、社群預覽、LINE 與其他非導覽用途使用。
 - Canonical 圖形維持純白背景、原始比例與安全邊距；不得裁切、重畫、改色、加字、陰影或漸層。使用圖形時 HTML alt 固定為「ABSORB logo」。
-- 導覽文字標誌固定為 `ABSORB`，不得搭配圓形圖示，並連回目前市場的研究摘要。
+- 導覽文字標誌固定為手寫草寫的 `Absorb`（首字大寫、其餘小寫），不得搭配圓形圖示，並連回目前市場的研究摘要。
+- 文字標誌使用自架的 `static/fonts/absorb-wordmark-allura.woff2`（Allura，OFL，僅含 A b o r s 五個字元），family 名稱維持 `ABSORB Wordmark`。Allura 只有一個字重，加粗一律以 `-webkit-text-stroke:.024em currentColor` 完成，不得改用 `font-weight` 觸發合成粗體。字級桌機 30px、行動版 27px；字距 0；不得加陰影、漸層或外框色。
 
 ## 5. Color system
 
@@ -51,7 +52,7 @@ Logo 實測主要深藍為 `#122643`。CSS token：
 
 ## 6. Typography
 
-英文字優先使用系統已安裝的 `Avenir Next` 或 `Avenir`，繁體中文搭配 `Noto Sans TC`，再依序退回 `PingFang TC`、`Microsoft JhengHei` 與 `sans-serif`。不下載、內嵌或提交專有字型，也不建立外部 font request。草寫只用於導覽文字標誌，內容標題維持人文無襯線。
+英文字優先使用系統已安裝的 `Avenir Next` 或 `Avenir`，繁體中文搭配 `Noto Sans TC`，再依序退回 `PingFang TC`、`Microsoft JhengHei` 與 `sans-serif`。不下載、內嵌或提交專有字型，也不建立外部 font request；文字標誌字型自架於 `static/fonts/`，授權全文一併保留（見 `OFL-Allura.txt`）。草寫只用於導覽文字標誌，內容標題維持人文無襯線。
 
 ## 7. Numeric typography
 
