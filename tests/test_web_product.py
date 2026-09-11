@@ -1722,6 +1722,55 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("Math.min(460", js)
         self.assertIn("ResizeObserver", js)
 
+    def test_order1_price_direction_tokens_are_market_contextual(self):
+        css = Path(stock_app.app.static_folder, "app.css").read_text(
+            encoding="utf-8"
+        )
+        js = Path(stock_app.app.static_folder, "app.js").read_text(
+            encoding="utf-8"
+        )
+
+        # E-1: 全域 !important 覆蓋已移除
+        self.assertNotIn("command-sage)!important", css)
+        self.assertNotIn("command-coral)!important", css)
+
+        # E-2: 市場語境方向色 token（台股紅漲綠跌、美股綠漲紅跌）
+        self.assertIn(
+            'body[data-market="TW"]{--price-up:var(--absorb-danger);'
+            '--price-down:var(--absorb-success)}',
+            css,
+        )
+        self.assertIn(
+            'body[data-market="US"]{--price-up:var(--absorb-success);'
+            '--price-down:var(--absorb-danger)}',
+            css,
+        )
+        self.assertIn(".positive,.up{color:var(--price-up)}", css)
+        self.assertIn(".negative,.down{color:var(--price-down)}", css)
+
+        # 方向 class 各只宣告一次，且無 !important
+        for selector in (".positive,", ".negative,", ".up{", ".down{"):
+            with self.subTest(selector=selector):
+                self.assertLessEqual(css.count(selector), 1)
+        self.assertNotIn("var(--price-up)!important", css)
+        self.assertNotIn("var(--price-down)!important", css)
+
+        # E-1: 任何 .positive/.negative/.up/.down 範圍覆寫不得再硬編碼方向色
+        self.assertNotIn("a9dbc3", css)
+        self.assertNotIn("f2aaa3", css)
+        self.assertNotIn(".forecast-panel .positive{", css)
+        self.assertNotIn(".us-index-forecast-list .positive{", css)
+
+        # E-1/E-3: K 線與預測線改讀 CSS 變數，無硬編碼色
+        self.assertNotIn('upColor: "#', js)
+        self.assertNotIn('downColor: "#', js)
+        self.assertNotIn('wickUpColor: "#', js)
+        self.assertNotIn('wickDownColor: "#', js)
+        self.assertIn('getPropertyValue("--price-up")', js)
+        self.assertIn('getPropertyValue("--price-down")', js)
+        self.assertIn('getPropertyValue("--absorb-info")', js)
+        self.assertNotIn("#2563eb", js)
+
 
 if __name__ == "__main__":
     unittest.main()

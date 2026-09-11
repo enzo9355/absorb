@@ -468,12 +468,15 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
     rightPriceScale: { borderColor: "#aebfc8" },
     timeScale: { borderColor: "#aebfc8", rightOffset: predictionMarker ? 6 : 1 },
   });
+  const directionStyle = getComputedStyle(document.body);
+  const priceUp = directionStyle.getPropertyValue("--price-up").trim();
+  const priceDown = directionStyle.getPropertyValue("--price-down").trim();
   const candleSeries = chart.addCandlestickSeries({
-    upColor: "#7c1f31",
-    downColor: "#3f8060",
+    upColor: priceUp,
+    downColor: priceDown,
     borderVisible: false,
-    wickUpColor: "#7c1f31",
-    wickDownColor: "#3f8060",
+    wickUpColor: priceUp,
+    wickDownColor: priceDown,
   });
   candleSeries.setData(candles);
   const ma20 = parseChartPoints(raw.ma20);
@@ -482,8 +485,9 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   }
   const prediction = parseChartPoints(raw.prediction);
   if (predictionMarker && prediction.length > 1) {
+    const infoColor = directionStyle.getPropertyValue("--absorb-info").trim();
     const predictionSeries = chart.addLineSeries({
-      color: "#2563eb",
+      color: infoColor,
       lineWidth: 2,
       lineStyle: LightweightCharts.LineStyle.Dashed,
       title: "AI 研究情境",
@@ -494,7 +498,7 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
     predictionSeries.setMarkers([{
       time: prediction[prediction.length - 1].time,
       position: "aboveBar",
-      color: "#2563eb",
+      color: infoColor,
       shape: "circle",
       text: "AI 5日",
     }]);
