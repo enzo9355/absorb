@@ -25,29 +25,98 @@ ABSORB 是 AI 量化市場情報與決策輔助系統。介面先服務資料閱
 
 ## 5. Color system
 
-Logo 實測主要深藍為 `#122643`。CSS token：
+Logo 實測主要深藍為 `#122643`。CSS token（ORDER 2 起單一命名空間：保留
+`--absorb-*` 命名、採用原 `--command-*` 實際值；`tokens.css` 為唯一來源）：
 
 ```css
---absorb-navy: #122643;
---absorb-navy-hover: #1b365d;
+/* 品牌與中性 */
+--absorb-navy: #183147;
+--absorb-navy-hover: #21445d;
 --absorb-navy-active: #0b1b31;
 --absorb-navy-soft: #eaf0f7;
---absorb-white: #ffffff;
---absorb-canvas: #f7f9fc;
---absorb-surface: #ffffff;
---absorb-surface-raised: #fbfcfe;
---absorb-ink: #152033;
---absorb-muted: #586579;
+--absorb-canvas: #f1f4f4;
+--absorb-surface: #f7f6f2;
+--absorb-surface-raised: #faf9f6;
+--absorb-ink: #152638;
+--absorb-muted: #536575;
 --absorb-subtle: #7a8798;
---absorb-hairline: #d9e0e8;
+--absorb-hairline: #d9e1e2;
+--absorb-line-strong: #b7c1cf;
 --absorb-focus: #2b6cb0;
+--absorb-pure-white: #ffffff;
+/* 語意色（唯一用途） */
 --absorb-success: #18704a;
 --absorb-warning: #8a5b00;
 --absorb-danger: #a33a44;
 --absorb-info: #245b91;
+/* 支援色與色票 */
+--absorb-blue: #4e7d91;
+--absorb-blue-light: #8fb9c8;
+--absorb-coral: #b85f55;
+--absorb-sage: #3f8060;
+--absorb-sage-soft: #e3eee8;
+--absorb-accent-surface: #e8eff1;
+/* 邊界與表面色票 */
+--absorb-border-soft: #ccd9df;
+--absorb-border-mid: #cbd8de;
+--absorb-border-faint: #dce5ea;
+--absorb-border-track: #d3dfe4;
+--absorb-border-dashed: #b9c8cf;
+--absorb-border-hover: #b9c9d1;
+--absorb-border-strong: #aebbc5;
+--absorb-border-active: #a9bdc6;
+--absorb-border-cool: #c8d5de;
+--absorb-border-green: #a8cfc0;
+--absorb-border-salmon: #d99b8b;
+--absorb-surface-highlight: #e2ecef;
+--absorb-surface-warm: #ebe8e1;
+--absorb-surface-neutral: #e6e1d8;
+--absorb-surface-switch: #e7edf1;
+--absorb-surface-sky: #edf3fa;
+--absorb-surface-muted: #f2f5f7;
+--absorb-surface-alert: #fff5f1;
+--absorb-surface-amber: #fff8e8;
+--absorb-surface-amber-deep: #fef3c7;
+--absorb-surface-red: #fee2e2;
+--absorb-surface-red-soft: #fff1f1;
+--absorb-surface-green: #e7f4ed;
+--absorb-surface-gold: #ead9aa;
+/* 強調與狀態色票 */
+--absorb-danger-strong: #8b2e1e;
+--absorb-ink-faint: #43515d;
+--absorb-purple: #6b5b95;
+--absorb-purple-deep: #5c557a;
+--absorb-rose: #713548;
+--absorb-olive: #75601f;
+--absorb-brick: #8a4e38;
+--absorb-rose-muted: #9b4d5c;
+--absorb-green-deep: #176b57;
+--absorb-green: #05a948;
+--absorb-green-bright: #06c755;
+--absorb-brown: #665f58;
+--absorb-amber-strong: #b45309;
+--absorb-amber-deep: #92400e;
+--absorb-red: #991b1b;
+--absorb-red-strong: #b91c1c;
+--absorb-green-ok: #047857;
+--absorb-blue-strong: #1d4ed8;
+--absorb-amber-soft: #f59e0b;
+--absorb-severity-high: #9b263e;
+--absorb-severity-medium: #b7791f;
+/* 漲跌方向色（依市場語境） */
+--price-up: var(--absorb-danger);    /* 台股紅漲 */
+--price-down: var(--absorb-success); /* 台股綠跌 */
+body[data-market="US"] { --price-up: var(--absorb-success); --price-down: var(--absorb-danger); }
+--absorb-on-dark-up: #f2aaa3;
+--absorb-on-dark-down: #a9dbc3;
+--price-up-on-dark: var(--absorb-on-dark-up);
+--price-down-on-dark: var(--absorb-on-dark-down);
+body[data-market="US"] { --price-up-on-dark: var(--absorb-on-dark-down); --price-down-on-dark: var(--absorb-on-dark-up); }
 ```
 
-文字與背景對比至少符合 WCAG AA。漲跌顏色必須同時搭配文字或符號。
+文字與背景對比至少符合 WCAG AA。漲跌顏色必須同時搭配文字或符號。所有方向
+元件一律從 `--price-up` / `--price-down` 取色；深色面板（`.forecast-panel`、
+`.us-index-forecast-list article`）內以 `--price-*-on-dark` 重映射維持對比。
 
 ## 6. Typography
 

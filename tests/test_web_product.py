@@ -24,6 +24,28 @@ from tests.test_observation_public_surfaces import (
 )
 
 
+_CSS_FILES = (
+    "tokens.css",
+    "base.css",
+    "pages.css",
+    "layout.css",
+    "components.css",
+    "utilities.css",
+)
+
+
+def css_bundle():
+    static_root = Path(__file__).resolve().parents[1] / "static"
+    return "\n".join(
+        (static_root / name).read_text(encoding="utf-8")
+        for name in _CSS_FILES
+    )
+
+
+def css_compact():
+    return re.sub(r"\s+", "", css_bundle())
+
+
 def prediction_product(market="TW", symbol="2330", as_of="2026-07-15"):
     return {
         "schema_version": 1,
@@ -848,9 +870,7 @@ class WebProductTests(unittest.TestCase):
     def test_base_shell_uses_absorb_brand_and_light_theme(self):
         response = stock_app.app.test_client().get("/dashboard")
         html = response.get_data(as_text=True)
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_compact()
 
         self.assertIn("ABSORB", html)
         self.assertIn('class="brand-wordmark"', html)
@@ -863,25 +883,25 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('data-market-switch', html)
         self.assertIn('href="/us"', html)
         self.assertNotIn("fonts.googleapis.com", html)
-        self.assertIn("--absorb-navy:#122643", css)
-        self.assertIn("--absorb-canvas:#f7f9fc", css)
-        self.assertIn('"Avenir Next",Avenir,"Noto Sans TC"', css)
+        self.assertIn("--absorb-navy:#183147", css)
+        self.assertIn("--absorb-canvas:#f1f4f4", css)
+        self.assertIn('"AvenirNext",Avenir,"NotoSansTC"', css)
         self.assertIn(".research-command", css)
-        self.assertIn(".market-switch a{display:grid;min-height:44px", css)
-        self.assertIn(".quick-ask-backdrop[hidden]{display:none}", css)
-        self.assertIn(".quick-ask-header button{display:grid;width:44px;height:44px", css)
-        self.assertIn("--command-content-max:3200px", css)
-        self.assertIn("--command-muted:#536575", css)
+        self.assertIn(".market-switcha{display:grid;min-height:44px", css)
+        self.assertIn(".quick-ask-backdrop[hidden]{display:none;}", css)
+        self.assertIn(".quick-ask-headerbutton{display:grid;width:44px;height:44px", css)
+        self.assertIn("--absorb-content-max:3200px", css)
+        self.assertIn("--absorb-muted:#536575", css)
         self.assertIn(".evidence-canvas{", css)
-        self.assertIn("background:var(--command-accent-surface)", css)
+        self.assertIn("background:var(--absorb-accent-surface)", css)
         self.assertIn(".brand-wordmark:hover{", css)
         self.assertIn("rotate(-1.5deg)", css)
-        self.assertIn("@view-transition{navigation:auto}", css)
-        self.assertIn("button,input,select,textarea{font:inherit}", css)
+        self.assertIn("@view-transition{navigation:auto;}", css)
+        self.assertIn("button,input,select,textarea{font:inherit", css)
         self.assertIn(".button{display:inline-flex", css)
         self.assertIn(".command-metrics{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr))", css)
-        self.assertNotIn("border-left:4px", css.replace(" ", ""))
-        self.assertNotIn("border-top:3px", css.replace(" ", ""))
+        self.assertNotIn("border-left:4px", css)
+        self.assertNotIn("border-top:3px", css)
         version = re.search(r'/static/app\.css\?v=([0-9a-f]{12})', html)
         self.assertIsNotNone(version)
         self.assertIn(f'/static/app.js?v={version.group(1)}', html)
@@ -1614,9 +1634,7 @@ class WebProductTests(unittest.TestCase):
     def test_web_shell_supports_keyboard_and_mobile_interactions(self):
         response = stock_app.app.test_client().get("/dashboard")
         html = response.get_data(as_text=True)
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_bundle()
 
         for marker in (
             'class="skip-link"',
@@ -1639,9 +1657,7 @@ class WebProductTests(unittest.TestCase):
         response = client.get("/static/fonts/absorb-wordmark.woff2")
         font_payload = response.get_data()
         response.close()
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_bundle()
 
         self.assertEqual(response.status_code, 200)
         self.assertGreater(len(font_payload), 1_000)
@@ -1653,31 +1669,26 @@ class WebProductTests(unittest.TestCase):
         )
 
     def test_web_shell_uses_softened_neutral_paper_surfaces(self):
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_bundle()
         manifest = json.loads(
             Path(stock_app.app.static_folder, "manifest.webmanifest").read_text(
                 encoding="utf-8"
             )
         )
 
-        self.assertIn("--absorb-surface:#f5f5f2", css)
-        self.assertIn("--command-paper:#f7f6f2", css)
-        self.assertIn("background:var(--command-paper)", css)
+        self.assertIn("--absorb-surface:#f7f6f2", css)
+        self.assertIn("background:var(--absorb-surface)", css)
         self.assertNotIn("gradient", css)
         self.assertNotIn("backdrop-filter", css)
         self.assertEqual(manifest["background_color"], "#f7f6f2")
 
     def test_research_layout_supports_4k_and_tall_ask_workspace(self):
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        ).replace(" ", "").replace("\n", "")
+        css = css_compact()
 
-        self.assertIn("--command-content-max:3200px", css)
+        self.assertIn("--absorb-content-max:3200px", css)
         self.assertIn("@media(min-width:1800px)", css)
-        self.assertIn("body{font-size:18px}", css)
-        self.assertIn(".nav-link{font-size:17px}", css)
+        self.assertIn("body{font-size:18px;}", css)
+        self.assertIn(".nav-link{font-size:17px;}", css)
         self.assertIn("height:60vh", css)
         self.assertIn(".quick-ask-log{flex:1", css)
         self.assertIn(".industry-disclosure-list{", css)
@@ -1708,9 +1719,7 @@ class WebProductTests(unittest.TestCase):
                 self.assertEqual(response.get_data(as_text=True), "ok")
 
     def test_stock_chart_is_clipped_and_resizes_with_its_panel(self):
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_compact()
         js = Path(stock_app.app.static_folder, "app.js").read_text(
             encoding="utf-8"
         )
@@ -1723,30 +1732,28 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("ResizeObserver", js)
 
     def test_order1_price_direction_tokens_are_market_contextual(self):
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_compact()
         js = Path(stock_app.app.static_folder, "app.js").read_text(
             encoding="utf-8"
         )
 
         # E-1: 全域 !important 覆蓋已移除
-        self.assertNotIn("command-sage)!important", css)
-        self.assertNotIn("command-coral)!important", css)
+        self.assertNotIn("absorb-sage)!important", css)
+        self.assertNotIn("absorb-coral)!important", css)
 
         # E-2: 市場語境方向色 token（台股紅漲綠跌、美股綠漲紅跌）
         self.assertIn(
             'body[data-market="TW"]{--price-up:var(--absorb-danger);'
-            '--price-down:var(--absorb-success)}',
+            '--price-down:var(--absorb-success);}',
             css,
         )
         self.assertIn(
             'body[data-market="US"]{--price-up:var(--absorb-success);'
-            '--price-down:var(--absorb-danger)}',
+            '--price-down:var(--absorb-danger);}',
             css,
         )
-        self.assertIn(".positive,.up{color:var(--price-up)}", css)
-        self.assertIn(".negative,.down{color:var(--price-down)}", css)
+        self.assertIn(".positive,.up{color:var(--price-up);}", css)
+        self.assertIn(".negative,.down{color:var(--price-down);}", css)
 
         # 方向 class 各只宣告一次，且無 !important
         for selector in (".positive,", ".negative,", ".up{", ".down{"):
@@ -1756,8 +1763,8 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("var(--price-down)!important", css)
 
         # E-1: 深色面板不再用範圍覆寫硬編碼方向色（on-dark token 定義除外）
-        self.assertNotIn(".forecast-panel .positive{", css)
-        self.assertNotIn(".us-index-forecast-list .positive{", css)
+        self.assertNotIn(".forecast-panel.positive{", css)
+        self.assertNotIn(".us-index-forecast-list.positive{", css)
 
         # E-1/E-3: K 線與預測線改讀 CSS 變數，無硬編碼色
         self.assertNotIn('upColor: "#', js)
@@ -1770,16 +1777,14 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("#2563eb", js)
 
     def test_order1_direction_source_colors_reverse_whitelist(self):
-        """反向白名單：四個方向來源色（--command-coral / --command-sage /
+        """反向白名單：四個方向來源色（--absorb-coral / --absorb-sage /
         --absorb-danger / --absorb-success）除了 token 定義與 --price-*
         映射定義外，只允許出現在已逐條核對的非方向用途清單中；
         清單外任何規則即失敗（E-1 Blocker 3 覆核第二輪）。"""
-        css = Path(stock_app.app.static_folder, "app.css").read_text(
-            encoding="utf-8"
-        )
+        css = css_bundle()
         source_tokens = (
-            "--command-coral",
-            "--command-sage",
+            "--absorb-coral",
+            "--absorb-sage",
             "--absorb-danger",
             "--absorb-success",
         )
@@ -1796,7 +1801,11 @@ class WebProductTests(unittest.TestCase):
             if "{" not in rule:
                 continue
             selector, body = rule.split("{", 1)
-            matched = [tok for tok in source_tokens if tok in body]
+            matched = [
+                tok
+                for tok in source_tokens
+                if re.search(re.escape(tok) + r"(?![a-z0-9-])", body)
+            ]
             if not matched:
                 continue
             if any(re.search(re.escape(tok) + r"\s*:", body) for tok in matched):
@@ -1810,6 +1819,32 @@ class WebProductTests(unittest.TestCase):
                 continue
             violations.append(normalized)
         self.assertEqual(violations, [])
+
+    def test_order2_css_has_single_token_namespace_and_imports(self):
+        app_css = Path(stock_app.app.static_folder, "app.css").read_text(
+            encoding="utf-8"
+        )
+        for name in _CSS_FILES:
+            self.assertIn(f'@import url("{name}");', app_css)
+            self.assertTrue(
+                (Path(stock_app.app.static_folder) / name).is_file(),
+                name,
+            )
+        css = css_compact()
+        self.assertNotIn("--command-", css)
+        self.assertNotIn("var(--command-", css)
+        self.assertNotIn("--up:", css)
+        self.assertNotIn("--down:", css)
+        self.assertNotIn("var(--up)", css)
+        self.assertNotIn("var(--down)", css)
+
+    def test_order2_hex_literals_do_not_exceed_token_count(self):
+        css = css_bundle()
+        hex_count = len(re.findall(r"#[0-9a-fA-F]{3,8}\b", css))
+        token_count = len(
+            set(re.findall(r"--(?:absorb-[a-z0-9-]+|price-[a-z0-9-]+)", css))
+        )
+        self.assertLessEqual(hex_count, token_count, (hex_count, token_count))
 
 
 if __name__ == "__main__":

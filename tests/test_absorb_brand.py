@@ -49,13 +49,13 @@ class AbsorbBrandTests(unittest.TestCase):
     def test_manifest_references_existing_absorb_icons(self):
         manifest = json.loads((ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "ABSORB")
-        self.assertEqual(manifest["theme_color"], "#122643")
+        self.assertEqual(manifest["theme_color"], "#183147")
         for icon in manifest["icons"]:
             self.assertTrue((ROOT / icon["src"].removeprefix("/")).is_file())
 
     def test_design_system_uses_measured_navy_and_prohibits_old_persona(self):
         design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
-        self.assertIn("--absorb-navy: #122643", design)
+        self.assertIn("--absorb-navy: #183147", design)
         self.assertIn("導覽文字標誌固定為 `ABSORB`", design)
         self.assertIn("Avenir Next", design)
         self.assertIn("不下載、內嵌或提交專有字型", design)
