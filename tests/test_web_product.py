@@ -1769,45 +1769,46 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('getPropertyValue("--absorb-info")', js)
         self.assertNotIn("#2563eb", js)
 
-    def test_order1_direction_class_rules_use_price_tokens_only(self):
-        """白名單式：任何帶方向語意 class 的規則，其顏色宣告必須是
-        var(--price-up) / var(--price-down)（或深色面板 on-dark 映射）。
-        （E-1 Blocker 3 覆核加寬）"""
+    def test_order1_direction_source_colors_reverse_whitelist(self):
+        """反向白名單：四個方向來源色（--command-coral / --command-sage /
+        --absorb-danger / --absorb-success）除了 token 定義與 --price-*
+        映射定義外，只允許出現在已逐條核對的非方向用途清單中；
+        清單外任何規則即失敗（E-1 Blocker 3 覆核第二輪）。"""
         css = Path(stock_app.app.static_folder, "app.css").read_text(
             encoding="utf-8"
         )
-        direction_tokens = {
-            "up", "down", "positive", "negative", "surge", "fall",
-            "event-up", "event-down", "breadth-up", "breadth-down",
-        }
-        neutral_values = {
-            "#fff", "#ffffff", "white", "transparent", "currentcolor",
-            "inherit", "none", "0",
+        source_tokens = (
+            "--command-coral",
+            "--command-sage",
+            "--absorb-danger",
+            "--absorb-success",
+        )
+        allowed_rules = {
+            ".error-banner",
+            ".event-item.severity-high",
+            ".risk-panel>p",
+            ".research-status span",
+            '.freshness-status[data-freshness-status="current"]',
+            ".confidence-card strong",
         }
         violations = []
         for rule in css.split("}"):
             if "{" not in rule:
                 continue
             selector, body = rule.split("{", 1)
-            classes = set(re.findall(r"\.([A-Za-z0-9_-]+)", selector))
-            if not (classes & direction_tokens):
+            matched = [tok for tok in source_tokens if tok in body]
+            if not matched:
                 continue
-            for match in re.finditer(
-                r"(?:color|background|background-color|border-color|"
-                r"border-left-color|fill|stroke)\s*:\s*([^;}]+)",
-                body,
-            ):
-                value = match.group(1).strip()
-                if value in neutral_values:
-                    continue
-                if (
-                    "var(--price-up)" in value
-                    or "var(--price-down)" in value
-                    or "var(--price-up-on-dark)" in value
-                    or "var(--price-down-on-dark)" in value
-                ):
-                    continue
-                violations.append(f"{selector.strip()} -> {value}")
+            if any(re.search(re.escape(tok) + r"\s*:", body) for tok in matched):
+                # token 定義（:root）本身
+                continue
+            if re.search(r"--price-(?:up|down)(?:-on-dark)?\s*:", body):
+                # --price-* 映射定義（:root / body[data-market]）
+                continue
+            normalized = re.sub(r"\s+", " ", selector.strip())
+            if normalized in allowed_rules:
+                continue
+            violations.append(normalized)
         self.assertEqual(violations, [])
 
 
