@@ -34,7 +34,7 @@
 .cat-swatch b { font-size:var(--type-caption); }
 .cat-swatch span { font-family:ui-monospace,monospace; font-size:var(--type-label); color:var(--absorb-muted); }
 .cat-radius i { display:block; height:56px; background:var(--absorb-navy-soft); border:1px solid var(--absorb-hairline); }
-.cat-dark { background:var(--absorb-navy); color:#fff; padding:18px; border-radius:var(--radius-lg); }
+.cat-dark { background:var(--absorb-ink-surface); color:#fff; padding:18px; border-radius:var(--radius-lg); }
 /* 市場語境示範：型錄需要同頁並排兩種市場，覆寫 --price-* 即可 */
 .ctx-tw { --price-up:var(--absorb-danger); --price-down:var(--absorb-success); }
 .ctx-us { --price-up:var(--absorb-success); --price-down:var(--absorb-danger); }
@@ -71,3 +71,11 @@
 .val-stale { color:var(--absorb-muted) }
 .w-40 { width:40% }
 .w-70 { width:70% }
+
+@media (max-width:640px) {
+  .cat-page { padding:28px 16px 64px; }
+  .cat-row { grid-template-columns:1fr; gap:4px; }
+  .cat-row code, .cat-key { font-size:var(--type-label); }
+  .cat-page h1 { font-size:var(--type-title); line-height:var(--lh-title); }
+  .cat-page h2 { font-size:var(--type-subtitle); line-height:var(--lh-subtitle); }
+}

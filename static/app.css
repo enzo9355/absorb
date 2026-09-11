@@ -11,6 +11,9 @@
 }
 :root {
     --absorb-pure-white:#fff;
+    /* ORDER 3（C-5）：承載內容的深色表面。品牌深藍不參與資料語意，
+       因此深色卡片改用中性深色；亮度與原 navy 相近，on-dark 漲跌色對比不退。 */
+    --absorb-ink-surface:#232a31;
     --absorb-navy:#183147;
     --absorb-navy-hover:#21445d;
     --absorb-navy-active:#0b1b31;
@@ -530,7 +533,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
     display:grid;
     place-items:center;
     min-height:74px;
-    padding:14px;
+    padding:16px;
     border-radius:8px;
     text-decoration:none;
     background:var(--surface);
@@ -834,7 +837,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   align-items:center;
   justify-content:space-between;
   gap:14px;
-  padding:14px;
+  padding:16px;
   border:1px solid var(--line);
   border-radius:10px;
 }
@@ -862,7 +865,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   height:96px;
 }
 .error-banner {
-    padding:14px;
+    padding:16px;
     border:1px solid var(--absorb-danger);
     border-radius:8px;
     background:rgb(163 58 68 / 8%);
@@ -1032,7 +1035,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
 .scenario-grid p {
   display:grid;
   gap:4px;
-  padding:14px;
+  padding:16px;
   border:1px solid var(--line);
   border-radius:10px;
 }
@@ -1399,7 +1402,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   display:grid;
   grid-template-columns:1fr auto;
   gap:10px;
-  padding:14px;
+  padding:16px;
   border:1px solid var(--line);
   border-radius:10px;
   background:var(--surface);
@@ -2876,7 +2879,7 @@ progress::-moz-progress-bar {
   font-weight:700;
 }
 .forecast-panel {
-  background:var(--absorb-navy);
+  background:var(--absorb-ink-surface);
   color:var(--absorb-pure-white);
 }
 .forecast-panel .insight-heading span {
@@ -2892,7 +2895,7 @@ progress::-moz-progress-bar {
   display:grid;
   gap:6px;
   padding:13px;
-  background:var(--absorb-navy);
+  background:var(--absorb-ink-surface);
 }
 .forecast-primary span {
   color:rgb(255 255 255 / 68%);
@@ -2946,7 +2949,7 @@ progress::-moz-progress-bar {
   gap:10px;
   padding:20px;
   border-radius:10px;
-  background:var(--absorb-navy);
+  background:var(--absorb-ink-surface);
   color:var(--absorb-pure-white);
 }
 .us-index-forecast-list article>span,.us-index-forecast-list small {
@@ -3001,7 +3004,7 @@ progress::-moz-progress-bar {
   gap:16px;
 }
 .event-group {
-  padding:14px;
+  padding:16px;
   border:1px solid var(--absorb-hairline);
   border-radius:10px;
   background:rgb(247 246 242 / 70%);
@@ -3921,7 +3924,7 @@ progress::-moz-progress-bar {
     grid-template-columns:1fr;
   }
   .industry-company {
-    padding:13px;
+    padding:16px;
   }
   .reports-page>.panel {
     padding:16px;
@@ -3976,7 +3979,7 @@ progress::-moz-progress-bar {
     grid-template-columns:1fr;
   }
   .event-group {
-    padding:12px;
+    padding:16px;
   }
   .event-group .top-picks {
     grid-template-columns:1fr;

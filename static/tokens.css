@@ -7,6 +7,9 @@
 }
 :root {
     --absorb-pure-white:#fff;
+    /* ORDER 3（C-5）：承載內容的深色表面。品牌深藍不參與資料語意，
+       因此深色卡片改用中性深色；亮度與原 navy 相近，on-dark 漲跌色對比不退。 */
+    --absorb-ink-surface:#232a31;
     --absorb-navy:#183147;
     --absorb-navy-hover:#21445d;
     --absorb-navy-active:#0b1b31;

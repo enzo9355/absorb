@@ -385,7 +385,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
     display:grid;
     place-items:center;
     min-height:74px;
-    padding:14px;
+    padding:16px;
     border-radius:8px;
     text-decoration:none;
     background:var(--surface);
@@ -689,7 +689,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   align-items:center;
   justify-content:space-between;
   gap:14px;
-  padding:14px;
+  padding:16px;
   border:1px solid var(--line);
   border-radius:10px;
 }
@@ -717,7 +717,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   height:96px;
 }
 .error-banner {
-    padding:14px;
+    padding:16px;
     border:1px solid var(--absorb-danger);
     border-radius:8px;
     background:rgb(163 58 68 / 8%);
@@ -887,7 +887,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
 .scenario-grid p {
   display:grid;
   gap:4px;
-  padding:14px;
+  padding:16px;
   border:1px solid var(--line);
   border-radius:10px;
 }
@@ -1254,7 +1254,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   display:grid;
   grid-template-columns:1fr auto;
   gap:10px;
-  padding:14px;
+  padding:16px;
   border:1px solid var(--line);
   border-radius:10px;
   background:var(--surface);

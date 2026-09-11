@@ -174,7 +174,7 @@
   font-weight:700;
 }
 .forecast-panel {
-  background:var(--absorb-navy);
+  background:var(--absorb-ink-surface);
   color:var(--absorb-pure-white);
 }
 .forecast-panel .insight-heading span {
@@ -190,7 +190,7 @@
   display:grid;
   gap:6px;
   padding:13px;
-  background:var(--absorb-navy);
+  background:var(--absorb-ink-surface);
 }
 .forecast-primary span {
   color:rgb(255 255 255 / 68%);
@@ -244,7 +244,7 @@
   gap:10px;
   padding:20px;
   border-radius:10px;
-  background:var(--absorb-navy);
+  background:var(--absorb-ink-surface);
   color:var(--absorb-pure-white);
 }
 .us-index-forecast-list article>span,.us-index-forecast-list small {
@@ -299,7 +299,7 @@
   gap:16px;
 }
 .event-group {
-  padding:14px;
+  padding:16px;
   border:1px solid var(--absorb-hairline);
   border-radius:10px;
   background:rgb(247 246 242 / 70%);
@@ -1219,7 +1219,7 @@
     grid-template-columns:1fr;
   }
   .industry-company {
-    padding:13px;
+    padding:16px;
   }
   .reports-page>.panel {
     padding:16px;
@@ -1274,7 +1274,7 @@
     grid-template-columns:1fr;
   }
   .event-group {
-    padding:12px;
+    padding:16px;
   }
   .event-group .top-picks {
     grid-template-columns:1fr;
