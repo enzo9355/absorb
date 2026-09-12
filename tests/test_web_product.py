@@ -961,7 +961,9 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         detail_html = detail.get_data(as_text=True)
         self.assertIn('data-market="US"', detail_html)
-        self.assertIn('class="back-link" href="/us"', detail_html)
+        # ORDER 4（§5.1）：上一層必須具名，而且維持在同一個市場。
+        # 個股明細的上一層是「個股與 ETF」，不是市場總覽。
+        self.assertIn('class="back-link" href="/us/stocks">返回個股與 ETF', detail_html)
 
     def test_us_dashboard_renders_three_index_forecasts_and_actual_charts(self):
         summary = {
@@ -1299,6 +1301,86 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('href="/learn"', aux_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
 
+    def test_order4_missing_value_style_wins_over_blanket_span_rules(self):
+        """缺值格的字級不得被容器的 `.某容器 span` 規則蓋掉。
+
+        這是 ORDER 4 白話標題被靜靜蓋掉的根因：版面各處有
+        `.command-metrics span { font-size:11px }`、
+        `.pulse-card span { font-size:13px }` 這類以元素選取的規則，
+        特異性 (0,1,1) 高於單一 class 的 .value-unavailable (0,1,0)。
+        type scale 測試看不出來 —— 11px 本來就在白名單內，
+        宣告值全部合法，錯的是誰贏。
+
+        這裡直接算級聯：找出所有會設 font-size 的 `.x span` 規則，
+        要求 .value-unavailable 的規則同樣是元素限定（特異性打平），
+        而且排在它們全部之後（來源順序取勝）。
+
+        這條測試失敗時，正確的修法通常不是把 .value-unavailable 往後搬，
+        而是把新寫的 `.某容器 span { font-size }` 改成 class 選取 ——
+        以元素選取字級會攔截所有後來放進該容器的元件，不只是缺值格。
+        """
+        # 註解會黏在下一條選擇器前面，先移除（長度以空白補回，維持位移可比）
+        css = re.sub(
+            r"/\*.*?\*/", lambda m: " " * len(m.group(0)), css_bundle(), flags=re.S
+        )
+        rules = []
+        offset = 0
+        for chunk in css.split("}"):
+            if "{" not in chunk:
+                offset += len(chunk) + 1
+                continue
+            selector, body = chunk.split("{", 1)
+            rules.append((offset, re.sub(r"\s+", " ", selector.strip()), body))
+            offset += len(chunk) + 1
+
+        blanket = [
+            (pos, sel)
+            for pos, sel, body in rules
+            if "font-size" in body
+            and any(
+                re.fullmatch(r"\.[a-z0-9-]+ (?:span|small)", part.strip())
+                for part in sel.split(",")
+            )
+        ]
+        self.assertTrue(blanket, "測試前提消失：已無容器層級的 span 字級規則")
+
+        winners = [
+            pos
+            for pos, sel, body in rules
+            if "font-size" in body
+            and any(
+                part.strip() == "span.value-unavailable" for part in sel.split(",")
+            )
+        ]
+        self.assertEqual(len(winners), 1, "span.value-unavailable 應只有一條字級規則")
+        for pos, sel in blanket:
+            with self.subTest(selector=sel):
+                self.assertLess(pos, winners[0])
+
+    def test_order4_back_links_name_their_destination(self):
+        """§5.1：明細頁的上一層必須具名（「返回個股與 ETF」而非泛用返回）。
+
+        泛用的「返回」在多入口的頁面上沒有意義 —— 讀者可能從個股清單、
+        產業觀察或搜尋結果進來，看到「返回」也不知道會去哪裡。
+        這裡掃模板原始碼，因為有些明細頁在測試環境取不到資料。
+        """
+        root = Path(__file__).resolve().parents[1] / "templates"
+        generic = []
+        for path in sorted(root.rglob("*.html")):
+            for match in re.finditer(
+                r'class="back-link"[^>]*>([^<]+)</a>',
+                path.read_text(encoding="utf-8"),
+            ):
+                label = match.group(1).strip()
+                if label in ("返回", "回上一頁", "上一頁", "Back", "返回上一層"):
+                    generic.append((path.name, label))
+                # 具名＝「返回」後面還有目的地名稱
+                self.assertTrue(
+                    label.startswith("返回") and len(label) > len("返回"),
+                    f"{path.name}: {label}",
+                )
+        self.assertEqual(generic, [])
+
     def test_order4_units_never_render_without_their_value(self):
         """B-2：缺值時數值與單位必須一起消失。
 
@@ -1466,7 +1548,16 @@ class WebProductTests(unittest.TestCase):
 
         self.assertNotIn("產業實際強弱", html)
         self.assertEqual(html.count('data-industry-disclosure'), 1)
-        self.assertIn('class="industry-disclosure hot"', html)
+        # ORDER 4（§5.5）：強弱改由分組承擔，不再是每張卡片的 hot/cold 色條
+        # （§0.4 禁止「左側彩色 accent 邊條 + 圓角卡」，M-5 禁止只靠顏色）。
+        # 守的性質不變：+2.85% 必須被歸成「強」。現在還額外要求它落在
+        # 具名的分組裡，而不是只有一個顏色。
+        self.assertNotIn('industry-disclosure hot', html)
+        self.assertNotIn('industry-disclosure cold', html)
+        self.assertIn('id="industry-group-hot">值得注意</h3>', html)
+        self.assertLess(
+            html.index('id="industry-group-hot"'), html.index('data-industry-disclosure')
+        )
         self.assertIn("實際動能排序", html)
         self.assertIn('href="/stock/2330"', html)
         self.assertIn("台積電 · 2330", html)
@@ -1685,7 +1776,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("data-watchlist-toggle", html)
         self.assertIn("data-chart-range", html)
         self.assertIn('aria-label="個股觀察導覽"', html)
-        self.assertIn('class="back-link" href="/"', html)
+        self.assertIn('class="back-link" href="/stocks">返回個股與 ETF', html)
 
     @patch.object(stock_app, "fetch_published_quant_snapshot")
     def test_stock_page_does_not_render_untrusted_snapshot_news(self, fetch):
@@ -1714,7 +1805,8 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         fetch.assert_called_once_with("AAPL")
         self.assertIn(
-            'class="back-link" href="/us"', response.get_data(as_text=True)
+            'class="back-link" href="/us/stocks">返回個股與 ETF',
+            response.get_data(as_text=True),
         )
 
     def test_dashboard_script_does_not_insert_api_text_with_inner_html(self):
@@ -1874,8 +1966,14 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("height:60vh", css)
         self.assertIn(".quick-ask-log{flex:1", css)
         self.assertIn(".industry-disclosure-list{", css)
-        self.assertIn(".industry-disclosure.hot{", css)
-        self.assertIn(".industry-disclosure.cold{", css)
+        # ORDER 4（§5.5 / §0.4 / M-5）：產業強弱改由分組承擔，
+        # hot/cold 的左側彩色邊條 + 底色是 §0.4 明令禁止的手法，
+        # 而且灰階下 hot 與 cold 長得一樣。守的性質不變（強弱必須有
+        # 視覺處理），但改為具名分組，且明確擋住色條回來。
+        self.assertIn(".industry-group-heading{", css)
+        self.assertNotIn(".industry-disclosure.hot{", css)
+        self.assertNotIn(".industry-disclosure.cold{", css)
+        self.assertNotIn(".industry-disclosure.steady{", css)
 
     def test_browser_bundle_has_no_local_watchlist_storage(self):
         source = Path(stock_app.app.static_folder, "app.js").read_text(

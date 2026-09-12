@@ -498,18 +498,11 @@
   border-radius:10px;
   background:var(--absorb-surface);
 }
-.industry-disclosure.hot {
-  border-left:5px solid var(--price-up);
-  background:color-mix(in srgb, var(--price-up) 12%, transparent);
-}
-.industry-disclosure.cold {
-  border-left:5px solid var(--price-down);
-  background:color-mix(in srgb, var(--price-down) 12%, transparent);
-}
-.industry-disclosure.steady {
-  border-left:5px solid var(--absorb-blue);
-  background:var(--absorb-accent-surface);
-}
+/* ORDER 4（§5.5 / §0.4 / M-5）：原本每張產業卡用左側 5px 彩色邊條加
+   12% 底色暗示強弱。那是 §0.4 明令禁止的「左側彩色 accent 邊條 + 圓角卡」，
+   而且強弱只靠顏色 —— 灰階截圖下 hot 與 cold 長得一樣（違反 M-5）。
+   改為先分組再排名：組別名稱「值得注意／相對穩定／轉弱」本身就是強弱，
+   列內的 +／− 相對報酬承擔方向。 */
 .industry-disclosure summary {
   display:flex;
   align-items:center;
@@ -1605,7 +1598,14 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
    核心規則：缺值不是數值。unavailable 時該格不進入數值的字級與顏色軌道，
    改用內文字級與 muted 色，整格的視覺重量必須低於有資料時。
    ========================================================================== */
-.value-unavailable {
+/* ORDER 4：選擇器刻意加上元素限定（span.value-unavailable）。
+   版面各處都有 `.某容器 span { font-size:11px／13px }` 這類以元素選取的
+   規則，特異性 (0,1,1) 高於單一 class 的 .value-unavailable (0,1,0)，
+   會把缺值格拉回 label 字級 —— ORDER 4 的白話標題就是這樣被靜靜蓋掉的，
+   而且 type scale 測試看不出來（11px 本來就在白名單內）。
+   元素限定後同為 (0,1,1)，再靠 components.css 排在 base/layout 之後
+   的來源順序取勝，一次解決所有容器，不必逐一加 scoped 規則。 */
+span.value-unavailable {
   display:inline-block;
   font-size:var(--type-body);
   font-weight:400;
@@ -1663,7 +1663,7 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
    否則模板上的 hidden 屬性形同虛設，降級說明會永遠顯示。 */
 .state-note[hidden] { display:none; }
 .state-note strong { font-weight:700; }
-.state-note span { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
+.state-note-detail { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
 
 /* ORDER 3：loading 骨架（§21 既有規定「固定尺寸 skeleton 避免版面位移」，
    但一直沒有對應元件）。不使用動畫以外的裝飾，並遵守 reduced motion。 */
@@ -1877,11 +1877,7 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
   letter-spacing:-.03em;
   font-variant-numeric:tabular-nums;
 }
-.command-metrics .value-unavailable {
-  margin:8px 0 2px;
-  font-size:var(--type-body);
-  line-height:var(--lh-body);
-}
+.command-metrics span.value-unavailable { margin:8px 0 2px; }
 
 /* 無內容時的深色塊：深色是全頁最重的視覺元素，壓在空內容上會把注意力
    導向什麼都沒有的地方。無內容時降級為一般卡片。 */
@@ -2114,3 +2110,31 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
 .chart-caveat strong { color:var(--absorb-ink); font-weight:750; }
 .market-trend-panel .market-index-chart { min-height:250px; }
 .market-breadth-panel .pulse-card .term-tag { margin:6px 0 0; justify-self:start; width:max-content; }
+
+/* ORDER 4（§5.5）：產業分組。組別名稱與說明取代原本的顏色暗示。 */
+.industry-group { margin-top:22px; }
+.industry-group-heading {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:6px 12px;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.industry-group-heading h3 {
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.industry-group-meaning {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.industry-coverage {
+  margin:0 0 14px;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}

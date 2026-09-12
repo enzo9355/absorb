@@ -1,47 +1,79 @@
 {% extends "base.html" %}
 {% block title %}產業觀察｜ABSORB{% endblock %}
 {% block content %}
-<div class="page industries-page">
-  <header class="page-header"><div><p class="eyebrow">INDUSTRY ACTUALS</p><h1>產業觀察</h1><p class="page-intro">以實際相對報酬、廣度與量能整理產業狀態，展開即可查看本次發布的關注公司。</p></div></header>
-  <section class="panel industry-observation-panel" aria-labelledby="industry-title">
-    <div class="section-heading"><div><h2 id="industry-title">產業強弱與關注清單</h2><p>近 5 日相對大盤報酬</p></div><span class="muted small">點選產業查看公司</span></div>
-    <div class="industry-disclosure-list">
-      {% for item in observation.industry_observations or [] %}
-      {% set value = item.relative_return_5d_pct %}
-      {% set tone = 'hot' if value is not none and value >= 2 else ('cold' if value is not none and value <= -2 else 'steady') %}
-      <details class="industry-disclosure {{ tone }}" data-industry-disclosure{% if loop.first %} open{% endif %}>
-        <summary>
-          <span><strong>{{ item.name }}</strong><small>可用 {{ item.available_count }}／{{ item.component_count }} 檔 · 覆蓋 {{ '%.1f%%'|format(item.coverage * 100) if item.coverage is not none else '資料不足' }}</small></span>
-          {% if value is not none %}<span class="industry-disclosure-return">{{ '%+.2f%%'|format(value) }}</span>{% else %}<span class="industry-disclosure-return"><span class="value-unavailable">尚未驗證</span></span>{% endif %}
-        </summary>
-        <div class="industry-disclosure-body">
-          <dl class="industry-metric-grid">
-            <div><dt>上漲家數</dt><dd>{{ '%.1f%%'|format(item.advancing_ratio_pct) if item.advancing_ratio_pct is not none else '—' }}</dd></div>
-            <div><dt>站上 MA20</dt><dd>{{ '%.1f%%'|format(item.ma20_breadth_pct) if item.ma20_breadth_pct is not none else '—' }}</dd></div>
-            <div><dt>量比中位數</dt><dd>{{ '%.2f'|format(item.median_volume_ratio) if item.median_volume_ratio is not none else '—' }}</dd></div>
-            <div><dt>法人淨流中位</dt><dd>{{ '%+.2f%%'|format(item.median_institution_net_ratio_pct) if item.median_institution_net_ratio_pct is not none else '—' }}</dd></div>
-          </dl>
-          <div class="industry-attention-heading"><div><h3>關注公司</h3><p>{{ 'AI 五日模型排序' if item.ranking_basis == 'verified_ai_forecast' else '實際動能排序' }}</p></div><span>最多 5 檔</span></div>
-          <div class="industry-company-grid">
-            {% for company in item.attention_companies or [] %}
-            <a class="industry-company" href="{{ url_for('stock_page', code=company.symbol) }}">
-              <span><strong>{{ company.name }} · {{ company.symbol }}</strong><small>{{ '站上 MA20' if company.above_ma20 else '低於 MA20' }} · 量比 {{ '%.2f'|format(company.volume_ratio) if company.volume_ratio is not none else '—' }}</small></span>
-              {% if company.probability_up_pct is defined and company.target_price is defined %}
-              <span><strong>{{ '%.1f%%'|format(company.probability_up_pct) }}</strong><small>第 5 日 {{ '{:,.2f}'.format(company.target_price) }}</small></span>
-              {% else %}
-              <span><strong>5 日 {{ '%+.2f%%'|format(company.return_5d_pct) }}</strong><small>收盤 {{ '{:,.2f}'.format(company.price) }}</small></span>
-              {% endif %}
-            </a>
-            {% else %}
-            <p class="empty-state">本次發布沒有足夠資料形成關注名單。</p>
-            {% endfor %}
-          </div>
-        </div>
-      </details>
+{% set items = observation.industry_observations or [] %}
+{% set as_of = observation.observation_as_of or '待更新' %}
+{# ORDER 4（§5.5）：先分組再排名。原本是一條平坦的清單，
+   靠每張卡片的左側彩色邊條與底色暗示強弱 —— 那是 §0.4 明令禁止的
+   「左側彩色 accent 邊條 + 圓角卡」，而且強弱只靠顏色（違反 M-5）。
+   改為先依「值得注意／相對穩定／轉弱」分組，組別名稱本身就是強弱，
+   組內維持後端既有排名。門檻沿用原本模板裡的 ±2%，未變更語意。 #}
+{% set groups = namespace(hot=[], steady=[], cold=[], unknown=[]) %}
+{% for item in items %}
+  {% set value = item.relative_return_5d_pct %}
+  {% if value is none %}{% set groups.unknown = groups.unknown + [item] %}
+  {% elif value >= 2 %}{% set groups.hot = groups.hot + [item] %}
+  {% elif value <= -2 %}{% set groups.cold = groups.cold + [item] %}
+  {% else %}{% set groups.steady = groups.steady + [item] %}
+  {% endif %}
+{% endfor %}
+
+{% macro industry_row(item) -%}
+{% set value = item.relative_return_5d_pct %}
+<details class="industry-disclosure" data-industry-disclosure>
+  <summary>
+    <span><strong>{{ item.name }}</strong><small>依據：近 5 日相對大盤報酬 · 資料日 {{ as_of }}</small></span>
+    {% if value is not none %}<span class="industry-disclosure-return">{{ '%+.2f%%'|format(value) }}</span>{% else %}<span class="industry-disclosure-return"><span class="value-unavailable">尚未驗證</span></span>{% endif %}
+  </summary>
+  <div class="industry-disclosure-body">
+    <p class="industry-coverage">可用 {{ item.available_count }}／{{ item.component_count }} 檔 · 覆蓋 {% if item.coverage is not none %}{{ '%.1f%%'|format(item.coverage * 100) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</p>
+    <dl class="industry-metric-grid">
+      <div><dt>上漲家數</dt>{% if item.advancing_ratio_pct is not none %}<dd>{{ '%.1f%%'|format(item.advancing_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>站上 MA20</dt>{% if item.ma20_breadth_pct is not none %}<dd>{{ '%.1f%%'|format(item.ma20_breadth_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>量比中位數</dt>{% if item.median_volume_ratio is not none %}<dd>{{ '%.2f'|format(item.median_volume_ratio) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>法人淨流中位</dt>{% if item.median_institution_net_ratio_pct is not none %}<dd>{{ '%+.2f%%'|format(item.median_institution_net_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+    </dl>
+    <div class="industry-attention-heading"><div><h3>關注公司</h3><p>{{ 'AI 五日模型排序' if item.ranking_basis == 'verified_ai_forecast' else '實際動能排序' }}</p></div><span>最多 5 檔</span></div>
+    <div class="industry-company-grid">
+      {% for company in item.attention_companies or [] %}
+      <a class="industry-company" href="{{ url_for('stock_page', code=company.symbol) }}">
+        <span><strong>{{ company.name }} · {{ company.symbol }}</strong><small>{{ '站上 MA20' if company.above_ma20 else '低於 MA20' }} · 量比 {% if company.volume_ratio is not none %}{{ '%.2f'|format(company.volume_ratio) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</small></span>
+        {% if company.probability_up_pct is defined and company.target_price is defined %}
+        <span>{% if company.probability_up_pct is not none %}<strong>{{ '%.1f%%'|format(company.probability_up_pct) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>第 5 日 {% if company.target_price is not none %}{{ '{:,.2f}'.format(company.target_price) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</small></span>
+        {% else %}
+        <span>{% if company.return_5d_pct is not none %}<strong>5 日 {{ '%+.2f%%'|format(company.return_5d_pct) }}</strong>{% else %}<span class="value-unavailable">5 日報酬尚未驗證</span>{% endif %}<small>收盤 {% if company.price is not none %}{{ '{:,.2f}'.format(company.price) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</small></span>
+        {% endif %}
+      </a>
       {% else %}
-      <div class="empty-state">產業觀察資料不足。</div>
+      <p class="empty-state">本次發布沒有足夠資料形成關注名單。</p>
       {% endfor %}
     </div>
+  </div>
+</details>
+{%- endmacro %}
+
+{% macro industry_group(key, title, meaning, rows) -%}
+{% if rows %}
+<section class="industry-group" aria-labelledby="industry-group-{{ key }}">
+  <div class="industry-group-heading"><h3 id="industry-group-{{ key }}">{{ title }}</h3><span class="industry-group-meaning">{{ rows|length }} 個產業 · {{ meaning }}</span></div>
+  <div class="industry-disclosure-list">{% for item in rows %}{{ industry_row(item) }}{% endfor %}</div>
+</section>
+{% endif %}
+{%- endmacro %}
+
+<div class="page industries-page">
+  <header class="page-header"><div><p class="eyebrow">INDUSTRY ACTUALS</p><h1>產業觀察</h1><p class="page-intro">先依相對大盤的強弱分組，再顯示組內排名。展開才會看到成分股與明細。</p></div></header>
+  <section class="panel industry-observation-panel" aria-labelledby="industry-title">
+    <div class="section-heading"><div><h2 id="industry-title">產業強弱與關注清單</h2><p>分組門檻：近 5 日相對大盤報酬 +2% 以上為值得注意，−2% 以下為轉弱，之間為相對穩定</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+    {% if items %}
+    {{ industry_group('hot', '值得注意', '近 5 日明顯強於大盤', groups.hot) }}
+    {{ industry_group('steady', '相對穩定', '近 5 日與大盤差距在 2% 以內', groups.steady) }}
+    {{ industry_group('cold', '轉弱', '近 5 日明顯弱於大盤', groups.cold) }}
+    {{ industry_group('unknown', '尚未驗證', '相對報酬缺值，不併入其他組', groups.unknown) }}
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>相對強度只描述過去 5 個交易日已經發生的報酬差距，不預告接下來哪一組會延續。組別是門檻分類，不是評分，也不是選股名單。</p>
+    {% else %}
+    <div class="empty-state">產業觀察資料不足。</div>
+    {% endif %}
   </section>
 </div>
 {% endblock %}

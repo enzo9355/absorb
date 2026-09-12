@@ -45,7 +45,7 @@
     {% set summary_entries = [('up','異常上漲',groups.up|length),('down','異常下跌',groups.down|length),('volume','量能異常',groups.volume|length),('institution','法人動向',groups.institution|length),('technical','技術面',groups.technical|length),('official','官方事件',official|length),('data','資料警示',groups.data|length)] %}
     {% set event_total = summary_entries|sum(attribute=2) %}
     {{ event_summary(summary_entries) }}
-    {% if not event_total %}<div class="state-note"><strong>今天七類事件都沒有觸發。</strong><span>這代表沒有標的越過門檻，不是資料缺失；門檻與分級規則見上方說明。</span></div>{% endif %}
+    {% if not event_total %}<div class="state-note"><strong>今天七類事件都沒有觸發。</strong><span class="state-note-detail">這代表沒有標的越過門檻，不是資料缺失；門檻與分級規則見上方說明。</span></div>{% endif %}
     <div class="event-groups" data-stock-events>
       {{ event_group('up', '異常上漲', groups.up) }}
       {{ event_group('down', '異常下跌', groups.down) }}
