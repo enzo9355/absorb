@@ -4436,6 +4436,9 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
   font-size:var(--type-body);
   line-height:var(--lh-body);
 }
+/* display:grid 會蓋掉 UA 的 [hidden]{display:none}，必須自己補回來，
+   否則模板上的 hidden 屬性形同虛設，降級說明會永遠顯示。 */
+.state-note[hidden] { display:none; }
 .state-note strong { font-weight:700; }
 .state-note span { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
 
@@ -4483,6 +4486,265 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
 .command-metrics article > .term-tag { width:max-content; }
 /* 學習頁詞條被錨點指到時給一個可見但安靜的定位提示 */
 .learn-grid article:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
+
+/* ==========================================================================
+   ORDER 4（A-2）：「今日」四段式。
+   原本的順序是摘要 → 市場指揮台 → 資料狀態 → 今日焦點 → 今日市場準備 →
+   錯誤訊息，讀者要先看完兩段語意重疊的摘要，才會在整頁中段遇到資料狀態。
+   改為四段，順序即閱讀順序：今天怎麼了 / 最新更新 / 為什麼會這樣 /
+   資料品質與限制。四段之間只用留白與標題分隔，不再各自包一層卡片外殼。
+   ========================================================================== */
+
+/* 第 1 段：今天怎麼了。只讀這一段也要能離開，所以市場、交易日、資料狀態、
+   一句白話結論與主要風險全部收在這裡。 */
+.today-brief {
+  display:grid;
+  grid-template-columns:minmax(0,1.45fr) minmax(320px,.8fr);
+  gap:42px;
+  padding:28px 4px 27px;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.today-brief .state-note { grid-column:1 / -1; }
+.today-copy { min-width:0; }
+.today-risk {
+  max-width:720px;
+  margin:12px 0 0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.today-risk strong { font-weight:750; }
+.today-facts {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-content:center;
+  gap:20px;
+  margin:0;
+}
+.today-facts div {
+  min-width:0;
+  padding-left:14px;
+  border-left:1px solid var(--absorb-hairline);
+}
+.today-facts dt {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.today-facts dd {
+  margin:4px 0 0;
+  min-width:0;
+  font-size:var(--type-body);
+  font-weight:750;
+  line-height:var(--lh-body);
+}
+/* current：有資料且是最新 —— 仍不使用語意色，狀態由文字承擔（M-5） */
+.state-chip.is-available { color:var(--absorb-ink); }
+
+/* 第 2 段：最新更新。取代「今日焦點」。
+   排序是重要性優先、時間其次：純時間倒序會把「新」誤當成「重要」。
+   每則都帶類型標記與資料日，報告類型可直接進到對應報告。 */
+.update-stream { padding:24px 0 4px; }
+.update-stream .section-heading { align-items:start; }
+.update-list {
+  display:grid;
+  gap:1px;
+  margin:16px 0 0;
+  padding:0;
+  list-style:none;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-hairline);
+  overflow:hidden;
+}
+.update-item {
+  display:grid;
+  grid-template-columns:minmax(150px,.24fr) minmax(0,1fr);
+  gap:18px;
+  padding:16px 18px;
+  background:var(--absorb-surface-raised);
+}
+.update-meta {
+  display:flex;
+  flex-wrap:wrap;
+  align-content:start;
+  gap:8px;
+  min-width:0;
+}
+.update-meta time {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.update-type {
+  display:inline-block;
+  padding:2px 9px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:transparent;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+  white-space:nowrap;
+}
+/* 報告類型是通往研究層的入口，用邊框加重而非另一種顏色 */
+.update-type-report {
+  border-color:var(--absorb-blue);
+  color:var(--absorb-blue);
+}
+.update-body { min-width:0; }
+.update-body h3 {
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.update-body>p {
+  margin:6px 0 0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.update-headline {
+  font-weight:650;
+}
+.update-dates {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.update-link {
+  display:inline-block;
+  margin-top:10px;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+}
+
+/* 第 3 段：為什麼會這樣。.research-command 原本是一層有底色與邊框的外殼，
+   裡面再包 .evidence-canvas 與各 panel，形成卡中卡三層巢狀（違反 §13）。
+   外殼降為純版面容器：不再有 padding、border、background、border-radius，
+   內部各卡片因此成為同一層的平行卡片。 */
+.research-command {
+  padding:24px 0 4px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+/* quality-panel 已移入第 4 段，下半部只剩產業相對強度一張，改為單欄 */
+.command-lower { grid-template-columns:minmax(0,1fr); }
+
+/* 指標格層級修正：ORDER 4 的白話標題原本被 .command-metrics span 的
+   11px label 規則蓋掉（該規則以元素選取，特異性高於 .metric-title），
+   白話化的意義因此被抵銷。改為按層級指名：
+   第 1 層標題 body 15、第 2 層數值 data-lg 28、第 4 層術語 label 11。
+   第 3 層「白話解讀」必須來自資料契約，後端尚無此欄位，故不實作，
+   也不在模板寫死文案（寫死會在數值變動時產生錯誤陳述）。 */
+.command-metrics .metric-title {
+  color:var(--absorb-ink);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.command-metrics strong {
+  margin:8px 0 2px;
+  font-size:var(--type-data-lg);
+  line-height:var(--lh-data-lg);
+  letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.command-metrics .value-unavailable {
+  margin:8px 0 2px;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+
+/* 無內容時的深色塊：深色是全頁最重的視覺元素，壓在空內容上會把注意力
+   導向什麼都沒有的地方。無內容時降級為一般卡片。 */
+.forecast-panel.is-empty {
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+}
+.forecast-panel.is-empty .insight-heading span { color:var(--absorb-muted); }
+.forecast-panel.is-empty>p { color:var(--absorb-muted); }
+
+/* 第 4 段：資料品質與限制。預設收合，展開後用原始術語（研究者要對得上
+   欄位名稱），並提供通往研究版的出口。 */
+.data-limits {
+  margin:26px 0 0;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.data-limits>summary {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:10px;
+  padding:14px 18px;
+  cursor:pointer;
+  font-size:var(--type-body);
+  font-weight:750;
+  line-height:var(--lh-body);
+}
+.data-limits>summary::marker { color:var(--absorb-muted); }
+.data-limits-hint {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  font-weight:400;
+  line-height:var(--lh-caption);
+}
+.data-limits-body {
+  padding:0 18px 18px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.data-limits-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:14px 20px;
+  margin:16px 0 0;
+}
+.data-limits-grid div { min-width:0; }
+.data-limits-grid dt {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.data-limits-grid dd {
+  margin:3px 0 0;
+  font-size:var(--type-body);
+  font-weight:700;
+  line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+.data-limits-note {
+  margin:18px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.data-limits-link {
+  display:inline-block;
+  margin:12px 0 0;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+}
+
+@media (max-width:1100px) {
+  .today-brief { grid-template-columns:minmax(0,1fr); gap:24px; }
+}
+/* 行動版密度（§12.1）：「今天怎麼了」與「最新更新」必須落在第一個 800px 畫面內。
+   四項事實維持兩欄 —— 內容都是日期與短標籤，堆成四列只是把第 2 段推出畫面。 */
+@media (max-width:700px) {
+  .update-item { grid-template-columns:minmax(0,1fr); gap:10px; padding:14px 15px; }
+  .today-brief { padding:18px 2px 20px; gap:18px; }
+  .today-facts { gap:14px; }
+  .today-copy h1 { font-size:var(--type-display); line-height:var(--lh-display); }
+  .update-stream, .research-command { padding-top:18px; }
+  .update-list { margin-top:12px; }
+}
 
 .market-summary-page {
   max-width:1160px;

@@ -737,7 +737,9 @@ class WebProductTests(unittest.TestCase):
         load.return_value = observation_dashboard()
         client = stock_app.app.test_client()
         expectations = {
-            "/": "台股市場研究摘要",
+            # ORDER 4（A-2）：「今日」第 1 段標題。原為「台股市場研究摘要」，
+            # 與第 2 段的「市場指揮台」語意重疊，依 §5.2 合併為一段白話標題。
+            "/": "台股今天怎麼了",
             "/market": "市場實況",
             "/industries": "產業觀察",
             "/stocks": "個股與 ETF",
@@ -767,14 +769,30 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/industries"))
 
-    def test_dashboard_starts_with_today_market_preparation_cards(self):
+    def test_dashboard_update_stream_carries_both_report_tracks(self):
+        """ORDER 4（A-2）：「今日市場準備」與「今日焦點」合併為「最新更新」。
+
+        守的性質不變 —— 主版面必須在第一屏之後就給出兩條報告軌道的入口 ——
+        只是區塊名稱與結構改了。額外加上排序聲明與「不是時間倒序」的斷言，
+        避免這一段被實作成單純的時間動態牆（純時間倒序會把「新」誤當「重要」）。
+        """
         response = stock_app.app.test_client().get("/")
         html = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("今日市場準備", html)
+        self.assertIn("最新更新", html)
         self.assertIn("盤後觀察", html)
         self.assertIn("盤前風險更新", html)
+        self.assertIn("依重要性排序，不是發布時間倒序", html)
+        self.assertIn('class="update-type update-type-report"', html)
+        self.assertIn('class="update-type update-type-observation"', html)
+        # 兩條報告軌道必須排在觀察條目之前（重要性優先）
+        self.assertLess(
+            html.index("update-type-report"), html.index("update-type-observation")
+        )
+        # 舊的兩個重疊區塊不得同時殘留
+        self.assertNotIn("今日市場準備", html)
+        self.assertNotIn("今日焦點", html)
 
     def test_every_papi_theme_has_at_least_five_companies(self):
         self.assertTrue(
@@ -1111,15 +1129,16 @@ class WebProductTests(unittest.TestCase):
         analyze.assert_not_called()
         html = response.get_data(as_text=True)
         for label in (
-            "台股市場研究摘要",
-            "市場指揮台",
+            "台股今天怎麼了",
+            "為什麼會這樣",
             "市場廣度",
             "期間報酬",
             "波動與風險",
             "產業相對強度",
             "資料覆蓋",
             "資料基準日 2026-07-15",
-            "今日焦點",
+            "最新更新",
+            "資料品質與限制",
             "產業觀察",
             "市場實況",
             "個股與 ETF",

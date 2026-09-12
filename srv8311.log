@@ -1,0 +1,65 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+2026-09-12 04:08:52,685 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8311
+2026-09-12 04:08:52,685 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-09-12 04:08:58,253 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:08:58] "GET / HTTP/1.1" 200 -
+2026-09-12 04:09:11,905 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:11] "GET / HTTP/1.1" 200 -
+2026-09-12 04:09:11,930 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:11] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:11,931 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:11] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:11,953 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:11] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:09:12,057 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:12] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:09:12,124 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:12] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:09:23,694 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:23] "GET / HTTP/1.1" 200 -
+2026-09-12 04:09:23,704 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:23] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:23,705 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:23] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:23,716 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:23] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:09:23,781 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:23] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:09:23,797 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:23] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:09:24,407 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:24] "GET / HTTP/1.1" 200 -
+2026-09-12 04:09:24,414 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:24] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:24,416 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:24] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:24,480 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:24] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:09:24,482 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:24] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:09:24,505 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:24] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:09:59,523 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:59] "GET / HTTP/1.1" 200 -
+2026-09-12 04:09:59,531 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:59] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:59,532 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:59] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:09:59,540 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:59] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:09:59,621 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:59] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:09:59,629 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:09:59] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:10:23,679 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:23] "GET / HTTP/1.1" 200 -
+2026-09-12 04:10:23,690 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:23] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:23,691 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:23] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:23,698 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:23] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:10:23,765 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:23] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:10:23,773 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:23] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:10:24,393 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:24] "GET / HTTP/1.1" 200 -
+2026-09-12 04:10:24,400 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:24] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:24,402 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:24] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:24,411 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:24] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:10:24,467 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:24] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:10:24,476 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:24] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:10:25,515 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:25] "GET / HTTP/1.1" 200 -
+2026-09-12 04:10:25,530 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:25] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:25,531 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:25] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:25,538 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:25] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:10:25,607 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:25] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:10:25,624 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:25] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:10:36,602 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:36] "GET / HTTP/1.1" 200 -
+2026-09-12 04:10:36,611 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:36] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:36,611 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:36] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:36,619 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:36] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:10:36,688 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:36] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:10:36,696 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:36] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:10:48,567 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:48] "GET / HTTP/1.1" 200 -
+2026-09-12 04:10:48,574 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:48] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:48,575 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:48] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:10:48,583 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:48] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:10:48,660 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:10:48] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:11:20,720 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:11:20] "GET / HTTP/1.1" 200 -
+2026-09-12 04:11:20,731 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:11:20] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:11:20,733 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:11:20] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:11:20,827 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:11:20] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:11:20,830 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:11:20] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:11:20,838 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:11:20] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
