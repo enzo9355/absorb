@@ -4,6 +4,11 @@ from stock_papi.quant.constants import MODEL_FEATURES
 
 
 MODEL_VERSION = "lgbm-5d-v1"
+# 五日預測區間：取樣本外誤差分布的中間 80%。
+# 這是對誤差分布的描述，不是機率保證 —— 呈現層不得寫成「信賴區間」。
+RESIDUAL_INTERVAL_LOWER_Q = 0.10
+RESIDUAL_INTERVAL_UPPER_Q = 0.90
+RESIDUAL_INTERVAL_MIN_SAMPLES = 60
 FEATURE_SCHEMA_VERSION = 1
 MODEL_SETTINGS = {
     "n_estimators": 80,
@@ -144,6 +149,34 @@ def run_ai_engine(
                 float(errors.abs().mean() / naive_mae) if naive_mae > 0 else None
             ),
         }
+        # 五日預測的區間。
+        #
+        # 刻意不用 quantile regression：那是模型對自己不確定性的宣稱，
+        # 而那個宣稱本身沒有被驗證過。這裡改用**實際量到的樣本外誤差**——
+        # errors = 預測 - 實際，所以對新的預測 p，實際值的區間是
+        # [p - q90, p - q10]。這是對誤差分布的描述，不是機率保證，
+        # 呈現層的文案必須照這個意思寫（不得寫成「信賴區間」）。
+        #
+        # 樣本太少時不給區間：分位數估不準的區間比沒有區間更糟。
+        price_metrics["residual_interval"] = None
+        if int(valid.sum()) >= RESIDUAL_INTERVAL_MIN_SAMPLES:
+            low_q, high_q = (
+                float(value)
+                for value in np.quantile(
+                    errors.to_numpy(dtype=float),
+                    [RESIDUAL_INTERVAL_LOWER_Q, RESIDUAL_INTERVAL_UPPER_Q],
+                )
+            )
+            if np.isfinite(low_q) and np.isfinite(high_q) and high_q >= low_q:
+                price_metrics["residual_interval"] = {
+                    # 命名依「要從預測值減掉多少」而定，不是誤差本身的高低
+                    "return_offset_low": -high_q,
+                    "return_offset_high": -low_q,
+                    "coverage_pct": round(
+                        (RESIDUAL_INTERVAL_UPPER_Q - RESIDUAL_INTERVAL_LOWER_Q) * 100, 1
+                    ),
+                    "sample_count": int(valid.sum()),
+                }
         if not all(
             np.isfinite(value)
             for value in price_metrics.values()

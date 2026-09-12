@@ -2534,3 +2534,9 @@ span.value-unavailable {
   font-weight:700;
   line-height:var(--lh-label);
 }
+/* ORDER 7（§7-2）：五日預測誤差區間的圖例色塊。
+   與預測線同色系但更淡 —— 它是同一個估計的兩種表達，不是另一種資訊。 */
+.legend-band {
+  background:color-mix(in srgb, var(--absorb-info) 18%, transparent);
+  border:1px solid var(--absorb-info);
+}

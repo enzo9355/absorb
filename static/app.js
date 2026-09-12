@@ -501,6 +501,55 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   const directionStyle = getComputedStyle(document.body);
   const priceUp = directionStyle.getPropertyValue("--price-up").trim();
   const priceDown = directionStyle.getPropertyValue("--price-down").trim();
+  // 帶刻意畫在 K 線之前：Lightweight Charts 依建立順序繪製，
+  // 遮罩層若在 K 線之後建立，會把最後一根 K 棒的下緣蓋掉。
+  // ORDER 7（§7-2）：五日預測區間。
+  //
+  // 這是**過去樣本外誤差的中間 80%** 套在點預測上，不是信賴區間 ——
+  // 模型沒有輸出校準過的機率分布，畫成信賴區間等於宣稱一個沒被驗證的東西。
+  // 視覺上依 §7-2 用平色半透明，不加漸層、不加光暈。
+  // Lightweight Charts 沒有原生的 band，用兩條 area series 疊出來：
+  // 上緣填色到底，下緣再用背景色蓋掉，剩下的就是帶。
+  const band = Array.isArray(raw.band) ? raw.band : [];
+  if (predictionMarker && band.length > 1) {
+    const infoColor = directionStyle.getPropertyValue("--absorb-info").trim();
+    const canvasColor = directionStyle.getPropertyValue("--absorb-canvas").trim();
+    const points = band
+      .map((point) => ({
+        time: point && point.time,
+        upper: Number(point && point.upper),
+        lower: Number(point && point.lower),
+      }))
+      .filter(
+        (point) =>
+          typeof point.time === "string" &&
+          Number.isFinite(point.upper) &&
+          Number.isFinite(point.lower) &&
+          point.upper >= point.lower
+      );
+    if (points.length > 1) {
+      const upper = chart.addAreaSeries({
+        lineColor: "transparent",
+        topColor: `color-mix(in srgb, ${infoColor} 18%, transparent)`,
+        bottomColor: `color-mix(in srgb, ${infoColor} 18%, transparent)`,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      upper.setData(points.map((p) => ({ time: p.time, value: p.upper })));
+      const lower = chart.addAreaSeries({
+        lineColor: "transparent",
+        topColor: canvasColor,
+        bottomColor: canvasColor,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      lower.setData(points.map((p) => ({ time: p.time, value: p.lower })));
+    }
+  }
   const candleSeries = chart.addCandlestickSeries({
     upColor: priceUp,
     downColor: priceDown,

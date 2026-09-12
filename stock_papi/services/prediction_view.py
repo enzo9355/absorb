@@ -76,6 +76,37 @@ def prediction_for(snapshot, market, symbol, observation_as_of):
             {"time": target.isoformat(), "value": predicted_price},
         ],
     }
+    # 五日預測區間（選用）。舊產物沒有這個欄位就不給帶，畫面照常運作。
+    # 區間必須包住點預測，否則它描述的不是這一次的預測 —— 不自洽就整個丟掉，
+    # 寧可沒有帶，也不要畫一條錯的。
+    interval = entity.get("prediction_interval")
+    if isinstance(interval, dict):
+        low = _number(interval.get("price_low"))
+        high = _number(interval.get("price_high"))
+        coverage = _number(interval.get("coverage_pct"))
+        samples = interval.get("sample_count")
+        if (
+            None not in (low, high, coverage)
+            and 0 < low <= predicted_price <= high
+            and 0 < coverage < 100
+            and isinstance(samples, int)
+            and not isinstance(samples, bool)
+            and samples >= 1
+        ):
+            result["interval"] = {
+                "coverage_pct": coverage,
+                "sample_count": samples,
+                "price_low": low,
+                "price_high": high,
+                "return_low_pct": _number(interval.get("return_low_pct")),
+                "return_high_pct": _number(interval.get("return_high_pct")),
+            }
+            # 圖表用：從目前收盤（無寬度）張開到目標交易日。
+            # 起點寬度為零是刻意的 —— 今天的收盤是已知的，不該有不確定性。
+            result["band"] = [
+                {"time": as_of.isoformat(), "upper": current, "lower": current},
+                {"time": target.isoformat(), "upper": high, "lower": low},
+            ]
     if entity.get("entity_type") == "market_index" and isinstance(entity.get("candles"), list):
         result["candles"] = list(entity["candles"])
     return result

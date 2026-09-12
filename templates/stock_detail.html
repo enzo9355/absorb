@@ -126,6 +126,7 @@
       <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>已發生：收盤低於開盤</dd></div>
       <div><dt><span class="legend-swatch legend-ma" aria-hidden="true"></span>20 日均價</dt><dd>已發生：近 20 個交易日收盤平均</dd></div>
       {% if prediction %}<div><dt><span class="legend-swatch legend-forecast" aria-hidden="true"></span>五日情境</dt><dd><strong>模型估計</strong>：虛線，非已發生資料</dd></div>{% endif %}
+      {% if prediction and prediction.get('interval') %}<div><dt><span class="legend-swatch legend-band" aria-hidden="true"></span>誤差區間</dt><dd><strong>模型估計</strong>：過去樣本外誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</dd></div>{% endif %}
     </dl>
     <p class="chart-caveat"><strong>這不代表什麼：</strong>K 線與均價線是已經發生的價格；虛線是模型對第 5 個交易日的估計，不是已發生的資料，也不描述中間每一天會怎麼走。</p>
   </section>
@@ -145,8 +146,9 @@
       <article><span>第 5 個交易日預測價</span><strong>{{ '{:,.2f}'.format(prediction.predicted_price) }}</strong></article>
       <article><span>預測變動</span><strong class="{{ 'positive' if prediction.predicted_change_pct > 0 else 'negative' if prediction.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(prediction.predicted_change_pct) }}</strong></article>
       <article><span>目標交易日</span><strong>{{ prediction.target_session }}</strong><small>{% if prediction.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if prediction.status == 'current' else '前次預測｜資料日 ' ~ prediction.as_of }}{% endif %}</small></article>
+      {% if prediction.get('interval') %}<article><span>誤差區間</span><strong>{{ '{:,.2f}'.format(prediction.interval.price_low) }}–{{ '{:,.2f}'.format(prediction.interval.price_high) }}</strong><small>{{ '%+.2f%%'|format(prediction.interval.return_low_pct) }} ～ {{ '%+.2f%%'|format(prediction.interval.return_high_pct) }}</small></article>{% endif %}
     </div>
-    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估未經回測校準，機率值尚不具備校準意義。{% endif %}</p>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估未經回測校準，機率值尚不具備校準意義。{% endif %}{% if prediction.get('interval') %}誤差區間是<strong>過去 {{ prediction.interval.sample_count }} 個樣本外測試裡，模型誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</strong>套在這次預測上 —— 它描述的是模型過去錯多少，<strong>不是</strong>信賴區間，也不保證這次會落在裡面。{% endif %}</p>
     {% else %}
     <p class="empty-state">本交易日的五日情境尚未發布。沒有可用產物時不顯示機率或預測價，也不補入示意數字。</p>
     {% endif %}
@@ -189,7 +191,7 @@
     </div>
   </section>
 
-  <script id="stock-chart-data" type="application/json">{{ ({"candles": candles, "ma20": ma20_line, "prediction": prediction.line} if prediction else {"candles": candles, "ma20": ma20_line})|tojson }}</script>
+  <script id="stock-chart-data" type="application/json">{{ ({"candles": candles, "ma20": ma20_line, "prediction": prediction.line, "band": prediction.get("band")} if prediction else {"candles": candles, "ma20": ma20_line})|tojson }}</script>
   {% endif %}
 </div>
 {% endblock %}
