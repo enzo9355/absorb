@@ -15,6 +15,8 @@ function migrateLegacyHashRoute() {
   if (target) window.location.replace(target);
 }
 
+const UNAVAILABLE_TEXT = "尚未驗證";
+
 function element(tag, className, text) {
   const item = document.createElement(tag);
   if (className) item.className = className;
@@ -66,7 +68,16 @@ async function loadDashboard() {
 
 function displayNumber(value, digits = 2, suffix = "") {
   const number = Number(value);
-  return Number.isFinite(number) ? `${number.toFixed(digits)}${suffix}` : "資料不足";
+  return Number.isFinite(number) ? `${number.toFixed(digits)}${suffix}` : UNAVAILABLE_TEXT;
+}
+
+// ORDER 4（B-1）：缺值不是數值。前端渲染的路徑原本也把「資料不足」寫進
+// <strong>，於是缺值拿到跟真實數值一樣的字級與重量。改為回傳不同的元素，
+// 讓它落在內文字級與 muted 色 —— 與伺服器端渲染的 .value-unavailable 一致。
+function valueCell(text) {
+  return String(text) === UNAVAILABLE_TEXT
+    ? ["span", "value-unavailable", UNAVAILABLE_TEXT]
+    : ["strong", "", text];
 }
 
 function displaySigned(value, digits = 2, suffix = "%") {
@@ -108,13 +119,13 @@ function renderDashboard(data) {
   const market = bySelector("[data-market-summary]");
   if (market) {
     replaceContent(market, [
-      card("article", "pulse-card", [["span", "", "單日中位報酬"], ["strong", "", displaySigned(marketData.return_1d_pct)], ["small", "muted", "全市場有效樣本"]]),
-      card("article", "pulse-card", [["span", "", "站上 MA20"], ["strong", "", displayNumber(marketData.ma20_breadth_pct, 1, "%")], ["small", "muted", "市場均線廣度"]]),
-      card("article", "pulse-card", [["span", "", "20 日已實現波動"], ["strong", "", displayNumber(marketData.realized_volatility_20d_pct, 1, "%")], ["small", "muted", `20 日新高 ${marketData.new_high_20d_count ?? "—"}／新低 ${marketData.new_low_20d_count ?? "—"}`]]),
+      card("article", "pulse-card", [["span", "", "單日中位報酬"], valueCell(displaySigned(marketData.return_1d_pct)), ["small", "muted", "全市場有效樣本"]]),
+      card("article", "pulse-card", [["span", "", "站上 MA20"], valueCell(displayNumber(marketData.ma20_breadth_pct, 1, "%")), ["small", "muted", "市場均線廣度"]]),
+      card("article", "pulse-card", [["span", "", "20 日已實現波動"], valueCell(displayNumber(marketData.realized_volatility_20d_pct, 1, "%")), ["small", "muted", `20 日新高 ${marketData.new_high_20d_count ?? "—"}／新低 ${marketData.new_low_20d_count ?? "—"}`]]),
     ]);
   }
   const status = bySelector(".status-dot");
-  if (status) status.textContent = data.observation_as_of ? `資料日 ${data.observation_as_of}` : "資料不足";
+  if (status) status.textContent = data.observation_as_of ? `資料日 ${data.observation_as_of}` : UNAVAILABLE_TEXT;
 
   const focus = bySelector("[data-daily-focus]");
   if (focus) {
@@ -135,7 +146,7 @@ function renderDashboard(data) {
     replaceContent(heatmap, cells.length ? cells.map((item) =>
       card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [
         ["span", "", item.name],
-        ["strong", "", displaySigned(item.metric_value_pct)],
+        valueCell(displaySigned(item.metric_value_pct)),
         ["small", "", `${item.available_count ?? "—"} 檔 · 覆蓋 ${displayNumber((item.coverage || 0) * 100, 1, "%")}`],
       ], "/industries")
     ) : [emptyState("產業相對報酬資料不足。")]);

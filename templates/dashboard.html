@@ -17,10 +17,11 @@
 {% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness.get('status'), '暫時無法取得') %}
 <div class="page dashboard-page research-dashboard" data-dashboard-endpoint="/api/dashboard">
   {% if search_error %}<div class="error-banner" role="alert">找不到「{{ search_query }}」，請輸入台股代碼、名稱或美股代碼。</div>{% endif %}
+  <div class="state-note" data-dashboard-error role="status" aria-live="polite" hidden><strong>今天的市場觀察還沒完成驗證。</strong><span>來源資料尚未推進到今天，通過驗證後這一頁會自動更新。這段期間你仍可以看昨天的盤後報告。</span></div>
 
   <header class="research-summary" data-research-summary>
     <div class="research-copy">
-      <p class="research-status"><span aria-hidden="true"></span>台股市場研究摘要</p>
+      <p class="research-status"><span aria-hidden="true"></span>已驗證市場觀察</p>
       <h1>台股市場研究摘要</h1>
       <p class="research-headline">{% if market %}MA20 市場廣度 {{ '%.1f%%'|format(market.get('ma20_breadth_pct')) if market.get('ma20_breadth_pct') is not none else '資料不足' }}，20 日已實現波動 {{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) if market.get('realized_volatility_20d_pct') is not none else '資料不足' }}，風險狀態為 {{ {'normal':'一般','cautious':'謹慎','elevated':'升高'}.get(market.get('risk_state'), '資料不足') }}。{% else %}已驗證市場觀察尚待發布，暫不形成方向判斷。{% endif %}</p>
       <p class="research-limit">畫面整理已發生的市場廣度、報酬、波動與產業相對強度。缺值維持缺值，所有數據皆以資料基準日為準。</p>
@@ -97,7 +98,6 @@
 
   <section class="market-prep" aria-labelledby="trading-prep-title"><div class="section-heading"><div><h2 id="trading-prep-title">今日市場準備</h2><p>通過資料與發布驗證的報告</p></div><a href="{{ url_for('reports_page') }}">查看所有報告</a></div><div class="report-card-grid">{% for report_type, label in [('post_close', '盤後觀察'), ('pre_market', '盤前風險更新')] %}{% set item = daily_cards.get(report_type) %}<article class="report-insight-card"><p class="eyebrow">{{ label }}</p>{% if item %}<h3>{{ item.title }}</h3><p>{{ item.summary|join('；') }}</p><p class="muted small">資料基準日 {{ item.source_market_date }}｜適用交易日 {{ item.applicable_trading_date }}</p>{% if report_type == 'post_close' %}<a class="button button-secondary" href="{{ url_for('post_close_report_page', trading_date=item.source_market_date) }}">查看盤後觀察</a>{% else %}<a class="button button-secondary" href="{{ url_for('pre_market_report_page', trading_date=item.applicable_trading_date) }}">查看盤前更新</a>{% endif %}{% else %}<h3>尚未發布</h3><p class="muted">通過資料與發布驗證後才會顯示，不以假資料補位。</p>{% endif %}</article>{% endfor %}</div></section>
 
-  <div class="error-banner" data-dashboard-error aria-live="polite" hidden>已驗證的市場觀察資料暫時無法取得，請稍後再試。</div>
   {% if market_index.get('candles') %}<script id="market-index-chart-data" type="application/json">{{ ({"candles": market_index.get('candles'), "ma20": market_index.get('ma20', []), "prediction": market_prediction.line} if market_prediction else {"candles": market_index.get('candles'), "ma20": market_index.get('ma20', [])})|tojson }}</script>{% endif %}
 </div>
 {% endblock %}
