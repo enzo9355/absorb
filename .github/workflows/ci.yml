@@ -1,0 +1,38 @@
+name: CI
+
+# 這個 repo 在 2026-09 之前完全沒有 CI，結果 tests.test_route_inventory
+# 紅了兩個 ORDER 都沒人發現。這條 workflow 的存在就是為了讓 main
+# 「可發布」這件事有憑據，而不是靠記得在本機跑。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 是 Dockerfile 實際出貨的版本（python:3.10-slim），
+        # 3.11 是目前開發驗證過的版本。兩個都跑，才不會出現
+        # 「CI 綠但線上壞」或反過來。
+        python-version: ['3.10', '3.11']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run CI test scope
+        # 範圍與排除理由寫在 scripts/check_ci.sh 裡。
+        # 排除的是需要 Windows 或選用依賴的模組，不是「會紅所以關掉」。
+        run: ./scripts/check_ci.sh
