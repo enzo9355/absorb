@@ -1510,6 +1510,44 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("font-size:15px", rule)
         self.assertNotIn("font-size:11px", rule)
 
+    @patch.object(stock_app, "find_industry_peers")
+    @patch.object(stock_app, "get_stock_name")
+    @patch.object(stock_app, "fetch_published_quant_snapshot")
+    def test_order5_stock_page_separates_facts_from_model_estimate(
+        self, fetch, name, peers
+    ):
+        """§7-3：「已發生事件」與「五日模型情境」必須視覺分區。
+
+        預測摘要原本就放在價格面板裡，跟實際 K 線共用同一張卡 ——
+        讀者沒有任何線索可以判斷哪些數字是已經發生的、哪些是估計出來的。
+        """
+        fetch.return_value = quant_snapshot()
+        name.return_value = "聯發科"
+        peers.return_value = {"category": "半導體", "codes": ["2454"]}
+
+        html = stock_app.app.test_client().get("/stock/2330").get_data(as_text=True)
+
+        # 預測摘要不得再出現在價格面板內
+        chart = html[html.index('class="panel chart-shell"'):]
+        chart = chart[: chart.index("</section>")]
+        self.assertNotIn("stock-forecast-strip", chart)
+        # 而是自成一個明說「這是估計」的區塊
+        self.assertIn('id="forecast"', html)
+        self.assertIn("五日模型情境", html)
+        self.assertIn("以下數字全部是模型估計，不是已經發生的資料", html)
+        # 圖例必須分辨已發生與估計
+        self.assertIn("已發生：近 20 個交易日收盤平均", html)
+
+        # 三維速讀卡
+        self.assertEqual(html.count('class="quick-read-card"'), 3)
+        # 風險內容只出現一次 —— 速讀卡接手後，舊的風險面板必須移除
+        self.assertEqual(html.count('id="risk"'), 1)
+        self.assertEqual(html.count("風險事件"), 1)
+
+        # 欄位解釋不得自建第二套，必須連回學習頁
+        self.assertNotIn("MA20 與 MA60 是過去收盤價平均", html)
+        self.assertIn('href="/learn#term-institution-flow"', html)
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 

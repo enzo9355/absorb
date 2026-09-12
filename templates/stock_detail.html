@@ -58,8 +58,47 @@
   </header>
 
   <nav class="page-jump-nav glass-panel" aria-label="個股觀察導覽">
-    <a href="#summary">總覽</a><a href="#chart">價格</a><a href="#chips">籌碼</a><a href="#technicals">技術</a><a href="#risk">風險</a>
+    <a href="#summary">總覽</a><a href="#quick-read">速讀</a><a href="#chart">價格</a><a href="#forecast">五日情境</a><a href="#risk">風險</a>
   </nav>
+
+  {# ORDER 5（§7-3）：三維速讀卡。籌碼、技術、風險原本分散在頁面三處
+     （#chips 在圖表下、#technicals 在它旁邊、#risk 在更下面），讀者要拼三次
+     才知道「這檔今天怎麼樣」。改為並排三張卡，每張卡最上面先給一句白話
+     判讀，數值在下面。判讀句只由既有欄位的門檻推出（RSI 70／30、
+     量比 1.5、法人淨流正負），不引入任何新資料。 #}
+  <section class="quick-read" id="quick-read" aria-labelledby="quick-read-title">
+    <div class="section-heading"><div><h2 id="quick-read-title">三十秒速讀</h2><p>籌碼、技術、風險各一句話；全部只描述已經發生的資料</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+    <div class="quick-read-grid">
+      <article class="quick-read-card">
+        <h3>籌碼<a class="term-tag" href="/learn#term-institution-flow">法人淨流</a></h3>
+        <p class="quick-read-verdict">{% if institution_net_ratio_pct is none %}法人流向尚未驗證，這一格不以推估值補位。{% elif institution_net_ratio_pct > 0 %}最新資料列顯示機構為淨流入（{{ '%+.2f%%'|format(institution_net_ratio_pct) }}）。淨流入只說明已揭露的買賣超方向，不說明動機。{% elif institution_net_ratio_pct < 0 %}最新資料列顯示機構為淨流出（{{ '%+.2f%%'|format(institution_net_ratio_pct) }}）。淨流出只說明已揭露的買賣超方向，不說明動機。{% else %}最新資料列的機構買賣超接近持平。{% endif %}</p>
+        <dl class="quick-read-metrics">
+          <div><dt>外資近 5 日</dt>{% if foreign_net_5 is not none %}<dd>{{ '{:,.0f}'.format(foreign_net_5) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>外資近 20 日</dt>{% if foreign_net_20 is not none %}<dd>{{ '{:,.0f}'.format(foreign_net_20) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>機構淨流量比</dt>{% if institution_net_ratio_pct is not none %}<dd>{{ '%+.2f%%'|format(institution_net_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        </dl>
+      </article>
+      <article class="quick-read-card">
+        <h3>技術<a class="term-tag" href="/learn#term-volume-ratio">量比</a></h3>
+        <p class="quick-read-verdict">{% if rsi is none %}RSI 尚未驗證。{% elif rsi >= 70 %}RSI {{ '%.1f'|format(rsi) }} 落在過熱區（70 以上）。過熱只描述近期漲勢的強度，不代表一定反轉。{% elif rsi <= 30 %}RSI {{ '%.1f'|format(rsi) }} 落在超賣區（30 以下）。超賣只描述近期跌勢的強度，不代表一定反彈。{% else %}RSI {{ '%.1f'|format(rsi) }} 在一般區間（30–70）。{% endif %}{% if volume_ratio is not none %}{% if volume_ratio >= 1.5 %}成交量是近期常態的 {{ '%.2f'|format(volume_ratio) }} 倍，交易明顯活躍。{% elif volume_ratio <= 0.7 %}成交量只有近期常態的 {{ '%.2f'|format(volume_ratio) }} 倍，交易偏清淡。{% endif %}{% endif %}</p>
+        <dl class="quick-read-metrics">
+          <div><dt>RSI</dt>{% if rsi is not none %}<dd>{{ '%.1f'|format(rsi) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>MACD 柱狀體</dt>{% if macd_osc is not none %}<dd>{{ '%+.3f'|format(macd_osc) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>K／D 值</dt>{% if k_value is not none and d_value is not none %}<dd>{{ '%.1f'|format(k_value) }}／{{ '%.1f'|format(d_value) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        </dl>
+      </article>
+      <article class="quick-read-card">
+        <h3 id="risk">風險事件</h3>
+        <p class="quick-read-verdict">{% if d.get("data_quality_warning") %}資料來源出現價差警示，這一頁的數值需等來源重新核對後再判讀。{% elif risk_events %}今天觸發了 {{ risk_events|length }} 項已設定的風險條件，條件內容列在下方。{% else %}今天沒有觸發任何已設定的風險條件。這代表沒有越過門檻，不是資料缺失。{% endif %}</p>
+        <ul class="quick-read-events">
+          {% for event in risk_events %}<li>{{ event }}</li>{% endfor %}
+          {% if d.get("data_quality_warning") %}<li>資料來源價差警示，請等待來源重新核對。</li>{% endif %}
+          {% if not risk_events and not d.get("data_quality_warning") %}<li class="quick-read-none">無已觸發事件</li>{% endif %}
+        </ul>
+      </article>
+    </div>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>三張卡都只整理已經發生的資料。門檻是規則設定的結果，越過門檻不代表價格會往哪個方向走，也不是買賣指令。</p>
+  </section>
 
   {% if peers %}
   <section class="panel peer-panel" aria-labelledby="peer-title">
@@ -78,11 +117,39 @@
       <div><p class="eyebrow">PRICE, MOVING AVERAGE & AI SCENARIO</p><h2>價格與均線</h2>{% if prediction %}<p class="chart-prediction-note"><span></span>{{ prediction.label }}｜虛線只連接目前價格與第 5 交易日估計，不代表每日路徑</p>{% else %}<p class="chart-prediction-note unavailable">AI 五日預測尚未發布</p>{% endif %}</div>
       <div class="segmented glass-segmented" aria-label="圖表顯示期間"><button type="button" data-chart-range="30" aria-pressed="false">1月</button><button type="button" class="active" data-chart-range="90" aria-pressed="true">3月</button><button type="button" data-chart-range="260" aria-pressed="false">1年</button></div>
     </div>
-    {% if prediction %}<div class="stock-forecast-strip" aria-label="五日 AI 預測摘要"><article><span>{{ prediction.probability_label }}</span><strong>{{ '%.1f%%'|format(prediction.probability_pct) }}</strong></article><article><span>第 5 個交易日預測價</span><strong>{{ '{:,.2f}'.format(prediction.predicted_price) }}</strong></article><article><span>預測變動</span><strong class="{{ 'positive' if prediction.predicted_change_pct > 0 else 'negative' if prediction.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(prediction.predicted_change_pct) }}</strong></article><article><span>目標交易日</span><strong>{{ prediction.target_session }}</strong><small>{% if prediction.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if prediction.status == 'current' else '前次預測｜資料日 ' ~ prediction.as_of }}{% endif %}</small></article></div>{% endif %}
     <div id="stock-chart" class="stock-chart" role="img" aria-label="{{ d.name }}互動式價格圖" aria-describedby="stock-chart-table"></div>
     <div id="stock-chart-table" class="sr-only">
       <table><caption>個股最近五個交易日 OHLC</caption><thead><tr><th>日期</th><th>開盤</th><th>最高</th><th>最低</th><th>收盤</th></tr></thead><tbody>{% for row in d.get('recent_candles', []) %}<tr><td>{{ row.time }}</td><td>{{ row.open }}</td><td>{{ row.high }}</td><td>{{ row.low }}</td><td>{{ row.close }}</td></tr>{% endfor %}</tbody></table>
     </div>
+    <dl class="chart-legend">
+      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>已發生：收盤高於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>已發生：收盤低於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-ma" aria-hidden="true"></span>20 日均價</dt><dd>已發生：近 20 個交易日收盤平均</dd></div>
+      {% if prediction %}<div><dt><span class="legend-swatch legend-forecast" aria-hidden="true"></span>五日情境</dt><dd><strong>模型估計</strong>：虛線，非已發生資料</dd></div>{% endif %}
+    </dl>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>K 線與均價線是已經發生的價格；虛線是模型對第 5 個交易日的估計，不是已發生的資料，也不描述中間每一天會怎麼走。</p>
+  </section>
+
+  {# ORDER 5（§7-3）：「已發生事件」與「五日模型情境」必須視覺分區。
+     預測摘要原本就放在價格面板裡，跟實際 K 線共用同一張卡 ——
+     讀者沒有任何線索可以判斷哪些數字是已經發生的、哪些是估計出來的。
+     抽成獨立區塊，並在標題就說明它是估計。 #}
+  <section class="panel forecast-section" id="forecast" aria-labelledby="forecast-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">MODEL ESTIMATE</p><h2 id="forecast-title">五日模型情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>
+      {% if prediction %}<span class="muted small">資料日 {{ prediction.as_of }}</span>{% endif %}
+    </div>
+    {% if prediction %}
+    <div class="stock-forecast-strip" aria-label="五日 AI 預測摘要">
+      <article><span>{{ prediction.probability_label }}</span><strong>{{ '%.1f%%'|format(prediction.probability_pct) }}</strong></article>
+      <article><span>第 5 個交易日預測價</span><strong>{{ '{:,.2f}'.format(prediction.predicted_price) }}</strong></article>
+      <article><span>預測變動</span><strong class="{{ 'positive' if prediction.predicted_change_pct > 0 else 'negative' if prediction.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(prediction.predicted_change_pct) }}</strong></article>
+      <article><span>目標交易日</span><strong>{{ prediction.target_session }}</strong><small>{% if prediction.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if prediction.status == 'current' else '前次預測｜資料日 ' ~ prediction.as_of }}{% endif %}</small></article>
+    </div>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估未經回測校準，機率值尚不具備校準意義。{% endif %}</p>
+    {% else %}
+    <p class="empty-state">本交易日的五日情境尚未發布。沒有可用產物時不顯示機率或預測價，也不補入示意數字。</p>
+    {% endif %}
   </section>
 
   <div class="analysis-grid">
@@ -107,22 +174,18 @@
     </section>
   </div>
 
-  <section class="panel risk-panel" id="risk">
-    <div class="section-heading"><div><p class="eyebrow">RISK EVENTS</p><h2>風險事件</h2></div><span class="muted small">只描述已觸發條件</span></div>
-    <ul>
-      {% for event in risk_events %}<li>{{ event }}</li>{% endfor %}
-      {% if d.get("data_quality_warning") %}<li>資料來源價差警示，請等待來源重新核對。</li>{% endif %}
-    </ul>
-    <p class="muted small">事件條件不是未來走勢判斷，也不是買賣指令。</p>
-  </section>
 
-  <section class="panel learn-panel" aria-labelledby="stock-learn-title">
-    <div class="section-heading"><div><p class="eyebrow">GUIDE</p><h2 id="stock-learn-title">欄位怎麼看</h2></div></div>
-    <div class="learn-grid">
-      <article><strong>移動平均</strong><p>MA20 與 MA60 是過去收盤價平均，只描述目前價格相對近期成本的位置。</p></article>
-      <article><strong>RSI</strong><p>用近期漲跌幅衡量強弱；進入過熱或超賣區不代表價格一定反轉。</p></article>
-      <article><strong>機構淨流量比</strong><p>描述已揭露的機構買賣流向占比，可能受到資料時差與市場制度影響。</p></article>
-      <article><strong>異常事件</strong><p>只表示價格、量能、技術或資料品質超過設定條件，需再查核背景。</p></article>
+  {# ORDER 5（§2.4）：不建立額外的教學系統。這裡原本用四段短文重寫了
+     學習頁已經有的解釋，兩邊一旦改了其中一邊就會不一致。改為連到
+     學習頁對應條目。 #}
+  <section class="panel stock-guide" aria-labelledby="stock-learn-title">
+    <div class="section-heading"><div><p class="eyebrow">GUIDE</p><h2 id="stock-learn-title">欄位怎麼看</h2><p>這一頁用到的指標，解釋都在同一個地方</p></div><a href="{{ url_for('learn_page') }}">看懂這些指標</a></div>
+    <div class="stock-guide-links">
+      <a class="term-tag" href="/learn#term-breadth">MA20 / MA60</a>
+      <a class="term-tag" href="/learn#term-volume-ratio">量比</a>
+      <a class="term-tag" href="/learn#term-institution-flow">法人淨流</a>
+      <a class="term-tag" href="/learn#term-realized-vol">已實現波動</a>
+      <a class="term-tag" href="/learn#term-risk-state">風險狀態</a>
     </div>
   </section>
 

@@ -5251,6 +5251,86 @@ span.value-unavailable {
   .learn-term-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
 }
 
+/* ORDER 5（§7-3）：個股三維速讀卡。籌碼、技術、風險原本分散在頁面三處，
+   讀者要拼三次才知道「這檔今天怎麼樣」。三張卡並排，每張先給一句白話
+   判讀，數值在下面。判讀句只由既有欄位的門檻推出，不引入新資料。 */
+.quick-read { padding:24px 0 4px; }
+.quick-read-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin-top:16px;
+}
+.quick-read-card {
+  display:grid;
+  align-content:start;
+  gap:12px;
+  min-width:0;
+  padding:16px 18px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.quick-read-card h3 {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:8px;
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.quick-read-verdict {
+  margin:0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.quick-read-metrics {
+  display:grid;
+  gap:8px;
+  margin:0;
+  padding-top:12px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.quick-read-metrics div {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  min-width:0;
+}
+.quick-read-metrics dt {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.quick-read-metrics dd {
+  margin:0;
+  font-weight:700;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+.quick-read-events {
+  margin:0;
+  padding:12px 0 0 18px;
+  border-top:1px solid var(--absorb-hairline);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.quick-read-events li { margin-bottom:4px; }
+.quick-read-none { color:var(--absorb-muted); list-style:none; margin-left:-18px; }
+@media (max-width:900px) {
+  .quick-read-grid { grid-template-columns:minmax(0,1fr); }
+  .quick-read { padding-top:18px; }
+}
+/* 估計區塊必須看得出跟事實不同層。用邊框虛線與標題文字承擔，不加光暈。 */
+.forecast-section { border-style:dashed; }
+.legend-forecast { background:var(--absorb-info); }
+.stock-guide-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.stock-guide-links .term-tag { padding:6px 12px; font-size:var(--type-caption); line-height:var(--lh-caption); }
+
 .market-summary-page {
   max-width:1160px;
 }
