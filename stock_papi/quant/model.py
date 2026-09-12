@@ -177,11 +177,20 @@ def run_ai_engine(
                     ),
                     "sample_count": int(valid.sum()),
                 }
-        if not all(
-            np.isfinite(value)
-            for value in price_metrics.values()
-            if value is not None
-        ):
+        # residual_interval 是嵌套的 dict，不能直接丟進 np.isfinite ——
+        # 那會丟 TypeError，被外層 except 吞掉，整個引擎回 None。
+        # 所以把巢狀的數字攤平再檢查，而不是對容器本身取 isfinite。
+        checked = [
+            value
+            for key, value in price_metrics.items()
+            if key != "residual_interval" and value is not None
+        ]
+        interval = price_metrics.get("residual_interval")
+        if isinstance(interval, dict):
+            checked.extend(
+                value for value in interval.values() if value is not None
+            )
+        if not all(np.isfinite(value) for value in checked):
             return None
         frame["AI_P"] = np.nan
         frame["AI_PRED_RET_5"] = np.nan

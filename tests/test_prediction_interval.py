@@ -12,6 +12,7 @@
 
 import math
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -160,6 +161,75 @@ class PredictionViewIntervalTests(unittest.TestCase):
         self.assertIsNotNone(view)
         self.assertNotIn("band", view)
         self.assertEqual(view["predicted_price"], 1020.0)
+
+
+class EngineStillReturnsMetricsWithAnIntervalTests(unittest.TestCase):
+    """加上區間**不能**害死整個引擎。
+
+    第一版把 residual_interval（一個 dict）跟其他純數字一起丟進
+    np.isfinite，那會丟 TypeError，被 run_ai_engine 外層的 except 吞掉，
+    於是樣本數 ≥ 60（也就是正常情況）時整個引擎靜靜地回 None ——
+    沒有機率、沒有預測價、沒有任何錯誤訊息傳到呼叫端。
+
+    兩條不變量：
+    1 區間存在時，引擎照樣回得出指標。
+    2 區間裡面出現非有限數時，引擎照樣要拒絕 —— 攤平是為了「檢查得到」，
+      不是為了「跳過不檢查」。
+    """
+
+    def _frame(self):
+        import stock_papi.application as stock_app
+
+        x = np.arange(320)
+        close = 100 + x * 0.04 + np.sin(x / 4) * 4
+        raw = pd.DataFrame({
+            "Open": close - 0.2, "High": close + 0.8,
+            "Low": close - 0.8, "Close": close,
+            "Volume": 1000 + (x % 30) * 20,
+        })
+        return stock_app, stock_app.calc_all(raw)
+
+    def test_engine_returns_metrics_and_carries_the_interval(self):
+        stock_app, enriched = self._frame()
+
+        metrics = stock_app.run_ai_engine(enriched)
+
+        self.assertIsNotNone(metrics, "區間存在時引擎不該回 None")
+        interval = metrics["price_metrics"]["residual_interval"]
+        self.assertIsNotNone(interval, "樣本足夠時應該要有區間")
+        self.assertGreaterEqual(
+            interval["sample_count"], RESIDUAL_INTERVAL_MIN_SAMPLES
+        )
+        self.assertLessEqual(
+            interval["return_offset_low"], interval["return_offset_high"]
+        )
+
+    def test_a_non_finite_quantile_never_becomes_a_published_interval(self):
+        """nan 的分位數不能變成交出去的區間。
+
+        這條是**後備**，不是攤平那個 bug 的主要防線（那是上面那條）。
+        nan 同時被 np.isfinite 和 high_q >= low_q 兩道擋掉，所以單獨拿掉
+        任一道都不會讓這條紅 —— 兩道一起消失才會。誠實記著這件事，
+        免得日後以為它守得比實際多。
+        """
+        stock_app, enriched = self._frame()
+        original = np.quantile
+
+        def poisoned(values, quantiles, *args, **kwargs):
+            if list(np.atleast_1d(quantiles)) == [
+                RESIDUAL_INTERVAL_LOWER_Q, RESIDUAL_INTERVAL_UPPER_Q
+            ]:
+                return np.array([float("nan"), float("nan")])
+            return original(values, quantiles, *args, **kwargs)
+
+        with patch.object(np, "quantile", side_effect=poisoned):
+            metrics = stock_app.run_ai_engine(enriched)
+
+        interval = (
+            None if metrics is None
+            else metrics["price_metrics"]["residual_interval"]
+        )
+        self.assertIsNone(interval, "nan 不該被當成有效區間交出去")
 
 
 if __name__ == "__main__":
