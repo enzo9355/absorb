@@ -57,6 +57,11 @@
     --radius-pill:999px;
     --radius:10px;
     --absorb-blue:#4e7d91;
+    /* ORDER 4（M-4 / M-6）：K 線圖的 20 日均價線原本在 app.js 裡寫死 #7aa6b3，
+       對 --absorb-surface 只有 2.45:1，低於 WCAG 1.4.11 對非文字圖形要求的
+       3:1。改為既有調色盤中的 --absorb-blue（4.16:1），並取一個語意別名，
+       讓圖例色塊與線條保證同源。 */
+    --chart-ma:var(--absorb-blue);
     --absorb-blue-light:#8fb9c8;
     --absorb-coral:#b85f55;
     --absorb-sage:#3f8060;

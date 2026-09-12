@@ -1299,6 +1299,79 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('href="/learn"', aux_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
 
+    def test_order4_units_never_render_without_their_value(self):
+        """B-2：缺值時數值與單位必須一起消失。
+
+        原本寫成 {{ 值 if 值 is not none else '—' }}%，百分號在條件式外面，
+        缺值時輸出裸的「—%」；家數用 `or` 判斷，0 這個真實數值也會被
+        當成缺值。這裡直接掃模板原始碼 —— 只驗算繪出的 HTML 會漏掉
+        目前恰好有資料的欄位。
+        """
+        root = Path(__file__).resolve().parents[1] / "templates"
+        offenders = []
+        for name in ("dashboard.html", "market.html", "industries.html", "stocks.html"):
+            text = (root / name).read_text(encoding="utf-8")
+            # Jinja 註解裡會引用反例說明，不列入掃描
+            text = re.sub(r"\{#.*?#\}", "", text, flags=re.S)
+            # 條件式結束後緊接單位字元
+            for match in re.finditer(r"\{\{[^{}]*is not none else[^{}]*\}\}\s*([%倍點])", text):
+                offenders.append((name, match.group(0)[:60]))
+            # `or '—'`：把 0 當成缺值
+            for match in re.finditer(r"\bor\s*'—'", text):
+                offenders.append((name, match.group(0)))
+        self.assertEqual(offenders, [])
+
+    def test_order4_market_chart_declares_its_own_legend_and_limits(self):
+        """§5.5：每張圖必須自己說清楚資料日、單位、圖例與界線。"""
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "name": "加權指數", "as_of": "2026-07-15", "price": 23450.12,
+            "open": 23300.0, "high": 23500.0, "low": 23280.0,
+            "change": 150.12, "change_pct": 0.64,
+            "candles": [
+                {"time": "2026-07-1%d" % i, "open": 1, "high": 2, "low": 0.5, "close": 1.5}
+                for i in range(1, 6)
+            ],
+            "ma20": [{"time": "2026-07-1%d" % i, "value": 1.2} for i in range(1, 6)],
+        }
+        with patch.object(
+            stock_app, "_published_dashboard_snapshot", return_value=snapshot
+        ):
+            html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        self.assertEqual(html.count("legend-swatch"), 3)
+        self.assertIn("資料日 2026-07-15", html)
+        self.assertIn("單位</dt><dd>指數點數</dd>", html)
+        self.assertIn("這不代表什麼：", html)
+
+    def test_order4_chart_ma_line_reads_a_token_with_sufficient_contrast(self):
+        """M-4／WCAG 1.4.11：均價線不得寫死顏色，且對底色至少 3:1。
+
+        原本 app.js 寫死 #7aa6b3，對 --absorb-surface 只有 2.45:1。
+        ORDER 1 的反向白名單只檢查 K 線與預測線，看不到這一條。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("#7aa6b3", script)
+        self.assertIn('getPropertyValue("--chart-ma")', script)
+
+        css = css_bundle()
+        alias = re.search(r"--chart-ma:var\((--[a-z-]+)\)", css).group(1)
+        value = re.search(re.escape(alias) + r":(#[0-9a-f]{6})", css).group(1)
+        surface = re.search(r"--absorb-surface:(#[0-9a-f]{6})", css).group(1)
+
+        def relative_luminance(hex_color):
+            channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [
+                c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+                for c in channels
+            ]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        lighter, darker = sorted(
+            (relative_luminance(value), relative_luminance(surface)), reverse=True
+        )
+        self.assertGreaterEqual((lighter + 0.05) / (darker + 0.05), 3.0)
+
     def test_order4_ask_examples_are_page_specific_and_never_auto_submit(self):
         """A-8：浮動面板的問題範例必須隨頁面改變，且只填入不送出。
 

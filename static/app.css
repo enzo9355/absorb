@@ -61,6 +61,11 @@
     --radius-pill:999px;
     --radius:10px;
     --absorb-blue:#4e7d91;
+    /* ORDER 4（M-4 / M-6）：K 線圖的 20 日均價線原本在 app.js 裡寫死 #7aa6b3，
+       對 --absorb-surface 只有 2.45:1，低於 WCAG 1.4.11 對非文字圖形要求的
+       3:1。改為既有調色盤中的 --absorb-blue（4.16:1），並取一個語意別名，
+       讓圖例色塊與線條保證同源。 */
+    --chart-ma:var(--absorb-blue);
     --absorb-blue-light:#8fb9c8;
     --absorb-coral:#b85f55;
     --absorb-sage:#3f8060;
@@ -4824,6 +4829,54 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
    沒有這段距離時，最後一列內容會永遠被浮動鈕蓋住，而且它是 fixed，
    捲到底也躲不掉。 */
 .site-footer { padding-bottom:96px; }
+
+/* ORDER 4（§5.5）：圖表圖例與「這不代表什麼」。
+   每張圖必須自己說清楚資料日、單位、圖例與缺值狀態 ——
+   讀者不該為了知道一條線是什麼而去翻別頁。 */
+.chart-legend {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 22px;
+  margin:14px 0 0;
+}
+.chart-legend div { min-width:0; }
+.chart-legend dt {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--absorb-ink);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.chart-legend dd {
+  margin:2px 0 0 19px;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.legend-swatch {
+  flex:none;
+  width:12px;
+  height:12px;
+  border-radius:var(--radius-sm);
+}
+.legend-up { background:var(--price-up); }
+.legend-down { background:var(--price-down); }
+.legend-ma { height:3px; border-radius:var(--radius-pill); background:var(--chart-ma); }
+/* 「這不代表什麼」：每張圖與每組指標都必須說出它的界線，
+   否則讀者會自行把描述性數字讀成預測。 */
+.chart-caveat {
+  margin:18px 0 0;
+  padding:12px 14px;
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.chart-caveat strong { color:var(--absorb-ink); font-weight:750; }
+.market-trend-panel .market-index-chart { min-height:250px; }
+.market-breadth-panel .pulse-card .term-tag { margin:6px 0 0; justify-self:start; width:max-content; }
 
 .market-summary-page {
   max-width:1160px;

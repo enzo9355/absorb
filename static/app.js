@@ -511,7 +511,9 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   candleSeries.setData(candles);
   const ma20 = parseChartPoints(raw.ma20);
   if (ma20.length) {
-    chart.addLineSeries({ color: "#7aa6b3", lineWidth: 2, title: "MA20" }).setData(ma20);
+    // ORDER 4（M-4）：均價線顏色改讀 token，圖例色塊與線條同源。
+    const maColor = directionStyle.getPropertyValue("--chart-ma").trim();
+    chart.addLineSeries({ color: maColor, lineWidth: 2, title: "MA20" }).setData(ma20);
   }
   const prediction = parseChartPoints(raw.prediction);
   if (predictionMarker && prediction.length > 1) {

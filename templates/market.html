@@ -1,12 +1,84 @@
 {% extends "base.html" %}
 {% block title %}市場實況｜ABSORB{% endblock %}
 {% block content %}
+{% set market = observation.market_observation or {} %}
+{% set market_index = observation.market_index or {} %}
+{% set quality = observation.data_quality or {} %}
+{% set available_count = quality.get('available_count', quality.get('symbol_count')) %}
+{% set advancing = market.get('advancing_count') %}
+{% set declining = market.get('declining_count') %}
+{% set unchanged = market.get('unchanged_count') %}
+{% set as_of = observation.observation_as_of or '待更新' %}
 <div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
   <header class="page-header"><div><p class="eyebrow">MARKET ACTUALS</p><h1>市場實況</h1><p class="page-intro">檢視已發生的市場廣度、報酬與波動，不提供方向預測。</p></div></header>
-  {% set market = observation.market_observation or {} %}
-  <section class="panel pulse-panel" aria-labelledby="market-summary-title"><div class="section-heading"><div><h2 id="market-summary-title">市場摘要</h2></div><span class="status-dot">資料日 {{ observation.observation_as_of or '待更新' }}</span></div><div class="pulse-grid" data-market-summary><article class="pulse-card"><span>上漲／下跌</span><strong>{{ market.advancing_count or '—' }}／{{ market.declining_count or '—' }}</strong></article><article class="pulse-card"><span>站上 MA20</span><strong>{{ market.ma20_breadth_pct if market.ma20_breadth_pct is not none else '—' }}%</strong></article><article class="pulse-card"><span>20 日已實現波動</span><strong>{{ market.realized_volatility_20d_pct if market.realized_volatility_20d_pct is not none else '—' }}%</strong></article></div></section>
-  <section class="panel focus-panel" aria-labelledby="market-focus-title"><div class="section-heading"><div><h2 id="market-focus-title">今日焦點</h2></div></div><div class="focus-grid" data-daily-focus>{% for text in observation.daily_focus or [] %}<article class="focus-card"><strong>{{ text }}</strong></article>{% else %}<div class="empty-state">今日焦點資料不足。</div>{% endfor %}</div></section>
-  {% set quality = observation.data_quality or {} %}{% set available_count = quality.get('available_count', quality.get('symbol_count')) %}<section class="panel" aria-labelledby="market-quality-title"><h2 id="market-quality-title">資料品質</h2><dl class="report-meta"><div><dt>覆蓋率</dt>{% if quality.get('coverage') is not none %}<dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>有效標的</dt>{% if available_count is not none %}<dd>{{ available_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>未納入標的</dt>{% if quality.get('failure_count') is not none %}<dd>{{ quality.get('failure_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div></dl></section>
   <div class="error-banner" data-dashboard-error hidden>市場觀察資料暫時無法取得。</div>
+
+  {# ORDER 4（§5.5）：市場頁以指數走勢與市場廣度為主，不把所有數字做成
+     同權重卡片。原本三張等大的 pulse-card 讓「上漲／下跌」與「20 日波動」
+     看起來一樣重要，讀者無從判斷該先看哪一個。 #}
+  <section class="panel market-trend-panel" aria-labelledby="market-trend-title">
+    <div class="section-heading"><div><h2 id="market-trend-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；兩者皆不填色。</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
+    {% if market_index.get('price') is not none %}
+    <div class="market-index-quote">
+      <div><strong>{{ '{:,.2f}'.format(market_index.get('price')) }}</strong>{% if market_index.get('change') is not none and market_index.get('change_pct') is not none %}<span class="{{ 'positive' if market_index.get('change_pct') > 0 else 'negative' if market_index.get('change_pct') < 0 else '' }}">{{ '{:+,.2f}'.format(market_index.get('change')) }}（{{ '{:+.2f}%'.format(market_index.get('change_pct')) }}）</span>{% else %}<span class="value-unavailable">漲跌尚未驗證</span>{% endif %}</div>
+      <dl>
+        <div><dt>開盤</dt>{% if market_index.get('open') is not none %}<dd>{{ '{:,.2f}'.format(market_index.get('open')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>最高</dt>{% if market_index.get('high') is not none %}<dd>{{ '{:,.2f}'.format(market_index.get('high')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>最低</dt>{% if market_index.get('low') is not none %}<dd>{{ '{:,.2f}'.format(market_index.get('low')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      </dl>
+    </div>
+    <div id="market-index-chart" class="market-index-chart" role="img" aria-label="{{ market_index.get('name', '加權指數') }} K 線圖" aria-describedby="market-index-chart-table"></div>
+    <dl class="chart-legend">
+      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>收盤高於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>收盤低於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-ma" aria-hidden="true"></span>20 日均價</dt><dd>近 20 個交易日收盤平均</dd></div>
+      <div><dt>單位</dt><dd>指數點數</dd></div>
+    </dl>
+    <div id="market-index-chart-table" class="sr-only">
+      <table><caption>{{ market_index.get('name', '加權指數') }}最近五個交易日 OHLC</caption><thead><tr><th>日期</th><th>開盤</th><th>最高</th><th>最低</th><th>收盤</th></tr></thead><tbody>{% for row in market_index.get('candles', [])[-5:] %}<tr><td>{{ row.time }}</td><td>{{ row.open }}</td><td>{{ row.high }}</td><td>{{ row.low }}</td><td>{{ row.close }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+    {% else %}<p class="empty-state">已驗證的指數 K 線尚待發布，這裡不以推估值補位。</p>{% endif %}
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>K 線只呈現已經發生的價格，不預告接下來的方向；均價線是計算結果，不是支撐或壓力。單日走勢與個別標的的表現可能完全相反。</p>
+  </section>
+
+  {# ORDER 4（B-2）：缺值時數值與單位必須一起消失。
+     原本寫成 {{ 值 if 值 is not none else '—' }}%，百分號在條件式外面，
+     缺值時會輸出裸的「—%」；上漲／下跌用 `or` 判斷，0 這個真實數值
+     也會被當成缺值印成「—」。 #}
+  <section class="panel market-breadth-panel" aria-labelledby="market-breadth-title">
+    <div class="section-heading"><div><h2 id="market-breadth-title">市場廣度</h2><p>多少比例的股票在往同一個方向走</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+    <div class="pulse-grid" data-market-summary>
+      <article class="pulse-card"><span>上漲／持平／下跌家數</span>{% if advancing is not none and declining is not none and unchanged is not none %}<strong>{{ advancing }}／{{ unchanged }}／{{ declining }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</article>
+      <article class="pulse-card"><span>站上近一個月平均價的比例</span>{% if market.get('ma20_breadth_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-breadth">MA20</a></article>
+      <article class="pulse-card"><span>最近一個月的波動程度</span>{% if market.get('realized_volatility_20d_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-realized-vol">20D 波動</a></article>
+    </div>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>廣度高只說明參與上漲的家數多，不說明漲幅大小，也不保證延續。波動程度描述的是已經發生的價格變動幅度，不是風險評分。</p>
+  </section>
+
+  {# 進階數據收進可展開區塊：研究者需要，一般讀者不需要先看到 #}
+  <details class="data-limits">
+    <summary><span>進階數據與資料品質</span><span class="data-limits-hint">期間報酬、極值家數、覆蓋率</span></summary>
+    <div class="data-limits-body">
+      <dl class="data-limits-grid">
+        {% for key, label in [('return_1d_pct','1 日報酬'),('return_5d_pct','5 日報酬'),('return_20d_pct','20 日報酬'),('return_60d_pct','60 日報酬')] %}
+        {% set value = market.get(key) %}
+        <div><dt>{{ label }}</dt>{% if value is not none %}<dd class="{{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        {% endfor %}
+        <div><dt>創近一個月新高家數（new_high_20d_count）</dt>{% if market.get('new_high_20d_count') is not none %}<dd>{{ market.get('new_high_20d_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>創近一個月新低家數（new_low_20d_count）</dt>{% if market.get('new_low_20d_count') is not none %}<dd>{{ market.get('new_low_20d_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>成交量中位數倍率（median_volume_ratio）</dt>{% if market.get('median_volume_ratio') is not none %}<dd>{{ '%.2f'|format(market.get('median_volume_ratio')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>法人淨流中位數（median_institution_net_ratio_pct）</dt>{% if market.get('median_institution_net_ratio_pct') is not none %}<dd>{{ '%+.2f%%'|format(market.get('median_institution_net_ratio_pct')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      </dl>
+      <dl class="report-meta">
+        <div><dt>覆蓋率</dt>{% if quality.get('coverage') is not none %}<dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>有效標的</dt>{% if available_count is not none %}<dd>{{ available_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>未納入標的</dt>{% if quality.get('failure_count') is not none %}<dd>{{ quality.get('failure_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      </dl>
+    </div>
+  </details>
+
+  {% if market_index.get('candles') %}<script id="market-index-chart-data" type="application/json">{{ {"candles": market_index.get('candles'), "ma20": market_index.get('ma20', [])}|tojson }}</script>{% endif %}
 </div>
 {% endblock %}
+
+{% block head %}{% if (observation.market_index or {}).get('candles') %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>{% endif %}{% endblock %}
