@@ -20,7 +20,7 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
         else bytes.other += size;
       } catch (_e) {}
     });
-    await p.goto('`http://127.0.0.1:${process.argv[2] || 8521}`'+path, { waitUntil: 'networkidle' });
+    await p.goto(`http://127.0.0.1:${process.argv[2] || 8521}${path}`, { waitUntil: 'networkidle' });
     const m = await p.evaluate(() => new Promise((res) => {
       const nav = performance.getEntriesByType('navigation')[0] || {};
       let lcp = 0;
