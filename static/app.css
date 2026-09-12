@@ -4902,6 +4902,15 @@ span.value-unavailable {
   line-height:var(--lh-caption);
 }
 
+/* ORDER 4（§12.1 第 10 項）：360px 下 /ask 的表單橫向溢出。
+   .conversation-form 是 .panel 這個 grid 的項目，grid 項目的 min-width
+   預設是 auto，無法縮到內容的 min-content 以下 —— 送出鈕的
+   「詢問 ABSORB」把整個表單撐到比容器寬。輸入框本身已有 min-width:0，
+   缺的是外層。 */
+.conversation-form, .conversation-control { min-width:0; }
+/* 資料狀態 chip 在 today-facts 內文字較長，320px 下不得強制單行 */
+.today-facts .state-chip { white-space:normal; }
+
 .market-summary-page {
   max-width:1160px;
 }

@@ -7,7 +7,13 @@
 <a class="pick-card event-card severity-{{ item.severity or 'low' }}" href="{{ url_for('stock_page', code=item.symbol) }}">
   <span>{% if item.name and item.name|upper != item.symbol|upper %}{{ item.name }} · {{ item.symbol }}{% else %}{{ item.symbol }}{% endif %}</span>
   <strong>{{ item.observation }}</strong>
-  <div class="event-card-meta"><b>{{ severity_labels.get(item.severity, '注意') }}</b>{% if item.metric_value is not none %}<p class="{{ 'positive' if item.metric_value > 0 else 'negative' if item.metric_value < 0 else '' }}">{{ item.metric_value }}{{ unit_labels.get(item.unit, ' ' + (item.unit or '')) }}</p>{% endif %}</div>
+  {# ORDER 4（M-5 / E-1）：方向色只能用在真正有方向的數值上。
+     原本任何 metric_value > 0 都套 .positive —— 量比 2.8 倍、RSI 74、
+     資料警示旗標 1 全都被染成「漲」的顏色，但它們沒有方向可言，
+     高量能既不是好事也不是壞事。只有 price_move 的漲跌幅有方向，
+     而且必須帶正負號，灰階下才辨識得出來。 #}
+  {% set directional = item.event_type == 'price_move' and item.metric_value is not none %}
+  <div class="event-card-meta"><b>{{ severity_labels.get(item.severity, '注意') }}</b>{% if item.metric_value is not none %}{% if directional %}<p class="{{ 'positive' if item.metric_value > 0 else 'negative' if item.metric_value < 0 else '' }}">{{ '%+g'|format(item.metric_value) }}{{ unit_labels.get(item.unit, ' ' + (item.unit or '')) }}</p>{% else %}<p>{{ item.metric_value }}{{ unit_labels.get(item.unit, ' ' + (item.unit or '')) }}</p>{% endif %}{% endif %}</div>
   <small>資料日 {{ item.as_of }}</small>
 </a>
 {%- endmacro %}

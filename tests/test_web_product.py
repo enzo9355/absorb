@@ -1357,6 +1357,54 @@ class WebProductTests(unittest.TestCase):
             with self.subTest(selector=sel):
                 self.assertLess(pos, winners[0])
 
+    def test_order4_direction_elements_always_carry_a_sign_or_word(self):
+        """M-5／§12.1 第 02 項：灰階下漲跌仍可辨識。
+
+        顏色是唯一線索時，色覺障礙與灰階列印都會失去方向資訊。
+        這裡把實際繪出的 HTML 裡所有帶方向 class 的元素抓出來，
+        要求文字本身含正負號或方向字詞 —— 或者，對 <dd> 而言，
+        由緊鄰的 <dt> 標籤承擔（「上漲 / 1200」這一組整體是有文字的）。
+        """
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "name": "加權指數", "as_of": "2026-07-15", "price": 23450.12,
+            "open": 23300.0, "high": 23500.0, "low": 23280.0,
+            "change": 150.12, "change_pct": 0.64,
+            "candles": [
+                {"time": "2026-07-1%d" % i, "open": 1, "high": 2, "low": 0.5, "close": 1.5}
+                for i in range(1, 6)
+            ],
+            "ma20": [],
+        }
+        client = stock_app.app.test_client()
+        unsigned = []
+        with patch.object(
+            stock_app, "_published_dashboard_snapshot", return_value=snapshot
+        ):
+            for path in ("/", "/market", "/industries", "/stocks"):
+                html = client.get(path).get_data(as_text=True)
+                # <dt>上漲</dt><dd class="positive">1200</dd>：方向由 dt 承擔，
+                # 這一組整體在灰階下仍然讀得出來，標記後放行。
+                html = re.sub(
+                    r"<dt>[^<]*(?:上漲|下跌|新高|新低|轉強|轉弱)[^<]*</dt>\s*<dd([^>]*)>",
+                    r"<dd\1>DT_LABELLED ",
+                    html,
+                )
+                for match in re.finditer(
+                    r'<(?:dd|strong|span|p|b)[^>]*class="[^"]*\b(?:positive|negative|up|down)\b'
+                    r'[^"]*"[^>]*>(.*?)</(?:dd|strong|span|p|b)>',
+                    html,
+                    re.S,
+                ):
+                    text = re.sub(r"<[^>]+>", "", match.group(1)).strip()
+                    if not text:
+                        continue
+                    if not re.search(
+                        r"[+\-−▲▼]|上漲|下跌|轉強|轉弱|新高|新低|DT_LABELLED", text
+                    ):
+                        unsigned.append((path, text[:40]))
+        self.assertEqual(unsigned, [])
+
     def test_order4_back_links_name_their_destination(self):
         """§5.1：明細頁的上一層必須具名（「返回個股與 ETF」而非泛用返回）。
 
