@@ -27,6 +27,9 @@ EXPECTED_ROUTES = {
     ("/stocks", "stocks_page", frozenset({"GET"})),
     ("/ask", "ask_page", frozenset({"GET"})),
     ("/learn", "learn_page", frozenset({"GET"})),
+    # ORDER 3：元件型錄。noindex、無資料、純靜態示範標記，
+    # 與 /preview/report 一樣屬於開發用途但仍是一條真實路由，必須登記。
+    ("/_catalog", "catalog_page", frozenset({"GET"})),
     ("/preview/report", "preview_report_page", frozenset({"GET"})),
     ("/reports", "reports_page", frozenset({"GET"})),
     ("/reports/<report_date>", "report_page", frozenset({"GET"})),
