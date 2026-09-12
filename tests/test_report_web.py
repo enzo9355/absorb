@@ -198,7 +198,11 @@ class ReportWebTests(unittest.TestCase):
 
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("美股市場研究摘要", html)
+        # ORDER 6：美股頁改為與台股一致的四段式，標題同步改為白話
+        # （A-1：整頁最重要的一句話原本被壓在指數圖表下面）。
+        self.assertIn("美股今天怎麼了", html)
+        # 一句話結論必須排在指數圖表之前 —— 這是這次改動的重點
+        self.assertLess(html.index("research-headline"), html.index("us-index-title"))
         self.assertIn("2026-07-15", html)
         load_index.assert_called_once_with(market="US")
 

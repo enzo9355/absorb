@@ -135,7 +135,6 @@
 
     <!-- Largest Risk Callout -->
     <div class="callout-box warning-callout">
-      <div class="callout-icon">⚠️</div>
       <div class="callout-content">
         <strong>主要風險警示：</strong>
         <span>{{ exec_summary.largest_risk or '市場風險狀態隨總體波動調整。' }}</span>
@@ -234,6 +233,7 @@
     <nav class="report-chapter-nav" aria-label="報告章節導覽">
       <a href="#executive-summary">投資決策摘要</a>
       <a href="#market-analysis">市場總體與風險</a>
+      <a href="#opposing-evidence">反對證據與失效條件</a>
       <a href="#capital-flows">資金與籌碼流向</a>
       <a href="#industry-analysis">產業輪動與排名</a>
       <a href="#security-analysis">個股與 ETF 觀察</a>
@@ -298,6 +298,48 @@
     {% else %}
       <div class="empty-state">{{ market_sec.reason or '市場資料尚未提供。' }}</div>
     {% endif %}
+  </section>
+
+  {# ORDER 6（§6.2）：「反對證據與失效條件」獨立章節。
+     §2 Evidence first 的順序是結論、依據、反對證據、限制。反對證據原本只在
+     「投資決策摘要」的雙欄裡出現一次（那是給 30 秒讀者的），研究版讀者
+     一路往下看不會再遇到它；而 next_session_watch_conditions ——
+     真正的失效條件 —— 在整份報告裡從來沒有被繪出過。
+     這一章放在「依據」之後，符合 §2 的順序。 #}
+  <section class="panel report-section" id="opposing-evidence">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">SECTION 03 ｜ OPPOSING EVIDENCE</p>
+        <h2 id="opposing-evidence-title">反對證據與失效條件</h2>
+        <p>這個結論在什麼情況下不成立</p>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3 class="subsection-title" id="opposing-points">與結論相反的證據</h3>
+      {% if exec_summary.opposing_evidence %}
+      <ul class="evidence-list">{% for item in exec_summary.opposing_evidence %}<li>{{ item }}</li>{% endfor %}</ul>
+      <p class="muted small">與「投資決策摘要」的反對證據欄為同一組資料，在此重述以維持研究版章節的可獨立閱讀性。</p>
+      {% else %}
+      <p class="empty-state">本次報告沒有形成明確的反向證據。這代表規則沒有觸發，不是資料缺失。</p>
+      {% endif %}
+    </div>
+
+    <div class="subsection">
+      <h3 class="subsection-title" id="invalidation-conditions">失效條件</h3>
+      {% set watch = exec_summary.next_session_watch_conditions or (next_sec.data.watch_conditions if next_sec.status == 'available' else []) %}
+      {% if watch %}
+      <p class="muted small">以下條件若出現變化，上述結論即需重新評估。條件為規則式產生，不是預測。</p>
+      <ul class="evidence-list">{% for item in watch %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% else %}
+      <p class="empty-state">本次報告沒有提供失效條件。</p>
+      {% endif %}
+    </div>
+
+    <div class="subsection">
+      <h3 class="subsection-title" id="largest-risk">主要風險</h3>
+      <p>{{ exec_summary.largest_risk or '本次報告沒有標示單一主要風險。' }}</p>
+    </div>
   </section>
 
   <!-- Section 3: Capital Flows -->
@@ -617,8 +659,7 @@
 
       {% if research.warnings %}
         <div class="callout-box warning-callout">
-          <div class="callout-icon">⚠️</div>
-          <div class="callout-content">
+            <div class="callout-content">
             <strong>統計警示與限制：</strong>
             <ul class="clean-list">
               {% for item in research.warnings %}<li>{{ item }}</li>{% endfor %}

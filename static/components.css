@@ -2467,3 +2467,38 @@ span.value-unavailable {
 .legend-forecast { background:var(--absorb-info); }
 .stock-guide-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
 .stock-guide-links .term-tag { padding:6px 12px; font-size:var(--type-caption); line-height:var(--lh-caption); }
+
+/* ORDER 6（§7-3）：美股指數的「已發生」與「模型估計」分開兩個容器。
+   最新收盤是事實，用一般卡片；五日情境是估計，在 .forecast-section 的
+   虛線區塊內，維持深色卡與 on-dark 漲跌色。 */
+.us-index-actual-list {
+  display:grid;
+  align-content:start;
+  gap:12px;
+}
+.us-index-actual-list article {
+  display:grid;
+  gap:4px;
+  padding:16px 18px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.us-index-actual-list article[hidden] { display:none; }
+.us-index-actual-list article > span {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.us-index-actual-list article > strong {
+  font-size:var(--type-data-lg);
+  line-height:var(--lh-data-lg);
+  letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.us-index-actual-list article > small {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.us-index-forecast-list article[hidden] { display:none; }

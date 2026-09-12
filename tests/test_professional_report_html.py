@@ -136,8 +136,9 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         """
         output = self._render()
 
-        # ORDER 5（§6.2）：異常個股資料表自成一章，h2 因此是 11 個
-        self.assertEqual(output.count("<h2 id="), 11)
+        # ORDER 5（§6.2）異常個股資料表、ORDER 6（§2）反對證據與失效條件
+        # 各自成章，h2 因此是 12 個
+        self.assertEqual(output.count("<h2 id="), 12)
         for anchor in (
             "executive-summary-title",
             "quantitative-research-title",
@@ -155,6 +156,42 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         self.assertIn("data-chapter-current", output)
         self.assertIn('href="#top-of-report"', output)
         self.assertIn('id="top-of-report"', output)
+
+    def test_order6_opposing_evidence_is_its_own_chapter_with_failure_conditions(self):
+        """§2 Evidence first：結論、依據、反對證據、限制。
+
+        反對證據原本只在「投資決策摘要」的雙欄裡出現一次（那是給 30 秒
+        讀者的），研究版讀者一路往下看不會再遇到它；而
+        next_session_watch_conditions —— 真正的失效條件 —— 在整份報告裡
+        從來沒有被繪出過。
+        """
+        output = self._render()
+
+        self.assertIn('id="opposing-evidence"', output)
+        self.assertIn("反對證據與失效條件", output)
+        self.assertIn("這個結論在什麼情況下不成立", output)
+        for anchor in ("opposing-points", "invalidation-conditions", "largest-risk"):
+            with self.subTest(anchor=anchor):
+                self.assertIn(f'id="{anchor}"', output)
+
+        # 失效條件必須真的繪出資料，不是空殼
+        view = self._view()
+        for condition in view["executive_summary"]["next_session_watch_conditions"]:
+            with self.subTest(condition=condition):
+                self.assertIn(condition, output)
+
+        # 章節索引要收錄它，否則等於沒有這一章
+        nav = output[output.index('aria-label="報告章節導覽"'):]
+        nav = nav[: nav.index("</nav>")]
+        self.assertIn('href="#opposing-evidence"', nav)
+
+        # 排在「依據」之後（§2 的順序）
+        self.assertLess(
+            output.index('id="market-analysis"'), output.index('id="opposing-evidence"')
+        )
+
+        # §0.4：不得用 emoji 當區塊標記
+        self.assertNotIn("⚠️", output)
 
     def test_order5_model_sections_link_to_the_methodology_chapter(self):
         """§6.3：看到 R²、Brier Score、Gate 時，下一個問題是「怎麼算的」。"""
