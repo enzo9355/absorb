@@ -19,6 +19,7 @@
 {% set freshness_chip = {'current':'is-available','updating':'is-partial','stale':'is-stale','unavailable':'is-unavailable'}.get(freshness_status, 'is-unavailable') %}
 {% set risk_label = {'normal':'一般','cautious':'謹慎','elevated':'升高'}.get(market.get('risk_state')) %}
 {% set post_close = daily_cards.get('post_close') %}
+{% set readings = metric_readings|default({}, true) %}
 <div class="page dashboard-page research-dashboard" data-dashboard-endpoint="/api/dashboard">
   {% if search_error %}<div class="error-banner" role="alert">找不到「{{ search_query }}」，請輸入台股代碼、名稱或美股代碼。</div>{% endif %}
 
@@ -92,10 +93,10 @@
     </div>
     <div class="command-grid">
       <div class="command-metrics" aria-label="市場關鍵指標">
-        <article><span class="metric-title">股價在近一個月平均價之上的比例</span>{% if market.get('ma20_breadth_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-breadth">MA20</a>{% if market.get('ma20_breadth_pct') is not none %}<progress value="{{ market.get('ma20_breadth_pct') }}" max="100">{{ market.get('ma20_breadth_pct') }}%</progress>{% endif %}</article>
-        <article><span class="metric-title">今天成交量相對平常的倍數</span>{% if market.get('median_volume_ratio') is not none %}<strong>{{ '%.2f'|format(market.get('median_volume_ratio')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-volume-ratio">量比</a>{% if market.get('median_volume_ratio') is not none %}<progress value="{{ market.get('median_volume_ratio') }}" max="2">{{ market.get('median_volume_ratio') }}</progress>{% endif %}</article>
-        <article><span class="metric-title">最近一個月的波動程度</span>{% if market.get('realized_volatility_20d_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-realized-vol">20D 波動</a></article>
-        <article><span class="metric-title">今天的風險檢查結果</span>{% if risk_label %}<strong>{{ risk_label }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-risk-state">風險狀態</a></article>
+        <article><span class="metric-title">股價在近一個月平均價之上的比例</span>{% if market.get('ma20_breadth_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}{% if readings.get('ma20_breadth_pct') %}<span class="metric-reading">{{ readings['ma20_breadth_pct'] }}</span>{% endif %}<a class="term-tag" href="/learn#term-breadth">MA20</a>{% if market.get('ma20_breadth_pct') is not none %}<progress value="{{ market.get('ma20_breadth_pct') }}" max="100">{{ market.get('ma20_breadth_pct') }}%</progress>{% endif %}</article>
+        <article><span class="metric-title">今天成交量相對平常的倍數</span>{% if market.get('median_volume_ratio') is not none %}<strong>{{ '%.2f'|format(market.get('median_volume_ratio')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}{% if readings.get('median_volume_ratio') %}<span class="metric-reading">{{ readings['median_volume_ratio'] }}</span>{% endif %}<a class="term-tag" href="/learn#term-volume-ratio">量比</a>{% if market.get('median_volume_ratio') is not none %}<progress value="{{ market.get('median_volume_ratio') }}" max="2">{{ market.get('median_volume_ratio') }}</progress>{% endif %}</article>
+        <article><span class="metric-title">最近一個月的波動程度</span>{% if market.get('realized_volatility_20d_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}{% if readings.get('realized_volatility_20d_pct') %}<span class="metric-reading">{{ readings['realized_volatility_20d_pct'] }}</span>{% endif %}<a class="term-tag" href="/learn#term-realized-vol">20D 波動</a></article>
+        <article><span class="metric-title">今天的風險檢查結果</span>{% if risk_label %}<strong>{{ risk_label }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}{% if readings.get('risk_state') %}<span class="metric-reading">{{ readings['risk_state'] }}</span>{% endif %}<a class="term-tag" href="/learn#term-risk-state">風險狀態</a></article>
       </div>
 
       <section class="evidence-canvas market-index-canvas" aria-labelledby="return-title">
