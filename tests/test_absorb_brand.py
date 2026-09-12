@@ -56,7 +56,10 @@ class AbsorbBrandTests(unittest.TestCase):
     def test_design_system_uses_measured_navy_and_prohibits_old_persona(self):
         design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
         self.assertIn("--absorb-navy: #183147", design)
-        self.assertIn("導覽文字標誌固定為 `ABSORB`", design)
+        # 文字標誌改為手寫草寫 Absorb（首字大寫）。品牌名在內文仍一律寫作
+        # ABSORB —— 這一條反而更嚴格：除了標誌本身，其餘地方不得跟著改。
+        self.assertIn("導覽文字標誌固定為手寫草寫的 `Absorb`", design)
+        self.assertIn("唯一例外是導覽文字標誌", design)
         self.assertIn("Avenir Next", design)
         self.assertIn("不下載、內嵌或提交專有字型", design)
         self.assertIn("不使用玻璃擬態", design)
@@ -116,7 +119,11 @@ class AbsorbBrandTests(unittest.TestCase):
         base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
 
         self.assertIn('aria-label="回到 ABSORB 主畫面"', base)
-        self.assertIn('>ABSORB</a>', base)
+        # 可見文字是草寫 Absorb，但無障礙名稱仍是品牌全名，
+        # screen reader 讀到的必須是 ABSORB 而不是 Absorb。
+        self.assertIn('>Absorb</a>', base)
+        self.assertIn('aria-label="回到 ABSORB 主畫面"', base)
+        self.assertNotIn('>ABSORB</a>', base)
         self.assertIn(">ASK ABSORB</button>", base)
         self.assertIn(">ASK ABSORB</h2>", base)
         self.assertIn('aria-label="關閉 ASK ABSORB"', base)

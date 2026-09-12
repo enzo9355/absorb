@@ -1,8 +1,12 @@
 @font-face {
   font-family:"ABSORB Wordmark";
-  src:url("fonts/absorb-wordmark.woff2") format("woff2");
+  /* 字型檔名帶 -allura 是刻意的：STATIC_ASSET_VERSION 只雜湊 app.css 與 app.js，
+     沿用舊檔名會讓瀏覽器吃到快取的舊字型。 */
+  src:url("fonts/absorb-wordmark-allura.woff2") format("woff2");
   font-style:normal;
-  font-weight:700;
+  /* Allura 只有一個字重。@font-face 與規則同為 400，避免瀏覽器合成粗體 —— 
+     加粗改由 -webkit-text-stroke 完成（見 .brand-wordmark）。 */
+  font-weight:400;
   font-display:swap;
 }
 :root {
