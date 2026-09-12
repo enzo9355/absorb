@@ -140,6 +140,10 @@
       <div><p class="eyebrow">MODEL ESTIMATE</p><h2 id="forecast-title">五日模型情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>
       {% if prediction %}<span class="muted small">資料日 {{ prediction.as_of }}</span>{% endif %}
     </div>
+    {# 委託人裁示：模型的歷史績效（勝率、最大回撤、Brier Score）不放在個股頁，
+       要深挖的人去報告裡找。那條路就必須真的存在 —— 這一頁原本連一個通往
+       報告的連結都沒有，「去報告找」等於叫讀者自己想辦法。 #}
+    <p class="forecast-research-link">想知道這個模型過去表現如何？完整的模型驗證資料在<a href="{{ url_for('us_reports_page' if market == 'US' else 'reports_page') }}">每日報告</a>的研究版裡，找「模型驗證」那一章。</p>
     {% if prediction %}
     <div class="stock-forecast-strip" aria-label="五日 AI 預測摘要">
       <article><span>{{ prediction.probability_label }}</span><strong>{{ '%.1f%%'|format(prediction.probability_pct) }}</strong></article>
