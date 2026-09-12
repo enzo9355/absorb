@@ -2395,7 +2395,10 @@ class WebProductTests(unittest.TestCase):
         """中文行高不得低於 1.3，否則字的上緣會被裁切（D-4）。"""
         css = css_bundle()
         bare = [v for v in re.findall(r"line-height:\s*([0-9.]+)(?![0-9a-z%])", css)]
-        shorthand = re.findall(r"font:\s*\d+\s+[0-9.]+px/([0-9.]+)", css)
+        # font 簡寫裡的行高：字級可能是 clamp()、var() 或帶單位的任意值，
+        # 原本的 `[0-9.]+px/` 只認得字面 px，clamp(28px,3.2vw,42px)/1.16
+        # 就這樣溜過去了（D-4 的那一條規則正是這個形式）。
+        shorthand = re.findall(r"font:[^;{}]*?/([0-9.]+)\s", css)
         too_tight = [v for v in bare + shorthand if float(v) < 1.3]
         self.assertEqual(too_tight, [])
 
