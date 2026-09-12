@@ -75,22 +75,19 @@
   {# ORDER 5（A-7）：章節索引。常駐目錄與 section id 在稽核基準點就已存在，
      缺的是「當前章節標示」、手機可收合，以及每個 <h2>／<h3> 的穩定錨點
      （原本只有 <section> 有 id，無法引用子章節）。 #}
-  <details class="report-chapter-nav-wrap" data-chapter-nav open>
-    <summary class="report-chapter-nav-summary"><span>章節索引</span><span class="report-chapter-current" data-chapter-current>投資決策摘要</span></summary>
-    <nav class="report-chapter-nav" aria-label="報告章節導覽">
-      <a href="#executive-summary">投資決策摘要</a>
-      <a href="#market-analysis">市場總體與風險</a>
-      <a href="#capital-flows">資金與籌碼流向</a>
-      <a href="#industry-analysis">產業輪動與排名</a>
-      <a href="#security-analysis">個股與 ETF 觀察</a>
-      <a href="#quantitative-research">量化回歸與模型</a>
-      <a href="#model-validation">模型驗證與回測</a>
-      <a href="#next-session">次日研究框架</a>
-      <a href="#data-governance">資料治理與方法論</a>
-      <a href="#ai-reference">AI 模型參考建議</a>
-    </nav>
-  </details>
+  {# ORDER 5（§6.2）：一份報告、三種讀法。
+     原本 731 行的研究版只有一條線性路徑，散戶要往下捲九章才看得完，
+     研究者要找某一筆異常標的也只能用瀏覽器搜尋。改為三個分頁：
+     30 秒大局觀（散戶）／異常個股資料表（兩者）／專業研究台（研究者）。
+     三個分頁預設全部可見，由 JS 收起兩個 —— JS 失效時退化成原本的
+     線性長頁，不會把內容藏起來。列印時同樣全部展開。 #}
+  <div class="report-track-tabs" role="tablist" aria-label="報告閱讀軌道" data-report-tracks>
+    <button class="report-track-tab" type="button" role="tab" id="track-tab-overview" aria-controls="track-overview" aria-selected="true" data-report-track="overview">30 秒大局觀<span class="report-track-hint">給一般投資人</span></button>
+    <button class="report-track-tab" type="button" role="tab" id="track-tab-table" aria-controls="track-table" aria-selected="false" data-report-track="table">異常個股資料表<span class="report-track-hint">可搜尋、篩選、排序</span></button>
+    <button class="report-track-tab" type="button" role="tab" id="track-tab-research" aria-controls="track-research" aria-selected="false" data-report-track="research">專業研究台<span class="report-track-hint">研究版 · 9 章</span></button>
+  </div>
 
+  <div class="report-track" id="track-overview" role="tabpanel" aria-labelledby="track-tab-overview" data-report-track-panel="overview">
   <!-- Section 1: Executive Summary -->
   <section class="panel report-section" id="executive-summary">
     <div class="section-heading">
@@ -165,7 +162,88 @@
       </div>
     </div>
   </section>
+  </div>
 
+  <div class="report-track" id="track-table" role="tabpanel" aria-labelledby="track-tab-table" data-report-track-panel="table">
+  <section class="panel report-section" id="anomaly-table">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">ANOMALY TABLE ｜ 異常個股資料表</p>
+        <h2 id="anomaly-table-title">異常個股資料表</h2>
+      </div>
+      <span class="muted small">資料基準日 {{ ident.source_market_date or report.source_market_date or '待更新' }}</span>
+    </div>
+    {% if sec_sec.status == 'available' and sec_sec.data.stock_events %}
+    {% set type_labels = {'price_move':'價格異常','volume_surge':'量能放大','volume_dry_up':'量能收縮','institution_flow':'法人動向','rsi_overbought':'RSI 過熱','rsi_oversold':'RSI 超賣','new_high_20d':'20 日新高','new_low_20d':'20 日新低','data_warning':'資料警示'} %}
+    {% set severity_labels = {'high':'極端','medium':'顯著','low':'注意'} %}
+    <div class="anomaly-controls" data-anomaly-controls>
+      <div class="anomaly-search">
+        <label for="anomaly-query">搜尋標的或觀察內容</label>
+        <input id="anomaly-query" type="search" autocomplete="off" placeholder="輸入名稱、代碼或關鍵字" data-anomaly-query>
+      </div>
+      <div class="anomaly-filter">
+        <label for="anomaly-type">異常類型</label>
+        <select id="anomaly-type" data-anomaly-filter>
+          <option value="">全部類型</option>
+          {% for key, label in type_labels.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="button button-secondary" type="button" data-anomaly-copy>複製為 TSV</button>
+      <p class="anomaly-count" role="status" aria-live="polite" data-anomaly-count>{{ sec_sec.data.stock_events|length }} 筆</p>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table anomaly-data-table" data-anomaly-table>
+        <caption class="sr-only">已驗證的個股異常事件，可依欄位排序</caption>
+        <thead>
+          <tr>
+            <th><button type="button" data-anomaly-sort="name" aria-label="依標的排序">標的</button></th>
+            <th><button type="button" data-anomaly-sort="symbol" aria-label="依代碼排序">代碼</button></th>
+            <th><button type="button" data-anomaly-sort="type" aria-label="依類型排序">類型</button></th>
+            <th>觀察</th>
+            <th class="num"><button type="button" data-anomaly-sort="value" aria-label="依數值排序">數值</button></th>
+            <th><button type="button" data-anomaly-sort="severity" aria-label="依分級排序">分級</button></th>
+            <th><button type="button" data-anomaly-sort="as_of" aria-label="依資料日排序">資料日</button></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in sec_sec.data.stock_events %}
+          <tr data-anomaly-row data-type="{{ item.event_type }}" data-severity-rank="{{ {'high':3,'medium':2,'low':1}.get(item.severity, 0) }}" data-value="{{ item.metric_value if item.metric_value is not none else '' }}">
+            <td><strong>{{ item.name }}</strong></td>
+            <td><code>{{ item.symbol }}</code></td>
+            <td>{{ type_labels.get(item.event_type, item.event_type) }}</td>
+            <td>{{ item.observation }}</td>
+            <td class="num">{% if item.metric_value is not none %}{{ item.metric_value }}{% if item.unit %} {{ item.unit }}{% endif %}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</td>
+            <td>{{ severity_labels.get(item.severity, '注意') }}</td>
+            <td class="num">{{ item.as_of }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="anomaly-empty" data-anomaly-empty hidden role="status">沒有符合條件的異常事件。可以清空搜尋字串，或把類型改回「全部類型」。</p>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>事件是規則觸發的結果，分類不代表事件之間有因果關係，也不是選股名單。數值的單位依事件類型而異，排序時請對照同一類型。</p>
+    {% else %}
+    <div class="empty-state">{{ sec_sec.reason or '本份報告沒有已驗證的個股異常事件。' }}</div>
+    {% endif %}
+  </section>
+  </div>
+
+  <div class="report-track" id="track-research" role="tabpanel" aria-labelledby="track-tab-research" data-report-track-panel="research">
+  <details class="report-chapter-nav-wrap" data-chapter-nav open>
+    <summary class="report-chapter-nav-summary"><span>章節索引</span><span class="report-chapter-current" data-chapter-current>投資決策摘要</span></summary>
+    <nav class="report-chapter-nav" aria-label="報告章節導覽">
+      <a href="#executive-summary">投資決策摘要</a>
+      <a href="#market-analysis">市場總體與風險</a>
+      <a href="#capital-flows">資金與籌碼流向</a>
+      <a href="#industry-analysis">產業輪動與排名</a>
+      <a href="#security-analysis">個股與 ETF 觀察</a>
+      <a href="#quantitative-research">量化回歸與模型</a>
+      <a href="#model-validation">模型驗證與回測</a>
+      <a href="#next-session">次日研究框架</a>
+      <a href="#data-governance">資料治理與方法論</a>
+      <a href="#ai-reference">AI 模型參考建議</a>
+    </nav>
+  </details>
   <!-- Section 2: Market & Risk -->
   <section class="panel report-section" id="market-analysis">
     <div class="section-heading">
@@ -284,7 +362,7 @@
       {% if exec_summary.strongest_industries or exec_summary.weakest_industries %}
         <div class="industry-highlight-grid">
           <div class="highlight-group strong-group">
-            <span class="group-title positive">🔥 強勢領先產業</span>
+            <span class="group-title positive">強勢領先產業</span>
             <div class="group-tags">
               {% for ind in exec_summary.strongest_industries %}
                 <span class="tag strong-tag">{{ ind }}</span>
@@ -294,7 +372,7 @@
             </div>
           </div>
           <div class="highlight-group weak-group">
-            <span class="group-title negative">❄️ 弱勢落後產業</span>
+            <span class="group-title negative">弱勢落後產業</span>
             <div class="group-tags">
               {% for ind in exec_summary.weakest_industries %}
                 <span class="tag weak-tag">{{ ind }}</span>
@@ -343,11 +421,11 @@
                 <td class="align-center">
                   {% if industry.relative_return_5d_pct is not none %}
                     {% if industry.relative_return_5d_pct >= 1.5 %}
-                      <span class="badge badge-success">強勢跑贏</span>
+                      <span class="badge badge-price-up">強勢跑贏</span>
                     {% elif industry.relative_return_5d_pct >= -0.5 %}
                       <span class="badge badge-neutral">貼近大盤</span>
                     {% else %}
-                      <span class="badge badge-danger">相對落後</span>
+                      <span class="badge badge-price-down">相對落後</span>
                     {% endif %}
                   {% else %}
                     <span class="badge badge-muted">資料不足</span>
@@ -732,6 +810,7 @@
       </p>
     </div>
   </section>
+  </div>
   <a class="report-to-top" href="#top-of-report">回到章節索引</a>
 </article>
 {% endblock %}

@@ -562,6 +562,201 @@ function initStockChart() {
   setChartRange(90);
 }
 
+// ORDER 5（§6.2）：一份報告三種讀法。
+// 三個分頁在 HTML 裡預設全部可見，這裡才收起兩個 —— JS 失效時退化成
+// 原本的線性長頁，不會把已發布的內容藏起來。
+// 章節錨點跨分頁時（例如索引指向 #quantitative-research，而使用者正在
+// 30 秒大局觀），先切到目標所在的分頁再捲過去，否則連結會靜靜失效。
+function initReportTracks() {
+  const tablist = bySelector("[data-report-tracks]");
+  if (!tablist) return;
+  const tabs = [...tablist.querySelectorAll("[data-report-track]")];
+  const panels = new Map(
+    [...document.querySelectorAll("[data-report-track-panel]")].map((panel) => [
+      panel.dataset.reportTrackPanel,
+      panel,
+    ])
+  );
+  if (!tabs.length || !panels.size) return;
+
+  const activate = (key, { focusTab = false } = {}) => {
+    if (!panels.has(key)) return;
+    tabs.forEach((tab) => {
+      const active = tab.dataset.reportTrack === key;
+      tab.setAttribute("aria-selected", String(active));
+      tab.classList.toggle("is-active", active);
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focusTab) tab.focus();
+    });
+    panels.forEach((panel, panelKey) => {
+      panel.hidden = panelKey !== key;
+    });
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => activate(tab.dataset.reportTrack));
+    tab.addEventListener("keydown", (event) => {
+      const index = tabs.indexOf(tab);
+      let next = null;
+      if (event.key === "ArrowRight") next = tabs[(index + 1) % tabs.length];
+      if (event.key === "ArrowLeft") next = tabs[(index - 1 + tabs.length) % tabs.length];
+      if (event.key === "Home") next = tabs[0];
+      if (event.key === "End") next = tabs[tabs.length - 1];
+      if (!next) return;
+      event.preventDefault();
+      activate(next.dataset.reportTrack, { focusTab: true });
+    });
+  });
+
+  const trackOf = (element) => {
+    const panel = element && element.closest("[data-report-track-panel]");
+    return panel ? panel.dataset.reportTrackPanel : null;
+  };
+
+  const revealHash = (hash) => {
+    if (!hash || hash.length < 2) return false;
+    let target = null;
+    try {
+      target = document.querySelector(hash);
+    } catch (_error) {
+      return false;
+    }
+    const key = trackOf(target);
+    if (!key) return false;
+    activate(key);
+    target.scrollIntoView();
+    return true;
+  };
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const hash = link.getAttribute("href");
+    if (hash === "#" || !revealHash(hash)) return;
+    event.preventDefault();
+    if (window.history.replaceState) window.history.replaceState(null, "", hash);
+  });
+  window.addEventListener("hashchange", () => revealHash(window.location.hash));
+
+  activate(tabs[0].dataset.reportTrack);
+  revealHash(window.location.hash);
+}
+
+// ORDER 5（§6.2）：異常個股資料表。純前端、零相依。
+// 搜尋與篩選只改 row.hidden，不重建 DOM —— 重建會丟掉使用者的捲動位置，
+// 而且在幾百列時比切換 hidden 慢得多。排序是穩定排序（同鍵維持原順序），
+// 否則反覆點同一個欄位時列的相對位置會亂跳。
+function initAnomalyTable() {
+  const table = bySelector("[data-anomaly-table]");
+  if (!table) return;
+  const body = table.tBodies[0];
+  const rows = [...body.rows];
+  const query = bySelector("[data-anomaly-query]");
+  const filter = bySelector("[data-anomaly-filter]");
+  const count = bySelector("[data-anomaly-count]");
+  const empty = bySelector("[data-anomaly-empty]");
+  const copy = bySelector("[data-anomaly-copy]");
+
+  const cellText = (row, index) => (row.cells[index]?.textContent || "").trim();
+  const keyOf = {
+    name: (row) => cellText(row, 0),
+    symbol: (row) => cellText(row, 1),
+    type: (row) => cellText(row, 2),
+    // 缺值回傳 null，不是 0 也不是 -Infinity。Number("") 是 0，
+    // 直接轉數字會讓「尚未驗證」排到 0 的位置，等於把缺值當成 0（F-7）。
+    value: (row) => {
+      const raw = row.dataset.value;
+      if (raw === undefined || raw.trim() === "") return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    },
+    severity: (row) => Number(row.dataset.severityRank || 0),
+    as_of: (row) => cellText(row, 6),
+  };
+
+  const apply = () => {
+    const needle = (query?.value || "").trim().toLowerCase();
+    const type = filter?.value || "";
+    let visible = 0;
+    rows.forEach((row) => {
+      const matchesType = !type || row.dataset.type === type;
+      const matchesText =
+        !needle || (row.textContent || "").toLowerCase().includes(needle);
+      const show = matchesType && matchesText;
+      row.hidden = !show;
+      if (show) visible += 1;
+    });
+    if (count) count.textContent = `${visible} 筆`;
+    if (empty) empty.hidden = visible !== 0;
+  };
+
+  let sortKey = null;
+  let ascending = true;
+  table.querySelectorAll("[data-anomaly-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.anomalySort;
+      ascending = key === sortKey ? !ascending : true;
+      sortKey = key;
+      const get = keyOf[key];
+      const decorated = rows.map((row, index) => ({ row, index }));
+      decorated.sort((a, b) => {
+        const left = get(a.row);
+        const right = get(b.row);
+        // 缺值永遠墊底，不隨升冪／降冪翻面 —— 缺值不是「最小」，是「沒有」，
+        // 把它排進數線上的某個位置就等於宣稱它有值。
+        if (left === null || right === null) {
+          if (left === right) return a.index - b.index;
+          return left === null ? 1 : -1;
+        }
+        let result;
+        if (typeof left === "number" && typeof right === "number") {
+          result = left - right;
+        } else {
+          result = String(left).localeCompare(String(right), "zh-Hant");
+        }
+        if (result === 0) return a.index - b.index; // 穩定排序
+        return ascending ? result : -result;
+      });
+      decorated.forEach(({ row }) => body.append(row));
+      table.querySelectorAll("[data-anomaly-sort]").forEach((other) => {
+        const active = other === button;
+        other.closest("th").setAttribute(
+          "aria-sort",
+          active ? (ascending ? "ascending" : "descending") : "none"
+        );
+        other.classList.toggle("is-sorted", active);
+      });
+    });
+  });
+
+  query?.addEventListener("input", apply);
+  filter?.addEventListener("change", apply);
+
+  copy?.addEventListener("click", async () => {
+    const header = [...table.tHead.rows[0].cells].map((cell) =>
+      cell.textContent.trim()
+    );
+    const lines = [header.join("\t")];
+    rows.forEach((row) => {
+      if (row.hidden) return;
+      lines.push([...row.cells].map((cell) => cell.textContent.trim()).join("\t"));
+    });
+    const text = lines.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = `已複製 ${lines.length - 1} 筆`;
+    } catch (_error) {
+      // 剪貼簿被拒（權限、非安全來源）時不能假裝成功
+      copy.textContent = "複製失敗，請手動選取表格";
+    }
+    window.setTimeout(() => {
+      copy.textContent = "複製為 TSV";
+    }, 2400);
+  });
+
+  apply();
+}
+
 // ORDER 5（A-7）：章節索引的「當前章節」標示。
 // 章節索引原本沒有任何位置回饋 —— 在一份十章、超過 700 行的報告裡捲動，
 // 讀者無從判斷自己在哪一章。用 IntersectionObserver 而非 scroll 事件，
@@ -742,5 +937,7 @@ initReturnCalculator();
 initConversations();
 initQuickAsk();
 initAskExamples();
+initReportTracks();
 initReportChapterNav();
+initAnomalyTable();
 initSidebar();

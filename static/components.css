@@ -2220,3 +2220,112 @@ span.value-unavailable {
   line-height:var(--lh-label);
   white-space:nowrap;
 }
+
+/* ORDER 5（§6.2）：報告三分頁。 */
+.report-track-tabs {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 18px;
+}
+.report-track-tab {
+  display:grid;
+  gap:2px;
+  min-height:44px;
+  padding:8px 16px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font:inherit;
+  font-size:var(--type-body);
+  font-weight:700;
+  line-height:var(--lh-body);
+  text-align:left;
+  cursor:pointer;
+}
+.report-track-hint {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:400;
+  line-height:var(--lh-label);
+}
+/* 選取狀態不只靠顏色：底線加深色文字 */
+.report-track-tab.is-active {
+  border-color:var(--absorb-blue);
+  color:var(--absorb-ink);
+  box-shadow:inset 0 -3px 0 var(--absorb-blue);
+}
+.report-track[hidden] { display:none; }
+/* 列印與匯出時三個分頁一律全開，不能把已發布內容藏起來 */
+@media print {
+  .report-track[hidden] { display:block !important; }
+  .report-track-tabs { display:none; }
+}
+
+/* 異常個股資料表 */
+.anomaly-controls {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:12px;
+  margin:0 0 16px;
+}
+.anomaly-search, .anomaly-filter { display:grid; gap:5px; min-width:0; }
+.anomaly-search { flex:1 1 260px; }
+.anomaly-controls label {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.anomaly-controls input, .anomaly-controls select {
+  min-width:0;
+  min-height:44px;
+  padding:9px 12px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
+  background:var(--absorb-surface);
+  color:var(--absorb-ink);
+  font:inherit;
+  font-size:var(--type-body);
+}
+.anomaly-count {
+  margin:0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.anomaly-data-table th button {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:0;
+  border:0;
+  background:none;
+  color:inherit;
+  font:inherit;
+  cursor:pointer;
+}
+.anomaly-data-table th button::after {
+  content:"↕";
+  color:var(--absorb-subtle);
+  font-size:var(--type-label);
+}
+.anomaly-data-table th[aria-sort="ascending"] button::after { content:"↑"; color:var(--absorb-ink); }
+.anomaly-data-table th[aria-sort="descending"] button::after { content:"↓"; color:var(--absorb-ink); }
+.anomaly-data-table td.num, .anomaly-data-table th.num { font-variant-numeric:tabular-nums; }
+.anomaly-data-table tr[hidden] { display:none; }
+.anomaly-empty {
+  margin:14px 0 0;
+  padding:12px 14px;
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+@media (max-width:700px) {
+  .report-track-tab { flex:1 1 100%; }
+  .anomaly-controls > .button { width:100%; }
+}

@@ -136,7 +136,8 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         """
         output = self._render()
 
-        self.assertEqual(output.count("<h2 id="), 10)
+        # ORDER 5（§6.2）：異常個股資料表自成一章，h2 因此是 11 個
+        self.assertEqual(output.count("<h2 id="), 11)
         for anchor in (
             "executive-summary-title",
             "quantitative-research-title",

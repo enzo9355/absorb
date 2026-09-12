@@ -1405,6 +1405,57 @@ class WebProductTests(unittest.TestCase):
                         unsigned.append((path, text[:40]))
         self.assertEqual(unsigned, [])
 
+    def test_order5_report_tracks_degrade_without_javascript(self):
+        """§6.2：三個分頁在 HTML 裡必須預設全部可見，由 JS 才收起兩個。
+
+        如果模板直接輸出 hidden，JS 失效（載入失敗、CSP 擋下、舊瀏覽器）
+        時就會有三分之二的已發布內容看不到。列印時同理必須全開。
+        """
+        template = (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "reports"
+            / "post_close_professional.html"
+        ).read_text(encoding="utf-8")
+        panels = re.findall(r"<div class=\"report-track\"[^>]*>", template)
+        self.assertEqual(len(panels), 3)
+        for panel in panels:
+            with self.subTest(panel=panel[:60]):
+                self.assertNotIn("hidden", panel)
+
+        css = css_bundle()
+        self.assertRegex(
+            css, r"@media print\s*\{[^}]*\.report-track\[hidden\]\s*\{[^}]*display:block"
+        )
+
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initReportTracks"):]
+        block = block[: block.index("\nfunction ")]
+        self.assertIn("panel.hidden = panelKey !== key", block)
+        # 跨分頁的錨點必須先切分頁再捲，否則章節索引會靜靜失效
+        self.assertIn("revealHash", block)
+        self.assertIn('window.addEventListener("hashchange"', block)
+
+    def test_order5_anomaly_table_never_sorts_missing_values_as_zero(self):
+        """F-7：缺值不是 0。
+
+        Number("") 是 0 —— 直接把 dataset 轉數字，「尚未驗證」會排到 0 的
+        位置，等於在排序結果裡宣稱它有值。缺值必須永遠墊底，而且不隨
+        升冪／降冪翻面：缺值不是「最小」，是「沒有」。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initAnomalyTable"):]
+        block = block[: block.index("\nfunction ") if "\nfunction " in block else len(block)]
+
+        self.assertNotIn("Number.NEGATIVE_INFINITY", block)
+        self.assertIn('if (raw === undefined || raw.trim() === "") return null;', block)
+        self.assertIn("return left === null ? 1 : -1;", block)
+        # 篩選只改 row.hidden，不重建 DOM（重建會丟掉捲動位置）
+        self.assertIn("row.hidden = !show;", block)
+        self.assertNotIn("innerHTML", block)
+        # 剪貼簿失敗時不得假裝成功
+        self.assertIn("複製失敗", block)
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 
@@ -2130,7 +2181,8 @@ class WebProductTests(unittest.TestCase):
         --absorb-danger / --absorb-success）除了 token 定義與 --price-*
         映射定義外，只允許出現在已逐條核對的非方向用途清單中；
         清單外任何規則即失敗（E-1 Blocker 3 覆核第二輪）。"""
-        css = css_bundle()
+        # 註解會黏在下一條選擇器前面，會讓「規則名稱」對不上白名單
+        css = re.sub(r"/\*.*?\*/", " ", css_bundle(), flags=re.S)
         source_tokens = (
             "--absorb-coral",
             "--absorb-sage",
@@ -2145,6 +2197,25 @@ class WebProductTests(unittest.TestCase):
             '.freshness-status[data-freshness-status="current"]',
             ".confidence-card strong",
         }
+        # ORDER 5（E-1）：ORDER 1 的白名單只認這四個 token，
+        # 報告層用的是 --absorb-green-ok / --absorb-red-strong，
+        # 所以「強勢跑贏」的綠與同一列 +4.31% 的紅並存了整整四個 ORDER。
+        # 把這兩個 token 一併納入來源色，缺口才補起來。
+        source_tokens = source_tokens + (
+            "--absorb-green-ok",
+            "--absorb-red-strong",
+        )
+        # 非方向用途才留在名單裡：模型 Gate 通過／失敗、規則式風險狀態。
+        # 這些不是漲跌，綠＝通過在這裡是對的。
+        allowed_rules |= {
+            ".market-state-badge.state-improving",
+            ".badge-success",
+            ".badge-danger",
+        }
+        # 名單裡不得有不存在的規則，否則只是把洞挖大
+        for rule_name in allowed_rules:
+            with self.subTest(allowed=rule_name):
+                self.assertIn(rule_name.split(">")[0].strip(), css)
         violations = []
         for rule in css.split("}"):
             if "{" not in rule:
