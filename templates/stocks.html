@@ -11,8 +11,15 @@
   <small>資料日 {{ item.as_of }}</small>
 </a>
 {%- endmacro %}
+{# ORDER 4（B-3）：0 件的類別不再各佔一張約 140px 的卡片。
+   七類全空時合計接近 1,000px 純空白，把真正有內容的部分推出畫面。
+   改為件數一律進摘要列，只有件數大於 0 才展開為區塊。
+   同時移除左側彩色邊條 —— 邊條 + 圓角卡不在既有元件詞彙內（§0.4）。 #}
 {% macro event_group(key, title, items) -%}
-<section class="event-group event-{{ key }}" data-event-group="{{ key }}"><div class="event-group-heading"><h3>{{ title }}</h3><span>{{ items|length }} 件</span></div><div class="top-picks">{% for item in items %}{{ event_card(item) }}{% else %}<div class="empty-state">目前沒有{{ title }}事件。</div>{% endfor %}</div></section>
+{% if items %}<section class="event-group" id="event-{{ key }}" data-event-group="{{ key }}" tabindex="-1"><div class="event-group-heading"><h3>{{ title }}</h3><span>{{ items|length }} 件</span></div><div class="top-picks">{% for item in items %}{{ event_card(item) }}{% endfor %}</div></section>{% endif %}
+{%- endmacro %}
+{% macro event_summary(entries) -%}
+<ul class="event-summary">{% for key, title, count in entries %}<li class="event-summary-item{{ '' if count else ' is-empty' }}">{% if count %}<a href="#event-{{ key }}"><span class="event-summary-label">{{ title }}</span><span class="event-summary-count">{{ count }} 件</span></a>{% else %}<span class="event-summary-label">{{ title }}</span><span class="event-summary-count">0 件</span>{% endif %}</li>{% endfor %}</ul>
 {%- endmacro %}
 {% set events = observation.stock_events or [] %}
 {% set groups = namespace(up=[], down=[], volume=[], institution=[], technical=[], data=[]) %}
@@ -35,13 +42,17 @@
   <section class="panel picks-panel" aria-labelledby="events-title">
     <div class="section-heading"><div><h2 id="events-title">個股異常事件</h2><p>漲跌、量能、法人、技術、官方狀態與資料警示分開呈現；分類不代表事件之間具有因果關係。</p></div></div>
     <p class="event-severity-rule">分級規則：價格異常與資料警示為「極端」；量能放大、技術與法人事件為「顯著」；量能收縮為「注意」。</p>
+    {% set summary_entries = [('up','異常上漲',groups.up|length),('down','異常下跌',groups.down|length),('volume','量能異常',groups.volume|length),('institution','法人動向',groups.institution|length),('technical','技術面',groups.technical|length),('official','官方事件',official|length),('data','資料警示',groups.data|length)] %}
+    {% set event_total = summary_entries|sum(attribute=2) %}
+    {{ event_summary(summary_entries) }}
+    {% if not event_total %}<div class="state-note"><strong>今天七類事件都沒有觸發。</strong><span>這代表沒有標的越過門檻，不是資料缺失；門檻與分級規則見上方說明。</span></div>{% endif %}
     <div class="event-groups" data-stock-events>
       {{ event_group('up', '異常上漲', groups.up) }}
       {{ event_group('down', '異常下跌', groups.down) }}
       {{ event_group('volume', '量能異常', groups.volume) }}
       {{ event_group('institution', '法人動向', groups.institution) }}
       {{ event_group('technical', '技術面', groups.technical) }}
-      <section class="event-group event-official" data-event-group="official"><div class="event-group-heading"><h3>官方事件</h3><span>{{ official|length }} 件</span></div><div class="top-picks">{% for item in official %}<a class="pick-card event-card severity-high" href="{{ url_for('stock_page', code=item.symbol) }}"><span>{{ item.name }} · {{ item.symbol }}</span><strong>{{ item.label }}</strong><div class="event-card-meta"><b>官方</b></div><small>驗證日 {{ item.observation_as_of }}</small></a>{% else %}<div class="empty-state">目前沒有官方事件。</div>{% endfor %}</div></section>
+      {% if official %}<section class="event-group" id="event-official" data-event-group="official" tabindex="-1"><div class="event-group-heading"><h3>官方事件</h3><span>{{ official|length }} 件</span></div><div class="top-picks">{% for item in official %}<a class="pick-card event-card severity-high" href="{{ url_for('stock_page', code=item.symbol) }}"><span>{{ item.name }} · {{ item.symbol }}</span><strong>{{ item.label }}</strong><div class="event-card-meta"><b>官方</b></div><small>驗證日 {{ item.observation_as_of }}</small></a>{% endfor %}</div></section>{% endif %}
       {{ event_group('data', '資料警示', groups.data) }}
     </div>
   </section>

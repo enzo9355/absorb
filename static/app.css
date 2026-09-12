@@ -3077,15 +3077,11 @@ progress::-moz-progress-bar {
   color:var(--absorb-muted);
   font-size:11px;
 }
-.event-up {
-  border-left:3px solid var(--price-up);
-}
-.event-down {
-  border-left:3px solid var(--price-down);
-}
-.event-other {
-  border-left:3px solid var(--absorb-blue);
-}
+/* ORDER 4（B-3）：七個事件類別原本各用一條左側彩色邊條 + 圓角卡。
+   邊條 + 圓角卡的組合不在既有元件詞彙內，而且七種顏色本身沒有可讀的
+   語意階層（讀者無法從顏色推出「紫色 = 法人」）。類別名稱已經寫在
+   標題上，邊條只是重複。方向仍由標題文字與卡內的 .positive/.negative
+   承擔，灰階下可辨識（M-5）。 */
 .breadth-chart {
   display:grid;
   grid-template-columns:94px minmax(0,1fr);
@@ -4250,21 +4246,6 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
     padding-bottom:80px;
   }
 }
-.event-volume {
-  border-left:3px solid var(--absorb-severity-medium);
-}
-.event-institution {
-  border-left:3px solid var(--absorb-purple);
-}
-.event-technical {
-  border-left:3px solid var(--absorb-blue);
-}
-.event-official {
-  border-left:3px solid var(--absorb-ink);
-}
-.event-data {
-  border-left:3px solid var(--absorb-rose-muted);
-}
 .event-severity-rule {
   margin:0 0 16px;
   color:var(--absorb-muted);
@@ -4745,6 +4726,59 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
   .update-stream, .research-command { padding-top:18px; }
   .update-list { margin-top:12px; }
 }
+
+/* ORDER 4（B-3）：事件類別摘要列。
+   件數一律在這裡看得到（0 件也是資訊：代表沒有標的越過門檻，不是資料缺失），
+   但只有件數大於 0 的類別才在下方展開為區塊。 */
+.event-summary {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 16px;
+  padding:0;
+  list-style:none;
+}
+.event-summary-item {
+  min-width:0;
+}
+.event-summary-item>a,
+.event-summary-item>.event-summary-label {
+  display:inline-flex;
+  align-items:baseline;
+  gap:7px;
+  padding:6px 12px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  text-decoration:none;
+  white-space:nowrap;
+}
+.event-summary-item>a:hover,
+.event-summary-item>a:focus-visible { border-color:var(--absorb-blue); }
+.event-summary-item.is-empty {
+  display:inline-flex;
+  align-items:baseline;
+  gap:7px;
+  padding:6px 12px;
+  border:1px solid var(--absorb-border-faint);
+  border-radius:var(--radius-pill);
+  background:transparent;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  white-space:nowrap;
+}
+.event-summary-item.is-empty>.event-summary-label { all:unset; }
+.event-summary-count {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  font-variant-numeric:tabular-nums;
+}
+.event-group:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
 
 .market-summary-page {
   max-width:1160px;

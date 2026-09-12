@@ -1046,10 +1046,20 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('data-market="US"', html)
         self.assertNotIn('data-dashboard-endpoint', html)
         self.assertNotIn("TAIEX", html)
-        self.assertIn("目前沒有異常上漲事件。", html)
-        self.assertIn("目前沒有異常下跌事件。", html)
-        for label in ("量能異常", "法人動向", "技術面", "官方", "資料警示"):
-            self.assertIn(f"目前沒有{label}事件。", html)
+        # ORDER 4（B-3）：0 件不再各佔一張卡片，改為摘要列裡的一個 0 件項目。
+        # 守的性質不變 —— 每一類的件數都必須說出來，不能靜靜消失 —— 而且
+        # 現在額外要求 0 件的類別不得展開為區塊（那正是 1,000px 空白的來源）。
+        self.assertIn('<ul class="event-summary">', html)
+        for label in ("異常上漲", "異常下跌", "量能異常", "法人動向", "技術面", "官方事件", "資料警示"):
+            with self.subTest(label=label):
+                self.assertIn(
+                    f'<span class="event-summary-label">{label}</span>'
+                    '<span class="event-summary-count">0 件</span>',
+                    html,
+                )
+        self.assertEqual(html.count('class="event-summary-item is-empty"'), 7)
+        self.assertNotIn('class="event-group"', html)
+        self.assertIn("今天七類事件都沒有觸發。", html)
         self.assertIn('action="/search"', html)
         self.assertIn('name="market" value="US"', html)
 
