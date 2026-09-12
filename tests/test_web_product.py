@@ -1548,6 +1548,18 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("MA20 與 MA60 是過去收盤價平均", html)
         self.assertIn('href="/learn#term-institution-flow"', html)
 
+    def test_order6_empty_state_spans_its_grid_container(self):
+        """D-1：空狀態文字逐字換行。
+
+        .empty-state 經常被放進 grid 容器（事件清單、卡片格、更新流）。
+        沒有 grid-column 時它會掉進第一個欄軌 —— 原本 .verified-focus li
+        的 30px 編號欄就把「今日焦點資料暫時無法取得。」渲染成每行一個字。
+        """
+        css = css_bundle()
+        rule = css[css.index(".empty-state {"):]
+        rule = rule[: rule.index("}")]
+        self.assertIn("grid-column:1 / -1", rule)
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 

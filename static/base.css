@@ -528,6 +528,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
     background:var(--absorb-navy-soft);
 }
 .empty-state {
+    /* ORDER 6（D-1）：空狀態經常被放進 grid 容器（事件清單、卡片格、
+       更新流）。沒有 grid-column 時它會掉進第一個欄軌 —— 原本
+       .verified-focus li 的 30px 編號欄就把「今日焦點資料暫時無法取得。」
+       渲染成每行一個字。grid-column 在非 grid 容器裡無作用，
+       放在基底規則上是安全的。 */
+    grid-column:1 / -1;
     padding:24px 8px;
     color:var(--muted);
     font-size:15px;
