@@ -18,6 +18,7 @@ import app as stock_app
 from reporting.observation_v2 import build_post_close_observation_metadata
 from reporting.publisher import publish_report_v2
 from reporting.web import ReportWebError, validate_report_index
+from stock_papi.services.report_view import _overnight_overlay
 from tests.test_observation_public_surfaces import observation_dashboard
 
 
@@ -403,6 +404,29 @@ class ReportWebTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("此歷史盤前報告沒有隔夜資料", html)
         self.assertIn("以下內容僅為前一交易日盤後摘要", html)
+
+    def test_current_insufficient_overlay_keeps_verified_source_context(self):
+        overlay = _overnight_overlay(
+            {
+                "status": "insufficient",
+                "message": "隔夜資料不足，維持盤後觀察",
+                "symbols": [],
+                "as_of": "2026-07-15T00:00:00Z",
+                "previous_as_of": None,
+                "required_as_of": "2026-07-14",
+                "observed_as_of": "2026-07-10",
+                "source_manifest": "quant/v1/manifests/US-20260710T010203Z-abcdef123456.json",
+                "source_manifest_sha256": "a" * 64,
+                "unavailable": [
+                    {"source": "verified_us_quant", "reason": "stale_manifest"}
+                ],
+            }
+        )
+
+        self.assertEqual(overlay["status"], "insufficient")
+        self.assertEqual(overlay["required_as_of"], "2026-07-14")
+        self.assertEqual(overlay["observed_as_of"], "2026-07-10")
+        self.assertEqual(overlay["symbols"], [])
 
     def test_v2_observation_report_is_the_only_formal_report_surface(self):
         temporary, objects, metadata = self._objects()

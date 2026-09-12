@@ -160,6 +160,50 @@ def _overnight_overlay(value: Any) -> dict[str, Any]:
             "source_manifest": None,
             "source_manifest_sha256": None,
         }
+    unavailable = value.get("unavailable")
+    observed_as_of = value.get("observed_as_of")
+    source_manifest = value.get("source_manifest")
+    source_manifest_sha256 = value.get("source_manifest_sha256")
+    if (
+        value.get("status") == "insufficient"
+        and value.get("message") == "隔夜資料不足，維持盤後觀察"
+        and isinstance(value.get("as_of"), str)
+        and value.get("previous_as_of") is None
+        and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", str(value.get("required_as_of") or ""))
+        and value.get("symbols") == []
+        and isinstance(unavailable, list)
+        and len(unavailable) == 1
+        and isinstance(unavailable[0], dict)
+        and unavailable[0].get("source") == "verified_us_quant"
+        and unavailable[0].get("reason") in {
+            "source_unavailable",
+            "invalid_manifest_identity",
+            "stale_manifest",
+            "incomplete_universe",
+            "invalid_rows",
+            "invalid_return",
+        }
+        and (
+            (
+                re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", str(observed_as_of or ""))
+                and isinstance(source_manifest, str)
+                and re.fullmatch(r"quant/v1/manifests/US-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}\.json", source_manifest)
+                and re.fullmatch(r"[0-9a-f]{64}", str(source_manifest_sha256 or ""))
+            )
+            or (observed_as_of is None and source_manifest is None and source_manifest_sha256 is None)
+        )
+    ):
+        return {
+            "status": "insufficient",
+            "message": value["message"],
+            "symbols": [],
+            "as_of": value["as_of"],
+            "previous_as_of": None,
+            "required_as_of": value["required_as_of"],
+            "observed_as_of": observed_as_of,
+            "source_manifest": source_manifest,
+            "source_manifest_sha256": source_manifest_sha256,
+        }
     symbols = value.get("symbols")
     if (
         value.get("status") not in {"risk_on", "risk_off", "neutral"}

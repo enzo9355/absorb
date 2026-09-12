@@ -127,18 +127,25 @@ class PreMarketQuantOverlayTests(unittest.TestCase):
         self.assertEqual([item["symbol"] for item in overlay["symbols"]], list(OVERNIGHT_SYMBOLS))
         self.assertEqual(len(published), 1)
 
-    def test_incomplete_universe_fails_closed_before_publish(self):
+    def test_incomplete_universe_publishes_insufficient_without_partial_signal(self):
         published = []
         with tempfile.TemporaryDirectory() as root:
-            with self.assertRaises(PreMarketPipelineError):
-                PreMarketPipeline(
-                    Path(root), applicable_trading_date=datetime.date(2026, 7, 15),
-                    load_base=base_receipt, source_loaders=[],
-                    us_source_loader=lambda: source(OVERNIGHT_SYMBOLS[:-1]),
-                    us_calendars=Calendar(),
-                    publish=lambda value: published.append(value), notify=lambda value: {},
-                ).run(now=datetime.datetime(2026, 7, 15, 0, tzinfo=UTC))
-        self.assertEqual(published, [])
+            result = PreMarketPipeline(
+                Path(root), applicable_trading_date=datetime.date(2026, 7, 15),
+                load_base=base_receipt, source_loaders=[],
+                us_source_loader=lambda: source(OVERNIGHT_SYMBOLS[:-1]),
+                us_calendars=Calendar(),
+                publish=lambda value: published.append(value) or {}, notify=lambda value: {},
+            ).run(now=datetime.datetime(2026, 7, 15, 0, tzinfo=UTC))
+
+        overlay = result["outputs"]["metadata"]["content"]["overnight_overlay"]
+        self.assertEqual(overlay["status"], "insufficient")
+        self.assertEqual(overlay["symbols"], [])
+        self.assertEqual(
+            overlay["unavailable"],
+            [{"source": "verified_us_quant", "reason": "incomplete_universe"}],
+        )
+        self.assertEqual(len(published), 1)
 
     def test_superset_source_with_extra_symbol_still_outputs_fixed_five(self):
         published = []
@@ -193,21 +200,31 @@ class PreMarketQuantOverlayTests(unittest.TestCase):
                 self.assertEqual(overlay["status"], "risk_on")
                 self.assertEqual(len(published), 1)
 
-    def test_stale_manifest_fails_closed_before_publish(self):
+    def test_stale_manifest_publishes_insufficient_without_using_stale_returns(self):
         published = []
         with tempfile.TemporaryDirectory() as root:
-            with self.assertRaises(PreMarketPipelineError):
-                PreMarketPipeline(
-                    Path(root), applicable_trading_date=datetime.date(2026, 7, 15),
-                    load_base=base_receipt, source_loaders=[],
-                    us_source_loader=lambda: source_for(
-                        datetime.date(2026, 7, 10), datetime.date(2026, 7, 9),
-                        {symbol: (100.0, 101.0) for symbol in OVERNIGHT_SYMBOLS},
-                    ),
-                    us_calendars=Calendar(),
-                    publish=lambda value: published.append(value), notify=lambda value: {},
-                ).run(now=datetime.datetime(2026, 7, 15, 0, tzinfo=UTC))
-        self.assertEqual(published, [])
+            result = PreMarketPipeline(
+                Path(root), applicable_trading_date=datetime.date(2026, 7, 15),
+                load_base=base_receipt, source_loaders=[],
+                us_source_loader=lambda: source_for(
+                    datetime.date(2026, 7, 10), datetime.date(2026, 7, 9),
+                    {symbol: (100.0, 101.0) for symbol in OVERNIGHT_SYMBOLS},
+                ),
+                us_calendars=Calendar(),
+                publish=lambda value: published.append(value) or {}, notify=lambda value: {},
+            ).run(now=datetime.datetime(2026, 7, 15, 0, tzinfo=UTC))
+
+        overlay = result["outputs"]["metadata"]["content"]["overnight_overlay"]
+        self.assertEqual(overlay["status"], "insufficient")
+        self.assertEqual(overlay["symbols"], [])
+        self.assertEqual(overlay["required_as_of"], "2026-07-14")
+        self.assertEqual(overlay["observed_as_of"], "2026-07-10")
+        self.assertEqual(
+            overlay["unavailable"],
+            [{"source": "verified_us_quant", "reason": "stale_manifest"}],
+        )
+        self.assertEqual(len(published), 1)
+        self.assertIn("未使用過期或不完整資料", published[0]["warnings"])
 
     def test_zero_return_is_unchanged_and_status_is_neutral(self):
         published = []

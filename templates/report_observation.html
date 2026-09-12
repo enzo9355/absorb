@@ -26,6 +26,9 @@
       <h2 id="overnight-detail-title">隔夜觀察</h2>
       {% if overnight.status == 'legacy_unavailable' %}
       <p>以下內容僅為前一交易日盤後摘要，不是盤前訊號。</p>
+      {% elif overnight.status == 'insufficient' %}
+      <p>未使用過期或不完整資料；以下維持前一交易日盤後摘要，不是盤前訊號。</p>
+      <p class="muted small">需要 {{ overnight.required_as_of }} 的美股資料{% if overnight.observed_as_of %}，目前驗證到 {{ overnight.observed_as_of }}{% endif %}。</p>
       {% else %}
       <p>{{ overnight.message }}｜觀察日 {{ overnight.as_of }}，前一有效交易日 {{ overnight.previous_as_of }}</p>
       <div class="report-meta">{% for item in overnight.symbols %}<div><dt>{{ item.symbol }}</dt><dd>{{ ('%+.2f%%' if item.direction in ('up', 'down') else '%.2f%%')|format(item.return_pct) }}（{{ '上漲' if item.direction == 'up' else '下跌' if item.direction == 'down' else '持平' }}）</dd></div>{% endfor %}</div>
