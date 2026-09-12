@@ -2097,6 +2097,11 @@ class WebProductTests(unittest.TestCase):
             "聯發科",
         ):
             self.assertIn(label, html)
+        # 這份清單是刻意的產品決定，不是疏漏：個股頁是散戶入口，
+        # 只呈現已驗證的實際市場資料，不承載模型績效框架。
+        # 委託人在 ORDER 7 重申：要深挖的人去報告裡找。
+        # 因此這一頁不得出現回測／勝率等績效字眼 —— 連「去哪裡找」的
+        # 指路文案也不行，那會把術語帶回散戶入口。
         for forbidden in (
             "五日上漲機率",
             "投資金額試算",
@@ -2105,6 +2110,9 @@ class WebProductTests(unittest.TestCase):
             "勝率",
         ):
             self.assertNotIn(forbidden, html)
+        # 但「去報告找」必須是一條真的走得到的路，不是叫讀者自己想辦法
+        self.assertIn("模型驗證資料在", html)
+        self.assertIn('href="/reports"', html)
         self.assertIn("data-watchlist-toggle", html)
         self.assertIn("data-chart-range", html)
         self.assertIn('aria-label="個股觀察導覽"', html)

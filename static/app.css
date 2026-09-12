@@ -5304,6 +5304,14 @@ span.value-unavailable {
   background:color-mix(in srgb, var(--absorb-info) 18%, transparent);
   border:1px solid var(--absorb-info);
 }
+/* 個股頁通往研究版的出口。模型績效不在這一頁（委託人裁示），
+   但「去報告找」必須是一條真的走得到的路，不是叫讀者自己想辦法。 */
+.forecast-research-link {
+  margin:14px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
 
 .market-summary-page {
   max-width:1160px;
