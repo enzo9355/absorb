@@ -1,0 +1,165 @@
+name: Deploy to production
+
+# main 有變動就自動上線到 Cloud Run。
+#
+# 這條 workflow 取代「在 Windows 上手動跑 deploy_observation_production.ps1」
+# 的日常路徑。它保留了那支腳本**能在 CI 重現的**閘門：
+#
+#   1. 測試要先綠（needs: tests），紅的不准部署
+#   2. 先建流量 0% 的候選 revision，不是直接蓋掉線上
+#   3. 驗候選 revision 的環境變數（research 模式、Observation 開啟、
+#      四個 prediction flags 全關、preview prefix 不得殘留）——
+#      等同 Assert-ObservationEnvironment
+#   4. 對候選 URL 做煙霧測試，含 /health/data 的資料新鮮度
+#   5. 通過才切 100% 流量
+#   6. 切完再驗一次，失敗自動把流量切回原本的 revision
+#
+# **它沒有重現的**：verify_cutover.ps1 對 D:\AbsorbData 的 LKG 收據綁定檢查。
+# 那需要本機資料根目錄，CI 碰不到。要那一層保證時，仍然走
+# scripts/deploy_observation_production.ps1 -ApplyTraffic。
+# 細節見 docs/release-web.md。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # 同時兩個部署會互相蓋掉流量設定，排隊而不是取消 ——
+  # 取消進行中的部署可能讓服務停在「候選已建、流量未切」的中間狀態。
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT: line-stock-bot-498908
+  CLOUD_RUN_SERVICE: line-stock-bot
+  CLOUD_RUN_REGION: asia-east1
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - run: ./scripts/check_ci.sh
+
+  deploy:
+    needs: tests
+    # secrets 不能用在 job 層的 if，所以用 repository variables 判斷。
+    # 沒設定憑證時整個 job 跳過（不是紅）—— 每次 push 都紅的 CI
+    # 只會訓練大家忽略 CI。
+    if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Record the revision currently serving traffic
+        id: previous
+        run: |
+          set -euo pipefail
+          gcloud run services describe "${CLOUD_RUN_SERVICE}" \
+            --project "${GCP_PROJECT}" --region "${CLOUD_RUN_REGION}" \
+            --format=json > service-before.json
+          PREVIOUS=$(python3 scripts/ci/cloud_run.py serving service-before.json)
+          echo "revision=${PREVIOUS}" >> "${GITHUB_OUTPUT}"
+          echo "目前服務流量的 revision：${PREVIOUS:-（無）}"
+
+      - name: Build a no-traffic candidate
+        id: candidate
+        run: |
+          set -euo pipefail
+          TAG="ci-${GITHUB_SHA:0:12}"
+          gcloud run deploy "${CLOUD_RUN_SERVICE}" \
+            --source . \
+            --project "${GCP_PROJECT}" \
+            --region "${CLOUD_RUN_REGION}" \
+            --no-traffic \
+            --tag "${TAG}" \
+            --labels "absorb-source-commit=${GITHUB_SHA}" \
+            --update-env-vars "ABSORB_PREDICTION_MODE=research,ABSORB_OBSERVATION_ENABLED=true,ABSORB_PREDICTION_PROBABILITY_ENABLED=false,ABSORB_PREDICTION_RANKING_ENABLED=false,ABSORB_PREDICTION_STRONG_ACTIONS_ENABLED=false,ABSORB_PREDICTION_PERFORMANCE_ENDORSEMENT_ENABLED=false,ABSORB_SOURCE_COMMIT=${GITHUB_SHA}" \
+            --remove-env-vars "ABSORB_PREVIEW_CANDIDATE_PREFIX,PREVIEW_CANDIDATE_PREFIX" \
+            --quiet
+          gcloud run services describe "${CLOUD_RUN_SERVICE}" \
+            --project "${GCP_PROJECT}" --region "${CLOUD_RUN_REGION}" \
+            --format=json > service-after.json
+          REVISION=$(python3 scripts/ci/cloud_run.py latest service-after.json)
+          URL=$(python3 scripts/ci/cloud_run.py tag-url service-after.json "${TAG}")
+          echo "revision=${REVISION}" >> "${GITHUB_OUTPUT}"
+          echo "url=${URL}" >> "${GITHUB_OUTPUT}"
+          echo "候選 revision：${REVISION}"
+          echo "候選網址：${URL}"
+
+      - name: Assert the observation environment on the candidate
+        # 等同 deploy_observation_production.ps1 的 Assert-ObservationEnvironment。
+        # 這一關擋的是「部署成功但旗標開錯」—— 那比部署失敗更難發現。
+        run: |
+          set -euo pipefail
+          gcloud run revisions describe "${{ steps.candidate.outputs.revision }}" \
+            --project "${GCP_PROJECT}" --region "${CLOUD_RUN_REGION}" \
+            --format=json > revision.json
+          python3 scripts/ci/cloud_run.py assert-env revision.json
+
+      - name: Smoke-test the candidate before it sees traffic
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/smoke.py "${{ steps.candidate.outputs.url }}"
+
+      - name: Send all traffic to the candidate
+        run: |
+          set -euo pipefail
+          gcloud run services update-traffic "${CLOUD_RUN_SERVICE}" \
+            --project "${GCP_PROJECT}" --region "${CLOUD_RUN_REGION}" \
+            --to-revisions="${{ steps.candidate.outputs.revision }}=100" \
+            --quiet
+
+      - name: Verify production, roll back if it is not healthy
+        run: |
+          set -euo pipefail
+          gcloud run services describe "${CLOUD_RUN_SERVICE}" \
+            --project "${GCP_PROJECT}" --region "${CLOUD_RUN_REGION}" \
+            --format=json > service-live.json
+          LIVE_URL=$(python3 scripts/ci/cloud_run.py service-url service-live.json)
+          if python3 scripts/ci/smoke.py "${LIVE_URL}"; then
+            echo "上線完成：${LIVE_URL}"
+            exit 0
+          fi
+          PREVIOUS="${{ steps.previous.outputs.revision }}"
+          if [ -z "${PREVIOUS}" ]; then
+            echo "::error::正式站煙霧測試失敗，而且沒有可回滾的前一個 revision"
+            exit 1
+          fi
+          echo "::error::正式站煙霧測試失敗，流量切回 ${PREVIOUS}"
+          gcloud run services update-traffic "${CLOUD_RUN_SERVICE}" \
+            --project "${GCP_PROJECT}" --region "${CLOUD_RUN_REGION}" \
+            --to-revisions="${PREVIOUS}=100" --quiet
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### 部署結果"
+            echo ""
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- 候選 revision: \`${{ steps.candidate.outputs.revision }}\`"
+            echo "- 前一個 revision: \`${{ steps.previous.outputs.revision }}\`"
+            echo ""
+            echo "這條路徑**沒有**做 verify_cutover.ps1 對本機 LKG 收據的綁定檢查。"
+            echo "需要那一層保證時走 scripts/deploy_observation_production.ps1 -ApplyTraffic。"
+          } >> "${GITHUB_STEP_SUMMARY}"
