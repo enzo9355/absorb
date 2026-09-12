@@ -1251,14 +1251,36 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("賣出", html)
 
     def test_dashboard_destinations_live_in_sidebar_navigation(self):
-        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
-        primary_nav = html.split('<nav class="sidebar-nav"', 1)[1].split("</nav>", 1)[0]
+        """ORDER 4（A-4）：主導覽收為五個核心入口，ASK ABSORB 與學習降為輔助。
 
-        self.assertIn('href="/ask"', primary_nav)
-        self.assertIn('<span class="nav-label">ASK ABSORB</span>', primary_nav)
-        self.assertIn('href="/learn"', primary_nav)
-        self.assertIn('<span class="nav-label">學習</span>', primary_nav)
+        §17 本來就寫「保留五個核心入口」，但側欄放了七項且無分組。
+        兩個輔助入口仍在側欄內、仍可直達，只是不與每日決策路徑競爭。
+        """
+        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
+        primary_nav = html.split('<nav class="sidebar-nav" aria-label="主要功能"', 1)[1].split("</nav>", 1)[0]
+        aux_nav = html.split('<nav class="sidebar-nav sidebar-aux"', 1)[1].split("</nav>", 1)[0]
+
+        self.assertEqual(primary_nav.count('class="nav-link'), 5)
+        for label in ("今天市場", "市場實況", "產業觀察", "個股與 ETF", "每日報告"):
+            self.assertIn(f'<span class="nav-label">{label}</span>', primary_nav)
+        self.assertNotIn('href="/ask"', primary_nav)
+        self.assertNotIn('href="/learn"', primary_nav)
+
+        self.assertIn('href="/ask"', aux_nav)
+        self.assertIn('href="/learn"', aux_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
+
+    def test_market_switch_sits_above_the_navigation_it_governs(self):
+        """ORDER 4（A-4）：市場切換器決定側欄所有項目的內容，必須在它們之上。"""
+        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
+        sidebar = html.split('<aside class="dashboard-sidebar"', 1)[1].split("</aside>", 1)[0]
+        self.assertIn("data-market-switch", sidebar)
+        self.assertLess(
+            sidebar.index("data-market-switch"),
+            sidebar.index('<nav class="sidebar-nav" aria-label="主要功能"'),
+        )
+        topbar = html.split('<div class="topbar"', 1)[1].split("</div>", 1)[0]
+        self.assertNotIn("data-market-switch", topbar)
 
     @patch.object(stock_app, "_published_dashboard_snapshot")
     def test_industries_merge_strength_and_attention_companies(self, load_snapshot):

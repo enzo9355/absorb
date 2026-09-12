@@ -16,7 +16,7 @@ body {
   margin:0 auto;
   padding:0 28px;
   display:grid;
-  grid-template-columns:156px minmax(0,1fr) auto auto;
+  grid-template-columns:156px minmax(0,1fr) auto;
   align-items:center;
   gap:28px;
 }
@@ -313,3 +313,56 @@ progress::-moz-progress-bar {
   background:var(--absorb-blue);
   border-radius:999px;
 }
+
+/* ==========================================================================
+   ORDER 4：五個核心入口與市場語境（A-4）
+   市場切換器原本在頂欄另一角，但它決定側欄所有項目的內容，兩者的從屬關係
+   沒有被表達。移到側欄最上方後，「先選市場、再選看什麼」的順序成為版面本身。
+   ========================================================================== */
+.dashboard-sidebar .market-switch {
+  width:100%;
+  margin-bottom:18px;
+}
+.sidebar-title-aux {
+  margin-top:22px;
+  padding-top:16px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.sidebar-aux .nav-link { color:var(--absorb-subtle); }
+.sidebar-aux .nav-link.active { color:var(--absorb-ink); }
+
+@media (max-width:900px) {
+  /* 行動版側欄是水平捲動的，市場切換器必須釘在最左側不隨之捲走 —— 
+     使用者要能隨時看到自己在看哪個市場。 */
+  .dashboard-sidebar .market-switch {
+    position:sticky;
+    left:0;
+    z-index:1;
+    width:auto;
+    margin:0 10px 0 0;
+    flex:0 0 auto;
+    box-shadow:6px 0 10px -6px rgb(24 49 71 / 18%);
+  }
+  .sidebar-title-aux { display:none; }
+  .sidebar-aux {
+    margin-left:6px;
+    padding-left:10px;
+    border-left:1px solid var(--absorb-hairline);
+  }
+}
+
+/* ORDER 4（第 12 節）：五個核心入口在行動版必須固定可見，不依賴橫向捲動。
+   完整名稱在 390px 放不下五項，改用兩字縮寫 —— 單字縮寫難以辨識，兩字剛好。 */
+@media (max-width:560px) {
+  .sidebar-nav .nav-short { display:block !important; }
+  .sidebar-nav .nav-label { display:none !important; }
+  .sidebar-nav .nav-link { padding:0 10px; }
+  .nav-short { width:auto; }
+}
+/* 輔助入口在行動版改由頁尾進入，不與每日決策路徑競爭導覽空間 */
+@media (max-width:900px) {
+  .sidebar-aux { display:none; }
+}
+.footer-links { display:flex; gap:16px; }
+.footer-links a { color:var(--absorb-muted); text-decoration:none; }
+.footer-links a:hover { color:var(--absorb-ink); }
