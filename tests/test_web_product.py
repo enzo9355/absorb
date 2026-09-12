@@ -1560,6 +1560,36 @@ class WebProductTests(unittest.TestCase):
         rule = rule[: rule.index("}")]
         self.assertIn("grid-column:1 / -1", rule)
 
+    def test_order6_design_doc_glossary_matches_the_live_term_tags(self):
+        """§30：術語對照表是唯一事實來源，就必須跟畫面一致。
+
+        DESIGN.md 寫了一套、模板連另一套，是本次改版最根本的診斷（C-1）
+        「既有設計規範沒有被遵守」的同一種病。
+        """
+        design = (Path(__file__).resolve().parents[1] / "DESIGN.md").read_text(
+            encoding="utf-8"
+        )
+        table = design[design.index("## 30. 術語對照表"):]
+        documented = set(re.findall(r"`#(term-[a-z-]+)`", table))
+        self.assertTrue(documented, "對照表沒有任何錨點")
+
+        client = stock_app.app.test_client()
+        used = set()
+        for path in ("/", "/market", "/industries", "/stocks", "/stock/2330"):
+            used |= set(
+                re.findall(
+                    r'class="term-tag" href="/learn#(term-[a-z-]+)"',
+                    client.get(path).get_data(as_text=True),
+                )
+            )
+        self.assertTrue(used, "畫面上沒有任何術語標籤")
+        self.assertEqual(used - documented, set(), "有術語標籤沒有寫進對照表")
+
+        learn = client.get("/learn").get_data(as_text=True)
+        for anchor_id in documented:
+            with self.subTest(anchor=anchor_id):
+                self.assertIn(f'id="{anchor_id}"', learn)
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 
