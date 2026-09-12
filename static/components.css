@@ -270,20 +270,24 @@
   margin:0;
   font-weight:750;
 }
+/* 卡片數量會變（有誤差區間時是 5 張，沒有時是 4 張），而且窄螢幕會換行。
+   原本用「1px gap + 底色」做分隔線，那招只在每一列都填滿時成立 ——
+   換行後空掉的格子會露出一塊分隔線底色。改為每張卡自己有邊框，
+   空格子就什麼都不顯示。 */
 .stock-forecast-strip {
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:1px;
+  grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+  gap:10px;
   margin:16px 0 4px;
-  border:1px solid var(--absorb-hairline);
-  background:var(--absorb-hairline);
 }
 .stock-forecast-strip article {
   display:grid;
   align-content:center;
   gap:5px;
   min-height:86px;
-  padding:13px;
+  padding:13px 15px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
   background:var(--absorb-surface);
 }
 .stock-forecast-strip span,.stock-forecast-strip small {
@@ -2533,4 +2537,10 @@ span.value-unavailable {
   font-size:var(--type-label);
   font-weight:700;
   line-height:var(--lh-label);
+}
+/* ORDER 7（§7-2）：五日預測誤差區間的圖例色塊。
+   與預測線同色系但更淡 —— 它是同一個估計的兩種表達，不是另一種資訊。 */
+.legend-band {
+  background:color-mix(in srgb, var(--absorb-info) 18%, transparent);
+  border:1px solid var(--absorb-info);
 }

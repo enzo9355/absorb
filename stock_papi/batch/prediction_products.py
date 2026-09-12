@@ -73,6 +73,30 @@ def _validate_entity(market, symbol, value, as_of):
         or not math.isclose(change_pct, predicted_return * 100, rel_tol=1e-9)
     ):
         raise ValueError("prediction entity is invalid")
+    interval = value.get("prediction_interval")
+    if interval is not None:
+        if not isinstance(interval, dict):
+            raise ValueError("prediction interval is invalid")
+        coverage = _number(interval.get("coverage_pct"), "interval coverage_pct")
+        price_low = _number(interval.get("price_low"), "interval price_low")
+        price_high = _number(interval.get("price_high"), "interval price_high")
+        return_low = _number(interval.get("return_low_pct"), "interval return_low_pct")
+        return_high = _number(interval.get("return_high_pct"), "interval return_high_pct")
+        samples = interval.get("sample_count")
+        if (
+            price_low <= 0
+            or price_high < price_low
+            or return_high < return_low
+            or not 0 < coverage < 100
+            or not isinstance(samples, int)
+            or isinstance(samples, bool)
+            or samples < 1
+            # 區間必須真的包住點預測，否則它描述的不是這一次的預測
+            or not price_low <= predicted_price <= price_high
+            or not math.isclose(price_low, current * (1 + return_low / 100), rel_tol=1e-9)
+            or not math.isclose(price_high, current * (1 + return_high / 100), rel_tol=1e-9)
+        ):
+            raise ValueError("prediction interval is invalid")
     if expected_type == "market_index":
         candles = value.get("candles")
         if not isinstance(candles, list) or len(candles) < 2:
@@ -144,6 +168,49 @@ def validate_prediction_product(document):
     return document
 
 
+def _residual_interval(snapshot, current, predicted_return):
+    """把快照裡的樣本外殘差分位數換算成這一次預測的價格區間。
+
+    區間是「過去樣本外誤差的中間 N%」套在點預測上，不是機率保證 ——
+    呈現層的文案必須照這個意思寫。
+    """
+    backtest = snapshot.get("backtest")
+    metrics = backtest.get("price_metrics") if isinstance(backtest, dict) else None
+    source = metrics.get("residual_interval") if isinstance(metrics, dict) else None
+    if not isinstance(source, dict):
+        return None
+    try:
+        offset_low = _number(source.get("return_offset_low"), "interval offset_low")
+        offset_high = _number(source.get("return_offset_high"), "interval offset_high")
+        coverage = _number(source.get("coverage_pct"), "interval coverage_pct")
+        samples = source.get("sample_count")
+    except ValueError:
+        return None
+    if (
+        offset_high < offset_low
+        or not 0 < coverage < 100
+        or not isinstance(samples, int)
+        or isinstance(samples, bool)
+        or samples < 1
+    ):
+        raise ValueError("prediction interval is invalid")
+    return_low = predicted_return + offset_low
+    return_high = predicted_return + offset_high
+    price_low = current * (1 + return_low)
+    price_high = current * (1 + return_high)
+    if price_low <= 0 or price_high <= 0:
+        # 區間下緣跌破零價格代表殘差分布已經失真，不給區間
+        return None
+    return {
+        "coverage_pct": coverage,
+        "sample_count": samples,
+        "return_low_pct": return_low * 100,
+        "return_high_pct": return_high * 100,
+        "price_low": price_low,
+        "price_high": price_high,
+    }
+
+
 def _build_entities(
     market, quant_manifest, snapshots, *, model_version, feature_schema, next_session
 ):
@@ -187,6 +254,12 @@ def _build_entities(
             "predicted_price": predicted_price,
             "predicted_change_pct": predicted_return * 100,
         }
+        # 五日預測區間（選用）。來源是該檔快照的樣本外殘差分位數。
+        # 舊快照沒有這個欄位 —— 那就不給區間，畫面照常運作。
+        # 有給就必須自洽，否則整份產物不通過：一個算錯的區間比沒有區間更糟。
+        interval = _residual_interval(snapshot, current, predicted_return)
+        if interval is not None:
+            entities[symbol]["prediction_interval"] = interval
         if symbol in INDEX_SYMBOLS[market]:
             if any(not isinstance(row, dict) for row in rows[-90:]):
                 raise ValueError("prediction index candles are invalid")

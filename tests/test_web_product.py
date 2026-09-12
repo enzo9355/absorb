@@ -1617,6 +1617,57 @@ class WebProductTests(unittest.TestCase):
                     offenders.append((name, term, text[start:match.end() + 20].strip()[-70:]))
         self.assertEqual(offenders, [])
 
+    def test_order7_prediction_band_is_never_called_a_confidence_interval(self):
+        """§7-2：帶是「過去樣本外誤差的中間 N%」，不是信賴區間。
+
+        模型沒有輸出校準過的機率分布。把它寫成信賴區間等於宣稱一個沒有被
+        驗證過的東西 —— 這是本次改版一路在防的同一件事。
+        """
+        root = Path(__file__).resolve().parents[1]
+        for name in ("templates/stock_detail.html", "templates/dashboard.html"):
+            raw = (root / name).read_text(encoding="utf-8")
+            # 先去掉標籤與 Jinja，否則「不是</strong>信賴區間」這種
+            # 橫跨標籤的否定句會被誤判成肯定句
+            text = re.sub(r"<[^>]+>|\{[%{#].*?[%}#]\}", "", raw, flags=re.S)
+            with self.subTest(template=name):
+                self.assertNotIn("置信區間", text)
+                self.assertNotIn("95% 機率", text)
+                # 這兩個詞只有在否定句裡才允許
+                self.assertEqual(
+                    re.findall(r"(?<!不是)信賴區間", text), [],
+                    f"{name} 把這個帶稱作信賴區間",
+                )
+                self.assertEqual(
+                    re.findall(r"(?<!不)保證", text), [],
+                    f"{name} 出現了肯定的保證",
+                )
+
+        stock = (root / "templates/stock_detail.html").read_text(encoding="utf-8")
+        # 必須說出它實際是什麼，以及它不是什麼
+        self.assertIn("模型誤差的中間", stock)
+        self.assertIn("不是</strong>信賴區間", stock)
+        self.assertIn("不保證這次會落在裡面", stock)
+
+    def test_order7_band_is_drawn_beneath_the_candles(self):
+        """遮罩層若在 K 線之後建立，會把最後一根 K 棒的下緣蓋掉。
+
+        Lightweight Charts 依建立順序繪製，所以帶必須先畫。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function createPriceChart"):]
+        block = block[: block.index("\nfunction ")]
+
+        band_at = block.index("addAreaSeries")
+        candle_at = block.index("addCandlestickSeries")
+        self.assertLess(band_at, candle_at)
+
+        # 帶用平色，不得有漸層或光暈（§0.4）
+        band_block = block[band_at - 600 : candle_at]
+        self.assertNotIn("gradient", band_block.lower())
+        self.assertNotIn("shadow", band_block.lower())
+        # 上下緣同色才是平色；不同色就是漸層
+        self.assertEqual(band_block.count("topColor"), band_block.count("bottomColor"))
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 
