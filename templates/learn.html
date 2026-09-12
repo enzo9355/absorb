@@ -1,9 +1,63 @@
 {% extends "base.html" %}
-{% block title %}市場觀察小辭典｜ABSORB{% endblock %}
+{% block title %}看懂這些指標｜ABSORB{% endblock %}
 {% block content %}
-<div class="page">
-  <header class="page-header"><div><p class="eyebrow">LEARN</p><h1>市場觀察小辭典</h1><p class="page-intro">理解 ABSORB 頁面中的實際市場指標與限制。</p></div></header>
-  <section class="panel learn-panel" aria-labelledby="terms-title"><h2 id="terms-title">常用指標</h2><div class="learn-grid"><article id="term-relative-return" tabindex="-1"><strong>相對大盤報酬</strong><p>產業報酬扣除同期大盤報酬，用來描述已發生的相對強弱，不代表未來方向。</p></article><article id="term-breadth" tabindex="-1"><strong>市場廣度</strong><p>上漲家數或站上均線的比例，用來觀察漲勢是否由多數股票共同參與。</p></article><article id="term-volume-ratio" tabindex="-1"><strong>量比</strong><p>當日成交量相對近期常態的比例；明顯放大只代表交易活躍，不等同利多。</p></article><article id="term-realized-vol" tabindex="-1"><strong>已實現波動</strong><p>依歷史價格變動計算的波動程度，只描述已發生風險。</p></article></div></section>
-  <section class="panel risk-panel" aria-labelledby="limits-title"><h2 id="limits-title">方法限制</h2><p>資料可能因來源揭露時差、休市或缺漏而延遲。所有事件、排序與摘要都不是買賣指令；AI 預測仍在研究中。</p></section>
+{# ORDER 5（§2.4）：學習頁從辭典改為解釋層。
+   辭典只回答「這是什麼」，讀者真正卡住的是「該怎麼讀」「容易誤會什麼」
+   「我在哪一頁看到它」。每個詞條固定四欄，主版面的術語標籤與研究版的
+   指標名稱都連到這裡對應的錨點。不建立額外的教學系統。 #}
+{% macro term(anchor, name, alias, definition, reading, misread, where) -%}
+<article class="learn-term" id="{{ anchor }}" tabindex="-1">
+  <header class="learn-term-head"><h3>{{ name }}</h3>{% if alias %}<span class="learn-term-alias">{{ alias }}</span>{% endif %}</header>
+  <dl class="learn-term-grid">
+    <div><dt>白話定義</dt><dd>{{ definition }}</dd></div>
+    <div><dt>如何閱讀</dt><dd>{{ reading }}</dd></div>
+    <div><dt>常見誤解</dt><dd>{{ misread }}</dd></div>
+    <div><dt>在 ABSORB 哪裡出現</dt><dd>{{ where }}</dd></div>
+  </dl>
+</article>
+{%- endmacro %}
+<div class="page learn-page">
+  <header class="page-header"><div><p class="eyebrow">LEARN</p><h1>看懂這些指標</h1><p class="page-intro">主版面用白話，研究版用術語。這一頁把兩邊對起來：每個指標固定回答四件事 —— 它是什麼、該怎麼讀、容易誤會什麼、你會在哪一頁看到它。</p></div></header>
+
+  <section class="panel learn-panel" aria-labelledby="terms-title">
+    <div class="section-heading"><div><h2 id="terms-title">常用指標</h2><p>市場觀察小辭典</p></div><a href="{{ url_for('reports_page') }}">在報告裡看這些指標</a></div>
+    <div class="learn-term-list">
+      {{ term('term-breadth', '市場廣度', 'MA20 breadth',
+        '多少比例的股票在往同一個方向走。ABSORB 用兩種算法：上漲家數的占比，以及站上近一個月平均價（MA20）的占比。',
+        '看的是「參與的家數多不多」，不是「漲得多不多」。60% 與 40% 的差別在於漲勢是分散的還是集中在少數股票。',
+        '廣度高不等於漲幅大，也不保證會延續。它描述的是已經收盤的那一天，不預告明天。',
+        '今天怎麼了的指標格、市場實況的市場廣度、盤後觀察報告的市場總體章節。') }}
+      {{ term('term-volume-ratio', '量比', 'volume ratio',
+        '當天成交量相對於近期常態成交量的倍數。1.0 代表跟平常差不多，2.0 代表是平常的兩倍。',
+        '先看倍數，再回頭看價格。量放大但價格沒動，跟量放大且價格大漲，是兩件不同的事。',
+        '量大不等於利多。買賣是成對的，成交量放大只說明「交易的人變多」，沒有說明是誰在買、誰在賣。',
+        '今天怎麼了的指標格、個股異常事件的「量能異常」、異常個股資料表的數值欄。') }}
+      {{ term('term-realized-vol', '已實現波動', '20D 波動 · 20D realized volatility',
+        '用最近 20 個交易日的實際價格變動算出來的波動程度，年化後以百分比表示。',
+        '拿它跟同一個標的自己的過去比，不要跨市場比。數字變大代表最近的價格擺動比之前劇烈。',
+        '它是回頭看的，不是預測。「已實現」三個字就是重點 —— 它描述已經發生的擺動幅度，不是接下來的風險評分。',
+        '今天怎麼了的指標格、市場實況的市場廣度區塊、盤後觀察報告的市場總體章節。') }}
+      {{ term('term-risk-state', '風險狀態', 'risk state',
+        '一組規則式的檢查結果，把當天的波動、極端值與資料品質綜合成「一般／謹慎／升高」三種標示。',
+        '當成「今天要不要多看一眼」的提示，不是強度分數。狀態改變時，先去看是哪一項指標推動的。',
+        '它不是停損建議，也不是市場方向判斷。「升高」不代表會跌，只代表同一則觀察在不同標的上的落差會比平常大。',
+        '今天怎麼了的指標格與「要留意什麼」、盤後觀察報告的規則式風險狀態標籤。') }}
+      {{ term('term-relative-return', '相對大盤報酬', 'relative return',
+        '產業或個股在一段期間的報酬，扣掉同期大盤報酬之後的差額。ABSORB 主要用 5 日。',
+        '正數代表跑贏大盤，負數代表落後。重點是「相對」—— 大盤跌 5%、某產業跌 2%，相對報酬仍是正的。',
+        '相對強不等於絕對賺錢，也不代表該產業的每一檔成分股都一樣強。它是產業層級的平均描述。',
+        '產業觀察的分組與排名、今天怎麼了的產業相對強度、盤後觀察報告的產業輪動章節。') }}
+      {{ term('term-institution-flow', '法人淨流', 'institution net flow',
+        '三大法人（外資、投信、自營商）當天買進金額減去賣出金額，再除以成交金額得到的比例。',
+        '看方向與持續性，不要只看單日數字。連續數日同向的意義大於單日的絕對值大小。',
+        '法人買不等於一定會漲。法人有避險、套利、被動追蹤指數等多種動機，買賣超只是結果，不是意圖。',
+        '今天怎麼了的波動與風險區塊、個股異常事件的「法人動向」、盤後觀察報告的資金與籌碼流向章節。') }}
+    </div>
+  </section>
+
+  <section class="panel risk-panel" aria-labelledby="limits-title">
+    <h2 id="limits-title">方法限制</h2>
+    <p>資料可能因來源揭露時差、休市或缺漏而延遲，缺值一律維持缺值，不以推估值或 0 補位。所有事件、排序與摘要都只描述已經發生的市場資料，不是買賣指令；AI 五日情境為模型推估，仍在研究中，提供機率與價格估計，不構成投資建議。</p>
+  </section>
 </div>
 {% endblock %}

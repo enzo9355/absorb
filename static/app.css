@@ -5192,6 +5192,65 @@ span.value-unavailable {
 .report-doors .button { justify-content:center; }
 .report-doors .is-primary-door { font-weight:800; }
 
+/* ORDER 5（§2.4）：學習頁解釋層。每個詞條固定四欄 —— 辭典只回答
+   「這是什麼」，讀者真正卡住的是「該怎麼讀」「容易誤會什麼」
+   「我在哪一頁看到它」。 */
+.learn-term-list {
+  display:grid;
+  gap:14px;
+  margin-top:18px;
+}
+.learn-term {
+  padding:18px 20px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.learn-term-head {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:6px 10px;
+  margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.learn-term-head h3 {
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.learn-term-alias {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+}
+.learn-term-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px 24px;
+  margin:0;
+}
+.learn-term-grid div { min-width:0; }
+.learn-term-grid dt {
+  margin-bottom:3px;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+}
+.learn-term-grid dd {
+  margin:0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.learn-term:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
+@media (max-width:760px) {
+  .learn-term-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
+}
+
 .market-summary-page {
   max-width:1160px;
 }

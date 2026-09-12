@@ -1456,6 +1456,60 @@ class WebProductTests(unittest.TestCase):
         # 剪貼簿失敗時不得假裝成功
         self.assertIn("複製失敗", block)
 
+    def test_order5_every_term_tag_resolves_to_a_matching_learn_entry(self):
+        """§2.4／§12.1 第 05 項：每個術語標籤必須連到「它自己」的條目。
+
+        ORDER 4 加術語標籤時，「風險狀態」指到已實現波動、「法人淨流」指到
+        相對大盤報酬 —— 錨點都存在，頁面也不會壞，所以沒有任何測試會紅，
+        但點下去看到的是另一個指標的解釋。這裡除了檢查錨點存在，
+        還要求標籤文字與該條目的標題或別名對得上。
+        """
+        client = stock_app.app.test_client()
+        learn = client.get("/learn").get_data(as_text=True)
+
+        entries = {}
+        for match in re.finditer(
+            r'<article class="learn-term" id="([a-z-]+)"[^>]*>(.*?)</article>',
+            learn,
+            re.S,
+        ):
+            entries[match.group(1)] = re.sub(r"<[^>]+>", " ", match.group(2))
+        self.assertTrue(entries, "學習頁沒有任何詞條")
+
+        tags = []
+        for path in ("/", "/market", "/industries", "/stocks"):
+            html = client.get(path).get_data(as_text=True)
+            tags += re.findall(
+                r'<a class="term-tag" href="/learn#([a-z-]+)">([^<]+)</a>', html
+            )
+        self.assertTrue(tags, "主版面沒有任何術語標籤")
+
+        for target, label in tags:
+            with self.subTest(label=label):
+                self.assertIn(target, entries, f"{label} 指向不存在的條目 {target}")
+                body = entries[target]
+                # 標籤文字必須出現在該條目裡（標題、別名或說明），
+                # 否則就是連到另一個指標的解釋
+                self.assertIn(label.replace(" ", ""), body.replace(" ", ""))
+
+    def test_order5_learn_page_answers_four_questions_per_term(self):
+        """§2.4：辭典只回答「這是什麼」，四欄才回答得完讀者真正卡住的地方。"""
+        learn = stock_app.app.test_client().get("/learn").get_data(as_text=True)
+
+        for column in ("白話定義", "如何閱讀", "常見誤解", "在 ABSORB 哪裡出現"):
+            with self.subTest(column=column):
+                # 每個詞條都要有這四欄
+                self.assertEqual(
+                    learn.count(f"<dt>{column}</dt>"), learn.count('class="learn-term"')
+                )
+
+        # D-5：方法限制是全站合規上最重要的一段，不得用最小字級
+        css = css_bundle()
+        rule = css[css.index(".risk-panel>p"):]
+        rule = rule[: rule.index("}")]
+        self.assertIn("font-size:15px", rule)
+        self.assertNotIn("font-size:11px", rule)
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 
