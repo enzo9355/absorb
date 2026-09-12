@@ -1593,6 +1593,30 @@ class WebProductTests(unittest.TestCase):
             with self.subTest(anchor=anchor_id):
                 self.assertIn(f'id="{anchor_id}"', learn)
 
+    def test_order6_main_surface_terms_always_carry_a_plain_language_title(self):
+        """§12.2 第 8 項：主版面不得出現未配對白話標題的術語字串。
+
+        A-6 的原始診斷是「主版面是散戶入口卻直接用研究者術語」。術語不刪除，
+        降級為標籤並連到學習頁 —— 但那只有在術語**只**出現在標籤裡才成立。
+        術語若同時以主標題出現，白話化就被抵銷了。
+
+        兩個合法位置：`.term-tag` 標籤，或預設收合的「資料品質與限制 /
+        進階數據」區塊（§5.5 明文允許在那裡用原始欄位名稱）。
+        """
+        root = Path(__file__).resolve().parents[1] / "templates"
+        terms = ("MA20", "MA60", "已實現波動", "淨流中位", "量比", "RSI", "Brier")
+        offenders = []
+        for name in ("dashboard.html", "market.html", "industries.html", "stocks.html"):
+            text = (root / name).read_text(encoding="utf-8")
+            text = re.sub(r"\{#.*?#\}", "", text, flags=re.S)          # Jinja 註解
+            text = re.sub(r'<a class="term-tag".*?</a>', "", text, re.S)  # 合法：術語標籤
+            text = re.sub(r"<details class=\"data-limits\">.*?</details>", "", text, flags=re.S)
+            for term in terms:
+                for match in re.finditer(re.escape(term), text):
+                    start = max(0, match.start() - 60)
+                    offenders.append((name, term, text[start:match.end() + 20].strip()[-70:]))
+        self.assertEqual(offenders, [])
+
     def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
         """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
 
