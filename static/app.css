@@ -4455,6 +4455,35 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
   @keyframes skeleton-pulse { 0%,100% { opacity:.45 } 50% { opacity:.75 } }
 }
 
+/* ORDER 4（A-6）：指標格的白話標題與術語標籤。
+   主版面是散戶入口卻直接用研究者術語，且沒有任何連到解釋的路徑。
+   作法是白話為主、術語為輔 —— 術語不刪除，降級為小字標籤並連到學習頁，
+   讓想深入的人仍能對上研究版的用詞。 */
+.metric-title {
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+  color:var(--absorb-ink);
+}
+.term-tag {
+  display:inline-block;
+  margin-left:6px;
+  padding:1px 7px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-sm);
+  background:transparent;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.term-tag:hover, .term-tag:focus-visible { color:var(--absorb-ink); border-color:var(--absorb-blue); }
+.command-metrics .term-tag { margin:6px 0 0; justify-self:start; }
+.command-metrics article > .term-tag { width:max-content; }
+/* 學習頁詞條被錨點指到時給一個可見但安靜的定位提示 */
+.learn-grid article:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
+
 .market-summary-page {
   max-width:1160px;
 }
