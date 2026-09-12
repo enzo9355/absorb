@@ -5274,6 +5274,26 @@ span.value-unavailable {
   line-height:var(--lh-caption);
 }
 .command-metrics .metric-reading { justify-self:start; }
+/* ORDER 7（§6.1）：報告卡片的軌道與篇幅。索引沒有這些欄位時整段不顯示。 */
+.report-track {
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  margin:8px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.report-track-badge {
+  padding:2px 9px;
+  border:1px solid var(--absorb-blue);
+  border-radius:var(--radius-pill);
+  color:var(--absorb-blue);
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+}
 
 .market-summary-page {
   max-width:1160px;
