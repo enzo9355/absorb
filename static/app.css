@@ -5108,6 +5108,90 @@ span.value-unavailable {
   .anomaly-controls > .button { width:100%; }
 }
 
+/* ORDER 5（A-5）：報告索引的讀者層與時間軸。 */
+.report-readers {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:18px 0 0;
+}
+.report-readers button {
+  display:grid;
+  gap:2px;
+  min-height:44px;
+  padding:8px 16px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font:inherit;
+  font-size:var(--type-body);
+  font-weight:700;
+  line-height:var(--lh-body);
+  text-align:left;
+  cursor:pointer;
+}
+.report-reader-hint {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:400;
+  line-height:var(--lh-label);
+}
+.report-readers button.active {
+  border-color:var(--absorb-blue);
+  color:var(--absorb-ink);
+  box-shadow:inset 0 -3px 0 var(--absorb-blue);
+}
+.report-timeline {
+  display:flex;
+  gap:6px;
+  margin:16px 0 0;
+  padding-bottom:4px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.report-timeline::-webkit-scrollbar { display:none; }
+.report-timeline button {
+  flex:0 0 auto;
+  min-height:36px;
+  padding:6px 14px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font:inherit;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.report-timeline button.active {
+  border-color:var(--absorb-blue);
+  background:var(--absorb-navy-soft);
+  color:var(--absorb-ink);
+}
+.report-timeline-note {
+  margin:8px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+/* 免點即覽：第一條摘要就是這份報告的一句話結論 */
+.report-lead {
+  margin:8px 0 0;
+  font-size:var(--type-body);
+  font-weight:650;
+  line-height:var(--lh-body);
+}
+.report-doors { flex-wrap:wrap; gap:8px; }
+.report-card[hidden] { display:none; }
+/* 主要入口與次要入口要看得出層級。預設讀者（快速閱讀）的門在伺服器端
+   就標好，沒有 JS 也分得出先讀哪一個。 */
+.report-doors .button { justify-content:center; }
+.report-doors .is-primary-door { font-weight:800; }
+
 .market-summary-page {
   max-width:1160px;
 }

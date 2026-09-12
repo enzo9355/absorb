@@ -872,6 +872,55 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  // ORDER 5（A-5）：第一層是讀者，不是報告類型。
+  // 三個門一直都在卡片上，切換只改「哪一個是主要按鈕」——
+  // 不把同一份報告在清單裡列兩次，也不把另外兩個入口藏起來。
+  const reportReader = event.target.closest("[data-report-reader]");
+  if (reportReader) {
+    const controls = reportReader.closest("[data-report-readers]");
+    const reader = reportReader.dataset.reportReader;
+    controls.querySelectorAll("[data-report-reader]").forEach((item) => {
+      const active = item === reportReader;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll("[data-report-doors]").forEach((doors) => {
+      const links = [...doors.querySelectorAll("[data-report-door]")];
+      // 回退到 overview 這個固定的門，不是「目前排在最前面的那一個」——
+      // 後者會隨上一次切換而漂移（盤前報告沒有異常資料表，
+      // 選「查異常標的」時它會停在上一輪被提前的門上）。
+      const primary =
+        links.find((link) => link.dataset.reportDoor === reader) ||
+        links.find((link) => link.dataset.reportDoor === "overview") ||
+        links[0];
+      links.forEach((link) => {
+        const isPrimary = link === primary;
+        link.classList.toggle("button-secondary", !isPrimary);
+        link.classList.toggle("is-primary-door", isPrimary);
+      });
+      // 主要入口排到最前面，讀者不用在三顆一樣的按鈕裡找
+      if (primary) doors.prepend(primary);
+    });
+    return;
+  }
+
+  // 時間軸：依交易日篩選。沒有報告的日期本來就不會出現在時間軸上，
+  // 所以任何一個按鈕都至少有一筆結果，不會點出空畫面。
+  const reportDay = event.target.closest("[data-report-day]");
+  if (reportDay && reportDay.closest("[data-report-timeline]")) {
+    const controls = reportDay.closest("[data-report-timeline]");
+    const day = reportDay.dataset.reportDay;
+    controls.querySelectorAll("[data-report-day]").forEach((item) => {
+      const active = item === reportDay;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll(".report-card[data-report-day]").forEach((card) => {
+      card.hidden = day !== "all" && card.dataset.reportDay !== day;
+    });
+    return;
+  }
+
   const watchlist = event.target.closest("[data-watchlist-toggle]");
   if (watchlist) {
     toggleWatchlist(watchlist);

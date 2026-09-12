@@ -424,7 +424,15 @@ class ReportWebTests(unittest.TestCase):
         listing_html = listing.get_data(as_text=True)
         self.assertIn(metadata["title"], listing_html)
         self.assertIn("盤後觀察", listing_html)
-        self.assertIn("閱讀盤後觀察", listing_html)
+        # ORDER 5（A-5）：單一「閱讀盤後觀察」按鈕換成三個具名入口
+        # （30 秒大局觀／異常個股資料表／完整研究版），守的性質不變 ——
+        # 清單必須連得到那份盤後報告 —— 而且現在三個入口都要在。
+        self.assertIn("30 秒大局觀", listing_html)
+        self.assertIn("異常個股資料表", listing_html)
+        self.assertIn("完整研究版", listing_html)
+        for track in ("overview", "table", "research"):
+            with self.subTest(track=track):
+                self.assertIn(f"/post-close#track-{track}", listing_html)
 
         self.assertEqual(trading_day.status_code, 200)
         html = trading_day.get_data(as_text=True)
