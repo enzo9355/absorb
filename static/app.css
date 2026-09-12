@@ -4,9 +4,13 @@
 
 @font-face {
   font-family:"ABSORB Wordmark";
-  src:url("fonts/absorb-wordmark.woff2") format("woff2");
+  /* 字型檔名帶 -allura 是刻意的：STATIC_ASSET_VERSION 只雜湊 app.css 與 app.js，
+     沿用舊檔名會讓瀏覽器吃到快取的舊字型。 */
+  src:url("fonts/absorb-wordmark-allura.woff2") format("woff2");
   font-style:normal;
-  font-weight:700;
+  /* Allura 只有一個字重。@font-face 與規則同為 400，避免瀏覽器合成粗體 —— 
+     加粗改由 -webkit-text-stroke 完成（見 .brand-wordmark）。 */
+  font-weight:400;
   font-display:swap;
 }
 :root {
@@ -61,6 +65,11 @@
     --radius-pill:999px;
     --radius:10px;
     --absorb-blue:#4e7d91;
+    /* ORDER 4（M-4 / M-6）：K 線圖的 20 日均價線原本在 app.js 裡寫死 #7aa6b3，
+       對 --absorb-surface 只有 2.45:1，低於 WCAG 1.4.11 對非文字圖形要求的
+       3:1。改為既有調色盤中的 --absorb-blue（4.16:1），並取一個語意別名，
+       讓圖例色塊與線條保證同源。 */
+    --chart-ma:var(--absorb-blue);
     --absorb-blue-light:#8fb9c8;
     --absorb-coral:#b85f55;
     --absorb-sage:#3f8060;
@@ -676,6 +685,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
     background:var(--absorb-navy-soft);
 }
 .empty-state {
+    /* ORDER 6（D-1）：空狀態經常被放進 grid 容器（事件清單、卡片格、
+       更新流）。沒有 grid-column 時它會掉進第一個欄軌 —— 原本
+       .verified-focus li 的 30px 編號欄就把「今日焦點資料暫時無法取得。」
+       渲染成每行一個字。grid-column 在非 grid 容器裡無作用，
+       放在基底規則上是安全的。 */
+    grid-column:1 / -1;
     padding:24px 8px;
     color:var(--muted);
     font-size:15px;
@@ -2133,13 +2148,28 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
     font-weight: 650;
     border-radius: 6px;
 }
+/* ORDER 5（E-1 / M-6）：報告層殘留的方向色矛盾。
+   「強勢領先產業」用 .strong-tag 的綠、「相對落後」用 .badge-danger 的紅，
+   但同一列旁邊的 +4.31% 走 --price-up，在台股是紅色 ——
+   同一個事實在同一列出現兩種相反的顏色。
+   ORDER 1 的反向白名單只看 --absorb-coral/sage/danger/success 四個 token，
+   這裡用的是 --absorb-green-ok / --absorb-red-strong，所以檢查不到。
+   方向一律改讀 --price-up / --price-down。 */
 .strong-tag {
-    background: rgb(16 185 129 / 12%);
-    color: var(--absorb-green-ok);
+    background: color-mix(in srgb, var(--price-up) 12%, transparent);
+    color: var(--price-up);
 }
 .weak-tag {
-    background: rgb(239 68 68 / 12%);
-    color: var(--absorb-red-strong);
+    background: color-mix(in srgb, var(--price-down) 12%, transparent);
+    color: var(--price-down);
+}
+.badge-price-up {
+    background: color-mix(in srgb, var(--price-up) 12%, transparent);
+    color: var(--price-up);
+}
+.badge-price-down {
+    background: color-mix(in srgb, var(--price-down) 12%, transparent);
+    color: var(--price-down);
 }
 /* Data Table */
 .data-table {
@@ -2405,18 +2435,25 @@ body {
   margin:0 auto;
   padding:0 28px;
   display:grid;
-  grid-template-columns:156px minmax(0,1fr) auto auto;
+  grid-template-columns:156px minmax(0,1fr) auto;
   align-items:center;
   gap:28px;
 }
+/* 手寫草寫 Absorb（Allura）。品牌名在內文一律寫作 ABSORB，
+   導覽文字標誌是唯一例外（DESIGN.md §4）。
+   Allura 只有一個字重，加粗以 text-stroke 完成而不是 font-weight，
+   否則瀏覽器會合成一個歪掉的偽粗體。
+   字面比 Caveat 小，字級取 type scale 內較大的一級補回等視覺大小；
+   letter-spacing 歸零、行高 1.3 是為了容納大寫 A 的起筆。 */
 .brand-wordmark {
   width:max-content;
   color:var(--absorb-ink);
   font-family:"ABSORB Wordmark","Segoe Script","Brush Script MT",cursive;
-  font-size:28px;
-  font-weight:700;
-  letter-spacing:-.7px;
+  font-size:32px;
+  font-weight:400;
+  letter-spacing:0;
   line-height:1.3;
+  -webkit-text-stroke:.024em currentColor;
   text-decoration:none;
   transform-origin:left center;
   transition:color 160ms ease-out,transform 180ms cubic-bezier(.16,1,.3,1);
@@ -2537,13 +2574,6 @@ body {
   color:var(--absorb-muted);
   font-size:13px;
 }
-.research-summary {
-  display:grid;
-  grid-template-columns:minmax(0,1.45fr) minmax(330px,.8fr);
-  gap:42px;
-  padding:28px 4px 27px;
-  border-bottom:1px solid var(--absorb-hairline);
-}
 .research-status {
   display:flex;
   align-items:center;
@@ -2561,11 +2591,6 @@ body {
   background:var(--absorb-sage);
   box-shadow:0 0 0 4px var(--absorb-sage-soft);
 }
-.research-copy h1 {
-  margin:0;
-  font:700 clamp(28px,3.2vw,42px)/1.16 var(--font-display);
-  letter-spacing:-.035em;
-}
 .research-headline {
   max-width:720px;
   margin:13px 0 0;
@@ -2579,29 +2604,6 @@ body {
   color:var(--absorb-muted);
   font-size:13px;
   line-height:1.65;
-}
-.research-evidence {
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  align-content:center;
-  gap:20px;
-  margin:0;
-}
-.research-evidence div {
-  min-width:0;
-  padding-left:14px;
-  border-left:1px solid var(--absorb-hairline);
-}
-.research-evidence dt {
-  color:var(--absorb-muted);
-  font-size:11px;
-}
-.research-evidence dd {
-  margin:4px 0 0;
-  overflow:hidden;
-  font-weight:750;
-  text-overflow:ellipsis;
-  white-space:nowrap;
 }
 .research-command {
   padding:22px;
@@ -2702,6 +2704,59 @@ progress::-moz-progress-bar {
   background:var(--absorb-blue);
   border-radius:999px;
 }
+
+/* ==========================================================================
+   ORDER 4：五個核心入口與市場語境（A-4）
+   市場切換器原本在頂欄另一角，但它決定側欄所有項目的內容，兩者的從屬關係
+   沒有被表達。移到側欄最上方後，「先選市場、再選看什麼」的順序成為版面本身。
+   ========================================================================== */
+.dashboard-sidebar .market-switch {
+  width:100%;
+  margin-bottom:18px;
+}
+.sidebar-title-aux {
+  margin-top:22px;
+  padding-top:16px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.sidebar-aux .nav-link { color:var(--absorb-subtle); }
+.sidebar-aux .nav-link.active { color:var(--absorb-ink); }
+
+@media (max-width:900px) {
+  /* 行動版側欄是水平捲動的，市場切換器必須釘在最左側不隨之捲走 —— 
+     使用者要能隨時看到自己在看哪個市場。 */
+  .dashboard-sidebar .market-switch {
+    position:sticky;
+    left:0;
+    z-index:1;
+    width:auto;
+    margin:0 10px 0 0;
+    flex:0 0 auto;
+    box-shadow:6px 0 10px -6px rgb(24 49 71 / 18%);
+  }
+  .sidebar-title-aux { display:none; }
+  .sidebar-aux {
+    margin-left:6px;
+    padding-left:10px;
+    border-left:1px solid var(--absorb-hairline);
+  }
+}
+
+/* ORDER 4（第 12 節）：五個核心入口在行動版必須固定可見，不依賴橫向捲動。
+   完整名稱在 390px 放不下五項，改用兩字縮寫 —— 單字縮寫難以辨識，兩字剛好。 */
+@media (max-width:560px) {
+  .sidebar-nav .nav-short { display:block !important; }
+  .sidebar-nav .nav-label { display:none !important; }
+  .sidebar-nav .nav-link { padding:0 10px; }
+  .nav-short { width:auto; }
+}
+/* 輔助入口在行動版改由頁尾進入，不與每日決策路徑競爭導覽空間 */
+@media (max-width:900px) {
+  .sidebar-aux { display:none; }
+}
+.footer-links { display:flex; gap:16px; }
+.footer-links a { color:var(--absorb-muted); text-decoration:none; }
+.footer-links a:hover { color:var(--absorb-ink); }
 
 .evidence-canvas {
   min-width:0;
@@ -3024,15 +3079,11 @@ progress::-moz-progress-bar {
   color:var(--absorb-muted);
   font-size:11px;
 }
-.event-up {
-  border-left:3px solid var(--price-up);
-}
-.event-down {
-  border-left:3px solid var(--price-down);
-}
-.event-other {
-  border-left:3px solid var(--absorb-blue);
-}
+/* ORDER 4（B-3）：七個事件類別原本各用一條左側彩色邊條 + 圓角卡。
+   邊條 + 圓角卡的組合不在既有元件詞彙內，而且七種顏色本身沒有可讀的
+   語意階層（讀者無法從顏色推出「紫色 = 法人」）。類別名稱已經寫在
+   標題上，邊條只是重複。方向仍由標題文字與卡內的 .positive/.negative
+   承擔，灰階下可辨識（M-5）。 */
 .breadth-chart {
   display:grid;
   grid-template-columns:94px minmax(0,1fr);
@@ -3138,55 +3189,6 @@ progress::-moz-progress-bar {
 .quality-panel dd {
   font-size:19px;
 }
-.verified-focus,.market-prep {
-  padding:20px 22px;
-  border:1px solid var(--absorb-hairline);
-  border-radius:10px;
-  background:rgb(247 246 242 / 68%);
-}
-.verified-focus .section-heading,.market-prep .section-heading {
-  align-items:end;
-}
-.verified-focus .section-heading h2,.market-prep .section-heading h2 {
-  margin:0;
-  font-size:19px;
-}
-.verified-focus .section-heading p,.market-prep .section-heading p {
-  margin:3px 0 0;
-  color:var(--absorb-muted);
-  font-size:11px;
-}
-.verified-focus ol {
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:0 28px;
-  margin:16px 0 0;
-  padding:0;
-  list-style:none;
-}
-.verified-focus li {
-  display:grid;
-  grid-template-columns:30px minmax(0,1fr);
-  gap:10px;
-  padding:12px 0;
-  border-top:1px solid var(--absorb-hairline);
-}
-.verified-focus li span {
-  color:var(--absorb-blue);
-  font-size:11px;
-}
-.verified-focus li strong {
-  font-size:13px;
-  line-height:1.55;
-}
-.market-prep .report-card-grid {
-  margin-top:15px;
-}
-.market-prep .section-heading>a {
-  color:var(--absorb-muted);
-  font-size:11px;
-  font-weight:700;
-}
 .industry-observation-panel {
   padding:24px;
   background:rgb(247 246 242 / 74%);
@@ -3207,18 +3209,11 @@ progress::-moz-progress-bar {
   border-radius:10px;
   background:var(--absorb-surface);
 }
-.industry-disclosure.hot {
-  border-left:5px solid var(--price-up);
-  background:color-mix(in srgb, var(--price-up) 12%, transparent);
-}
-.industry-disclosure.cold {
-  border-left:5px solid var(--price-down);
-  background:color-mix(in srgb, var(--price-down) 12%, transparent);
-}
-.industry-disclosure.steady {
-  border-left:5px solid var(--absorb-blue);
-  background:var(--absorb-accent-surface);
-}
+/* ORDER 4（§5.5 / §0.4 / M-5）：原本每張產業卡用左側 5px 彩色邊條加
+   12% 底色暗示強弱。那是 §0.4 明令禁止的「左側彩色 accent 邊條 + 圓角卡」，
+   而且強弱只靠顏色 —— 灰階截圖下 hot 與 cold 長得一樣（違反 M-5）。
+   改為先分組再排名：組別名稱「值得注意／相對穩定／轉弱」本身就是強弱，
+   列內的 +／− 相對報酬承擔方向。 */
 .industry-disclosure summary {
   display:flex;
   align-items:center;
@@ -3705,7 +3700,7 @@ progress::-moz-progress-bar {
   .command-metrics article:last-child {
     border-right:0;
   }
-  .command-metrics span,.command-metrics small,.command-heading>span,.research-evidence dt,.insight-heading span,.insight-heading a,.forecast-primary span,.forecast-evidence dt,.forecast-evidence dd,.breadth-chart dt,.breadth-chart dd,.risk-panel dt,.risk-panel dd,.quality-panel dt,.sector-flow-row,.verified-focus .section-heading p,.market-prep .section-heading p,.verified-focus li span,.verified-focus li strong {
+  .command-metrics span,.command-metrics small,.command-heading>span,.insight-heading span,.insight-heading a,.forecast-primary span,.forecast-evidence dt,.forecast-evidence dd,.breadth-chart dt,.breadth-chart dd,.risk-panel dt,.risk-panel dd,.quality-panel dt,.sector-flow-row{
     font-size:15px;
   }
   .evidence-canvas {
@@ -3720,13 +3715,6 @@ progress::-moz-progress-bar {
   }
   .command-lower {
     gap:20px;
-  }
-  .research-summary {
-    grid-template-columns:minmax(0,1.6fr) minmax(420px,.75fr);
-    gap:72px;
-  }
-  .verified-focus,.market-prep {
-    padding:26px 30px;
   }
 }
 @media(hover:hover) and (pointer:fine) {
@@ -3777,7 +3765,7 @@ progress::-moz-progress-bar {
     padding:0 14px;
   }
   .brand-wordmark {
-    font-size:24px;
+    font-size:28px;
   }
   .nav-list {
     display:none;
@@ -3802,30 +3790,10 @@ progress::-moz-progress-bar {
     display:grid;
     gap:5px;
   }
-  .research-summary {
-    grid-template-columns:1fr;
-    gap:19px;
-    padding:20px 2px;
-  }
-  .research-copy h1 {
-    font-size:28px;
-  }
   .research-headline {
     font-size:15px;
   }
   .research-limit {
-    font-size:13px;
-  }
-  .research-evidence {
-    gap:14px 10px;
-  }
-  .research-evidence div {
-    padding-left:9px;
-  }
-  .research-evidence dt {
-    font-size:11px;
-  }
-  .research-evidence dd {
     font-size:13px;
   }
   .research-command {
@@ -3891,15 +3859,6 @@ progress::-moz-progress-bar {
   }
   .quality-panel dl {
     grid-template-columns:repeat(3,minmax(0,1fr));
-  }
-  .verified-focus,.market-prep {
-    padding:17px 16px;
-  }
-  .verified-focus .section-heading,.market-prep .section-heading {
-    align-items:start;
-  }
-  .verified-focus ol {
-    grid-template-columns:1fr;
   }
   .industry-observation-panel {
     padding:16px;
@@ -4197,21 +4156,6 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
     padding-bottom:80px;
   }
 }
-.event-volume {
-  border-left:3px solid var(--absorb-severity-medium);
-}
-.event-institution {
-  border-left:3px solid var(--absorb-purple);
-}
-.event-technical {
-  border-left:3px solid var(--absorb-blue);
-}
-.event-official {
-  border-left:3px solid var(--absorb-ink);
-}
-.event-data {
-  border-left:3px solid var(--absorb-rose-muted);
-}
 .event-severity-rule {
   margin:0 0 16px;
   color:var(--absorb-muted);
@@ -4329,7 +4273,14 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
    核心規則：缺值不是數值。unavailable 時該格不進入數值的字級與顏色軌道，
    改用內文字級與 muted 色，整格的視覺重量必須低於有資料時。
    ========================================================================== */
-.value-unavailable {
+/* ORDER 4：選擇器刻意加上元素限定（span.value-unavailable）。
+   版面各處都有 `.某容器 span { font-size:11px／13px }` 這類以元素選取的
+   規則，特異性 (0,1,1) 高於單一 class 的 .value-unavailable (0,1,0)，
+   會把缺值格拉回 label 字級 —— ORDER 4 的白話標題就是這樣被靜靜蓋掉的，
+   而且 type scale 測試看不出來（11px 本來就在白名單內）。
+   元素限定後同為 (0,1,1)，再靠 components.css 排在 base/layout 之後
+   的來源順序取勝，一次解決所有容器，不必逐一加 scoped 規則。 */
+span.value-unavailable {
   display:inline-block;
   font-size:var(--type-body);
   font-weight:400;
@@ -4383,8 +4334,11 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
   font-size:var(--type-body);
   line-height:var(--lh-body);
 }
+/* display:grid 會蓋掉 UA 的 [hidden]{display:none}，必須自己補回來，
+   否則模板上的 hidden 屬性形同虛設，降級說明會永遠顯示。 */
+.state-note[hidden] { display:none; }
 .state-note strong { font-weight:700; }
-.state-note span { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
+.state-note-detail { color:var(--absorb-muted); font-size:var(--type-caption); line-height:var(--lh-caption); }
 
 /* ORDER 3：loading 骨架（§21 既有規定「固定尺寸 skeleton 避免版面位移」，
    但一直沒有對應元件）。不使用動畫以外的裝飾，並遵守 reduced motion。 */
@@ -4401,6 +4355,913 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
   .skeleton { animation:skeleton-pulse 1.6s ease-in-out infinite; }
   @keyframes skeleton-pulse { 0%,100% { opacity:.45 } 50% { opacity:.75 } }
 }
+
+/* ORDER 4（A-6）：指標格的白話標題與術語標籤。
+   主版面是散戶入口卻直接用研究者術語，且沒有任何連到解釋的路徑。
+   作法是白話為主、術語為輔 —— 術語不刪除，降級為小字標籤並連到學習頁，
+   讓想深入的人仍能對上研究版的用詞。 */
+.metric-title {
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+  color:var(--absorb-ink);
+}
+.term-tag {
+  display:inline-block;
+  margin-left:6px;
+  padding:1px 7px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-sm);
+  background:transparent;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.term-tag:hover, .term-tag:focus-visible { color:var(--absorb-ink); border-color:var(--absorb-blue); }
+.command-metrics .term-tag { margin:6px 0 0; justify-self:start; }
+.command-metrics article > .term-tag { width:max-content; }
+/* 學習頁詞條被錨點指到時給一個可見但安靜的定位提示 */
+.learn-grid article:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
+
+/* ==========================================================================
+   ORDER 4（A-2）：「今日」四段式。
+   原本的順序是摘要 → 市場指揮台 → 資料狀態 → 今日焦點 → 今日市場準備 →
+   錯誤訊息，讀者要先看完兩段語意重疊的摘要，才會在整頁中段遇到資料狀態。
+   改為四段，順序即閱讀順序：今天怎麼了 / 最新更新 / 為什麼會這樣 /
+   資料品質與限制。四段之間只用留白與標題分隔，不再各自包一層卡片外殼。
+   ========================================================================== */
+
+/* 第 1 段：今天怎麼了。只讀這一段也要能離開，所以市場、交易日、資料狀態、
+   一句白話結論與主要風險全部收在這裡。 */
+.today-brief {
+  display:grid;
+  grid-template-columns:minmax(0,1.45fr) minmax(320px,.8fr);
+  gap:42px;
+  padding:28px 4px 27px;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.today-brief .state-note { grid-column:1 / -1; }
+.today-copy { min-width:0; }
+.today-risk {
+  max-width:720px;
+  margin:12px 0 0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.today-risk strong { font-weight:750; }
+.today-facts {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-content:center;
+  gap:20px;
+  margin:0;
+}
+.today-facts div {
+  min-width:0;
+  padding-left:14px;
+  border-left:1px solid var(--absorb-hairline);
+}
+.today-facts dt {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.today-facts dd {
+  margin:4px 0 0;
+  min-width:0;
+  font-size:var(--type-body);
+  font-weight:750;
+  line-height:var(--lh-body);
+}
+/* current：有資料且是最新 —— 仍不使用語意色，狀態由文字承擔（M-5） */
+.state-chip.is-available { color:var(--absorb-ink); }
+
+/* 第 2 段：最新更新。取代「今日焦點」。
+   排序是重要性優先、時間其次：純時間倒序會把「新」誤當成「重要」。
+   每則都帶類型標記與資料日，報告類型可直接進到對應報告。 */
+.update-stream { padding:24px 0 4px; }
+.update-stream .section-heading { align-items:start; }
+.update-list {
+  display:grid;
+  gap:1px;
+  margin:16px 0 0;
+  padding:0;
+  list-style:none;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-hairline);
+  overflow:hidden;
+}
+.update-item {
+  display:grid;
+  grid-template-columns:minmax(150px,.24fr) minmax(0,1fr);
+  gap:18px;
+  padding:16px 18px;
+  background:var(--absorb-surface-raised);
+}
+.update-meta {
+  display:flex;
+  flex-wrap:wrap;
+  align-content:start;
+  gap:8px;
+  min-width:0;
+}
+.update-meta time {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.update-type {
+  display:inline-block;
+  padding:2px 9px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:transparent;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+  white-space:nowrap;
+}
+/* 報告類型是通往研究層的入口，用邊框加重而非另一種顏色 */
+.update-type-report {
+  border-color:var(--absorb-blue);
+  color:var(--absorb-blue);
+}
+.update-body { min-width:0; }
+.update-body h3 {
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.update-body>p {
+  margin:6px 0 0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.update-headline {
+  font-weight:650;
+}
+.update-dates {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.update-link {
+  display:inline-block;
+  margin-top:10px;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+}
+
+/* 第 3 段：為什麼會這樣。.research-command 原本是一層有底色與邊框的外殼，
+   裡面再包 .evidence-canvas 與各 panel，形成卡中卡三層巢狀（違反 §13）。
+   外殼降為純版面容器：不再有 padding、border、background、border-radius，
+   內部各卡片因此成為同一層的平行卡片。 */
+.research-command {
+  padding:24px 0 4px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+/* quality-panel 已移入第 4 段，下半部只剩產業相對強度一張，改為單欄 */
+.command-lower { grid-template-columns:minmax(0,1fr); }
+
+/* 指標格層級修正：ORDER 4 的白話標題原本被 .command-metrics span 的
+   11px label 規則蓋掉（該規則以元素選取，特異性高於 .metric-title），
+   白話化的意義因此被抵銷。改為按層級指名：
+   第 1 層標題 body 15、第 2 層數值 data-lg 28、第 4 層術語 label 11。
+   第 3 層「白話解讀」必須來自資料契約，後端尚無此欄位，故不實作，
+   也不在模板寫死文案（寫死會在數值變動時產生錯誤陳述）。 */
+.command-metrics .metric-title {
+  color:var(--absorb-ink);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.command-metrics strong {
+  margin:8px 0 2px;
+  font-size:var(--type-data-lg);
+  line-height:var(--lh-data-lg);
+  letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.command-metrics span.value-unavailable { margin:8px 0 2px; }
+
+/* 無內容時的深色塊：深色是全頁最重的視覺元素，壓在空內容上會把注意力
+   導向什麼都沒有的地方。無內容時降級為一般卡片。 */
+.forecast-panel.is-empty {
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+}
+.forecast-panel.is-empty .insight-heading span { color:var(--absorb-muted); }
+.forecast-panel.is-empty>p { color:var(--absorb-muted); }
+
+/* 第 4 段：資料品質與限制。預設收合，展開後用原始術語（研究者要對得上
+   欄位名稱），並提供通往研究版的出口。 */
+.data-limits {
+  margin:26px 0 0;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.data-limits>summary {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:10px;
+  padding:14px 18px;
+  cursor:pointer;
+  font-size:var(--type-body);
+  font-weight:750;
+  line-height:var(--lh-body);
+}
+.data-limits>summary::marker { color:var(--absorb-muted); }
+.data-limits-hint {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  font-weight:400;
+  line-height:var(--lh-caption);
+}
+.data-limits-body {
+  padding:0 18px 18px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.data-limits-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:14px 20px;
+  margin:16px 0 0;
+}
+.data-limits-grid div { min-width:0; }
+.data-limits-grid dt {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.data-limits-grid dd {
+  margin:3px 0 0;
+  font-size:var(--type-body);
+  font-weight:700;
+  line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+.data-limits-note {
+  margin:18px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.data-limits-link {
+  display:inline-block;
+  margin:12px 0 0;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+}
+
+@media (max-width:1100px) {
+  .today-brief { grid-template-columns:minmax(0,1fr); gap:24px; }
+}
+/* 行動版密度（§12.1）：「今天怎麼了」與「最新更新」必須落在第一個 800px 畫面內。
+   四項事實維持兩欄 —— 內容都是日期與短標籤，堆成四列只是把第 2 段推出畫面。 */
+@media (max-width:700px) {
+  .update-item { grid-template-columns:minmax(0,1fr); gap:10px; padding:14px 15px; }
+  .today-brief { padding:18px 2px 20px; gap:18px; }
+  .today-facts { gap:14px; }
+  .today-copy h1 { font-size:var(--type-display); line-height:var(--lh-display); }
+  .update-stream, .research-command { padding-top:18px; }
+  .update-list { margin-top:12px; }
+}
+
+/* ORDER 4（B-3）：事件類別摘要列。
+   件數一律在這裡看得到（0 件也是資訊：代表沒有標的越過門檻，不是資料缺失），
+   但只有件數大於 0 的類別才在下方展開為區塊。 */
+.event-summary {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 16px;
+  padding:0;
+  list-style:none;
+}
+.event-summary-item {
+  min-width:0;
+}
+.event-summary-item>a,
+.event-summary-item>.event-summary-label {
+  display:inline-flex;
+  align-items:baseline;
+  gap:7px;
+  padding:6px 12px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  text-decoration:none;
+  white-space:nowrap;
+}
+.event-summary-item>a:hover,
+.event-summary-item>a:focus-visible { border-color:var(--absorb-blue); }
+.event-summary-item.is-empty {
+  display:inline-flex;
+  align-items:baseline;
+  gap:7px;
+  padding:6px 12px;
+  border:1px solid var(--absorb-border-faint);
+  border-radius:var(--radius-pill);
+  background:transparent;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  white-space:nowrap;
+}
+.event-summary-item.is-empty>.event-summary-label { all:unset; }
+.event-summary-count {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  font-variant-numeric:tabular-nums;
+}
+.event-group:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
+
+/* ORDER 4（A-8）：問題範例。首次開啟時示範「這裡能問什麼」，
+   點了只填入輸入框，不自動送出；對話一開始就收起來。 */
+.quick-ask-examples {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 14px;
+}
+.quick-ask-examples[hidden] { display:none; }
+.quick-ask-examples-title {
+  flex-basis:100%;
+  margin:0;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.06em;
+}
+.quick-ask-example {
+  min-height:32px;
+  padding:6px 12px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+  font:inherit;
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  text-align:left;
+  cursor:pointer;
+}
+.quick-ask-example:hover,
+.quick-ask-example:focus-visible { border-color:var(--absorb-blue); }
+.quick-ask-header p+p { margin-top:6px; }
+.quick-ask-context {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+
+/* ORDER 4（D-2）：主內容底部必須留出大於浮動鈕高度的安全距離。
+   浮動鈕 min-height 44px + bottom 24px = 68px，取 96px 留餘裕。
+   沒有這段距離時，最後一列內容會永遠被浮動鈕蓋住，而且它是 fixed，
+   捲到底也躲不掉。 */
+.site-footer { padding-bottom:96px; }
+
+/* ORDER 4（§5.5）：圖表圖例與「這不代表什麼」。
+   每張圖必須自己說清楚資料日、單位、圖例與缺值狀態 ——
+   讀者不該為了知道一條線是什麼而去翻別頁。 */
+.chart-legend {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 22px;
+  margin:14px 0 0;
+}
+.chart-legend div { min-width:0; }
+.chart-legend dt {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--absorb-ink);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.chart-legend dd {
+  margin:2px 0 0 19px;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.legend-swatch {
+  flex:none;
+  width:12px;
+  height:12px;
+  border-radius:var(--radius-sm);
+}
+.legend-up { background:var(--price-up); }
+.legend-down { background:var(--price-down); }
+.legend-ma { height:3px; border-radius:var(--radius-pill); background:var(--chart-ma); }
+/* 「這不代表什麼」：每張圖與每組指標都必須說出它的界線，
+   否則讀者會自行把描述性數字讀成預測。 */
+.chart-caveat {
+  margin:18px 0 0;
+  padding:12px 14px;
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.chart-caveat strong { color:var(--absorb-ink); font-weight:750; }
+.market-trend-panel .market-index-chart { min-height:250px; }
+.market-breadth-panel .pulse-card .term-tag { margin:6px 0 0; justify-self:start; width:max-content; }
+
+/* ORDER 4（§5.5）：產業分組。組別名稱與說明取代原本的顏色暗示。 */
+.industry-group { margin-top:22px; }
+.industry-group-heading {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:6px 12px;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.industry-group-heading h3 {
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.industry-group-meaning {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.industry-coverage {
+  margin:0 0 14px;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+
+/* ORDER 4（§12.1 第 10 項）：360px 下 /ask 的表單橫向溢出。
+   .conversation-form 是 .panel 這個 grid 的項目，grid 項目的 min-width
+   預設是 auto，無法縮到內容的 min-content 以下 —— 送出鈕的
+   「詢問 ABSORB」把整個表單撐到比容器寬。輸入框本身已有 min-width:0，
+   缺的是外層。 */
+.conversation-form, .conversation-control { min-width:0; }
+/* 資料狀態 chip 在 today-facts 內文字較長，320px 下不得強制單行 */
+.today-facts .state-chip { white-space:normal; }
+
+/* ==========================================================================
+   ORDER 5（A-7）：研究版閱讀工具。
+   稽核基準點已有常駐章節索引與 section id，缺的是位置回饋、子章節錨點、
+   手機收合與回到頂端。
+   ========================================================================== */
+.report-chapter-nav-wrap {
+  position:sticky;
+  top:10px;
+  z-index:15;
+  margin:0 0 18px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface);
+}
+.report-chapter-nav-summary {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 14px;
+  cursor:pointer;
+  font-size:var(--type-caption);
+  font-weight:750;
+  line-height:var(--lh-caption);
+}
+.report-chapter-current {
+  color:var(--absorb-muted);
+  font-weight:400;
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+/* 展開時 summary 只是把手，不重複顯示當前章節 */
+.report-chapter-nav-wrap[open] > .report-chapter-nav-summary .report-chapter-current { display:none; }
+.report-chapter-nav-wrap > .report-chapter-nav {
+  position:static;
+  margin:0;
+  border:0;
+  border-top:1px solid var(--absorb-hairline);
+  border-radius:0;
+  background:transparent;
+}
+/* 位置回饋：底線加粗體，不只靠顏色 */
+.report-chapter-nav a.is-current {
+  color:var(--absorb-ink);
+  font-weight:800;
+  box-shadow:inset 0 -2px 0 var(--absorb-blue);
+}
+.report-to-top {
+  display:inline-block;
+  margin:22px 0 0;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+}
+/* 數值格式契約（§6.3）：研究版所有統計量一律等寬數字，
+   欄與欄之間才對得齊；小數位由資料契約決定，不在這裡補零。 */
+.professional-report .badge-value,
+.professional-report .report-section td,
+.professional-report .report-section dd,
+.professional-report .report-section strong,
+.professional-report .metric-value,
+.professional-report .spec-value { font-variant-numeric:tabular-nums; }
+/* §6.3 方法論直連：模型章節標題旁直達「資料治理、來源稽核與方法論」。
+   讀者看到 R²、Brier Score、Gate 這些數字時，最常問的下一個問題是
+   「怎麼算的」，把那一步從「捲到最底找」變成一次點擊。 */
+.method-link {
+  margin-left:10px;
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+  white-space:nowrap;
+}
+
+/* ORDER 5（§6.2）：報告三分頁。 */
+.report-track-tabs {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 18px;
+}
+.report-track-tab {
+  display:grid;
+  gap:2px;
+  min-height:44px;
+  padding:8px 16px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font:inherit;
+  font-size:var(--type-body);
+  font-weight:700;
+  line-height:var(--lh-body);
+  text-align:left;
+  cursor:pointer;
+}
+.report-track-hint {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:400;
+  line-height:var(--lh-label);
+}
+/* 選取狀態不只靠顏色：底線加深色文字 */
+.report-track-tab.is-active {
+  border-color:var(--absorb-blue);
+  color:var(--absorb-ink);
+  box-shadow:inset 0 -3px 0 var(--absorb-blue);
+}
+.report-track[hidden] { display:none; }
+/* 列印與匯出時三個分頁一律全開，不能把已發布內容藏起來 */
+@media print {
+  .report-track[hidden] { display:block !important; }
+  .report-track-tabs { display:none; }
+}
+
+/* 異常個股資料表 */
+.anomaly-controls {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:12px;
+  margin:0 0 16px;
+}
+.anomaly-search, .anomaly-filter { display:grid; gap:5px; min-width:0; }
+.anomaly-search { flex:1 1 260px; }
+.anomaly-controls label {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.anomaly-controls input, .anomaly-controls select {
+  min-width:0;
+  min-height:44px;
+  padding:9px 12px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
+  background:var(--absorb-surface);
+  color:var(--absorb-ink);
+  font:inherit;
+  font-size:var(--type-body);
+}
+.anomaly-count {
+  margin:0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.anomaly-data-table th button {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:0;
+  border:0;
+  background:none;
+  color:inherit;
+  font:inherit;
+  cursor:pointer;
+}
+.anomaly-data-table th button::after {
+  content:"↕";
+  color:var(--absorb-subtle);
+  font-size:var(--type-label);
+}
+.anomaly-data-table th[aria-sort="ascending"] button::after { content:"↑"; color:var(--absorb-ink); }
+.anomaly-data-table th[aria-sort="descending"] button::after { content:"↓"; color:var(--absorb-ink); }
+.anomaly-data-table td.num, .anomaly-data-table th.num { font-variant-numeric:tabular-nums; }
+.anomaly-data-table tr[hidden] { display:none; }
+.anomaly-empty {
+  margin:14px 0 0;
+  padding:12px 14px;
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+@media (max-width:700px) {
+  .report-track-tab { flex:1 1 100%; }
+  .anomaly-controls > .button { width:100%; }
+}
+
+/* ORDER 5（A-5）：報告索引的讀者層與時間軸。 */
+.report-readers {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:18px 0 0;
+}
+.report-readers button {
+  display:grid;
+  gap:2px;
+  min-height:44px;
+  padding:8px 16px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-md);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font:inherit;
+  font-size:var(--type-body);
+  font-weight:700;
+  line-height:var(--lh-body);
+  text-align:left;
+  cursor:pointer;
+}
+.report-reader-hint {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  font-weight:400;
+  line-height:var(--lh-label);
+}
+.report-readers button.active {
+  border-color:var(--absorb-blue);
+  color:var(--absorb-ink);
+  box-shadow:inset 0 -3px 0 var(--absorb-blue);
+}
+.report-timeline {
+  display:flex;
+  gap:6px;
+  margin:16px 0 0;
+  padding-bottom:4px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.report-timeline::-webkit-scrollbar { display:none; }
+.report-timeline button {
+  flex:0 0 auto;
+  min-height:36px;
+  padding:6px 14px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-muted);
+  font:inherit;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.report-timeline button.active {
+  border-color:var(--absorb-blue);
+  background:var(--absorb-navy-soft);
+  color:var(--absorb-ink);
+}
+.report-timeline-note {
+  margin:8px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+/* 免點即覽：第一條摘要就是這份報告的一句話結論 */
+.report-lead {
+  margin:8px 0 0;
+  font-size:var(--type-body);
+  font-weight:650;
+  line-height:var(--lh-body);
+}
+.report-doors { flex-wrap:wrap; gap:8px; }
+.report-card[hidden] { display:none; }
+/* 主要入口與次要入口要看得出層級。預設讀者（快速閱讀）的門在伺服器端
+   就標好，沒有 JS 也分得出先讀哪一個。 */
+.report-doors .button { justify-content:center; }
+.report-doors .is-primary-door { font-weight:800; }
+
+/* ORDER 5（§2.4）：學習頁解釋層。每個詞條固定四欄 —— 辭典只回答
+   「這是什麼」，讀者真正卡住的是「該怎麼讀」「容易誤會什麼」
+   「我在哪一頁看到它」。 */
+.learn-term-list {
+  display:grid;
+  gap:14px;
+  margin-top:18px;
+}
+.learn-term {
+  padding:18px 20px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.learn-term-head {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:6px 10px;
+  margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--absorb-hairline);
+}
+.learn-term-head h3 {
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.learn-term-alias {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+}
+.learn-term-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px 24px;
+  margin:0;
+}
+.learn-term-grid div { min-width:0; }
+.learn-term-grid dt {
+  margin-bottom:3px;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.04em;
+}
+.learn-term-grid dd {
+  margin:0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.learn-term:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
+@media (max-width:760px) {
+  .learn-term-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
+}
+
+/* ORDER 5（§7-3）：個股三維速讀卡。籌碼、技術、風險原本分散在頁面三處，
+   讀者要拼三次才知道「這檔今天怎麼樣」。三張卡並排，每張先給一句白話
+   判讀，數值在下面。判讀句只由既有欄位的門檻推出，不引入新資料。 */
+.quick-read { padding:24px 0 4px; }
+.quick-read-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin-top:16px;
+}
+.quick-read-card {
+  display:grid;
+  align-content:start;
+  gap:12px;
+  min-width:0;
+  padding:16px 18px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.quick-read-card h3 {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:8px;
+  margin:0;
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+  letter-spacing:-.02em;
+}
+.quick-read-verdict {
+  margin:0;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.quick-read-metrics {
+  display:grid;
+  gap:8px;
+  margin:0;
+  padding-top:12px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.quick-read-metrics div {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  min-width:0;
+}
+.quick-read-metrics dt {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.quick-read-metrics dd {
+  margin:0;
+  font-weight:700;
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+.quick-read-events {
+  margin:0;
+  padding:12px 0 0 18px;
+  border-top:1px solid var(--absorb-hairline);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.quick-read-events li { margin-bottom:4px; }
+.quick-read-none { color:var(--absorb-muted); list-style:none; margin-left:-18px; }
+@media (max-width:900px) {
+  .quick-read-grid { grid-template-columns:minmax(0,1fr); }
+  .quick-read { padding-top:18px; }
+}
+/* 估計區塊必須看得出跟事實不同層。用邊框虛線與標題文字承擔，不加光暈。 */
+.forecast-section { border-style:dashed; }
+.legend-forecast { background:var(--absorb-info); }
+.stock-guide-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.stock-guide-links .term-tag { padding:6px 12px; font-size:var(--type-caption); line-height:var(--lh-caption); }
+
+/* ORDER 6（§7-3）：美股指數的「已發生」與「模型估計」分開兩個容器。
+   最新收盤是事實，用一般卡片；五日情境是估計，在 .forecast-section 的
+   虛線區塊內，維持深色卡與 on-dark 漲跌色。 */
+.us-index-actual-list {
+  display:grid;
+  align-content:start;
+  gap:12px;
+}
+.us-index-actual-list article {
+  display:grid;
+  gap:4px;
+  padding:16px 18px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface-raised);
+}
+.us-index-actual-list article[hidden] { display:none; }
+.us-index-actual-list article > span {
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.us-index-actual-list article > strong {
+  font-size:var(--type-data-lg);
+  line-height:var(--lh-data-lg);
+  letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.us-index-actual-list article > small {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.us-index-forecast-list article[hidden] { display:none; }
 
 .market-summary-page {
   max-width:1160px;

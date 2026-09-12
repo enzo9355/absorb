@@ -188,7 +188,8 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         for label in (
             "市場實況",
-            "今日焦點",
+            # ORDER 4（A-2）：「今日焦點」改為「最新更新」（重要性優先的更新流）。
+            "最新更新",
             "產業觀察",
             "個股與 ETF",
             "ASK ABSORB",

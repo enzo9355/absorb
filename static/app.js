@@ -15,6 +15,8 @@ function migrateLegacyHashRoute() {
   if (target) window.location.replace(target);
 }
 
+const UNAVAILABLE_TEXT = "尚未驗證";
+
 function element(tag, className, text) {
   const item = document.createElement(tag);
   if (className) item.className = className;
@@ -66,7 +68,16 @@ async function loadDashboard() {
 
 function displayNumber(value, digits = 2, suffix = "") {
   const number = Number(value);
-  return Number.isFinite(number) ? `${number.toFixed(digits)}${suffix}` : "資料不足";
+  return Number.isFinite(number) ? `${number.toFixed(digits)}${suffix}` : UNAVAILABLE_TEXT;
+}
+
+// ORDER 4（B-1）：缺值不是數值。前端渲染的路徑原本也把「資料不足」寫進
+// <strong>，於是缺值拿到跟真實數值一樣的字級與重量。改為回傳不同的元素，
+// 讓它落在內文字級與 muted 色 —— 與伺服器端渲染的 .value-unavailable 一致。
+function valueCell(text) {
+  return String(text) === UNAVAILABLE_TEXT
+    ? ["span", "value-unavailable", UNAVAILABLE_TEXT]
+    : ["strong", "", text];
 }
 
 function displaySigned(value, digits = 2, suffix = "%") {
@@ -108,13 +119,13 @@ function renderDashboard(data) {
   const market = bySelector("[data-market-summary]");
   if (market) {
     replaceContent(market, [
-      card("article", "pulse-card", [["span", "", "單日中位報酬"], ["strong", "", displaySigned(marketData.return_1d_pct)], ["small", "muted", "全市場有效樣本"]]),
-      card("article", "pulse-card", [["span", "", "站上 MA20"], ["strong", "", displayNumber(marketData.ma20_breadth_pct, 1, "%")], ["small", "muted", "市場均線廣度"]]),
-      card("article", "pulse-card", [["span", "", "20 日已實現波動"], ["strong", "", displayNumber(marketData.realized_volatility_20d_pct, 1, "%")], ["small", "muted", `20 日新高 ${marketData.new_high_20d_count ?? "—"}／新低 ${marketData.new_low_20d_count ?? "—"}`]]),
+      card("article", "pulse-card", [["span", "", "單日中位報酬"], valueCell(displaySigned(marketData.return_1d_pct)), ["small", "muted", "全市場有效樣本"]]),
+      card("article", "pulse-card", [["span", "", "站上 MA20"], valueCell(displayNumber(marketData.ma20_breadth_pct, 1, "%")), ["small", "muted", "市場均線廣度"]]),
+      card("article", "pulse-card", [["span", "", "20 日已實現波動"], valueCell(displayNumber(marketData.realized_volatility_20d_pct, 1, "%")), ["small", "muted", `20 日新高 ${marketData.new_high_20d_count ?? "—"}／新低 ${marketData.new_low_20d_count ?? "—"}`]]),
     ]);
   }
   const status = bySelector(".status-dot");
-  if (status) status.textContent = data.observation_as_of ? `資料日 ${data.observation_as_of}` : "資料不足";
+  if (status) status.textContent = data.observation_as_of ? `資料日 ${data.observation_as_of}` : UNAVAILABLE_TEXT;
 
   const focus = bySelector("[data-daily-focus]");
   if (focus) {
@@ -135,7 +146,7 @@ function renderDashboard(data) {
     replaceContent(heatmap, cells.length ? cells.map((item) =>
       card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [
         ["span", "", item.name],
-        ["strong", "", displaySigned(item.metric_value_pct)],
+        valueCell(displaySigned(item.metric_value_pct)),
         ["small", "", `${item.available_count ?? "—"} 檔 · 覆蓋 ${displayNumber((item.coverage || 0) * 100, 1, "%")}`],
       ], "/industries")
     ) : [emptyState("產業相對報酬資料不足。")]);
@@ -267,6 +278,23 @@ function appendConversationMessage(log, role, text) {
   log.scrollTop = log.scrollHeight;
 }
 
+// ORDER 4（A-8）：問題範例只填入輸入框，不自動送出。自動送出會替使用者
+// 做決定，而且送出的問題不見得是他想問的 —— 範例的用途是示範「這裡能問
+// 什麼」，不是代替他發問。對話一開始就把範例收起來，避免長期佔位。
+function initAskExamples() {
+  document.querySelectorAll("[data-conversation-endpoint]").forEach((panel) => {
+    const examples = bySelector("[data-quick-ask-examples]", panel);
+    const input = bySelector("input[name='question']", panel);
+    if (!examples || !input) return;
+    examples.querySelectorAll("[data-quick-ask-example]").forEach((button) => {
+      button.addEventListener("click", () => {
+        input.value = button.textContent.trim();
+        input.focus();
+      });
+    });
+  });
+}
+
 function initConversations() {
   document.querySelectorAll("[data-conversation-form]").forEach((form) => {
     const panel = form.closest("[data-conversation-endpoint]");
@@ -279,6 +307,8 @@ function initConversations() {
       const question = input.value.trim();
       if (!question) return;
       appendConversationMessage(log, "user", question);
+      const examples = bySelector("[data-quick-ask-examples]", panel);
+      if (examples) examples.hidden = true;
       input.value = "";
       button.disabled = true;
       const headers = { Accept: "application/json", "Content-Type": "application/json" };
@@ -481,7 +511,9 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   candleSeries.setData(candles);
   const ma20 = parseChartPoints(raw.ma20);
   if (ma20.length) {
-    chart.addLineSeries({ color: "#7aa6b3", lineWidth: 2, title: "MA20" }).setData(ma20);
+    // ORDER 4（M-4）：均價線顏色改讀 token，圖例色塊與線條同源。
+    const maColor = directionStyle.getPropertyValue("--chart-ma").trim();
+    chart.addLineSeries({ color: maColor, lineWidth: 2, title: "MA20" }).setData(ma20);
   }
   const prediction = parseChartPoints(raw.prediction);
   if (predictionMarker && prediction.length > 1) {
@@ -528,6 +560,255 @@ function initStockChart() {
   window.stockChart = createPriceChart(container, raw, { predictionMarker: true });
   if (!window.stockChart) return;
   setChartRange(90);
+}
+
+// ORDER 5（§6.2）：一份報告三種讀法。
+// 三個分頁在 HTML 裡預設全部可見，這裡才收起兩個 —— JS 失效時退化成
+// 原本的線性長頁，不會把已發布的內容藏起來。
+// 章節錨點跨分頁時（例如索引指向 #quantitative-research，而使用者正在
+// 30 秒大局觀），先切到目標所在的分頁再捲過去，否則連結會靜靜失效。
+function initReportTracks() {
+  const tablist = bySelector("[data-report-tracks]");
+  if (!tablist) return;
+  const tabs = [...tablist.querySelectorAll("[data-report-track]")];
+  const panels = new Map(
+    [...document.querySelectorAll("[data-report-track-panel]")].map((panel) => [
+      panel.dataset.reportTrackPanel,
+      panel,
+    ])
+  );
+  if (!tabs.length || !panels.size) return;
+
+  const activate = (key, { focusTab = false } = {}) => {
+    if (!panels.has(key)) return;
+    tabs.forEach((tab) => {
+      const active = tab.dataset.reportTrack === key;
+      tab.setAttribute("aria-selected", String(active));
+      tab.classList.toggle("is-active", active);
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focusTab) tab.focus();
+    });
+    panels.forEach((panel, panelKey) => {
+      panel.hidden = panelKey !== key;
+    });
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => activate(tab.dataset.reportTrack));
+    tab.addEventListener("keydown", (event) => {
+      const index = tabs.indexOf(tab);
+      let next = null;
+      if (event.key === "ArrowRight") next = tabs[(index + 1) % tabs.length];
+      if (event.key === "ArrowLeft") next = tabs[(index - 1 + tabs.length) % tabs.length];
+      if (event.key === "Home") next = tabs[0];
+      if (event.key === "End") next = tabs[tabs.length - 1];
+      if (!next) return;
+      event.preventDefault();
+      activate(next.dataset.reportTrack, { focusTab: true });
+    });
+  });
+
+  const trackOf = (element) => {
+    const panel = element && element.closest("[data-report-track-panel]");
+    return panel ? panel.dataset.reportTrackPanel : null;
+  };
+
+  const revealHash = (hash) => {
+    if (!hash || hash.length < 2) return false;
+    let target = null;
+    try {
+      target = document.querySelector(hash);
+    } catch (_error) {
+      return false;
+    }
+    const key = trackOf(target);
+    if (!key) return false;
+    activate(key);
+    target.scrollIntoView();
+    return true;
+  };
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const hash = link.getAttribute("href");
+    if (hash === "#" || !revealHash(hash)) return;
+    event.preventDefault();
+    if (window.history.replaceState) window.history.replaceState(null, "", hash);
+  });
+  window.addEventListener("hashchange", () => revealHash(window.location.hash));
+
+  activate(tabs[0].dataset.reportTrack);
+  revealHash(window.location.hash);
+}
+
+// ORDER 5（§6.2）：異常個股資料表。純前端、零相依。
+// 搜尋與篩選只改 row.hidden，不重建 DOM —— 重建會丟掉使用者的捲動位置，
+// 而且在幾百列時比切換 hidden 慢得多。排序是穩定排序（同鍵維持原順序），
+// 否則反覆點同一個欄位時列的相對位置會亂跳。
+function initAnomalyTable() {
+  const table = bySelector("[data-anomaly-table]");
+  if (!table) return;
+  const body = table.tBodies[0];
+  const rows = [...body.rows];
+  const query = bySelector("[data-anomaly-query]");
+  const filter = bySelector("[data-anomaly-filter]");
+  const count = bySelector("[data-anomaly-count]");
+  const empty = bySelector("[data-anomaly-empty]");
+  const copy = bySelector("[data-anomaly-copy]");
+
+  const cellText = (row, index) => (row.cells[index]?.textContent || "").trim();
+  const keyOf = {
+    name: (row) => cellText(row, 0),
+    symbol: (row) => cellText(row, 1),
+    type: (row) => cellText(row, 2),
+    // 缺值回傳 null，不是 0 也不是 -Infinity。Number("") 是 0，
+    // 直接轉數字會讓「尚未驗證」排到 0 的位置，等於把缺值當成 0（F-7）。
+    value: (row) => {
+      const raw = row.dataset.value;
+      if (raw === undefined || raw.trim() === "") return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    },
+    severity: (row) => Number(row.dataset.severityRank || 0),
+    as_of: (row) => cellText(row, 6),
+  };
+
+  const apply = () => {
+    const needle = (query?.value || "").trim().toLowerCase();
+    const type = filter?.value || "";
+    let visible = 0;
+    rows.forEach((row) => {
+      const matchesType = !type || row.dataset.type === type;
+      const matchesText =
+        !needle || (row.textContent || "").toLowerCase().includes(needle);
+      const show = matchesType && matchesText;
+      row.hidden = !show;
+      if (show) visible += 1;
+    });
+    if (count) count.textContent = `${visible} 筆`;
+    if (empty) empty.hidden = visible !== 0;
+  };
+
+  let sortKey = null;
+  let ascending = true;
+  table.querySelectorAll("[data-anomaly-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.anomalySort;
+      ascending = key === sortKey ? !ascending : true;
+      sortKey = key;
+      const get = keyOf[key];
+      const decorated = rows.map((row, index) => ({ row, index }));
+      decorated.sort((a, b) => {
+        const left = get(a.row);
+        const right = get(b.row);
+        // 缺值永遠墊底，不隨升冪／降冪翻面 —— 缺值不是「最小」，是「沒有」，
+        // 把它排進數線上的某個位置就等於宣稱它有值。
+        if (left === null || right === null) {
+          if (left === right) return a.index - b.index;
+          return left === null ? 1 : -1;
+        }
+        let result;
+        if (typeof left === "number" && typeof right === "number") {
+          result = left - right;
+        } else {
+          result = String(left).localeCompare(String(right), "zh-Hant");
+        }
+        if (result === 0) return a.index - b.index; // 穩定排序
+        return ascending ? result : -result;
+      });
+      decorated.forEach(({ row }) => body.append(row));
+      table.querySelectorAll("[data-anomaly-sort]").forEach((other) => {
+        const active = other === button;
+        other.closest("th").setAttribute(
+          "aria-sort",
+          active ? (ascending ? "ascending" : "descending") : "none"
+        );
+        other.classList.toggle("is-sorted", active);
+      });
+    });
+  });
+
+  query?.addEventListener("input", apply);
+  filter?.addEventListener("change", apply);
+
+  copy?.addEventListener("click", async () => {
+    const header = [...table.tHead.rows[0].cells].map((cell) =>
+      cell.textContent.trim()
+    );
+    const lines = [header.join("\t")];
+    rows.forEach((row) => {
+      if (row.hidden) return;
+      lines.push([...row.cells].map((cell) => cell.textContent.trim()).join("\t"));
+    });
+    const text = lines.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = `已複製 ${lines.length - 1} 筆`;
+    } catch (_error) {
+      // 剪貼簿被拒（權限、非安全來源）時不能假裝成功
+      copy.textContent = "複製失敗，請手動選取表格";
+    }
+    window.setTimeout(() => {
+      copy.textContent = "複製為 TSV";
+    }, 2400);
+  });
+
+  apply();
+}
+
+// ORDER 5（A-7）：章節索引的「當前章節」標示。
+// 章節索引原本沒有任何位置回饋 —— 在一份十章、超過 700 行的報告裡捲動，
+// 讀者無從判斷自己在哪一章。用 IntersectionObserver 而非 scroll 事件，
+// 避免每次捲動都做版面量測。手機下索引預設收合，收合時把當前章節名稱
+// 顯示在 summary 上，收起來也看得到位置。
+function initReportChapterNav() {
+  const wrap = bySelector("[data-chapter-nav]");
+  if (!wrap) return;
+  const links = [...wrap.querySelectorAll("nav a")];
+  if (!links.length) return;
+  const current = bySelector("[data-chapter-current]", wrap);
+  const sections = links
+    .map((link) => ({ link, section: document.querySelector(link.getAttribute("href")) }))
+    .filter((entry) => entry.section);
+  if (!sections.length) return;
+
+  const mark = (activeSection) => {
+    sections.forEach(({ link, section }) => {
+      const active = section === activeSection;
+      link.classList.toggle("is-current", active);
+      if (active) {
+        link.setAttribute("aria-current", "true");
+        if (current) current.textContent = link.textContent.trim();
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  };
+
+  const visible = new Set();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) visible.add(entry.target);
+        else visible.delete(entry.target);
+      });
+      const first = sections.find(({ section }) => visible.has(section));
+      if (first) mark(first.section);
+    },
+    { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+  );
+  sections.forEach(({ section }) => observer.observe(section));
+  mark(sections[0].section);
+
+  // 手機預設收合：索引本身佔掉第一屏的話反而擋住內容
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const applyWidth = () => { wrap.open = !narrow.matches; };
+  applyWidth();
+  narrow.addEventListener("change", applyWidth);
+  wrap.querySelectorAll("nav a").forEach((link) => {
+    link.addEventListener("click", () => { if (narrow.matches) wrap.open = false; });
+  });
 }
 
 function initMarketIndexChart() {
@@ -587,6 +868,55 @@ document.addEventListener("click", (event) => {
     });
     document.querySelectorAll("[data-report-type]").forEach((lane) => {
       lane.hidden = selectedType !== "all" && lane.dataset.reportType !== selectedType;
+    });
+    return;
+  }
+
+  // ORDER 5（A-5）：第一層是讀者，不是報告類型。
+  // 三個門一直都在卡片上，切換只改「哪一個是主要按鈕」——
+  // 不把同一份報告在清單裡列兩次，也不把另外兩個入口藏起來。
+  const reportReader = event.target.closest("[data-report-reader]");
+  if (reportReader) {
+    const controls = reportReader.closest("[data-report-readers]");
+    const reader = reportReader.dataset.reportReader;
+    controls.querySelectorAll("[data-report-reader]").forEach((item) => {
+      const active = item === reportReader;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll("[data-report-doors]").forEach((doors) => {
+      const links = [...doors.querySelectorAll("[data-report-door]")];
+      // 回退到 overview 這個固定的門，不是「目前排在最前面的那一個」——
+      // 後者會隨上一次切換而漂移（盤前報告沒有異常資料表，
+      // 選「查異常標的」時它會停在上一輪被提前的門上）。
+      const primary =
+        links.find((link) => link.dataset.reportDoor === reader) ||
+        links.find((link) => link.dataset.reportDoor === "overview") ||
+        links[0];
+      links.forEach((link) => {
+        const isPrimary = link === primary;
+        link.classList.toggle("button-secondary", !isPrimary);
+        link.classList.toggle("is-primary-door", isPrimary);
+      });
+      // 主要入口排到最前面，讀者不用在三顆一樣的按鈕裡找
+      if (primary) doors.prepend(primary);
+    });
+    return;
+  }
+
+  // 時間軸：依交易日篩選。沒有報告的日期本來就不會出現在時間軸上，
+  // 所以任何一個按鈕都至少有一筆結果，不會點出空畫面。
+  const reportDay = event.target.closest("[data-report-day]");
+  if (reportDay && reportDay.closest("[data-report-timeline]")) {
+    const controls = reportDay.closest("[data-report-timeline]");
+    const day = reportDay.dataset.reportDay;
+    controls.querySelectorAll("[data-report-day]").forEach((item) => {
+      const active = item === reportDay;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll(".report-card[data-report-day]").forEach((card) => {
+      card.hidden = day !== "all" && card.dataset.reportDay !== day;
     });
     return;
   }
@@ -655,4 +985,8 @@ initUsIndexChart();
 initReturnCalculator();
 initConversations();
 initQuickAsk();
+initAskExamples();
+initReportTracks();
+initReportChapterNav();
+initAnomalyTable();
 initSidebar();

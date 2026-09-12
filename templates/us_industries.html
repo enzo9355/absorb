@@ -2,23 +2,47 @@
 {% block title %}美股產業觀察｜ABSORB{% endblock %}
 {% block content %}
 <div class="page market-summary-page">
-  <header class="page-header"><div><h1>美股產業觀察</h1><p class="page-intro">資料日 {{ summary.source_market_date }}；排名與觀察均來自已驗證的美股正式報告。</p></div></header>
+  <header class="page-header"><div><h1>美股產業觀察</h1><p class="page-intro">先依相對大盤的強弱分組，再顯示組內排名。資料日 {{ summary.source_market_date }}；排名與觀察均來自已驗證的美股正式報告。</p></div></header>
   <section class="panel" aria-labelledby="us-industries-title">
     <h2 id="us-industries-title">產業資料</h2>
     {% if summary.industries.status == 'available' %}
-      <div class="summary-table-wrap"><table><thead><tr><th scope="col">排名</th><th scope="col">產業</th><th scope="col">5 日相對大盤</th><th scope="col">資料覆蓋率</th><th scope="col">有效樣本 / 成分數</th></tr></thead><tbody>
-      {% for item in summary.industries.data.ranking|default([]) %}
-        <tr>
-          <td>{{ item.rank|default(loop.index) }}</td>
-          <td>{{ item.name|default(item.industry|default('未命名')) }}</td>
-          <td>{% if item.relative_return_5d_pct is not none and item.relative_return_5d_pct is not string %}{{ '%+.2f%%'|format(item.relative_return_5d_pct) }}{% else %}尚無已驗證資料{% endif %}</td>
-          <td>{% if item.coverage is not none and item.coverage is not string %}{{ '%.0f%%'|format(item.coverage * 100) }}{% else %}尚無已驗證資料{% endif %}</td>
-          <td>{{ item.available_count|default('—') }} / {{ item.component_count|default('—') }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="5">本次報告沒有可顯示的產業排名。</td></tr>
+      {# ORDER 6（§5.5 / B-2，與台股同一組規則）：先依強弱分組再顯示排名；
+         門檻沿用台股的 ±2%。缺值不得留下裸的分隔符 —— 原本
+         「{{ available_count|default('—') }} / {{ component_count|default('—') }}」
+         在兩邊都缺值時會印出「— / —」。 #}
+      {% set rows = summary.industries.data.ranking|default([]) %}
+      {% set ns = namespace(hot=[], steady=[], cold=[], unknown=[]) %}
+      {% for item in rows %}
+        {% set v = item.relative_return_5d_pct %}
+        {% if v is none or v is string %}{% set ns.unknown = ns.unknown + [item] %}
+        {% elif v >= 2 %}{% set ns.hot = ns.hot + [item] %}
+        {% elif v <= -2 %}{% set ns.cold = ns.cold + [item] %}
+        {% else %}{% set ns.steady = ns.steady + [item] %}
+        {% endif %}
       {% endfor %}
-      </tbody></table></div>
+      {% if rows %}
+      {% for key, title, meaning, group in [('hot','值得注意','近 5 日明顯強於大盤',ns.hot),('steady','相對穩定','近 5 日與大盤差距在 2% 以內',ns.steady),('cold','轉弱','近 5 日明顯弱於大盤',ns.cold),('unknown','尚未驗證','相對報酬缺值，不併入其他組',ns.unknown)] %}
+      {% if group %}
+      <section class="industry-group" aria-labelledby="us-industry-group-{{ key }}">
+        <div class="industry-group-heading"><h3 id="us-industry-group-{{ key }}">{{ title }}</h3><span class="industry-group-meaning">{{ group|length }} 個產業 · {{ meaning }}</span></div>
+        <div class="summary-table-wrap"><table><thead><tr><th scope="col">排名</th><th scope="col">產業</th><th scope="col">5 日相對大盤</th><th scope="col">資料覆蓋率</th><th scope="col">有效樣本 / 成分數</th></tr></thead><tbody>
+        {% for item in group %}
+          <tr>
+            <td>{{ item.rank|default(loop.index) }}</td>
+            <td>{{ item.name|default(item.industry|default('未命名')) }}</td>
+            <td>{% if item.relative_return_5d_pct is not none and item.relative_return_5d_pct is not string %}{{ '%+.2f%%'|format(item.relative_return_5d_pct) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</td>
+            <td>{% if item.coverage is not none and item.coverage is not string %}{{ '%.0f%%'|format(item.coverage * 100) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</td>
+            <td>{% if item.available_count is defined and item.component_count is defined %}{{ item.available_count }} / {{ item.component_count }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table></div>
+      </section>
+      {% endif %}
+      {% endfor %}
+      <p class="chart-caveat"><strong>這不代表什麼：</strong>相對強度只描述過去 5 個交易日已經發生的報酬差距，不預告接下來哪一組會延續。組別是門檻分類，不是評分，也不是選股名單。</p>
+      {% else %}
+      <p class="empty-state">本次報告沒有可顯示的產業排名。</p>
+      {% endif %}
     {% else %}
       <p class="empty-state">{{ summary.industries.reason }}</p>
     {% endif %}

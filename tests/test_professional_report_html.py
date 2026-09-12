@@ -108,6 +108,101 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         self.assertIn("最後正常交易收盤 100.00（2026-07-16）", output)
         self.assertNotIn("quant/v1/manifests/", output)
 
+    def _render(self):
+        template_text = pathlib.Path(
+            "templates/reports/post_close_professional.html"
+        ).read_text(encoding="utf-8")
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "reports/post_close_professional.html": template_text,
+                    "base.html": "{% block title %}{% endblock %}"
+                    "{% block nav_reports %}{% endblock %}"
+                    "{% block content %}{% endblock %}",
+                }
+            )
+        )
+        return env.get_template("reports/post_close_professional.html").render(
+            report=self._view()
+        )
+
+    def test_order5_every_chapter_and_subsection_is_addressable(self):
+        """A-7：每個 <h2>／<h3> 都要有穩定 id，才能貼連結引用某一章。
+
+        稽核基準點其實已經有常駐章節索引與 <section> id —— 規格書 A-7
+        寫「無目錄、無錨點」是錯的，這一點已回報。真正缺的是：
+        子章節（4 個 subsection-title）完全無法引用，索引沒有位置回饋，
+        沒有回到頂端。
+        """
+        output = self._render()
+
+        # ORDER 5（§6.2）異常個股資料表、ORDER 6（§2）反對證據與失效條件
+        # 各自成章，h2 因此是 12 個
+        self.assertEqual(output.count("<h2 id="), 12)
+        for anchor in (
+            "executive-summary-title",
+            "quantitative-research-title",
+            "data-governance-title",
+            "exec-highlights",
+            "security-anomalies",
+            "security-etf",
+            "security-trading-status",
+        ):
+            with self.subTest(anchor=anchor):
+                self.assertIn(f'id="{anchor}"', output)
+
+        # 索引本身：可收合、有當前章節槽位、有回到頂端
+        self.assertIn("data-chapter-nav", output)
+        self.assertIn("data-chapter-current", output)
+        self.assertIn('href="#top-of-report"', output)
+        self.assertIn('id="top-of-report"', output)
+
+    def test_order6_opposing_evidence_is_its_own_chapter_with_failure_conditions(self):
+        """§2 Evidence first：結論、依據、反對證據、限制。
+
+        反對證據原本只在「投資決策摘要」的雙欄裡出現一次（那是給 30 秒
+        讀者的），研究版讀者一路往下看不會再遇到它；而
+        next_session_watch_conditions —— 真正的失效條件 —— 在整份報告裡
+        從來沒有被繪出過。
+        """
+        output = self._render()
+
+        self.assertIn('id="opposing-evidence"', output)
+        self.assertIn("反對證據與失效條件", output)
+        self.assertIn("這個結論在什麼情況下不成立", output)
+        for anchor in ("opposing-points", "invalidation-conditions", "largest-risk"):
+            with self.subTest(anchor=anchor):
+                self.assertIn(f'id="{anchor}"', output)
+
+        # 失效條件必須真的繪出資料，不是空殼
+        view = self._view()
+        for condition in view["executive_summary"]["next_session_watch_conditions"]:
+            with self.subTest(condition=condition):
+                self.assertIn(condition, output)
+
+        # 章節索引要收錄它，否則等於沒有這一章
+        nav = output[output.index('aria-label="報告章節導覽"'):]
+        nav = nav[: nav.index("</nav>")]
+        self.assertIn('href="#opposing-evidence"', nav)
+
+        # 排在「依據」之後（§2 的順序）
+        self.assertLess(
+            output.index('id="market-analysis"'), output.index('id="opposing-evidence"')
+        )
+
+        # §0.4：不得用 emoji 當區塊標記
+        self.assertNotIn("⚠️", output)
+
+    def test_order5_model_sections_link_to_the_methodology_chapter(self):
+        """§6.3：看到 R²、Brier Score、Gate 時，下一個問題是「怎麼算的」。"""
+        output = self._render()
+
+        self.assertEqual(output.count('class="method-link" href="#data-governance"'), 4)
+        # 方法論章節本身不該連向自己
+        governance = output[output.index('id="data-governance"'):]
+        governance = governance[: governance.index("</section>")]
+        self.assertNotIn("method-link", governance)
+
     def test_professional_report_visualizes_verified_market_industry_and_event_data(self):
         template_text = pathlib.Path(
             "templates/reports/post_close_professional.html"

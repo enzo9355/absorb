@@ -737,7 +737,9 @@ class WebProductTests(unittest.TestCase):
         load.return_value = observation_dashboard()
         client = stock_app.app.test_client()
         expectations = {
-            "/": "台股市場研究摘要",
+            # ORDER 4（A-2）：「今日」第 1 段標題。原為「台股市場研究摘要」，
+            # 與第 2 段的「市場指揮台」語意重疊，依 §5.2 合併為一段白話標題。
+            "/": "台股今天怎麼了",
             "/market": "市場實況",
             "/industries": "產業觀察",
             "/stocks": "個股與 ETF",
@@ -767,14 +769,30 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/industries"))
 
-    def test_dashboard_starts_with_today_market_preparation_cards(self):
+    def test_dashboard_update_stream_carries_both_report_tracks(self):
+        """ORDER 4（A-2）：「今日市場準備」與「今日焦點」合併為「最新更新」。
+
+        守的性質不變 —— 主版面必須在第一屏之後就給出兩條報告軌道的入口 ——
+        只是區塊名稱與結構改了。額外加上排序聲明與「不是時間倒序」的斷言，
+        避免這一段被實作成單純的時間動態牆（純時間倒序會把「新」誤當「重要」）。
+        """
         response = stock_app.app.test_client().get("/")
         html = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("今日市場準備", html)
+        self.assertIn("最新更新", html)
         self.assertIn("盤後觀察", html)
         self.assertIn("盤前風險更新", html)
+        self.assertIn("依重要性排序，不是發布時間倒序", html)
+        self.assertIn('class="update-type update-type-report"', html)
+        self.assertIn('class="update-type update-type-observation"', html)
+        # 兩條報告軌道必須排在觀察條目之前（重要性優先）
+        self.assertLess(
+            html.index("update-type-report"), html.index("update-type-observation")
+        )
+        # 舊的兩個重疊區塊不得同時殘留
+        self.assertNotIn("今日市場準備", html)
+        self.assertNotIn("今日焦點", html)
 
     def test_every_papi_theme_has_at_least_five_companies(self):
         self.assertTrue(
@@ -876,6 +894,9 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("ABSORB", html)
         self.assertIn('class="brand-wordmark"', html)
         self.assertIn('data-brand-wordmark', html)
+        self.assertIn(
+            'aria-label="回到 ABSORB 主畫面">Absorb</a>', html
+        )
         self.assertIn('aria-label="回到 ABSORB 主畫面"', html)
         self.assertNotIn('class="brand-mark"', html)
         self.assertIn("今天市場", html)
@@ -943,7 +964,9 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         detail_html = detail.get_data(as_text=True)
         self.assertIn('data-market="US"', detail_html)
-        self.assertIn('class="back-link" href="/us"', detail_html)
+        # ORDER 4（§5.1）：上一層必須具名，而且維持在同一個市場。
+        # 個股明細的上一層是「個股與 ETF」，不是市場總覽。
+        self.assertIn('class="back-link" href="/us/stocks">返回個股與 ETF', detail_html)
 
     def test_us_dashboard_renders_three_index_forecasts_and_actual_charts(self):
         summary = {
@@ -1028,10 +1051,20 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('data-market="US"', html)
         self.assertNotIn('data-dashboard-endpoint', html)
         self.assertNotIn("TAIEX", html)
-        self.assertIn("目前沒有異常上漲事件。", html)
-        self.assertIn("目前沒有異常下跌事件。", html)
-        for label in ("量能異常", "法人動向", "技術面", "官方", "資料警示"):
-            self.assertIn(f"目前沒有{label}事件。", html)
+        # ORDER 4（B-3）：0 件不再各佔一張卡片，改為摘要列裡的一個 0 件項目。
+        # 守的性質不變 —— 每一類的件數都必須說出來，不能靜靜消失 —— 而且
+        # 現在額外要求 0 件的類別不得展開為區塊（那正是 1,000px 空白的來源）。
+        self.assertIn('<ul class="event-summary">', html)
+        for label in ("異常上漲", "異常下跌", "量能異常", "法人動向", "技術面", "官方事件", "資料警示"):
+            with self.subTest(label=label):
+                self.assertIn(
+                    f'<span class="event-summary-label">{label}</span>'
+                    '<span class="event-summary-count">0 件</span>',
+                    html,
+                )
+        self.assertEqual(html.count('class="event-summary-item is-empty"'), 7)
+        self.assertNotIn('class="event-group"', html)
+        self.assertIn("今天七類事件都沒有觸發。", html)
         self.assertIn('action="/search"', html)
         self.assertIn('name="market" value="US"', html)
 
@@ -1111,15 +1144,16 @@ class WebProductTests(unittest.TestCase):
         analyze.assert_not_called()
         html = response.get_data(as_text=True)
         for label in (
-            "台股市場研究摘要",
-            "市場指揮台",
+            "台股今天怎麼了",
+            "為什麼會這樣",
             "市場廣度",
             "期間報酬",
             "波動與風險",
             "產業相對強度",
             "資料覆蓋",
             "資料基準日 2026-07-15",
-            "今日焦點",
+            "最新更新",
+            "資料品質與限制",
             "產業觀察",
             "市場實況",
             "個股與 ETF",
@@ -1251,14 +1285,523 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("賣出", html)
 
     def test_dashboard_destinations_live_in_sidebar_navigation(self):
-        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
-        primary_nav = html.split('<nav class="sidebar-nav"', 1)[1].split("</nav>", 1)[0]
+        """ORDER 4（A-4）：主導覽收為五個核心入口，ASK ABSORB 與學習降為輔助。
 
-        self.assertIn('href="/ask"', primary_nav)
-        self.assertIn('<span class="nav-label">ASK ABSORB</span>', primary_nav)
-        self.assertIn('href="/learn"', primary_nav)
-        self.assertIn('<span class="nav-label">學習</span>', primary_nav)
+        §17 本來就寫「保留五個核心入口」，但側欄放了七項且無分組。
+        兩個輔助入口仍在側欄內、仍可直達，只是不與每日決策路徑競爭。
+        """
+        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
+        primary_nav = html.split('<nav class="sidebar-nav" aria-label="主要功能"', 1)[1].split("</nav>", 1)[0]
+        aux_nav = html.split('<nav class="sidebar-nav sidebar-aux"', 1)[1].split("</nav>", 1)[0]
+
+        self.assertEqual(primary_nav.count('class="nav-link'), 5)
+        for label in ("今天市場", "市場實況", "產業觀察", "個股與 ETF", "每日報告"):
+            self.assertIn(f'<span class="nav-label">{label}</span>', primary_nav)
+        self.assertNotIn('href="/ask"', primary_nav)
+        self.assertNotIn('href="/learn"', primary_nav)
+
+        self.assertIn('href="/ask"', aux_nav)
+        self.assertIn('href="/learn"', aux_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
+
+    def test_order4_missing_value_style_wins_over_blanket_span_rules(self):
+        """缺值格的字級不得被容器的 `.某容器 span` 規則蓋掉。
+
+        這是 ORDER 4 白話標題被靜靜蓋掉的根因：版面各處有
+        `.command-metrics span { font-size:11px }`、
+        `.pulse-card span { font-size:13px }` 這類以元素選取的規則，
+        特異性 (0,1,1) 高於單一 class 的 .value-unavailable (0,1,0)。
+        type scale 測試看不出來 —— 11px 本來就在白名單內，
+        宣告值全部合法，錯的是誰贏。
+
+        這裡直接算級聯：找出所有會設 font-size 的 `.x span` 規則，
+        要求 .value-unavailable 的規則同樣是元素限定（特異性打平），
+        而且排在它們全部之後（來源順序取勝）。
+
+        這條測試失敗時，正確的修法通常不是把 .value-unavailable 往後搬，
+        而是把新寫的 `.某容器 span { font-size }` 改成 class 選取 ——
+        以元素選取字級會攔截所有後來放進該容器的元件，不只是缺值格。
+        """
+        # 註解會黏在下一條選擇器前面，先移除（長度以空白補回，維持位移可比）
+        css = re.sub(
+            r"/\*.*?\*/", lambda m: " " * len(m.group(0)), css_bundle(), flags=re.S
+        )
+        rules = []
+        offset = 0
+        for chunk in css.split("}"):
+            if "{" not in chunk:
+                offset += len(chunk) + 1
+                continue
+            selector, body = chunk.split("{", 1)
+            rules.append((offset, re.sub(r"\s+", " ", selector.strip()), body))
+            offset += len(chunk) + 1
+
+        blanket = [
+            (pos, sel)
+            for pos, sel, body in rules
+            if "font-size" in body
+            and any(
+                re.fullmatch(r"\.[a-z0-9-]+ (?:span|small)", part.strip())
+                for part in sel.split(",")
+            )
+        ]
+        self.assertTrue(blanket, "測試前提消失：已無容器層級的 span 字級規則")
+
+        winners = [
+            pos
+            for pos, sel, body in rules
+            if "font-size" in body
+            and any(
+                part.strip() == "span.value-unavailable" for part in sel.split(",")
+            )
+        ]
+        self.assertEqual(len(winners), 1, "span.value-unavailable 應只有一條字級規則")
+        for pos, sel in blanket:
+            with self.subTest(selector=sel):
+                self.assertLess(pos, winners[0])
+
+    def test_order4_direction_elements_always_carry_a_sign_or_word(self):
+        """M-5／§12.1 第 02 項：灰階下漲跌仍可辨識。
+
+        顏色是唯一線索時，色覺障礙與灰階列印都會失去方向資訊。
+        這裡把實際繪出的 HTML 裡所有帶方向 class 的元素抓出來，
+        要求文字本身含正負號或方向字詞 —— 或者，對 <dd> 而言，
+        由緊鄰的 <dt> 標籤承擔（「上漲 / 1200」這一組整體是有文字的）。
+        """
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "name": "加權指數", "as_of": "2026-07-15", "price": 23450.12,
+            "open": 23300.0, "high": 23500.0, "low": 23280.0,
+            "change": 150.12, "change_pct": 0.64,
+            "candles": [
+                {"time": "2026-07-1%d" % i, "open": 1, "high": 2, "low": 0.5, "close": 1.5}
+                for i in range(1, 6)
+            ],
+            "ma20": [],
+        }
+        client = stock_app.app.test_client()
+        unsigned = []
+        with patch.object(
+            stock_app, "_published_dashboard_snapshot", return_value=snapshot
+        ):
+            for path in ("/", "/market", "/industries", "/stocks"):
+                html = client.get(path).get_data(as_text=True)
+                # <dt>上漲</dt><dd class="positive">1200</dd>：方向由 dt 承擔，
+                # 這一組整體在灰階下仍然讀得出來，標記後放行。
+                html = re.sub(
+                    r"<dt>[^<]*(?:上漲|下跌|新高|新低|轉強|轉弱)[^<]*</dt>\s*<dd([^>]*)>",
+                    r"<dd\1>DT_LABELLED ",
+                    html,
+                )
+                for match in re.finditer(
+                    r'<(?:dd|strong|span|p|b)[^>]*class="[^"]*\b(?:positive|negative|up|down)\b'
+                    r'[^"]*"[^>]*>(.*?)</(?:dd|strong|span|p|b)>',
+                    html,
+                    re.S,
+                ):
+                    text = re.sub(r"<[^>]+>", "", match.group(1)).strip()
+                    if not text:
+                        continue
+                    if not re.search(
+                        r"[+\-−▲▼]|上漲|下跌|轉強|轉弱|新高|新低|DT_LABELLED", text
+                    ):
+                        unsigned.append((path, text[:40]))
+        self.assertEqual(unsigned, [])
+
+    def test_order5_report_tracks_degrade_without_javascript(self):
+        """§6.2：三個分頁在 HTML 裡必須預設全部可見，由 JS 才收起兩個。
+
+        如果模板直接輸出 hidden，JS 失效（載入失敗、CSP 擋下、舊瀏覽器）
+        時就會有三分之二的已發布內容看不到。列印時同理必須全開。
+        """
+        template = (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "reports"
+            / "post_close_professional.html"
+        ).read_text(encoding="utf-8")
+        panels = re.findall(r"<div class=\"report-track\"[^>]*>", template)
+        self.assertEqual(len(panels), 3)
+        for panel in panels:
+            with self.subTest(panel=panel[:60]):
+                self.assertNotIn("hidden", panel)
+
+        css = css_bundle()
+        self.assertRegex(
+            css, r"@media print\s*\{[^}]*\.report-track\[hidden\]\s*\{[^}]*display:block"
+        )
+
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initReportTracks"):]
+        block = block[: block.index("\nfunction ")]
+        self.assertIn("panel.hidden = panelKey !== key", block)
+        # 跨分頁的錨點必須先切分頁再捲，否則章節索引會靜靜失效
+        self.assertIn("revealHash", block)
+        self.assertIn('window.addEventListener("hashchange"', block)
+
+    def test_order5_anomaly_table_never_sorts_missing_values_as_zero(self):
+        """F-7：缺值不是 0。
+
+        Number("") 是 0 —— 直接把 dataset 轉數字，「尚未驗證」會排到 0 的
+        位置，等於在排序結果裡宣稱它有值。缺值必須永遠墊底，而且不隨
+        升冪／降冪翻面：缺值不是「最小」，是「沒有」。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initAnomalyTable"):]
+        block = block[: block.index("\nfunction ") if "\nfunction " in block else len(block)]
+
+        self.assertNotIn("Number.NEGATIVE_INFINITY", block)
+        self.assertIn('if (raw === undefined || raw.trim() === "") return null;', block)
+        self.assertIn("return left === null ? 1 : -1;", block)
+        # 篩選只改 row.hidden，不重建 DOM（重建會丟掉捲動位置）
+        self.assertIn("row.hidden = !show;", block)
+        self.assertNotIn("innerHTML", block)
+        # 剪貼簿失敗時不得假裝成功
+        self.assertIn("複製失敗", block)
+
+    def test_order5_every_term_tag_resolves_to_a_matching_learn_entry(self):
+        """§2.4／§12.1 第 05 項：每個術語標籤必須連到「它自己」的條目。
+
+        ORDER 4 加術語標籤時，「風險狀態」指到已實現波動、「法人淨流」指到
+        相對大盤報酬 —— 錨點都存在，頁面也不會壞，所以沒有任何測試會紅，
+        但點下去看到的是另一個指標的解釋。這裡除了檢查錨點存在，
+        還要求標籤文字與該條目的標題或別名對得上。
+        """
+        client = stock_app.app.test_client()
+        learn = client.get("/learn").get_data(as_text=True)
+
+        entries = {}
+        for match in re.finditer(
+            r'<article class="learn-term" id="([a-z-]+)"[^>]*>(.*?)</article>',
+            learn,
+            re.S,
+        ):
+            entries[match.group(1)] = re.sub(r"<[^>]+>", " ", match.group(2))
+        self.assertTrue(entries, "學習頁沒有任何詞條")
+
+        tags = []
+        for path in ("/", "/market", "/industries", "/stocks"):
+            html = client.get(path).get_data(as_text=True)
+            tags += re.findall(
+                r'<a class="term-tag" href="/learn#([a-z-]+)">([^<]+)</a>', html
+            )
+        self.assertTrue(tags, "主版面沒有任何術語標籤")
+
+        for target, label in tags:
+            with self.subTest(label=label):
+                self.assertIn(target, entries, f"{label} 指向不存在的條目 {target}")
+                body = entries[target]
+                # 標籤文字必須出現在該條目裡（標題、別名或說明），
+                # 否則就是連到另一個指標的解釋
+                self.assertIn(label.replace(" ", ""), body.replace(" ", ""))
+
+    def test_order5_learn_page_answers_four_questions_per_term(self):
+        """§2.4：辭典只回答「這是什麼」，四欄才回答得完讀者真正卡住的地方。"""
+        learn = stock_app.app.test_client().get("/learn").get_data(as_text=True)
+
+        for column in ("白話定義", "如何閱讀", "常見誤解", "在 ABSORB 哪裡出現"):
+            with self.subTest(column=column):
+                # 每個詞條都要有這四欄
+                self.assertEqual(
+                    learn.count(f"<dt>{column}</dt>"), learn.count('class="learn-term"')
+                )
+
+        # D-5：方法限制是全站合規上最重要的一段，不得用最小字級
+        css = css_bundle()
+        rule = css[css.index(".risk-panel>p"):]
+        rule = rule[: rule.index("}")]
+        self.assertIn("font-size:15px", rule)
+        self.assertNotIn("font-size:11px", rule)
+
+    @patch.object(stock_app, "find_industry_peers")
+    @patch.object(stock_app, "get_stock_name")
+    @patch.object(stock_app, "fetch_published_quant_snapshot")
+    def test_order5_stock_page_separates_facts_from_model_estimate(
+        self, fetch, name, peers
+    ):
+        """§7-3：「已發生事件」與「五日模型情境」必須視覺分區。
+
+        預測摘要原本就放在價格面板裡，跟實際 K 線共用同一張卡 ——
+        讀者沒有任何線索可以判斷哪些數字是已經發生的、哪些是估計出來的。
+        """
+        fetch.return_value = quant_snapshot()
+        name.return_value = "聯發科"
+        peers.return_value = {"category": "半導體", "codes": ["2454"]}
+
+        html = stock_app.app.test_client().get("/stock/2330").get_data(as_text=True)
+
+        # 預測摘要不得再出現在價格面板內
+        chart = html[html.index('class="panel chart-shell"'):]
+        chart = chart[: chart.index("</section>")]
+        self.assertNotIn("stock-forecast-strip", chart)
+        # 而是自成一個明說「這是估計」的區塊
+        self.assertIn('id="forecast"', html)
+        self.assertIn("五日模型情境", html)
+        self.assertIn("以下數字全部是模型估計，不是已經發生的資料", html)
+        # 圖例必須分辨已發生與估計
+        self.assertIn("已發生：近 20 個交易日收盤平均", html)
+
+        # 三維速讀卡
+        self.assertEqual(html.count('class="quick-read-card"'), 3)
+        # 風險內容只出現一次 —— 速讀卡接手後，舊的風險面板必須移除
+        self.assertEqual(html.count('id="risk"'), 1)
+        self.assertEqual(html.count("風險事件"), 1)
+
+        # 欄位解釋不得自建第二套，必須連回學習頁
+        self.assertNotIn("MA20 與 MA60 是過去收盤價平均", html)
+        self.assertIn('href="/learn#term-institution-flow"', html)
+
+    def test_order6_empty_state_spans_its_grid_container(self):
+        """D-1：空狀態文字逐字換行。
+
+        .empty-state 經常被放進 grid 容器（事件清單、卡片格、更新流）。
+        沒有 grid-column 時它會掉進第一個欄軌 —— 原本 .verified-focus li
+        的 30px 編號欄就把「今日焦點資料暫時無法取得。」渲染成每行一個字。
+        """
+        css = css_bundle()
+        rule = css[css.index(".empty-state {"):]
+        rule = rule[: rule.index("}")]
+        self.assertIn("grid-column:1 / -1", rule)
+
+    def test_order6_design_doc_glossary_matches_the_live_term_tags(self):
+        """§30：術語對照表是唯一事實來源，就必須跟畫面一致。
+
+        DESIGN.md 寫了一套、模板連另一套，是本次改版最根本的診斷（C-1）
+        「既有設計規範沒有被遵守」的同一種病。
+        """
+        design = (Path(__file__).resolve().parents[1] / "DESIGN.md").read_text(
+            encoding="utf-8"
+        )
+        table = design[design.index("## 30. 術語對照表"):]
+        documented = set(re.findall(r"`#(term-[a-z-]+)`", table))
+        self.assertTrue(documented, "對照表沒有任何錨點")
+
+        client = stock_app.app.test_client()
+        used = set()
+        for path in ("/", "/market", "/industries", "/stocks", "/stock/2330"):
+            used |= set(
+                re.findall(
+                    r'class="term-tag" href="/learn#(term-[a-z-]+)"',
+                    client.get(path).get_data(as_text=True),
+                )
+            )
+        self.assertTrue(used, "畫面上沒有任何術語標籤")
+        self.assertEqual(used - documented, set(), "有術語標籤沒有寫進對照表")
+
+        learn = client.get("/learn").get_data(as_text=True)
+        for anchor_id in documented:
+            with self.subTest(anchor=anchor_id):
+                self.assertIn(f'id="{anchor_id}"', learn)
+
+    def test_order6_main_surface_terms_always_carry_a_plain_language_title(self):
+        """§12.2 第 8 項：主版面不得出現未配對白話標題的術語字串。
+
+        A-6 的原始診斷是「主版面是散戶入口卻直接用研究者術語」。術語不刪除，
+        降級為標籤並連到學習頁 —— 但那只有在術語**只**出現在標籤裡才成立。
+        術語若同時以主標題出現，白話化就被抵銷了。
+
+        兩個合法位置：`.term-tag` 標籤，或預設收合的「資料品質與限制 /
+        進階數據」區塊（§5.5 明文允許在那裡用原始欄位名稱）。
+        """
+        root = Path(__file__).resolve().parents[1] / "templates"
+        terms = ("MA20", "MA60", "已實現波動", "淨流中位", "量比", "RSI", "Brier")
+        offenders = []
+        for name in ("dashboard.html", "market.html", "industries.html", "stocks.html"):
+            text = (root / name).read_text(encoding="utf-8")
+            text = re.sub(r"\{#.*?#\}", "", text, flags=re.S)          # Jinja 註解
+            text = re.sub(r'<a class="term-tag".*?</a>', "", text, re.S)  # 合法：術語標籤
+            text = re.sub(r"<details class=\"data-limits\">.*?</details>", "", text, flags=re.S)
+            for term in terms:
+                for match in re.finditer(re.escape(term), text):
+                    start = max(0, match.start() - 60)
+                    offenders.append((name, term, text[start:match.end() + 20].strip()[-70:]))
+        self.assertEqual(offenders, [])
+
+    def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
+        """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
+
+        十章、超過 700 行的報告捲動時，讀者無從判斷自己在哪一章。
+        用 IntersectionObserver 而非 scroll listener —— 後者每次捲動都會
+        觸發 getBoundingClientRect，在長報告上是實際可感的卡頓來源。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initReportChapterNav"):]
+        block = block[: block.index("\nfunction ")]
+
+        self.assertIn("IntersectionObserver", block)
+        self.assertNotIn('addEventListener("scroll"', block)
+        self.assertNotIn("getBoundingClientRect", block)
+        # 位置回饋不只靠顏色（M-5 的同一條原則）
+        css = css_bundle()
+        rule = css[css.index(".report-chapter-nav a.is-current"):]
+        rule = rule[: rule.index("}")]
+        self.assertIn("font-weight", rule)
+        self.assertIn("box-shadow", rule)
+
+    def test_order4_back_links_name_their_destination(self):
+        """§5.1：明細頁的上一層必須具名（「返回個股與 ETF」而非泛用返回）。
+
+        泛用的「返回」在多入口的頁面上沒有意義 —— 讀者可能從個股清單、
+        產業觀察或搜尋結果進來，看到「返回」也不知道會去哪裡。
+        這裡掃模板原始碼，因為有些明細頁在測試環境取不到資料。
+        """
+        root = Path(__file__).resolve().parents[1] / "templates"
+        generic = []
+        for path in sorted(root.rglob("*.html")):
+            for match in re.finditer(
+                r'class="back-link"[^>]*>([^<]+)</a>',
+                path.read_text(encoding="utf-8"),
+            ):
+                label = match.group(1).strip()
+                if label in ("返回", "回上一頁", "上一頁", "Back", "返回上一層"):
+                    generic.append((path.name, label))
+                # 具名＝「返回」後面還有目的地名稱
+                self.assertTrue(
+                    label.startswith("返回") and len(label) > len("返回"),
+                    f"{path.name}: {label}",
+                )
+        self.assertEqual(generic, [])
+
+    def test_order4_units_never_render_without_their_value(self):
+        """B-2：缺值時數值與單位必須一起消失。
+
+        原本寫成 {{ 值 if 值 is not none else '—' }}%，百分號在條件式外面，
+        缺值時輸出裸的「—%」；家數用 `or` 判斷，0 這個真實數值也會被
+        當成缺值。這裡直接掃模板原始碼 —— 只驗算繪出的 HTML 會漏掉
+        目前恰好有資料的欄位。
+        """
+        root = Path(__file__).resolve().parents[1] / "templates"
+        offenders = []
+        for name in ("dashboard.html", "market.html", "industries.html", "stocks.html"):
+            text = (root / name).read_text(encoding="utf-8")
+            # Jinja 註解裡會引用反例說明，不列入掃描
+            text = re.sub(r"\{#.*?#\}", "", text, flags=re.S)
+            # 條件式結束後緊接單位字元
+            for match in re.finditer(r"\{\{[^{}]*is not none else[^{}]*\}\}\s*([%倍點])", text):
+                offenders.append((name, match.group(0)[:60]))
+            # `or '—'`：把 0 當成缺值
+            for match in re.finditer(r"\bor\s*'—'", text):
+                offenders.append((name, match.group(0)))
+        self.assertEqual(offenders, [])
+
+    def test_order4_market_chart_declares_its_own_legend_and_limits(self):
+        """§5.5：每張圖必須自己說清楚資料日、單位、圖例與界線。"""
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "name": "加權指數", "as_of": "2026-07-15", "price": 23450.12,
+            "open": 23300.0, "high": 23500.0, "low": 23280.0,
+            "change": 150.12, "change_pct": 0.64,
+            "candles": [
+                {"time": "2026-07-1%d" % i, "open": 1, "high": 2, "low": 0.5, "close": 1.5}
+                for i in range(1, 6)
+            ],
+            "ma20": [{"time": "2026-07-1%d" % i, "value": 1.2} for i in range(1, 6)],
+        }
+        with patch.object(
+            stock_app, "_published_dashboard_snapshot", return_value=snapshot
+        ):
+            html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        self.assertEqual(html.count("legend-swatch"), 3)
+        self.assertIn("資料日 2026-07-15", html)
+        self.assertIn("單位</dt><dd>指數點數</dd>", html)
+        self.assertIn("這不代表什麼：", html)
+
+    def test_order4_chart_ma_line_reads_a_token_with_sufficient_contrast(self):
+        """M-4／WCAG 1.4.11：均價線不得寫死顏色，且對底色至少 3:1。
+
+        原本 app.js 寫死 #7aa6b3，對 --absorb-surface 只有 2.45:1。
+        ORDER 1 的反向白名單只檢查 K 線與預測線，看不到這一條。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("#7aa6b3", script)
+        self.assertIn('getPropertyValue("--chart-ma")', script)
+
+        css = css_bundle()
+        alias = re.search(r"--chart-ma:var\((--[a-z-]+)\)", css).group(1)
+        value = re.search(re.escape(alias) + r":(#[0-9a-f]{6})", css).group(1)
+        surface = re.search(r"--absorb-surface:(#[0-9a-f]{6})", css).group(1)
+
+        def relative_luminance(hex_color):
+            channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [
+                c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+                for c in channels
+            ]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        lighter, darker = sorted(
+            (relative_luminance(value), relative_luminance(surface)), reverse=True
+        )
+        self.assertGreaterEqual((lighter + 0.05) / (darker + 0.05), 3.0)
+
+    def test_order4_ask_examples_are_page_specific_and_never_auto_submit(self):
+        """A-8：浮動面板的問題範例必須隨頁面改變，且只填入不送出。
+
+        「不自動送出」是這一條的重點：自動送出會替使用者做決定，而且送出的
+        問題不見得是他想問的。這裡守的是 JS 端沒有 submit()／requestSubmit()
+        ——  範例按鈕本身是 type="button"，不會誤觸表單送出。
+        """
+        client = stock_app.app.test_client()
+        seen = {}
+        for path in ("/", "/market", "/industries", "/stocks", "/reports", "/learn"):
+            with self.subTest(path=path):
+                html = client.get(path).get_data(as_text=True)
+                examples = re.findall(
+                    r'<button class="quick-ask-example" type="button" '
+                    r'data-quick-ask-example>([^<]+)</button>',
+                    html,
+                )
+                self.assertEqual(len(examples), 3, examples)
+                seen[path] = tuple(examples)
+        # 每一頁的範例都不同 —— 否則「與目前頁面相關」只是說說而已
+        self.assertEqual(len(set(seen.values())), len(seen), seen)
+
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initAskExamples"):]
+        block = block[: block.index("\nfunction ")]
+        self.assertIn("input.value = button.textContent.trim();", block)
+        for forbidden in ("submit()", "requestSubmit()", "dispatchEvent"):
+            self.assertNotIn(forbidden, block)
+
+    def test_order4_ask_surfaces_state_distinct_purposes(self):
+        """A-8：浮動面板與完整頁必須各自說清楚定位，否則兩者功能重疊。"""
+        client = stock_app.app.test_client()
+        home = client.get("/").get_data(as_text=True)
+        ask = client.get("/ask").get_data(as_text=True)
+
+        # 浮動面板：針對目前頁面，且指得出完整頁在哪
+        self.assertIn("針對你正在看的這一頁追問", home)
+        self.assertIn('href="/ask">完整頁', home)
+        # 完整頁：跨市場、跨報告，且不再重複掛浮動鈕
+        self.assertIn("跨市場、跨報告的研究對話", ask)
+        self.assertNotIn("quick-ask-trigger", ask)
+        # 兩個介面都必須帶同一條限制聲明
+        for html in (home, ask):
+            self.assertIn("依已發布資料與模型結果回答，不提供買賣指令。", html)
+
+    def test_order4_footer_reserves_space_for_the_floating_trigger(self):
+        """D-2：浮動鈕是 fixed，捲到底也躲不掉，底部必須留出大於它的距離。"""
+        css = css_bundle()
+        trigger = css[css.index(".quick-ask-trigger {"):]
+        trigger = trigger[: trigger.index("}")]
+        min_height = int(re.search(r"min-height:(\d+)px", trigger).group(1))
+        bottom = int(re.search(r"bottom:(\d+)px", trigger).group(1))
+        footer = css[css.rindex(".site-footer { padding-bottom:"):]
+        reserved = int(re.search(r"padding-bottom:(\d+)px", footer).group(1))
+        self.assertGreater(reserved, min_height + bottom)
+
+    def test_market_switch_sits_above_the_navigation_it_governs(self):
+        """ORDER 4（A-4）：市場切換器決定側欄所有項目的內容，必須在它們之上。"""
+        html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
+        sidebar = html.split('<aside class="dashboard-sidebar"', 1)[1].split("</aside>", 1)[0]
+        self.assertIn("data-market-switch", sidebar)
+        self.assertLess(
+            sidebar.index("data-market-switch"),
+            sidebar.index('<nav class="sidebar-nav" aria-label="主要功能"'),
+        )
+        topbar = html.split('<div class="topbar"', 1)[1].split("</div>", 1)[0]
+        self.assertNotIn("data-market-switch", topbar)
 
     @patch.object(stock_app, "_published_dashboard_snapshot")
     def test_industries_merge_strength_and_attention_companies(self, load_snapshot):
@@ -1286,7 +1829,16 @@ class WebProductTests(unittest.TestCase):
 
         self.assertNotIn("產業實際強弱", html)
         self.assertEqual(html.count('data-industry-disclosure'), 1)
-        self.assertIn('class="industry-disclosure hot"', html)
+        # ORDER 4（§5.5）：強弱改由分組承擔，不再是每張卡片的 hot/cold 色條
+        # （§0.4 禁止「左側彩色 accent 邊條 + 圓角卡」，M-5 禁止只靠顏色）。
+        # 守的性質不變：+2.85% 必須被歸成「強」。現在還額外要求它落在
+        # 具名的分組裡，而不是只有一個顏色。
+        self.assertNotIn('industry-disclosure hot', html)
+        self.assertNotIn('industry-disclosure cold', html)
+        self.assertIn('id="industry-group-hot">值得注意</h3>', html)
+        self.assertLess(
+            html.index('id="industry-group-hot"'), html.index('data-industry-disclosure')
+        )
         self.assertIn("實際動能排序", html)
         self.assertIn('href="/stock/2330"', html)
         self.assertIn("台積電 · 2330", html)
@@ -1505,7 +2057,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("data-watchlist-toggle", html)
         self.assertIn("data-chart-range", html)
         self.assertIn('aria-label="個股觀察導覽"', html)
-        self.assertIn('class="back-link" href="/"', html)
+        self.assertIn('class="back-link" href="/stocks">返回個股與 ETF', html)
 
     @patch.object(stock_app, "fetch_published_quant_snapshot")
     def test_stock_page_does_not_render_untrusted_snapshot_news(self, fetch):
@@ -1534,7 +2086,8 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         fetch.assert_called_once_with("AAPL")
         self.assertIn(
-            'class="back-link" href="/us"', response.get_data(as_text=True)
+            'class="back-link" href="/us/stocks">返回個股與 ETF',
+            response.get_data(as_text=True),
         )
 
     def test_dashboard_script_does_not_insert_api_text_with_inner_html(self):
@@ -1655,7 +2208,7 @@ class WebProductTests(unittest.TestCase):
 
     def test_web_shell_serves_one_wordmark_font_across_devices(self):
         client = stock_app.app.test_client()
-        response = client.get("/static/fonts/absorb-wordmark.woff2")
+        response = client.get("/static/fonts/absorb-wordmark-allura.woff2")
         font_payload = response.get_data()
         response.close()
         css = css_bundle()
@@ -1663,11 +2216,21 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertGreater(len(font_payload), 1_000)
         self.assertIn('font-family:"ABSORB Wordmark"', css)
-        self.assertIn('url("fonts/absorb-wordmark.woff2") format("woff2")', css)
+        self.assertIn(
+            'url("fonts/absorb-wordmark-allura.woff2") format("woff2")', css
+        )
         self.assertIn(
             'font-family:"ABSORB Wordmark","Segoe Script","Brush Script MT",cursive',
             css,
         )
+        self.assertIn("-webkit-text-stroke:.024em currentColor", css)
+        # ORDER 2 之後 app.css 是展開的六檔串接，不再是單行壓縮檔，
+        # 逐字比對規則內容要用 compact 形式。
+        compact = css_compact()
+        self.assertIn(".brand-wordmark{", compact)
+        # 30px 不在 type scale 八級內（M-3 封閉集合），改用 32px；
+        # Allura 字面比 Caveat 小，取較大的一級補回等視覺大小。
+        self.assertIn("font-size:32px;font-weight:400;letter-spacing:0", compact)
 
     def test_web_shell_uses_softened_neutral_paper_surfaces(self):
         css = css_bundle()
@@ -1694,8 +2257,14 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("height:60vh", css)
         self.assertIn(".quick-ask-log{flex:1", css)
         self.assertIn(".industry-disclosure-list{", css)
-        self.assertIn(".industry-disclosure.hot{", css)
-        self.assertIn(".industry-disclosure.cold{", css)
+        # ORDER 4（§5.5 / §0.4 / M-5）：產業強弱改由分組承擔，
+        # hot/cold 的左側彩色邊條 + 底色是 §0.4 明令禁止的手法，
+        # 而且灰階下 hot 與 cold 長得一樣。守的性質不變（強弱必須有
+        # 視覺處理），但改為具名分組，且明確擋住色條回來。
+        self.assertIn(".industry-group-heading{", css)
+        self.assertNotIn(".industry-disclosure.hot{", css)
+        self.assertNotIn(".industry-disclosure.cold{", css)
+        self.assertNotIn(".industry-disclosure.steady{", css)
 
     def test_browser_bundle_has_no_local_watchlist_storage(self):
         source = Path(stock_app.app.static_folder, "app.js").read_text(
@@ -1783,7 +2352,8 @@ class WebProductTests(unittest.TestCase):
         --absorb-danger / --absorb-success）除了 token 定義與 --price-*
         映射定義外，只允許出現在已逐條核對的非方向用途清單中；
         清單外任何規則即失敗（E-1 Blocker 3 覆核第二輪）。"""
-        css = css_bundle()
+        # 註解會黏在下一條選擇器前面，會讓「規則名稱」對不上白名單
+        css = re.sub(r"/\*.*?\*/", " ", css_bundle(), flags=re.S)
         source_tokens = (
             "--absorb-coral",
             "--absorb-sage",
@@ -1798,6 +2368,25 @@ class WebProductTests(unittest.TestCase):
             '.freshness-status[data-freshness-status="current"]',
             ".confidence-card strong",
         }
+        # ORDER 5（E-1）：ORDER 1 的白名單只認這四個 token，
+        # 報告層用的是 --absorb-green-ok / --absorb-red-strong，
+        # 所以「強勢跑贏」的綠與同一列 +4.31% 的紅並存了整整四個 ORDER。
+        # 把這兩個 token 一併納入來源色，缺口才補起來。
+        source_tokens = source_tokens + (
+            "--absorb-green-ok",
+            "--absorb-red-strong",
+        )
+        # 非方向用途才留在名單裡：模型 Gate 通過／失敗、規則式風險狀態。
+        # 這些不是漲跌，綠＝通過在這裡是對的。
+        allowed_rules |= {
+            ".market-state-badge.state-improving",
+            ".badge-success",
+            ".badge-danger",
+        }
+        # 名單裡不得有不存在的規則，否則只是把洞挖大
+        for rule_name in allowed_rules:
+            with self.subTest(allowed=rule_name):
+                self.assertIn(rule_name.split(">")[0].strip(), css)
         violations = []
         for rule in css.split("}"):
             if "{" not in rule:
@@ -1873,7 +2462,10 @@ class WebProductTests(unittest.TestCase):
         """中文行高不得低於 1.3，否則字的上緣會被裁切（D-4）。"""
         css = css_bundle()
         bare = [v for v in re.findall(r"line-height:\s*([0-9.]+)(?![0-9a-z%])", css)]
-        shorthand = re.findall(r"font:\s*\d+\s+[0-9.]+px/([0-9.]+)", css)
+        # font 簡寫裡的行高：字級可能是 clamp()、var() 或帶單位的任意值，
+        # 原本的 `[0-9.]+px/` 只認得字面 px，clamp(28px,3.2vw,42px)/1.16
+        # 就這樣溜過去了（D-4 的那一條規則正是這個形式）。
+        shorthand = re.findall(r"font:[^;{}]*?/([0-9.]+)\s", css)
         too_tight = [v for v in bare + shorthand if float(v) < 1.3]
         self.assertEqual(too_tight, [])
 

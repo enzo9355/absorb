@@ -32,10 +32,28 @@
       </div>
       {% endif %}
     </div>
+    {# ORDER 5（A-5）：兩層篩選。原本只有「報告類型」一層，兩種讀者的入口
+       混在同一份清單裡；731 行的研究版沒有直達路徑。
+       第一層改為讀者 —— 切換的是每張卡片主要按鈕通往哪一個分頁
+       （30 秒大局觀／異常個股資料表／專業研究台），三個門一直都在，
+       只是預設推薦的那一個跟著讀者走。不把同一份報告在清單裡列兩次。
+       第二層維持報告類型。 #}
     {% if reports_v2 %}
+      {% set report_days = (reports_v2 | map(attribute='source_market_date') | list + reports_v2 | map(attribute='applicable_trading_date') | list) | unique | sort(reverse=true) %}
+      <div class="report-readers" data-report-readers role="group" aria-label="選擇閱讀方式">
+        <button class="active" type="button" data-report-reader="overview" aria-pressed="true">快速閱讀<span class="report-reader-hint">30 秒大局觀</span></button>
+        <button type="button" data-report-reader="table" aria-pressed="false">查異常標的<span class="report-reader-hint">可搜尋的資料表</span></button>
+        <button type="button" data-report-reader="research" aria-pressed="false">完整研究<span class="report-reader-hint">專業研究台</span></button>
+      </div>
+      <nav class="report-timeline" data-report-timeline aria-label="依交易日篩選報告">
+        <button class="active" type="button" data-report-day="all" aria-pressed="true">全部日期</button>
+        {% for day in report_days[:7] %}<button type="button" data-report-day="{{ day }}" aria-pressed="false">{{ day[5:] }}</button>{% endfor %}
+      </nav>
+      <p class="report-timeline-note">時間軸顯示最近 {{ report_days[:7]|length }} 個有已驗證報告的交易日；沒有報告的日期不會出現，這一段不以空白補位。</p>
       <div class="report-lanes" data-report-lanes>
         {% for report_type, lane_title, lane_description in [('pre_market', '盤前風險更新', '開盤前確認隔夜訊號與資料限制'), ('post_close', '盤後市場觀察', '收盤後整理市場、產業與異常事件')] %}
-        {% set lane_reports = reports_v2|selectattr('report_type', 'equalto', report_type)|list %}
+        {# 頁面文案寫「由新到舊閱讀」，就必須真的由新到舊；索引本身的順序不保證。 #}
+        {% set lane_reports = reports_v2|selectattr('report_type', 'equalto', report_type)|sort(attribute='applicable_trading_date' if report_type == 'pre_market' else 'source_market_date', reverse=true)|list %}
         <section class="report-lane" data-report-type="{{ report_type }}" aria-labelledby="report-lane-{{ report_type }}">
           <header class="report-lane-header">
             <div><h3 id="report-lane-{{ report_type }}">{{ lane_title }}</h3><p>{{ lane_description }}</p></div>
@@ -43,19 +61,21 @@
           </header>
           <div class="report-lane-list">
             {% for report in lane_reports %}
-            <article class="report-card report-card-{{ report_type }}">
+            {% set card_day = report.applicable_trading_date if report_type == 'pre_market' else report.source_market_date %}
+            {% set report_href = url_for(post_close_endpoint, trading_date=report.source_market_date) if report_type == 'post_close' else url_for(pre_market_endpoint, trading_date=report.applicable_trading_date) %}
+            <article class="report-card report-card-{{ report_type }}" data-report-day="{{ card_day }}">
               <div>
-                <p class="report-date">{{ report.applicable_trading_date if report_type == 'pre_market' else report.source_market_date }}</p>
+                <p class="report-date">{{ card_day }}</p>
                 <h3>{{ report.title }}</h3>
-                <p class="report-summary">{{ report.summary|join('；') }}</p>
+                {# 免點即覽：第一條摘要就是這份報告的一句話結論，直接抬到卡片上 #}
+                {% if report.summary %}<p class="report-lead">{{ report.summary[0] }}</p>{% endif %}
+                {% if report.summary|length > 1 %}<p class="report-summary">{{ report.summary[1:]|join('；') }}</p>{% endif %}
                 <p class="muted small">資料基準日 {{ report.source_market_date }}｜適用交易日 {{ report.applicable_trading_date }}</p>
               </div>
-              <div class="report-actions">
-                {% if report_type == 'post_close' %}
-                  <a class="button button-secondary" href="{{ url_for(post_close_endpoint, trading_date=report.source_market_date) }}">閱讀盤後觀察</a>
-                {% else %}
-                  <a class="button button-secondary" href="{{ url_for(pre_market_endpoint, trading_date=report.applicable_trading_date) }}">閱讀盤前更新</a>
-                {% endif %}
+              <div class="report-actions report-doors" data-report-doors>
+                <a class="button is-primary-door" href="{{ report_href }}#track-overview" data-report-door="overview">30 秒大局觀</a>
+                {% if report_type == 'post_close' %}<a class="button button-secondary" href="{{ report_href }}#track-table" data-report-door="table">異常個股資料表</a>{% endif %}
+                <a class="button button-secondary" href="{{ report_href }}#track-research" data-report-door="research">完整研究版</a>
               </div>
             </article>
             {% else %}

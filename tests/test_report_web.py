@@ -198,7 +198,11 @@ class ReportWebTests(unittest.TestCase):
 
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("美股市場研究摘要", html)
+        # ORDER 6：美股頁改為與台股一致的四段式，標題同步改為白話
+        # （A-1：整頁最重要的一句話原本被壓在指數圖表下面）。
+        self.assertIn("美股今天怎麼了", html)
+        # 一句話結論必須排在指數圖表之前 —— 這是這次改動的重點
+        self.assertLess(html.index("research-headline"), html.index("us-index-title"))
         self.assertIn("2026-07-15", html)
         load_index.assert_called_once_with(market="US")
 
@@ -424,7 +428,15 @@ class ReportWebTests(unittest.TestCase):
         listing_html = listing.get_data(as_text=True)
         self.assertIn(metadata["title"], listing_html)
         self.assertIn("盤後觀察", listing_html)
-        self.assertIn("閱讀盤後觀察", listing_html)
+        # ORDER 5（A-5）：單一「閱讀盤後觀察」按鈕換成三個具名入口
+        # （30 秒大局觀／異常個股資料表／完整研究版），守的性質不變 ——
+        # 清單必須連得到那份盤後報告 —— 而且現在三個入口都要在。
+        self.assertIn("30 秒大局觀", listing_html)
+        self.assertIn("異常個股資料表", listing_html)
+        self.assertIn("完整研究版", listing_html)
+        for track in ("overview", "table", "research"):
+            with self.subTest(track=track):
+                self.assertIn(f"/post-close#track-{track}", listing_html)
 
         self.assertEqual(trading_day.status_code, 200)
         html = trading_day.get_data(as_text=True)

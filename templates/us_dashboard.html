@@ -1,47 +1,96 @@
 {% extends "base.html" %}
-{% block title %}美股市場研究摘要｜ABSORB{% endblock %}
+{% block title %}美股今天怎麼了｜ABSORB{% endblock %}
 {% block head %}{% if index_predictions %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>{% endif %}{% endblock %}
 {% block content %}
 {% set freshness = (data_freshness|default({}, true)).get('US', {}) %}
-{% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness.get('status'), '暫時無法取得') %}
-<div class="page market-summary-page">
-  <header class="page-header market-summary-header">
-    <div>
-      <h1>美股市場研究摘要</h1>
-      <p class="page-intro">僅依已驗證的美股正式報告整理；不推定台股資料，也不補造即時數字。</p>
+{% set freshness_status = freshness.get('status', 'unavailable') %}
+{% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness_status, '暫時無法取得') %}
+{% set freshness_chip = {'current':'is-available','updating':'is-partial','stale':'is-stale','unavailable':'is-unavailable'}.get(freshness_status, 'is-unavailable') %}
+{% set exec = summary.executive_summary if summary is mapping else {} %}
+<div class="page market-summary-page" data-freshness-status="{{ freshness_status }}">
+
+  {# ORDER 6（A-1 / A-2，台股版的同一組缺陷）：美股頁原本的順序是
+     標題 → 資料狀態 → 指數與五日情境 → 一句話結論 → 關鍵事件 → 驗證狀態。
+     整頁最重要的那一句話（executive_summary.one_line_conclusion）被壓在
+     指數圖表下面，讀者得先捲過一整塊圖才看得到結論。改為與台股一致的
+     四段式，順序即閱讀順序。 #}
+  <section class="today-brief" aria-labelledby="us-brief-title">
+    <div class="today-copy">
+      <p class="research-status"><span aria-hidden="true"></span>已驗證市場觀察</p>
+      <h1 id="us-brief-title">美股今天怎麼了</h1>
+      <p class="research-headline">{{ exec.one_line_conclusion or '本次已驗證報告尚未提供一句話結論。' }}</p>
+      {% if exec.largest_risk %}<p class="today-risk"><strong>要留意什麼：</strong>{{ exec.largest_risk }}</p>{% endif %}
+      <p class="research-limit">僅依已驗證的美股正式報告整理；不推定台股資料，也不補造即時數字。</p>
     </div>
-    <dl class="summary-dates" aria-label="資料日期">
-      <div><dt>來源交易日</dt><dd>{{ summary.source_market_date }}</dd></div>
-      <div><dt>適用交易日</dt><dd>{{ summary.applicable_trading_date }}</dd></div>
+    <dl class="today-facts">
+      <div><dt>市場</dt><dd>美股（US）</dd></div>
+      <div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or summary.source_market_date or '尚無已驗證日期' }}</dd></div>
+      <div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div>
+      <div><dt id="us-freshness-title">資料狀態</dt><dd><span class="state-chip {{ freshness_chip }}" aria-live="polite">資料狀態：{{ freshness_label }}</span></dd></div>
     </dl>
-  </header>
-  <section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-labelledby="us-freshness-title">
-    <div><h2 id="us-freshness-title">已驗證資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
-    <dl><div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or '尚無已驗證日期' }}</dd></div></dl>
   </section>
-  <section class="panel us-index-workspace" aria-labelledby="us-index-title">
-    <div class="section-heading"><div><p class="eyebrow">US MARKET INDEXES</p><h2 id="us-index-title">主要指數與 AI 五日情境</h2></div></div>
+
+  {# 第 2 段：最新更新。美股的等價物是已驗證報告裡的關鍵事件。 #}
+  <section class="update-stream" aria-labelledby="summary-events-title">
+    <div class="section-heading">
+      <div><h2 id="summary-events-title">最新更新</h2><p>依重要性排序，不是發布時間倒序；只收錄已驗證的觀察與報告</p></div>
+      <a href="{{ url_for('us_reports_page') }}">查看所有報告</a>
+    </div>
+    <ol class="update-list">
+      {% for event in summary.key_events %}
+      <li class="update-item">
+        <div class="update-meta"><span class="update-type update-type-observation">關鍵事件</span><time datetime="{{ summary.source_market_date }}">{{ summary.source_market_date }}</time></div>
+        <div class="update-body"><p class="update-headline">{{ event.headline }}</p>{% if event.description and event.description != event.headline %}<p>{{ event.description }}</p>{% endif %}</div>
+      </li>
+      {% else %}
+      <li class="update-item">
+        <div class="update-meta"><span class="update-type update-type-observation">關鍵事件</span><span class="value-unavailable">尚未驗證</span></div>
+        <div class="update-body"><p class="update-headline">本次已驗證報告沒有可顯示的關鍵事件。這代表沒有事件通過驗證，不是資料缺失。</p></div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {# 第 3 段：為什麼會這樣。指數走勢是已發生的事實。 #}
+  <section class="research-command" aria-labelledby="us-index-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">US MARKET INDEXES</p><h2 id="us-index-title">為什麼會這樣</h2><p>主要指數的實際走勢</p></div>
+      <span class="muted small">資料日 {{ summary.source_market_date or '待更新' }}</span>
+    </div>
     {% if index_predictions %}
     <div class="segmented us-index-tabs" aria-label="選擇美股指數">{% for item in index_predictions %}<button type="button" data-us-index-tab="{{ item.symbol }}" aria-pressed="{{ 'true' if loop.first else 'false' }}" class="{{ 'active' if loop.first else '' }}">{{ item.name }}</button>{% endfor %}</div>
     <div class="us-index-layout">
       <div id="us-index-chart" class="market-index-chart" role="img" aria-label="美股主要指數實際 K 線與五日預測終點"></div>
-      <div class="us-index-forecast-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><strong>{{ '{:,.2f}'.format(item.current_price) }}</strong><dl><div><dt>{{ item.probability_label }}</dt><dd>{{ '%.1f%%'|format(item.probability_pct) }}</dd></div><div><dt>第 5 個交易日預測價</dt><dd>{{ '{:,.2f}'.format(item.predicted_price) }}</dd></div><div><dt>預估漲跌幅</dt><dd class="{{ 'positive' if item.predicted_change_pct > 0 else 'negative' if item.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(item.predicted_change_pct) }}</dd></div><div><dt>目標交易日</dt><dd>{{ item.target_session }}</dd></div></dl><small>{% if item.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if item.status == 'current' else '前次預測｜資料日 ' ~ item.as_of }}{% endif %}</small></article>{% endfor %}</div>
+      <div class="us-index-actual-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><strong>{{ '{:,.2f}'.format(item.current_price) }}</strong><small>最新收盤</small></article>{% endfor %}</div>
     </div>
+    <dl class="chart-legend">
+      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>已發生：收盤高於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>已發生：收盤低於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-forecast" aria-hidden="true"></span>五日情境</dt><dd><strong>模型估計</strong>：虛線，非已發生資料</dd></div>
+      <div><dt>單位</dt><dd>指數點數</dd></div>
+    </dl>
     <script id="us-index-chart-data" type="application/json">{{ index_predictions|tojson }}</script>
-    <p class="muted small">實線為已發生的指數 K 線；虛線只連接目前收盤與第 5 交易日估計，不代表中間每日路徑，也不是買賣指令。</p>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>實線是已經發生的指數 K 線；虛線只連接目前收盤與第 5 交易日估計，不代表中間每日路徑，也不是買賣指令。</p>
+    {% else %}<p class="empty-state">本交易日的已驗證指數資料尚未發布。</p>{% endif %}
+  </section>
+
+  {# ORDER 6（§7-3，台股個股頁的同一組缺陷）：五日情境原本與最新收盤
+     並排在同一張卡裡，讀者沒有線索分辨哪個是已發生、哪個是估計。
+     抽成獨立區塊，標題直接說明它是估計。 #}
+  <section class="panel forecast-section" id="us-forecast" aria-labelledby="us-forecast-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">MODEL ESTIMATE</p><h2 id="us-forecast-title">五日模型情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>
+    </div>
+    {% if index_predictions %}
+    <div class="us-index-forecast-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><dl><div><dt>{{ item.probability_label }}</dt><dd>{{ '%.1f%%'|format(item.probability_pct) }}</dd></div><div><dt>第 5 個交易日預測價</dt><dd>{{ '{:,.2f}'.format(item.predicted_price) }}</dd></div><div><dt>預估漲跌幅</dt><dd class="{{ 'positive' if item.predicted_change_pct > 0 else 'negative' if item.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(item.predicted_change_pct) }}</dd></div><div><dt>目標交易日</dt><dd>{{ item.target_session }}</dd></div></dl><small>{% if item.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if item.status == 'current' else '前次預測｜資料日 ' ~ item.as_of }}{% endif %}</small></article>{% endfor %}</div>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。</p>
     {% else %}<p class="empty-state">本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。</p>{% endif %}
   </section>
-  <section class="panel summary-conclusion" aria-labelledby="summary-conclusion-title">
-    <h2 id="summary-conclusion-title">{{ summary.executive_summary.one_line_conclusion }}</h2>
-    <p>{{ summary.executive_summary.largest_risk }}</p>
-  </section>
-  <div class="market-summary-grid">
-    <section class="panel" aria-labelledby="summary-events-title">
-      <h2 id="summary-events-title">關鍵事件</h2>
-      <ul class="summary-list">{% for event in summary.key_events %}<li><strong>{{ event.headline }}</strong>{% if event.description and event.description != event.headline %}<span>{{ event.description }}</span>{% endif %}</li>{% else %}<li class="empty-state">本次已驗證報告沒有可顯示的關鍵事件。</li>{% endfor %}</ul>
-    </section>
-    <section class="panel" aria-labelledby="summary-validation-title">
-      <h2 id="summary-validation-title">驗證狀態</h2>
+
+  {# 第 4 段：資料品質與限制，預設收合。 #}
+  <details class="data-limits">
+    <summary><span>資料品質與限制</span><span class="data-limits-hint">市場資料驗證、模型 Gate 狀態</span></summary>
+    <div class="data-limits-body">
       {% set gate_labels = {"ranking": "模型排名", "calibration": "模型校準", "quality": "品質 Gate", "transaction_value": "交易價值驗證", "promotion": "模型 Promotion"} %}
       {% set market_section = summary.get('market') if summary is mapping else none %}
       {% set industries_section = summary.get('industries') if summary is mapping else none %}
@@ -70,13 +119,14 @@
                 {% endif %}
               {% endfor %}
             </dl>
-            <p class="muted small">以上狀態代表模型研究功能尚未取得發布資格，不代表市場行情資料驗證失敗。</p>
+            <p class="data-limits-note">以上狀態代表模型研究功能尚未取得發布資格，不代表市場行情資料驗證失敗。</p>
           {% else %}
             <p class="empty-state">模型研究功能尚未取得發布資格，不代表市場行情資料驗證失敗。</p>
           {% endif %}
         </div>
       </div>
-    </section>
-  </div>
+      <a class="data-limits-link" href="{{ url_for('us_reports_page') }}">看完整研究版</a>
+    </div>
+  </details>
 </div>
 {% endblock %}

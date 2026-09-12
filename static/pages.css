@@ -330,13 +330,28 @@
     font-weight: 650;
     border-radius: 6px;
 }
+/* ORDER 5（E-1 / M-6）：報告層殘留的方向色矛盾。
+   「強勢領先產業」用 .strong-tag 的綠、「相對落後」用 .badge-danger 的紅，
+   但同一列旁邊的 +4.31% 走 --price-up，在台股是紅色 ——
+   同一個事實在同一列出現兩種相反的顏色。
+   ORDER 1 的反向白名單只看 --absorb-coral/sage/danger/success 四個 token，
+   這裡用的是 --absorb-green-ok / --absorb-red-strong，所以檢查不到。
+   方向一律改讀 --price-up / --price-down。 */
 .strong-tag {
-    background: rgb(16 185 129 / 12%);
-    color: var(--absorb-green-ok);
+    background: color-mix(in srgb, var(--price-up) 12%, transparent);
+    color: var(--price-up);
 }
 .weak-tag {
-    background: rgb(239 68 68 / 12%);
-    color: var(--absorb-red-strong);
+    background: color-mix(in srgb, var(--price-down) 12%, transparent);
+    color: var(--price-down);
+}
+.badge-price-up {
+    background: color-mix(in srgb, var(--price-up) 12%, transparent);
+    color: var(--price-up);
+}
+.badge-price-down {
+    background: color-mix(in srgb, var(--price-down) 12%, transparent);
+    color: var(--price-down);
 }
 /* Data Table */
 .data-table {
