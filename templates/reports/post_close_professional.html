@@ -30,7 +30,7 @@
 {% set gov_sec = report.governance if (report is defined and report.governance is defined and report.governance) else {} %}
 {% set ai_sec = report.ai_reference if (report is defined and report.ai_reference is defined and report.ai_reference) else {} %}
 
-<article class="page report-detail-page professional-report">
+<article class="page report-detail-page professional-report" id="top-of-report" tabindex="-1">
   <!-- Masthead / Hero Header -->
   <header class="report-hero panel report-masthead">
     <div class="masthead-top">
@@ -72,26 +72,31 @@
     </div>
   </header>
 
-  <!-- Sticky Chapter Navigation -->
-  <nav class="report-chapter-nav" aria-label="報告章節導覽">
-    <a href="#executive-summary">投資決策摘要</a>
-    <a href="#market-analysis">市場總體與風險</a>
-    <a href="#capital-flows">資金與籌碼流向</a>
-    <a href="#industry-analysis">產業輪動與排名</a>
-    <a href="#security-analysis">個股與 ETF 觀察</a>
-    <a href="#quantitative-research">量化回歸與模型</a>
-    <a href="#model-validation">模型驗證與回測</a>
-    <a href="#next-session">次日研究框架</a>
-    <a href="#data-governance">資料治理與方法論</a>
-    <a href="#ai-reference">AI 模型參考建議</a>
-  </nav>
+  {# ORDER 5（A-7）：章節索引。常駐目錄與 section id 在稽核基準點就已存在，
+     缺的是「當前章節標示」、手機可收合，以及每個 <h2>／<h3> 的穩定錨點
+     （原本只有 <section> 有 id，無法引用子章節）。 #}
+  <details class="report-chapter-nav-wrap" data-chapter-nav open>
+    <summary class="report-chapter-nav-summary"><span>章節索引</span><span class="report-chapter-current" data-chapter-current>投資決策摘要</span></summary>
+    <nav class="report-chapter-nav" aria-label="報告章節導覽">
+      <a href="#executive-summary">投資決策摘要</a>
+      <a href="#market-analysis">市場總體與風險</a>
+      <a href="#capital-flows">資金與籌碼流向</a>
+      <a href="#industry-analysis">產業輪動與排名</a>
+      <a href="#security-analysis">個股與 ETF 觀察</a>
+      <a href="#quantitative-research">量化回歸與模型</a>
+      <a href="#model-validation">模型驗證與回測</a>
+      <a href="#next-session">次日研究框架</a>
+      <a href="#data-governance">資料治理與方法論</a>
+      <a href="#ai-reference">AI 模型參考建議</a>
+    </nav>
+  </details>
 
   <!-- Section 1: Executive Summary -->
   <section class="panel report-section" id="executive-summary">
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 01 ｜ EXECUTIVE SUMMARY</p>
-        <h2>投資決策摘要</h2>
+        <h2 id="executive-summary-title">投資決策摘要</h2>
       </div>
       <div class="market-state-badge state-{{ 'defensive' if exec_summary.market_state == '提高防守' else ('improving' if exec_summary.market_state == '風險改善' else 'neutral') }}">
         <span class="state-dot"></span>
@@ -142,7 +147,7 @@
 
     <!-- Key Events -->
     <div class="subsection">
-      <h3 class="subsection-title">今日市場重要事件與異常摘要</h3>
+      <h3 class="subsection-title" id="exec-highlights">今日市場重要事件與異常摘要</h3>
       <div class="event-card-list">
         {% for event in report.key_events %}
           <div class="event-item severity-{{ event.severity or 'medium' }}">
@@ -166,7 +171,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 02 ｜ MARKET AND RISK</p>
-        <h2>市場總體與風險</h2>
+        <h2 id="market-analysis-title">市場總體與風險</h2>
       </div>
       <span class="muted small">資料基準日 {{ ident.source_market_date or report.source_market_date or '—' }}</span>
     </div>
@@ -222,7 +227,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 03 ｜ CAPITAL FLOWS</p>
-        <h2>{{ flow_heading }}</h2>
+        <h2 id="capital-flows-title">{{ flow_heading }}</h2>
       </div>
       <span class="muted small">單位：{{ flow_unit }}</span>
     </div>
@@ -269,7 +274,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 04 ｜ INDUSTRY ROTATION</p>
-        <h2>產業輪動與相對強弱排名</h2>
+        <h2 id="industry-analysis-title">產業輪動與相對強弱排名</h2>
       </div>
       <span class="muted small">5 日相對大盤超額報酬 (Relative Return)</span>
     </div>
@@ -365,14 +370,14 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 05 ｜ SECURITIES AND ETF</p>
-        <h2>個股異常事件與 ETF 觀察</h2>
+        <h2 id="security-analysis-title">個股異常事件與 ETF 觀察</h2>
       </div>
     </div>
 
     {% if sec_sec.status == 'available' %}
       <!-- Subsection: Trading Status -->
       <div class="subsection">
-        <h3 class="subsection-title">{{ status_heading }}</h3>
+        <h3 class="subsection-title" id="security-trading-status">{{ status_heading }}</h3>
         {% if sec_sec.data.trading_status_observations %}
           <div class="table-wrap">
             <table class="data-table">
@@ -405,7 +410,7 @@
 
       <!-- Subsection: Stock Events -->
       <div class="subsection">
-        <h3 class="subsection-title">個股技術與量能異常事件</h3>
+        <h3 class="subsection-title" id="security-anomalies">個股技術與量能異常事件</h3>
         <p class="muted small">漲跌、量能、法人、技術與資料警示分開呈現；事件條件不代表因果關係。</p>
         {% set report_groups = namespace(up=[], down=[], volume=[], institution=[], technical=[], data=[]) %}
         {% for item in sec_sec.data.stock_events %}{% if item.event_type == 'price_move' and item.metric_value > 0 %}{% set report_groups.up = report_groups.up + [item] %}{% elif item.event_type == 'price_move' %}{% set report_groups.down = report_groups.down + [item] %}{% elif item.event_type in ('volume_surge','volume_dry_up') %}{% set report_groups.volume = report_groups.volume + [item] %}{% elif item.event_type == 'institution_flow' %}{% set report_groups.institution = report_groups.institution + [item] %}{% elif item.event_type in ('rsi_overbought','rsi_oversold','new_high_20d','new_low_20d') %}{% set report_groups.technical = report_groups.technical + [item] %}{% elif item.event_type == 'data_warning' %}{% set report_groups.data = report_groups.data + [item] %}{% endif %}{% endfor %}
@@ -418,7 +423,7 @@
 
       <!-- Subsection: ETF Observations -->
       <div class="subsection">
-        <h3 class="subsection-title">重點 ETF 追蹤</h3>
+        <h3 class="subsection-title" id="security-etf">重點 ETF 追蹤</h3>
         <div class="report-kpi-grid">
           {% for item in sec_sec.data.etf_observations[:8] %}
             {% set trend_val = item.trend or item.trend_observation %}
@@ -447,7 +452,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 06 ｜ QUANTITATIVE RESEARCH</p>
-        <h2>量化回歸與解釋型模型研究</h2>
+        <h2 id="quantitative-research-title">量化回歸與解釋型模型研究</h2><a class="method-link" href="#data-governance">方法論與資料來源</a>
       </div>
       <div class="badge badge-research">統計學術規範 · Newey-West HAC</div>
     </div>
@@ -558,7 +563,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 07 ｜ MODEL VALIDATION</p>
-        <h2>量化模型驗證與策略回測閘道</h2>
+        <h2 id="model-validation-title">量化模型驗證與策略回測閘道</h2><a class="method-link" href="#data-governance">方法論與資料來源</a>
       </div>
       <div class="badge badge-neutral">正式生產不調用未過 Gate 模型</div>
     </div>
@@ -602,7 +607,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 08 ｜ NEXT SESSION</p>
-        <h2>下一交易日研究與觀察情境框架</h2>
+        <h2 id="next-session-title">下一交易日研究與觀察情境框架</h2><a class="method-link" href="#data-governance">方法論與資料來源</a>
       </div>
       <span class="muted small">適用交易日 {{ ident.applicable_trading_date or report.applicable_trading_date or '—' }}</span>
     </div>
@@ -658,7 +663,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 09 ｜ DATA GOVERNANCE</p>
-        <h2>資料治理、來源稽核與方法論</h2>
+        <h2 id="data-governance-title">資料治理、來源稽核與方法論</h2>
       </div>
     </div>
 
@@ -703,7 +708,7 @@
     <div class="section-heading">
       <div>
         <p class="eyebrow">SECTION 10 ｜ AI REFERENCE</p>
-        <h2>AI 模型參考建議與監管免責聲明</h2>
+        <h2 id="ai-reference-title">AI 模型參考建議與監管免責聲明</h2><a class="method-link" href="#data-governance">方法論與資料來源</a>
       </div>
     </div>
 
@@ -727,5 +732,6 @@
       </p>
     </div>
   </section>
+  <a class="report-to-top" href="#top-of-report">回到章節索引</a>
 </article>
 {% endblock %}

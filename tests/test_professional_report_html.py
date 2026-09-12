@@ -108,6 +108,63 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         self.assertIn("最後正常交易收盤 100.00（2026-07-16）", output)
         self.assertNotIn("quant/v1/manifests/", output)
 
+    def _render(self):
+        template_text = pathlib.Path(
+            "templates/reports/post_close_professional.html"
+        ).read_text(encoding="utf-8")
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "reports/post_close_professional.html": template_text,
+                    "base.html": "{% block title %}{% endblock %}"
+                    "{% block nav_reports %}{% endblock %}"
+                    "{% block content %}{% endblock %}",
+                }
+            )
+        )
+        return env.get_template("reports/post_close_professional.html").render(
+            report=self._view()
+        )
+
+    def test_order5_every_chapter_and_subsection_is_addressable(self):
+        """A-7：每個 <h2>／<h3> 都要有穩定 id，才能貼連結引用某一章。
+
+        稽核基準點其實已經有常駐章節索引與 <section> id —— 規格書 A-7
+        寫「無目錄、無錨點」是錯的，這一點已回報。真正缺的是：
+        子章節（4 個 subsection-title）完全無法引用，索引沒有位置回饋，
+        沒有回到頂端。
+        """
+        output = self._render()
+
+        self.assertEqual(output.count("<h2 id="), 10)
+        for anchor in (
+            "executive-summary-title",
+            "quantitative-research-title",
+            "data-governance-title",
+            "exec-highlights",
+            "security-anomalies",
+            "security-etf",
+            "security-trading-status",
+        ):
+            with self.subTest(anchor=anchor):
+                self.assertIn(f'id="{anchor}"', output)
+
+        # 索引本身：可收合、有當前章節槽位、有回到頂端
+        self.assertIn("data-chapter-nav", output)
+        self.assertIn("data-chapter-current", output)
+        self.assertIn('href="#top-of-report"', output)
+        self.assertIn('id="top-of-report"', output)
+
+    def test_order5_model_sections_link_to_the_methodology_chapter(self):
+        """§6.3：看到 R²、Brier Score、Gate 時，下一個問題是「怎麼算的」。"""
+        output = self._render()
+
+        self.assertEqual(output.count('class="method-link" href="#data-governance"'), 4)
+        # 方法論章節本身不該連向自己
+        governance = output[output.index('id="data-governance"'):]
+        governance = governance[: governance.index("</section>")]
+        self.assertNotIn("method-link", governance)
+
     def test_professional_report_visualizes_verified_market_industry_and_event_data(self):
         template_text = pathlib.Path(
             "templates/reports/post_close_professional.html"

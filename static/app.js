@@ -562,6 +562,60 @@ function initStockChart() {
   setChartRange(90);
 }
 
+// ORDER 5（A-7）：章節索引的「當前章節」標示。
+// 章節索引原本沒有任何位置回饋 —— 在一份十章、超過 700 行的報告裡捲動，
+// 讀者無從判斷自己在哪一章。用 IntersectionObserver 而非 scroll 事件，
+// 避免每次捲動都做版面量測。手機下索引預設收合，收合時把當前章節名稱
+// 顯示在 summary 上，收起來也看得到位置。
+function initReportChapterNav() {
+  const wrap = bySelector("[data-chapter-nav]");
+  if (!wrap) return;
+  const links = [...wrap.querySelectorAll("nav a")];
+  if (!links.length) return;
+  const current = bySelector("[data-chapter-current]", wrap);
+  const sections = links
+    .map((link) => ({ link, section: document.querySelector(link.getAttribute("href")) }))
+    .filter((entry) => entry.section);
+  if (!sections.length) return;
+
+  const mark = (activeSection) => {
+    sections.forEach(({ link, section }) => {
+      const active = section === activeSection;
+      link.classList.toggle("is-current", active);
+      if (active) {
+        link.setAttribute("aria-current", "true");
+        if (current) current.textContent = link.textContent.trim();
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  };
+
+  const visible = new Set();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) visible.add(entry.target);
+        else visible.delete(entry.target);
+      });
+      const first = sections.find(({ section }) => visible.has(section));
+      if (first) mark(first.section);
+    },
+    { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+  );
+  sections.forEach(({ section }) => observer.observe(section));
+  mark(sections[0].section);
+
+  // 手機預設收合：索引本身佔掉第一屏的話反而擋住內容
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const applyWidth = () => { wrap.open = !narrow.matches; };
+  applyWidth();
+  narrow.addEventListener("change", applyWidth);
+  wrap.querySelectorAll("nav a").forEach((link) => {
+    link.addEventListener("click", () => { if (narrow.matches) wrap.open = false; });
+  });
+}
+
 function initMarketIndexChart() {
   const container = bySelector("#market-index-chart");
   const source = bySelector("#market-index-chart-data");
@@ -688,4 +742,5 @@ initReturnCalculator();
 initConversations();
 initQuickAsk();
 initAskExamples();
+initReportChapterNav();
 initSidebar();

@@ -1405,6 +1405,27 @@ class WebProductTests(unittest.TestCase):
                         unsigned.append((path, text[:40]))
         self.assertEqual(unsigned, [])
 
+    def test_order5_chapter_nav_tracks_position_without_scroll_handlers(self):
+        """A-7：章節索引必須給位置回饋，而且不得用 scroll 事件做版面量測。
+
+        十章、超過 700 行的報告捲動時，讀者無從判斷自己在哪一章。
+        用 IntersectionObserver 而非 scroll listener —— 後者每次捲動都會
+        觸發 getBoundingClientRect，在長報告上是實際可感的卡頓來源。
+        """
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initReportChapterNav"):]
+        block = block[: block.index("\nfunction ")]
+
+        self.assertIn("IntersectionObserver", block)
+        self.assertNotIn('addEventListener("scroll"', block)
+        self.assertNotIn("getBoundingClientRect", block)
+        # 位置回饋不只靠顏色（M-5 的同一條原則）
+        css = css_bundle()
+        rule = css[css.index(".report-chapter-nav a.is-current"):]
+        rule = rule[: rule.index("}")]
+        self.assertIn("font-weight", rule)
+        self.assertIn("box-shadow", rule)
+
     def test_order4_back_links_name_their_destination(self):
         """§5.1：明細頁的上一層必須具名（「返回個股與 ETF」而非泛用返回）。
 

@@ -4911,6 +4911,79 @@ span.value-unavailable {
 /* 資料狀態 chip 在 today-facts 內文字較長，320px 下不得強制單行 */
 .today-facts .state-chip { white-space:normal; }
 
+/* ==========================================================================
+   ORDER 5（A-7）：研究版閱讀工具。
+   稽核基準點已有常駐章節索引與 section id，缺的是位置回饋、子章節錨點、
+   手機收合與回到頂端。
+   ========================================================================== */
+.report-chapter-nav-wrap {
+  position:sticky;
+  top:10px;
+  z-index:15;
+  margin:0 0 18px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-lg);
+  background:var(--absorb-surface);
+}
+.report-chapter-nav-summary {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 14px;
+  cursor:pointer;
+  font-size:var(--type-caption);
+  font-weight:750;
+  line-height:var(--lh-caption);
+}
+.report-chapter-current {
+  color:var(--absorb-muted);
+  font-weight:400;
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+/* 展開時 summary 只是把手，不重複顯示當前章節 */
+.report-chapter-nav-wrap[open] > .report-chapter-nav-summary .report-chapter-current { display:none; }
+.report-chapter-nav-wrap > .report-chapter-nav {
+  position:static;
+  margin:0;
+  border:0;
+  border-top:1px solid var(--absorb-hairline);
+  border-radius:0;
+  background:transparent;
+}
+/* 位置回饋：底線加粗體，不只靠顏色 */
+.report-chapter-nav a.is-current {
+  color:var(--absorb-ink);
+  font-weight:800;
+  box-shadow:inset 0 -2px 0 var(--absorb-blue);
+}
+.report-to-top {
+  display:inline-block;
+  margin:22px 0 0;
+  font-size:var(--type-caption);
+  font-weight:700;
+  line-height:var(--lh-caption);
+}
+/* 數值格式契約（§6.3）：研究版所有統計量一律等寬數字，
+   欄與欄之間才對得齊；小數位由資料契約決定，不在這裡補零。 */
+.professional-report .badge-value,
+.professional-report .report-section td,
+.professional-report .report-section dd,
+.professional-report .report-section strong,
+.professional-report .metric-value,
+.professional-report .spec-value { font-variant-numeric:tabular-nums; }
+/* §6.3 方法論直連：模型章節標題旁直達「資料治理、來源稽核與方法論」。
+   讀者看到 R²、Brier Score、Gate 這些數字時，最常問的下一個問題是
+   「怎麼算的」，把那一步從「捲到最底找」變成一次點擊。 */
+.method-link {
+  margin-left:10px;
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+  white-space:nowrap;
+}
+
 .market-summary-page {
   max-width:1160px;
 }
