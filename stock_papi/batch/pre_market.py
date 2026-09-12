@@ -21,6 +21,41 @@ def _valid_overlay(value):
     if not isinstance(value, dict):
         return False
     symbols = value.get("symbols")
+    if value.get("status") == "insufficient":
+        observed_as_of = value.get("observed_as_of")
+        source_manifest = value.get("source_manifest")
+        source_manifest_sha256 = value.get("source_manifest_sha256")
+        return (
+            value.get("message") == "隔夜資料不足，維持盤後觀察"
+            and isinstance(value.get("as_of"), str)
+            and value.get("previous_as_of") is None
+            and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", str(value.get("required_as_of") or ""))
+            is not None
+            and (
+                (
+                    re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", str(observed_as_of or ""))
+                    is not None
+                    and re.fullmatch(
+                        r"quant/v1/manifests/US-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}\.json",
+                        str(source_manifest or ""),
+                    )
+                    is not None
+                    and re.fullmatch(r"[0-9a-f]{64}", str(source_manifest_sha256 or ""))
+                    is not None
+                )
+                or (observed_as_of is None and source_manifest is None and source_manifest_sha256 is None)
+            )
+            and symbols == []
+            and value.get("unavailable")
+            in ([{"source": "verified_us_quant", "reason": reason}] for reason in {
+                "source_unavailable",
+                "invalid_manifest_identity",
+                "stale_manifest",
+                "incomplete_universe",
+                "invalid_rows",
+                "invalid_return",
+            })
+        )
     return (
         value.get("status") in {"risk_on", "risk_off", "neutral"}
         and isinstance(value.get("message"), str)
@@ -145,6 +180,19 @@ class PreMarketPipeline:
         if self.us_source_loader is None or self.us_calendars is None:
             raise PreMarketPipelineError("verified US quant source is missing")
         try:
+            ny_now = now.astimezone(NEW_YORK)
+            completed = self.us_calendars.latest_session_on_or_before(
+                ny_now.date() if ny_now.time() >= datetime.time(16) else ny_now.date() - datetime.timedelta(days=1)
+            )
+            previous = self.us_calendars.session_offset(completed, -1)
+        except Exception as exc:
+            raise PreMarketPipelineError("US calendar is unavailable") from exc
+
+        reason = "source_unavailable"
+        source_manifest = None
+        source_manifest_sha256 = None
+        observed_as_of = None
+        try:
             source = self.us_source_loader()
             manifest = source.manifest
             if (
@@ -155,21 +203,24 @@ class PreMarketPipeline:
                 )
                 or not re.fullmatch(r"[0-9a-f]{64}", str(manifest.manifest_sha256))
             ):
+                reason = "invalid_manifest_identity"
                 raise ValueError("US manifest identity is invalid")
-            ny_now = now.astimezone(NEW_YORK)
-            completed = self.us_calendars.latest_session_on_or_before(
-                ny_now.date() if ny_now.time() >= datetime.time(16) else ny_now.date() - datetime.timedelta(days=1)
-            )
-            previous = self.us_calendars.session_offset(completed, -1)
+            source_manifest = f"quant/v1/{manifest.manifest_path}"
+            source_manifest_sha256 = manifest.manifest_sha256
+            if isinstance(manifest.market_as_of, datetime.date):
+                observed_as_of = manifest.market_as_of.isoformat()
             if manifest.market_as_of != completed:
+                reason = "stale_manifest"
                 raise ValueError("US quant source is not the latest completed session")
             by_symbol = {stock.symbol: stock for stock in source.stocks}
             if not set(OVERNIGHT_SYMBOLS).issubset(by_symbol):
+                reason = "incomplete_universe"
                 raise ValueError("US overnight universe is incomplete")
             rows = {}
             for symbol in OVERNIGHT_SYMBOLS:
                 stock = by_symbol[symbol]
                 if stock.observation_kind != "regular_price" or stock.as_of != completed:
+                    reason = "invalid_rows"
                     raise ValueError("US overnight row date is invalid")
                 points = {}
                 for row in stock.daily:
@@ -182,9 +233,11 @@ class PreMarketPipeline:
                     if isinstance(close, (int, float)) and not isinstance(close, bool) and close > 0:
                         points[date] = float(close)
                 if completed not in points or previous not in points:
+                    reason = "invalid_rows"
                     raise ValueError("US overnight rows do not contain two valid sessions")
                 change = (points[completed] / points[previous] - 1) * 100
                 if not math.isfinite(change):
+                    reason = "invalid_return"
                     raise ValueError("US overnight return is invalid")
                 rows[symbol] = {
                     "symbol": symbol,
@@ -206,11 +259,22 @@ class PreMarketPipeline:
                 "symbols": [rows[symbol] for symbol in OVERNIGHT_SYMBOLS],
                 "as_of": completed.isoformat(),
                 "previous_as_of": previous.isoformat(),
-                "source_manifest": f"quant/v1/{manifest.manifest_path}",
-                "source_manifest_sha256": manifest.manifest_sha256,
+                "source_manifest": source_manifest,
+                "source_manifest_sha256": source_manifest_sha256,
             }
-        except Exception as exc:
-            raise PreMarketPipelineError("verified US overnight observation is unavailable") from exc
+        except Exception:
+            return {
+                "status": "insufficient",
+                "message": "隔夜資料不足，維持盤後觀察",
+                "symbols": [],
+                "as_of": now.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+                "previous_as_of": None,
+                "required_as_of": completed.isoformat(),
+                "observed_as_of": observed_as_of,
+                "source_manifest": source_manifest,
+                "source_manifest_sha256": source_manifest_sha256,
+                "unavailable": [{"source": "verified_us_quant", "reason": reason}],
+            }
 
     def run(self, *, now=None):
         checked_at = now or datetime.datetime.now(datetime.timezone.utc)
@@ -316,7 +380,11 @@ class PreMarketPipeline:
                         ),
                         "title": "ABSORB 盤前風險更新",
                         "summary": [overnight["message"]],
-                        "warnings": [],
+                        "warnings": (
+                            ["未使用過期或不完整資料"]
+                            if overnight["status"] == "insufficient"
+                            else []
+                        ),
                         "content": {
                             "core": core,
                             "base_metadata_sha256": base["metadata_sha256"],
