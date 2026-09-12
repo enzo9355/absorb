@@ -169,6 +169,30 @@ def _validate_report_index_v2(document: dict, settings: ReportConfig) -> list[di
             or (present_pdf_keys and present_pdf_keys != pdf_keys)
         ):
             raise ReportWebError("報告索引 v2 項目驗證失敗")
+        # ORDER 7（§6.1）：研究版軌道與篇幅。三個欄位是選用的 ——
+        # 這次改動之前發布的索引沒有它們，清單頁必須照樣讀得動，
+        # 只是不顯示軌道標示（缺值就是缺值，不猜）。
+        # 有給就必須三個一起給且互相自洽，否則寧可整份索引不通過，
+        # 也不要讓畫面出現「研究版 · 7／0 章」這種數字。
+        professional_keys = {
+            "has_professional_report",
+            "available_section_count",
+            "total_section_count",
+        }
+        present_professional = professional_keys & set(item)
+        if present_professional:
+            available = item.get("available_section_count")
+            total = item.get("total_section_count")
+            if (
+                present_professional != professional_keys
+                or item.get("has_professional_report") is not True
+                or report_type != "post_close"
+                or type(available) is not int
+                or type(total) is not int
+                or not 0 < total <= 50
+                or not 0 <= available <= total
+            ):
+                raise ReportWebError("報告索引 v2 研究版欄位驗證失敗")
         if present_pdf_keys:
             pdf_path = str(item["pdf_path"])
             pdf_sha = str(item["pdf_sha256"])

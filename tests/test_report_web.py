@@ -206,6 +206,93 @@ class ReportWebTests(unittest.TestCase):
         self.assertIn("2026-07-15", html)
         load_index.assert_called_once_with(market="US")
 
+    def test_order7_index_records_whether_a_professional_report_exists(self):
+        """§6.1：索引必須說出某份盤後報告有沒有研究版、有幾章有內容。
+
+        篇幅用「有內容的章節數」而不是模板的 <h2> 數量：後者是版面屬性，
+        模板一改索引就過期；前者是這份產物自己的事實。
+        """
+        import json as _json
+
+        temporary, objects, _metadata = self._objects()
+        self.addCleanup(temporary.cleanup)
+        index_key = next(k for k in objects if k.endswith("index-TW.json"))
+        entries = _json.loads(objects[index_key].decode("utf-8"))["reports"]
+        post_close = next(e for e in entries if e["report_type"] == "post_close")
+
+        self.assertIs(post_close["has_professional_report"], True)
+        self.assertEqual(post_close["total_section_count"], 9)
+        self.assertLessEqual(post_close["available_section_count"], 9)
+        self.assertGreaterEqual(post_close["available_section_count"], 0)
+
+        # 章節清單必須與 dataclass 同步，否則篇幅會靜靜少算
+        import dataclasses
+
+        from reporting.professional_schema import (
+            PROFESSIONAL_SECTION_NAMES,
+            ProfessionalPostCloseReport,
+        )
+
+        declared = {
+            f.name
+            for f in dataclasses.fields(ProfessionalPostCloseReport)
+            if f.type == "ProfessionalSection"
+        }
+        self.assertEqual(declared, set(PROFESSIONAL_SECTION_NAMES))
+
+    def test_order7_professional_index_fields_must_be_self_consistent(self):
+        """有給就必須三個一起給且自洽，否則整份索引不通過。
+
+        寧可拒絕整份索引，也不要讓畫面出現「研究版 · 7／0 章」這種數字。
+        """
+        import json as _json
+
+        from reporting.web import ReportWebError, validate_report_index
+
+        temporary, objects, _metadata = self._objects()
+        self.addCleanup(temporary.cleanup)
+        index_key = next(k for k in objects if k.endswith("index-TW.json"))
+        document = _json.loads(objects[index_key].decode("utf-8"))
+
+        def rebuild(mutate):
+            doc = _json.loads(_json.dumps(document))
+            entry = next(
+                e for e in doc["reports"] if e["report_type"] == "post_close"
+            )
+            mutate(entry)
+            return _json.dumps(doc).encode("utf-8")
+
+        # 基準：原樣必須通過
+        validate_report_index(rebuild(lambda e: None))
+
+        broken = {
+            "只給一個欄位": lambda e: [
+                e.pop("available_section_count"),
+                e.pop("total_section_count"),
+            ],
+            "有內容章節多於總章節": lambda e: e.update(available_section_count=99),
+            "總章節為零": lambda e: e.update(
+                total_section_count=0, available_section_count=0
+            ),
+            "章節數不是整數": lambda e: e.update(available_section_count="6"),
+            "旗標不是 True": lambda e: e.update(has_professional_report=False),
+        }
+        for name, mutate in broken.items():
+            with self.subTest(case=name):
+                with self.assertRaises(ReportWebError):
+                    validate_report_index(rebuild(mutate))
+
+        # 舊索引（三個欄位都沒有）必須照樣通過
+        validate_report_index(
+            rebuild(
+                lambda e: [
+                    e.pop("has_professional_report"),
+                    e.pop("available_section_count"),
+                    e.pop("total_section_count"),
+                ]
+            )
+        )
+
     def test_hash_valid_cross_market_metadata_is_rejected_in_both_directions(self):
         from reporting.professional_builder import build_professional_post_close_artifact
 

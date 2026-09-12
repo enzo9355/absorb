@@ -13,4 +13,6 @@ python3 -m unittest \
   tests.test_reports_template \
   tests.test_professional_report_html \
   tests.test_route_inventory \
+  tests.test_metric_reading \
+  tests.test_observation_products \
   "$@"

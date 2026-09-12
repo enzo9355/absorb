@@ -15,7 +15,11 @@ from .professional_binding import (
     validate_professional_report_binding,
     validate_regression_research_binding,
 )
-from .professional_schema import ProfessionalPostCloseReport, compute_content_sha256
+from .professional_schema import (
+    PROFESSIONAL_SECTION_NAMES,
+    ProfessionalPostCloseReport,
+    compute_content_sha256,
+)
 from .publish_lock import report_v2_publish_lock
 from .regression_schema import (
     MAX_REGRESSION_ARTIFACT_BYTES,
@@ -360,6 +364,19 @@ def _publish_report_v2_impl(
     }
     if document.get("product_mode") is not None:
         entry["product_mode"] = document["product_mode"]
+    # ORDER 7（§6.1）：報告索引原本看不出某份盤後報告有沒有研究版
+    # （那取決於 metadata.professional_report 是否存在，而 metadata 不在索引裡）。
+    # 清單頁因此無法標示軌道與篇幅，憑報告類型猜的話會在沒有研究版時說謊。
+    # 篇幅用「有內容的章節數」而不是模板的 <h2> 數量：後者是版面屬性，
+    # 模板一改索引就過期；前者是這份產物自己的事實。
+    if professional_report is not None:
+        entry["has_professional_report"] = True
+        entry["available_section_count"] = sum(
+            1
+            for name in PROFESSIONAL_SECTION_NAMES
+            if getattr(professional_report, name).status == "available"
+        )
+        entry["total_section_count"] = len(PROFESSIONAL_SECTION_NAMES)
     if document["report_type"] == "weekly_model":
         week_id = document["content"].get("week_id")
         if not isinstance(week_id, str) or re.fullmatch(r"[0-9]{4}-W[0-9]{2}", week_id) is None:

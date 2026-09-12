@@ -3,6 +3,7 @@
 from flask import abort, render_template, request
 
 from reporting.exceptions import ReportWebError
+from stock_papi.services.metric_reading import market_metric_readings
 from stock_papi.services.prediction_view import prediction_for
 
 
@@ -66,6 +67,9 @@ def register_dashboard_page(
             observation=snapshot,
             market_prediction=prediction,
             data_freshness=data_freshness,
+            # §5.3 第 3 層：白話解讀由服務層從已發布數值推導，
+            # 不在模板寫死 —— 寫死的話數值變了解讀不會變。
+            metric_readings=market_metric_readings(snapshot.get("market_observation")),
         )
 
     def industries_page():

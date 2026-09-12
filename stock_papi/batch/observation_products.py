@@ -13,6 +13,10 @@ from pathlib import Path
 from stock_papi.integrations.market_data.tw_trading_status import (
     validate_status_evidence,
 )
+from stock_papi.services.metric_reading import (
+    VOLATILITY_CAUTIOUS_PCT,
+    VOLATILITY_ELEVATED_PCT,
+)
 
 
 MIN_SOURCE_COVERAGE = 0.95
@@ -491,11 +495,16 @@ def _market_observation(stocks):
         if len(daily_returns) >= 5
         else None
     )
+    # 門檻與 services/metric_reading.py 共用同一組常數。兩邊若各寫各的，
+    # 畫面會出現「波動程度：一般」配「風險狀態：升高」這種自我矛盾的組合。
     if declining > advancing and (
-        new_lows > new_highs or (volatility is not None and volatility >= 25)
+        new_lows > new_highs
+        or (volatility is not None and volatility >= VOLATILITY_ELEVATED_PCT)
     ):
         risk_state = "elevated"
-    elif declining > advancing or (volatility is not None and volatility >= 20):
+    elif declining > advancing or (
+        volatility is not None and volatility >= VOLATILITY_CAUTIOUS_PCT
+    ):
         risk_state = "cautious"
     else:
         risk_state = "normal"

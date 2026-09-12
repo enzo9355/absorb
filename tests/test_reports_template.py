@@ -149,6 +149,65 @@ class ReportsTemplateTests(unittest.TestCase):
         order = re.findall(r'<p class="report-date">(\d{4}-\d{2}-\d{2})</p>', output)
         self.assertEqual(order, sorted(order, reverse=True))
 
+    def test_order7_track_and_length_only_shown_when_the_index_says_so(self):
+        """§6.1：軌道與篇幅只能來自索引欄位，不得憑報告類型猜。
+
+        索引在這次改動之前沒有這三個欄位。舊報告必須照樣顯示，
+        只是不標軌道 —— 缺值就是缺值，猜的話會在沒有研究版時說謊。
+        """
+        with_track = self._render(
+            reports_v2=[
+                {
+                    "report_type": "post_close",
+                    "title": "盤後研究報告",
+                    "summary": ["一句話結論"],
+                    "source_market_date": "2026-07-17",
+                    "applicable_trading_date": "2026-07-20",
+                    "has_professional_report": True,
+                    "available_section_count": 6,
+                    "total_section_count": 9,
+                }
+            ],
+            reports=[],
+        )
+        self.assertIn("研究版", with_track)
+        self.assertIn("6／9 章有內容", with_track)
+
+        # 舊索引（沒有欄位）：不得出現任何軌道標示，但報告本身照樣列出
+        legacy = self._render(
+            reports_v2=[
+                {
+                    "report_type": "post_close",
+                    "title": "盤後研究報告",
+                    "summary": ["一句話結論"],
+                    "source_market_date": "2026-07-17",
+                    "applicable_trading_date": "2026-07-20",
+                }
+            ],
+            reports=[],
+        )
+        self.assertIn("盤後研究報告", legacy)
+        self.assertNotIn("report-track-badge", legacy)
+        self.assertNotIn("章有內容", legacy)
+
+        # 明確標示沒有研究版：不給一個點了會落空的入口
+        no_professional = self._render(
+            reports_v2=[
+                {
+                    "report_type": "post_close",
+                    "title": "盤後觀察報告",
+                    "summary": ["一句話結論"],
+                    "source_market_date": "2026-07-17",
+                    "applicable_trading_date": "2026-07-20",
+                    "has_professional_report": False,
+                }
+            ],
+            reports=[],
+        )
+        self.assertNotIn("report-track-badge", no_professional)
+        self.assertNotIn("#track-research", no_professional)
+        self.assertIn("#track-overview", no_professional)
+
     def test_empty_state_only_when_both_collections_are_empty(self):
         output = self._render(reports_v2=[], reports=[])
         self.assertIn("目前沒有可用的每日報告", output)

@@ -3,8 +3,17 @@
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  // 單次量測的 run-to-run 變異在本機約 ±13%，比 §12.3 的 10% 門檻還大 ——
+  // 單跑一次根本偵測不到回歸，只會製造假警報。取 N 次的中位數。
+  const RUNS = Number(process.env.PERF_RUNS || 5);
+  const median = (xs) => {
+    const s = [...xs].sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  };
+  const samples = new Map();
   const rows = [];
   for (const path of ['/','/market','/industries','/stocks','/reports','/learn','/ask']) {
+   for (let run = 0; run < RUNS; run++) {
     const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, bypassCSP: false });
     const p = await ctx.newPage();
     let bytes = { html:0, css:0, js:0, font:0, other:0 };
@@ -30,8 +39,20 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
         res({ fcp: Math.round(fcp), lcp: Math.round(lcp), dcl: Math.round(nav.domContentLoadedEventEnd||0) });
       }, 700);
     }));
-    rows.push({ path, ...m, ...bytes });
+    if (!samples.has(path)) samples.set(path, { fcp: [], lcp: [], dcl: [], bytes });
+    const bucket = samples.get(path);
+    bucket.fcp.push(m.fcp); bucket.lcp.push(m.lcp); bucket.dcl.push(m.dcl);
+    bucket.bytes = bytes;
     await ctx.close();
+   }
+   const bucket = samples.get(path);
+   rows.push({
+     path,
+     runs: RUNS,
+     fcp: median(bucket.fcp), lcp: median(bucket.lcp), dcl: median(bucket.dcl),
+     fcpSpread: [Math.min(...bucket.fcp), Math.max(...bucket.fcp)],
+     ...bucket.bytes,
+   });
   }
   const tot = rows.reduce((a,r)=>({css:Math.max(a.css,r.css), js:Math.max(a.js,r.js), font:Math.max(a.font,r.font)}), {css:0,js:0,font:0});
   console.log(JSON.stringify({ rows, worst: tot }, null, 1));

@@ -5263,6 +5263,38 @@ span.value-unavailable {
 }
 .us-index-forecast-list article[hidden] { display:none; }
 
+/* ORDER 7（§5.3 第 3 層）：指標格的白話解讀。
+   由服務層從已發布數值推導（services/metric_reading.py），不是模板寫死 ——
+   寫死的話數值變了解讀不會變，會產生錯誤陳述。
+   字級 caption，視覺重量低於數值、高於術語標籤。 */
+.metric-reading {
+  margin:4px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.command-metrics .metric-reading { justify-self:start; }
+/* ORDER 7（§6.1）：報告卡片的軌道與篇幅。索引沒有這些欄位時整段不顯示。 */
+.report-track {
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  margin:8px 0 0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  font-variant-numeric:tabular-nums;
+}
+.report-track-badge {
+  padding:2px 9px;
+  border:1px solid var(--absorb-blue);
+  border-radius:var(--radius-pill);
+  color:var(--absorb-blue);
+  font-size:var(--type-label);
+  font-weight:700;
+  line-height:var(--lh-label);
+}
+
 .market-summary-page {
   max-width:1160px;
 }

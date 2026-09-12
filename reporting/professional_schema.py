@@ -360,6 +360,22 @@ class ProfessionalSection:
         return document
 
 
+# 報告索引用它算「有內容的章節數」。放在 schema 這裡而不是 publisher，
+# 是因為它必須跟 ProfessionalPostCloseReport 的欄位同步 —— 加了新章節卻忘了
+# 更新這份清單，篇幅數字就會靜靜地少算。
+PROFESSIONAL_SECTION_NAMES = (
+    "market",
+    "capital_flows",
+    "industries",
+    "securities",
+    "quantitative_research",
+    "validation",
+    "next_session",
+    "governance",
+    "ai_reference",
+)
+
+
 @dataclass(frozen=True)
 class ProfessionalPostCloseReport:
     identity: ProfessionalReportIdentity

@@ -70,12 +70,15 @@
                 {# 免點即覽：第一條摘要就是這份報告的一句話結論，直接抬到卡片上 #}
                 {% if report.summary %}<p class="report-lead">{{ report.summary[0] }}</p>{% endif %}
                 {% if report.summary|length > 1 %}<p class="report-summary">{{ report.summary[1:]|join('；') }}</p>{% endif %}
+                {# ORDER 7（§6.1）：軌道與篇幅。索引沒有這些欄位時（本次改動
+                   之前發布的報告）整段不顯示 —— 憑報告類型猜會在沒有研究版時說謊。 #}
+                {% if report.get('has_professional_report') %}<p class="report-track"><span class="report-track-badge">研究版</span>{{ report.available_section_count }}／{{ report.total_section_count }} 章有內容</p>{% endif %}
                 <p class="muted small">資料基準日 {{ report.source_market_date }}｜適用交易日 {{ report.applicable_trading_date }}</p>
               </div>
               <div class="report-actions report-doors" data-report-doors>
                 <a class="button is-primary-door" href="{{ report_href }}#track-overview" data-report-door="overview">30 秒大局觀</a>
                 {% if report_type == 'post_close' %}<a class="button button-secondary" href="{{ report_href }}#track-table" data-report-door="table">異常個股資料表</a>{% endif %}
-                <a class="button button-secondary" href="{{ report_href }}#track-research" data-report-door="research">完整研究版</a>
+                {% if report_type == 'pre_market' or report.get('has_professional_report') is not false %}<a class="button button-secondary" href="{{ report_href }}#track-research" data-report-door="research">完整研究版</a>{% endif %}
               </div>
             </article>
             {% else %}
