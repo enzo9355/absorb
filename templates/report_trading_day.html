@@ -24,10 +24,10 @@
         {% set market = content.market_observation %}
         <h3>市場實況</h3>
         <dl class="report-meta">
-          <div><dt>單日中位報酬</dt><dd>{{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}</dd></div>
+          <div><dt>單日中位報酬</dt>{% if market.return_1d_pct is not none %}<dd>{{ '%+.2f%%'|format(market.return_1d_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
           <div><dt>上漲／下跌家數</dt><dd>{{ market.advancing_count }}／{{ market.declining_count }}</dd></div>
-          <div><dt>站上 MA20</dt><dd>{{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '資料不足' }}</dd></div>
-          <div><dt>20 日已實現波動</dt><dd>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '資料不足' }}</dd></div>
+          <div><dt>站上 MA20</dt>{% if market.ma20_breadth_pct is not none %}<dd>{{ '%.1f%%'|format(market.ma20_breadth_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>20 日已實現波動</dt>{% if market.realized_volatility_20d_pct is not none %}<dd>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
         </dl>
 
         <h3>產業觀察</h3>
@@ -69,9 +69,9 @@
         {% set quality = content.data_quality %}
         <h3>資料品質</h3>
         <dl class="report-meta">
-          <div><dt>覆蓋率</dt><dd>{{ '%.2f%%'|format(quality.coverage * 100) if quality.coverage is not none else '資料不足' }}</dd></div>
-          <div><dt>有效標的</dt><dd>{{ quality.symbol_count if quality.symbol_count is not none else '資料不足' }}</dd></div>
-          <div><dt>未納入標的</dt><dd>{{ quality.failure_count if quality.failure_count is not none else '資料不足' }}</dd></div>
+          <div><dt>覆蓋率</dt>{% if quality.coverage is not none %}<dd>{{ '%.2f%%'|format(quality.coverage * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>有效標的</dt>{% if quality.symbol_count is not none %}<dd>{{ quality.symbol_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+          <div><dt>未納入標的</dt>{% if quality.failure_count is not none %}<dd>{{ quality.failure_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
         </dl>
       {% else %}
         <p>這份研究報告不在目前正式 Observation 服務範圍內。</p>

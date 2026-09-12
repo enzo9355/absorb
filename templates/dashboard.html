@@ -27,9 +27,9 @@
     </div>
     <dl class="research-evidence">
       <div><dt>資料基準日</dt><dd>{{ observation.observation_as_of or '待更新' }}</dd></div>
-      <div><dt>資料覆蓋</dt><dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) if quality.get('coverage') is not none else '資料不足' }}</dd></div>
-      <div><dt>有效標的</dt><dd>{{ available_count if available_count is not none else '資料不足' }}</dd></div>
-      <div><dt>產生時間</dt><dd>{{ observation.generated_at|replace('T', ' ')|replace('Z', ' UTC') if observation.generated_at else '待更新' }}</dd></div>
+      <div><dt>資料覆蓋</dt>{% if quality.get('coverage') is not none %}<dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>有效標的</dt>{% if available_count is not none %}<dd>{{ available_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>產生時間</dt>{% if observation.generated_at %}<dd>{{ observation.generated_at|replace('T', ' ')|replace('Z', ' UTC') }}</dd>{% else %}<dd><span class="value-unavailable">待更新</span></dd>{% endif %}</div>
     </dl>
   </header>
 
@@ -37,10 +37,10 @@
     <div class="command-heading"><div><h2 id="market-command-title">市場指揮台</h2><p>價格、廣度、資金與風險同步觀察</p></div><span>資料基準日 {{ observation.observation_as_of or '待更新' }}</span></div>
     <div class="command-grid">
       <div class="command-metrics" aria-label="市場關鍵指標">
-        <article><span>市場廣度</span><strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) if market.get('ma20_breadth_pct') is not none else '資料不足' }}</strong><small>站上 MA20</small>{% if market.get('ma20_breadth_pct') is not none %}<progress value="{{ market.get('ma20_breadth_pct') }}" max="100">{{ market.get('ma20_breadth_pct') }}%</progress>{% endif %}</article>
-        <article><span>成交動能</span><strong>{{ '%.2f'|format(market.get('median_volume_ratio')) if market.get('median_volume_ratio') is not none else '資料不足' }}</strong><small>成交量中位比</small>{% if market.get('median_volume_ratio') is not none %}<progress value="{{ market.get('median_volume_ratio') }}" max="2">{{ market.get('median_volume_ratio') }}</progress>{% endif %}</article>
-        <article><span>波動壓力</span><strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) if market.get('realized_volatility_20d_pct') is not none else '資料不足' }}</strong><small>20 日已實現波動</small></article>
-        <article><span>風險狀態</span><strong>{{ {'normal':'一般','cautious':'謹慎','elevated':'升高'}.get(market.get('risk_state'), '資料不足') }}</strong><small>已驗證狀態</small></article>
+        <article><span>市場廣度</span>{% if market.get('ma20_breadth_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>站上 MA20</small>{% if market.get('ma20_breadth_pct') is not none %}<progress value="{{ market.get('ma20_breadth_pct') }}" max="100">{{ market.get('ma20_breadth_pct') }}%</progress>{% endif %}</article>
+        <article><span>成交動能</span>{% if market.get('median_volume_ratio') is not none %}<strong>{{ '%.2f'|format(market.get('median_volume_ratio')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>成交量中位比</small>{% if market.get('median_volume_ratio') is not none %}<progress value="{{ market.get('median_volume_ratio') }}" max="2">{{ market.get('median_volume_ratio') }}</progress>{% endif %}</article>
+        <article><span>波動壓力</span>{% if market.get('realized_volatility_20d_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>20 日已實現波動</small></article>
+        <article><span>風險狀態</span>{% if market.get('risk_state') in ('normal','cautious','elevated') %}<strong>{{ {'normal':'一般','cautious':'謹慎','elevated':'升高'}[market.get('risk_state')] }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>已驗證狀態</small></article>
       </div>
 
       <section class="evidence-canvas market-index-canvas" aria-labelledby="return-title">
@@ -57,7 +57,7 @@
         {% else %}<p class="empty-state market-index-empty">已驗證的大盤指數 K 線尚待發布。</p>{% endif %}
         <dl class="return-grid">
           {% for key, label in [('return_1d_pct','1 日'),('return_5d_pct','5 日'),('return_20d_pct','20 日'),('return_60d_pct','60 日')] %}
-          {% set value = market.get(key) %}<div><dt>{{ label }}</dt><dd class="{{ 'positive' if value is not none and value > 0 else 'negative' if value is not none and value < 0 else '' }}">{{ '%+.2f%%'|format(value) if value is not none else '資料不足' }}</dd></div>
+          {% set value = market.get(key) %}<div><dt>{{ label }}</dt>{% if value is not none %}<dd class="{{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
           {% endfor %}
         </dl>
         <p class="canvas-note">K 線呈現加權指數實際走勢；期間報酬為全市場觀察，兩者分開標示。</p>
@@ -65,7 +65,7 @@
 
       <div class="command-insights">
         <section class="forecast-panel" aria-labelledby="market-forecast-title">
-          <div class="insight-heading"><h3 id="market-forecast-title">AI 五日情境</h3><span>{{ market_prediction.as_of if market_prediction else '尚未發布' }}</span></div>
+          <div class="insight-heading"><h3 id="market-forecast-title">AI 五日情境</h3>{% if market_prediction %}<span>{{ market_prediction.as_of }}</span>{% else %}<span><span class="value-unavailable">尚未發布</span></span>{% endif %}</div>
           {% if market_prediction %}
           <div class="forecast-primary"><div><span>{{ market_prediction.probability_label }}</span><strong>{{ '%.1f%%'|format(market_prediction.probability_pct) }}</strong></div><div><span>第 5 個交易日預測價</span><strong>{{ '{:,.2f}'.format(market_prediction.predicted_price) }}</strong></div></div>
           <dl class="forecast-evidence"><div><dt>預估漲跌幅</dt><dd class="{{ 'positive' if market_prediction.predicted_change_pct > 0 else 'negative' if market_prediction.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(market_prediction.predicted_change_pct) }}</dd></div><div><dt>目標交易日</dt><dd>{{ market_prediction.target_session }}</dd></div></dl>
@@ -78,13 +78,13 @@
           <div class="breadth-chart"><svg viewBox="0 0 42 42" role="img" aria-label="上漲 {{ advancing }} 檔，下跌 {{ declining }} 檔，持平 {{ unchanged }} 檔"><circle class="breadth-track" cx="21" cy="21" r="15.9155"></circle><circle class="breadth-up" cx="21" cy="21" r="15.9155" stroke-dasharray="{{ '%.2f %.2f'|format(advancing_pct, 100 - advancing_pct) }}" stroke-dashoffset="25"></circle><circle class="breadth-down" cx="21" cy="21" r="15.9155" stroke-dasharray="{{ '%.2f %.2f'|format(declining_pct, 100 - declining_pct) }}" stroke-dashoffset="{{ '%.2f'|format(25 - advancing_pct) }}"></circle><text x="21" y="20">{{ '%.0f%%'|format(advancing_pct) }}</text><text class="breadth-caption" x="21" y="25">上漲占比</text></svg><dl><div><dt>上漲</dt><dd class="positive">{{ advancing }}</dd></div><div><dt>下跌</dt><dd class="negative">{{ declining }}</dd></div><div><dt>持平</dt><dd>{{ unchanged }}</dd></div></dl></div>
           {% else %}<p class="empty-state">市場廣度資料不足。</p>{% endif %}
         </section>
-        <section class="risk-panel" aria-labelledby="risk-title"><div class="insight-heading"><h3 id="risk-title">波動與風險</h3><span>20 日觀察</span></div><dl><div><dt>20 日新高</dt><dd>{{ market.get('new_high_20d_count') if market.get('new_high_20d_count') is not none else '資料不足' }}</dd></div><div><dt>20 日新低</dt><dd>{{ market.get('new_low_20d_count') if market.get('new_low_20d_count') is not none else '資料不足' }}</dd></div><div><dt>法人淨流中位</dt><dd>{{ '%+.2f%%'|format(market.get('median_institution_net_ratio_pct')) if market.get('median_institution_net_ratio_pct') is not none else '資料不足' }}</dd></div></dl><p>風險檢查不等同停損建議，需與個別標的事件分開判讀。</p></section>
+        <section class="risk-panel" aria-labelledby="risk-title"><div class="insight-heading"><h3 id="risk-title">波動與風險</h3><span>20 日觀察</span></div><dl><div><dt>20 日新高</dt>{% if market.get('new_high_20d_count') is not none %}<dd>{{ market.get('new_high_20d_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>20 日新低</dt>{% if market.get('new_low_20d_count') is not none %}<dd>{{ market.get('new_low_20d_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>法人淨流中位</dt>{% if market.get('median_institution_net_ratio_pct') is not none %}<dd>{{ '%+.2f%%'|format(market.get('median_institution_net_ratio_pct')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div></dl><p>風險檢查不等同停損建議，需與個別標的事件分開判讀。</p></section>
       </div>
     </div>
 
     <div class="command-lower">
-      <section class="sector-flow" data-sector-flow aria-labelledby="sector-flow-title"><div class="insight-heading"><h3 id="sector-flow-title">產業相對強度</h3><a href="{{ url_for('industries_page') }}">查看產業觀察</a></div><div class="sector-flow-list">{% for item in industries[:5] %}{% set value = item.relative_return_5d_pct %}<div class="sector-flow-row"><span>{{ item.name }}</span>{% if value is not none %}<progress class="{{ 'negative' if value < 0 else '' }}" value="{{ value|abs }}" max="5">{{ value|abs }}</progress><strong class="{{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</strong>{% else %}<span>資料不足</span>{% endif %}</div>{% else %}<p class="empty-state">產業相對強度資料不足。</p>{% endfor %}</div></section>
-      <section class="quality-panel" aria-labelledby="quality-title"><div class="insight-heading"><h3 id="quality-title">資料覆蓋</h3><span>{{ observation.market or 'TW' }}</span></div><dl><div><dt>覆蓋率</dt><dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) if quality.get('coverage') is not none else '資料不足' }}</dd></div><div><dt>有效標的</dt><dd>{{ available_count if available_count is not none else '資料不足' }}</dd></div><div><dt>未納入標的</dt><dd>{{ quality.get('failure_count') if quality.get('failure_count') is not none else '資料不足' }}</dd></div></dl></section>
+      <section class="sector-flow" data-sector-flow aria-labelledby="sector-flow-title"><div class="insight-heading"><h3 id="sector-flow-title">產業相對強度</h3><a href="{{ url_for('industries_page') }}">查看產業觀察</a></div><div class="sector-flow-list">{% for item in industries[:5] %}{% set value = item.relative_return_5d_pct %}<div class="sector-flow-row"><span>{{ item.name }}</span>{% if value is not none %}<progress class="{{ 'negative' if value < 0 else 'positive' if value > 0 else '' }}" value="{{ value|abs }}" max="5">{{ value|abs }}</progress><strong class="{{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</strong>{% else %}<span>資料不足</span>{% endif %}</div>{% else %}<p class="empty-state">產業相對強度資料不足。</p>{% endfor %}</div></section>
+      <section class="quality-panel" aria-labelledby="quality-title"><div class="insight-heading"><h3 id="quality-title">資料覆蓋</h3><span>{{ observation.market or 'TW' }}</span></div><dl><div><dt>覆蓋率</dt>{% if quality.get('coverage') is not none %}<dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>有效標的</dt>{% if available_count is not none %}<dd>{{ available_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div><div><dt>未納入標的</dt>{% if quality.get('failure_count') is not none %}<dd>{{ quality.get('failure_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div></dl></section>
     </div>
   </section>
 

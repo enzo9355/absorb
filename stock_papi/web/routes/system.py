@@ -3,7 +3,7 @@
 import datetime as dt
 from zoneinfo import ZoneInfo
 
-from flask import jsonify, redirect, request, url_for
+from flask import jsonify, redirect, request, url_for, render_template
 
 from stock_papi.batch.calendar import TradingCalendarSet
 from stock_papi.integrations.market_data.us_calendar import (
@@ -249,8 +249,17 @@ def register_system_routes(
     def watchlist_page():
         return redirect("/dashboard", code=302)
 
+    def catalog_page():
+        """ORDER 3 元件型錄：token 與元件的單一事實來源。
+
+        不在導覽中、noindex、且不讀取任何市場資料 —— 只渲染設計系統本身，
+        因此沒有資料外洩風險。給實作與 review 對照用。
+        """
+        return render_template("catalog.html")
+
     app.add_url_rule("/healthz", "healthz", healthz)
     app.add_url_rule("/health", "healthz", healthz)
     app.add_url_rule("/health/data", "data_health", data_health)
     app.add_url_rule("/search", "search_page", search_page)
     app.add_url_rule("/watchlist", "watchlist_page", watchlist_page)
+    app.add_url_rule("/_catalog", "catalog_page", catalog_page)

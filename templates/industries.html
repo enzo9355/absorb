@@ -12,7 +12,7 @@
       <details class="industry-disclosure {{ tone }}" data-industry-disclosure{% if loop.first %} open{% endif %}>
         <summary>
           <span><strong>{{ item.name }}</strong><small>可用 {{ item.available_count }}／{{ item.component_count }} 檔 · 覆蓋 {{ '%.1f%%'|format(item.coverage * 100) if item.coverage is not none else '資料不足' }}</small></span>
-          <span class="industry-disclosure-return">{{ '%+.2f%%'|format(value) if value is not none else '資料不足' }}</span>
+          {% if value is not none %}<span class="industry-disclosure-return">{{ '%+.2f%%'|format(value) }}</span>{% else %}<span class="industry-disclosure-return"><span class="value-unavailable">尚未驗證</span></span>{% endif %}
         </summary>
         <div class="industry-disclosure-body">
           <dl class="industry-metric-grid">

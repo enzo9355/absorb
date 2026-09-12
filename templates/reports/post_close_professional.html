@@ -303,7 +303,7 @@
 
       <div class="industry-detail-list" aria-label="產業相對強弱視覺">
         {% for industry in ind_sec.data.ranking[:8] %}
-          <article class="industry-detail"><header><div><h3>{{ industry.name }}</h3><p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用</p></div><strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct >= 0 else 'down' }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong></header>{% if industry.relative_return_5d_pct is not none %}<progress class="industry-strength-bar {{ 'negative' if industry.relative_return_5d_pct < 0 else '' }}" value="{{ industry.relative_return_5d_pct|abs }}" max="10">{{ industry.relative_return_5d_pct|abs }}</progress>{% endif %}</article>
+          <article class="industry-detail"><header><div><h3>{{ industry.name }}</h3><p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用</p></div><strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct >= 0 else 'down' }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong></header>{% if industry.relative_return_5d_pct is not none %}<progress class="industry-strength-bar {{ 'negative' if industry.relative_return_5d_pct < 0 else 'positive' if industry.relative_return_5d_pct > 0 else '' }}" value="{{ industry.relative_return_5d_pct|abs }}" max="10">{{ industry.relative_return_5d_pct|abs }}</progress>{% endif %}</article>
         {% else %}<div class="empty-state">產業觀察資料不足。</div>{% endfor %}
       </div>
 
@@ -329,7 +329,7 @@
                 </td>
                 <td><strong>{{ industry.name }}</strong></td>
                 <td class="align-right {{ 'positive' if industry.relative_return_5d_pct and industry.relative_return_5d_pct >= 0 else 'negative' }}">
-                  <strong>{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong>
+                  {% if industry.relative_return_5d_pct is not none %}<strong>{{ '%+.2f%%'|format(industry.relative_return_5d_pct) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}
                 </td>
                 <td class="align-right muted">
                   {{ industry.available_count }} / {{ industry.component_count }} 檔
@@ -666,7 +666,7 @@
       <div class="report-kpi-grid">
         <div class="kpi-card">
           <span class="kpi-label">資料全市場覆蓋率</span>
-          <strong class="kpi-value">{{ '%.2f%%'|format(gov_sec.data.coverage * 100) if gov_sec.data.coverage is not none else '資料不足' }}</strong>
+          {% if gov_sec.data.coverage is not none %}<strong class="kpi-value">{{ '%.2f%%'|format(gov_sec.data.coverage * 100) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}
           <span class="kpi-sub">上市櫃完整覆蓋</span>
         </div>
         <div class="kpi-card">
@@ -686,9 +686,9 @@
         </div>
       </div>
       <dl class="report-meta report-meta-spaced">
-        <div><dt>覆蓋率</dt><dd>{{ '%.2f%%'|format(gov_sec.data.coverage * 100) if gov_sec.data.coverage is not none else '資料不足' }}</dd></div>
-        <div><dt>有效標的</dt><dd>{{ gov_sec.data.symbol_count if gov_sec.data.symbol_count is not none else '資料不足' }}</dd></div>
-        <div><dt>未納入標的</dt><dd>{{ gov_sec.data.failure_count if gov_sec.data.failure_count is not none else '資料不足' }}</dd></div>
+        <div><dt>覆蓋率</dt>{% if gov_sec.data.coverage is not none %}<dd>{{ '%.2f%%'|format(gov_sec.data.coverage * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>有效標的</dt>{% if gov_sec.data.symbol_count is not none %}<dd>{{ gov_sec.data.symbol_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>未納入標的</dt>{% if gov_sec.data.failure_count is not none %}<dd>{{ gov_sec.data.failure_count }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
       </dl>
     {% else %}
       <div class="empty-state">{{ gov_sec.reason or '資料治理指標尚未提供。' }}</div>

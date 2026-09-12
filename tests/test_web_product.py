@@ -1688,8 +1688,9 @@ class WebProductTests(unittest.TestCase):
 
         self.assertIn("--absorb-content-max:3200px", css)
         self.assertIn("@media(min-width:1800px)", css)
-        self.assertIn("body{font-size:18px;}", css)
-        self.assertIn(".nav-link{font-size:17px;}", css)
+        # ORDER 3：18px／17px 不在 type scale 八級內，依 §9.4 收斂至 subtitle 19px（C-2）
+        self.assertIn("body{font-size:19px;}", css)
+        self.assertIn(".nav-link{font-size:19px;}", css)
         self.assertIn("height:60vh", css)
         self.assertIn(".quick-ask-log{flex:1", css)
         self.assertIn(".industry-disclosure-list{", css)
@@ -1847,6 +1848,34 @@ class WebProductTests(unittest.TestCase):
                 (Path(stock_app.app.static_folder) / name).is_file(),
                 name,
             )
+
+    def test_order3_font_sizes_are_confined_to_the_type_scale(self):
+        """所有字級都必須屬於 type scale 八級（C-2）。
+
+        寫成不變量而非指標：ORDER 2 的教訓是「hex 字面值數量下降」這種指標
+        可以被優化（把字面值換成未定義的 token），不變量不行。
+        """
+        allowed = {"11", "13", "15", "19", "24", "28", "32"}
+        svg_user_units = {"7", "3.2"}  # .breadth-chart 內為 SVG viewBox 座標，非 CSS px
+        css = css_bundle()
+        found = set(re.findall(r"font-size:\s*([0-9.]+)px", css))
+        self.assertEqual(sorted(found - allowed - svg_user_units), [])
+        self.assertNotIn("font-size:10px", css_compact())
+
+    def test_order3_border_radius_is_confined_to_four_values(self):
+        """圓角只允許 6／8／10／999px（C-3）。"""
+        allowed = {"6", "8", "10", "999"}
+        css = css_bundle()
+        found = set(re.findall(r"border-radius:\s*([0-9]+)px", css))
+        self.assertEqual(sorted(found - allowed), [])
+
+    def test_order3_line_height_never_below_chinese_floor(self):
+        """中文行高不得低於 1.3，否則字的上緣會被裁切（D-4）。"""
+        css = css_bundle()
+        bare = [v for v in re.findall(r"line-height:\s*([0-9.]+)(?![0-9a-z%])", css)]
+        shorthand = re.findall(r"font:\s*\d+\s+[0-9.]+px/([0-9.]+)", css)
+        too_tight = [v for v in bare + shorthand if float(v) < 1.3]
+        self.assertEqual(too_tight, [])
 
     def test_order2_every_referenced_custom_property_is_defined(self):
         """每個 var(--x) 引用的 --x 都必須有定義。
