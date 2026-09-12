@@ -4780,6 +4780,51 @@ body.sidebar-collapsed .sidebar-nav .nav-link {
 }
 .event-group:target { outline:2px solid var(--absorb-blue); outline-offset:3px; }
 
+/* ORDER 4（A-8）：問題範例。首次開啟時示範「這裡能問什麼」，
+   點了只填入輸入框，不自動送出；對話一開始就收起來。 */
+.quick-ask-examples {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 14px;
+}
+.quick-ask-examples[hidden] { display:none; }
+.quick-ask-examples-title {
+  flex-basis:100%;
+  margin:0;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+  letter-spacing:.06em;
+}
+.quick-ask-example {
+  min-height:32px;
+  padding:6px 12px;
+  border:1px solid var(--absorb-hairline);
+  border-radius:var(--radius-pill);
+  background:var(--absorb-surface-raised);
+  color:var(--absorb-ink);
+  font:inherit;
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+  text-align:left;
+  cursor:pointer;
+}
+.quick-ask-example:hover,
+.quick-ask-example:focus-visible { border-color:var(--absorb-blue); }
+.quick-ask-header p+p { margin-top:6px; }
+.quick-ask-context {
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+
+/* ORDER 4（D-2）：主內容底部必須留出大於浮動鈕高度的安全距離。
+   浮動鈕 min-height 44px + bottom 24px = 68px，取 96px 留餘裕。
+   沒有這段距離時，最後一列內容會永遠被浮動鈕蓋住，而且它是 fixed，
+   捲到底也躲不掉。 */
+.site-footer { padding-bottom:96px; }
+
 .market-summary-page {
   max-width:1160px;
 }

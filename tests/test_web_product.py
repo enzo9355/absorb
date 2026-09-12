@@ -1299,6 +1299,62 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('href="/learn"', aux_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
 
+    def test_order4_ask_examples_are_page_specific_and_never_auto_submit(self):
+        """A-8：浮動面板的問題範例必須隨頁面改變，且只填入不送出。
+
+        「不自動送出」是這一條的重點：自動送出會替使用者做決定，而且送出的
+        問題不見得是他想問的。這裡守的是 JS 端沒有 submit()／requestSubmit()
+        ——  範例按鈕本身是 type="button"，不會誤觸表單送出。
+        """
+        client = stock_app.app.test_client()
+        seen = {}
+        for path in ("/", "/market", "/industries", "/stocks", "/reports", "/learn"):
+            with self.subTest(path=path):
+                html = client.get(path).get_data(as_text=True)
+                examples = re.findall(
+                    r'<button class="quick-ask-example" type="button" '
+                    r'data-quick-ask-example>([^<]+)</button>',
+                    html,
+                )
+                self.assertEqual(len(examples), 3, examples)
+                seen[path] = tuple(examples)
+        # 每一頁的範例都不同 —— 否則「與目前頁面相關」只是說說而已
+        self.assertEqual(len(set(seen.values())), len(seen), seen)
+
+        script = Path(stock_app.app.static_folder, "app.js").read_text(encoding="utf-8")
+        block = script[script.index("function initAskExamples"):]
+        block = block[: block.index("\nfunction ")]
+        self.assertIn("input.value = button.textContent.trim();", block)
+        for forbidden in ("submit()", "requestSubmit()", "dispatchEvent"):
+            self.assertNotIn(forbidden, block)
+
+    def test_order4_ask_surfaces_state_distinct_purposes(self):
+        """A-8：浮動面板與完整頁必須各自說清楚定位，否則兩者功能重疊。"""
+        client = stock_app.app.test_client()
+        home = client.get("/").get_data(as_text=True)
+        ask = client.get("/ask").get_data(as_text=True)
+
+        # 浮動面板：針對目前頁面，且指得出完整頁在哪
+        self.assertIn("針對你正在看的這一頁追問", home)
+        self.assertIn('href="/ask">完整頁', home)
+        # 完整頁：跨市場、跨報告，且不再重複掛浮動鈕
+        self.assertIn("跨市場、跨報告的研究對話", ask)
+        self.assertNotIn("quick-ask-trigger", ask)
+        # 兩個介面都必須帶同一條限制聲明
+        for html in (home, ask):
+            self.assertIn("依已發布資料與模型結果回答，不提供買賣指令。", html)
+
+    def test_order4_footer_reserves_space_for_the_floating_trigger(self):
+        """D-2：浮動鈕是 fixed，捲到底也躲不掉，底部必須留出大於它的距離。"""
+        css = css_bundle()
+        trigger = css[css.index(".quick-ask-trigger {"):]
+        trigger = trigger[: trigger.index("}")]
+        min_height = int(re.search(r"min-height:(\d+)px", trigger).group(1))
+        bottom = int(re.search(r"bottom:(\d+)px", trigger).group(1))
+        footer = css[css.rindex(".site-footer { padding-bottom:"):]
+        reserved = int(re.search(r"padding-bottom:(\d+)px", footer).group(1))
+        self.assertGreater(reserved, min_height + bottom)
+
     def test_market_switch_sits_above_the_navigation_it_governs(self):
         """ORDER 4（A-4）：市場切換器決定側欄所有項目的內容，必須在它們之上。"""
         html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)

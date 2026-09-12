@@ -81,3 +81,9 @@
 2026-09-12 04:15:08,180 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:15:08] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
 2026-09-12 04:15:08,226 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:15:08] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
 2026-09-12 04:15:08,233 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:15:08] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:18:19,934 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:18:19] "GET /stocks HTTP/1.1" 200 -
+2026-09-12 04:18:19,941 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:18:19] "GET /static/app.css?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:18:19,942 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:18:19] "GET /static/app.js?v=eec762bfb8d6 HTTP/1.1" 200 -
+2026-09-12 04:18:19,953 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:18:19] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:18:20,006 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:18:20] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:18:20,037 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:18:20] "GET /static/brand/favicon.ico HTTP/1.1" 200 -

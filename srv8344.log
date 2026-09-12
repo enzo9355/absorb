@@ -1,0 +1,13 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+2026-09-12 04:18:56,693 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8344
+2026-09-12 04:18:56,694 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-09-12 04:19:02,231 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:02] "GET /stocks HTTP/1.1" 200 -
+2026-09-12 04:19:06,146 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:06] "GET /stocks HTTP/1.1" 200 -
+2026-09-12 04:19:06,160 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:06] "GET /static/app.css?v=51e181641676 HTTP/1.1" 200 -
+2026-09-12 04:19:06,161 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:06] "GET /static/app.js?v=51e181641676 HTTP/1.1" 200 -
+2026-09-12 04:19:06,179 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:06] "[35m[1mGET /api/dashboard HTTP/1.1[0m" 503 -
+2026-09-12 04:19:06,233 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:06] "GET /static/fonts/absorb-wordmark.woff2 HTTP/1.1" 200 -
+2026-09-12 04:19:06,243 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:06] "GET /static/brand/favicon.ico HTTP/1.1" 200 -
+2026-09-12 04:19:07,691 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 04:19:07] "GET /ask HTTP/1.1" 200 -

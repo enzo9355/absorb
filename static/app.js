@@ -278,6 +278,23 @@ function appendConversationMessage(log, role, text) {
   log.scrollTop = log.scrollHeight;
 }
 
+// ORDER 4（A-8）：問題範例只填入輸入框，不自動送出。自動送出會替使用者
+// 做決定，而且送出的問題不見得是他想問的 —— 範例的用途是示範「這裡能問
+// 什麼」，不是代替他發問。對話一開始就把範例收起來，避免長期佔位。
+function initAskExamples() {
+  document.querySelectorAll("[data-conversation-endpoint]").forEach((panel) => {
+    const examples = bySelector("[data-quick-ask-examples]", panel);
+    const input = bySelector("input[name='question']", panel);
+    if (!examples || !input) return;
+    examples.querySelectorAll("[data-quick-ask-example]").forEach((button) => {
+      button.addEventListener("click", () => {
+        input.value = button.textContent.trim();
+        input.focus();
+      });
+    });
+  });
+}
+
 function initConversations() {
   document.querySelectorAll("[data-conversation-form]").forEach((form) => {
     const panel = form.closest("[data-conversation-endpoint]");
@@ -290,6 +307,8 @@ function initConversations() {
       const question = input.value.trim();
       if (!question) return;
       appendConversationMessage(log, "user", question);
+      const examples = bySelector("[data-quick-ask-examples]", panel);
+      if (examples) examples.hidden = true;
       input.value = "";
       button.disabled = true;
       const headers = { Accept: "application/json", "Content-Type": "application/json" };
@@ -666,4 +685,5 @@ initUsIndexChart();
 initReturnCalculator();
 initConversations();
 initQuickAsk();
+initAskExamples();
 initSidebar();
