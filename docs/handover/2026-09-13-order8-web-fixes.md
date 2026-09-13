@@ -2,9 +2,10 @@
 
 對象：負責審核與部署的人（Codex）。
 分支：`claude/youthful-brown-j04373`。
-寫這份文件的原因：**這一輪的變更沒有在本機跑過測試套件**（原因見下方
-「我沒有驗的事」），所以交接必須把「我驗了什麼」與「還沒驗什麼」分開寫清楚，
-由你補完那一段再決定上不上線。
+寫這份文件的原因：**這一輪的變更沒有在我的工作環境跑過測試套件**（環境缺依賴，
+見第 4 節），所以交接必須把「我驗了什麼」與「誰補上了剩下那一段」分開寫清楚，
+再決定上不上線。後來 PR #84 的 CI 在 Python 3.10／3.11 上各跑了一次完整的
+`scripts/check_ci.sh`，兩個都綠 —— 但那是 CI 跑的，不是我跑的。
 
 ---
 
@@ -96,17 +97,24 @@ tabpanel 上：整個分頁變成橫向 flex 容器，九個章節被擠成九�
 
 ---
 
-## 4. 我沒有驗的事（請你補）
+## 4. 測試套件：本機沒跑，CI 跑了
 
-**沒有跑 `./scripts/check_ci.sh`。** 委託人在這個工作階段拒絕了安裝依賴，
-所以整個 `unittest` 套件一次都沒有跑過。請在有依賴的環境執行：
+**我沒有在工作環境跑 `./scripts/check_ci.sh`** —— 那個環境沒有安裝專案依賴，
+所以整個 `unittest` 套件我一次都沒有執行過。這是這份交接最初要請你補的那一段。
+
+**後來 PR #84 的 CI 補上了這一段**：`.github/workflows/ci.yml` 在
+Python 3.10 與 3.11 上各跑了一次 `scripts/check_ci.sh`（也就是完整的
+CI 測試範圍），head commit `c0ca906` 兩個都 success。
+
+所以這一項現在不是未知數，但它是**CI 跑的、不是我跑的**；如果你要在本機
+再確認一次：
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
 ./scripts/check_ci.sh
 ```
 
-特別留意這幾個模組（改動直接命中它們）：
+無論看 CI 或自己跑，特別留意這幾個模組（改動直接命中它們）：
 
 - `tests/test_web_product.py`：新增的三個 `test_order8_*`，以及被我改過的
   `test_order4_market_chart_declares_its_own_legend_and_limits`
