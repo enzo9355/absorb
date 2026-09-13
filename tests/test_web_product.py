@@ -96,6 +96,7 @@ class WebProductTests(unittest.TestCase):
 
         self.assertIn("模型推估上漲機率（未校準）", html)
         self.assertIn("機率值尚未校準", html)
+        self.assertIn("不能當成實際上漲機會解讀", html)
         self.assertNotIn("回測", html)
         self.assertNotIn("目前正式預測", html)
 
@@ -1882,6 +1883,7 @@ class WebProductTests(unittest.TestCase):
 
         self.assertIn("模型推估上漲機率（未校準）", html)
         self.assertIn("機率值尚未校準", html)
+        self.assertIn("不能當成實際上漲機會解讀", html)
         self.assertNotIn("回測", html)
 
     @patch.object(stock_app, "_published_dashboard_snapshot")
@@ -1906,6 +1908,29 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("最長的一根＝1 檔", market_html)
         self.assertNotIn("最長的一根＝1.00%", dashboard_html)
 
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_zero_values_do_not_turn_fallback_scales_into_data(
+        self, load_snapshot
+    ):
+        """全零或 0 + 缺值是合法資料，但 fallback 1 仍不是實際最大值。"""
+        for values in ((0, 0, 0, 0, 0, 0), (0, None, 0, None, 0, None)):
+            snapshot = observation_dashboard()
+            market = snapshot["market_observation"]
+            for key, value in zip((
+                "return_1d_pct", "return_5d_pct", "return_20d_pct", "return_60d_pct",
+                "new_high_20d_count", "new_low_20d_count",
+            ), values):
+                market[key] = value
+            load_snapshot.return_value = snapshot
+
+            client = stock_app.app.test_client()
+            market_html = client.get("/market").get_data(as_text=True)
+            dashboard_html = client.get("/dashboard").get_data(as_text=True)
+
+            self.assertNotIn("最長的一根＝1.00%", market_html)
+            self.assertNotIn("最長的一根＝1 檔", market_html)
+            self.assertNotIn("最長的一根＝1.00%", dashboard_html)
+
     def test_order8_visual_rows_share_one_column_grid(self):
         """共用數值 max 之外，所有列也必須共用同一組像素欄寬。"""
         css = css_bundle()
@@ -1913,8 +1938,16 @@ class WebProductTests(unittest.TestCase):
         row = re.search(r"\.viz-row\s*\{([^}]*)\}", css, re.S).group(1)
 
         self.assertIn("grid-template-columns:", rows)
+        self.assertIn(
+            "grid-template-columns:minmax(96px,auto)minmax(0,1fr)minmax(76px,auto)",
+            row.replace(" ", ""),
+        )
         self.assertIn("grid-template-columns:subgrid", row.replace(" ", ""))
         self.assertIn("grid-column:1 / -1", row)
+        self.assertIn(
+            ".viz-row{grid-template-columns:minmax(0,1fr)auto;grid-template-columns:subgrid;}",
+            css.replace(" ", "").replace("\n", ""),
+        )
 
     def test_order8_report_track_panel_is_never_turned_into_a_row(self):
         """研究版報告整份排版壞掉，是兩個元件共用同一個類名造成的。

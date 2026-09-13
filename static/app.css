@@ -4867,6 +4867,7 @@ span.value-unavailable {
 }
 .viz-row {
   display:grid;
+  grid-template-columns:minmax(96px,auto) minmax(0,1fr) minmax(76px,auto);
   grid-template-columns:subgrid;
   grid-column:1 / -1;
   align-items:center;
@@ -4932,6 +4933,10 @@ span.value-unavailable {
    三欄硬擠進 390px 會讓長條短到看不出差異（§12.1 的密度目標）。 */
 @media (max-width:700px) {
   .viz-rows { grid-template-columns:minmax(0,1fr) auto; }
+  .viz-row {
+    grid-template-columns:minmax(0,1fr) auto;
+    grid-template-columns:subgrid;
+  }
   .viz-label { grid-column:1; grid-row:1; }
   .viz-value { grid-column:2; grid-row:1; }
   .viz-track { grid-column:1 / -1; grid-row:2; }

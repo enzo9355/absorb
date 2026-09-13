@@ -19,12 +19,12 @@
 {% set return_periods = [('近 1 個交易日', 'return_1d_pct'), ('近 5 個交易日', 'return_5d_pct'), ('近 20 個交易日', 'return_20d_pct'), ('近 60 個交易日', 'return_60d_pct')] %}
 {% set return_magnitudes = [] %}
 {% for _label, key in return_periods %}{% if market.get(key) is not none %}{% set _ = return_magnitudes.append(market.get(key)|abs) %}{% endif %}{% endfor %}
-{% set return_scale = (return_magnitudes|max) if return_magnitudes else 1 %}
-{% set return_scale = return_scale if return_scale > 0 else 1 %}
+{% set return_peak = (return_magnitudes|max) if return_magnitudes else none %}
+{% set return_scale = return_peak if return_peak is not none and return_peak > 0 else 1 %}
 {% set new_high = market.get('new_high_20d_count') %}
 {% set new_low = market.get('new_low_20d_count') %}
-{% set extreme_scale = [new_high if new_high is not none else 0, new_low if new_low is not none else 0]|max %}
-{% set extreme_scale = extreme_scale if extreme_scale > 0 else 1 %}
+{% set extreme_peak = [new_high if new_high is not none else 0, new_low if new_low is not none else 0]|max %}
+{% set extreme_scale = extreme_peak if extreme_peak > 0 else 1 %}
 {# ORDER 8：這一頁刻意不掛 data-market-summary。
    app.js 的 renderDashboard() 會把那個容器的內容整組換成它自己的三張卡
    （「站上 MA20」「20 日已實現波動」），於是伺服器端已經白話化、已經
@@ -80,7 +80,7 @@
       <article><span>目標交易日</span><strong>{{ prediction.target_session }}</strong><small>{% if prediction.validation_mode == 'research' %}研究推估｜機率值尚未校準{% else %}{{ '正式預測' if prediction.status == 'current' else '前次預測｜資料日 ' ~ prediction.as_of }}{% endif %}</small></article>
       {% if prediction.get('interval') %}<article><span>誤差區間</span><strong>{{ '{:,.2f}'.format(prediction.interval.price_low) }}–{{ '{:,.2f}'.format(prediction.interval.price_high) }}</strong><small>{{ '%+.2f%%'|format(prediction.interval.return_low_pct) }} ～ {{ '%+.2f%%'|format(prediction.interval.return_high_pct) }}</small></article>{% endif %}
     </div>
-    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估的機率值尚未校準。{% endif %}{% if prediction.get('interval') %}誤差區間是<strong>過去 {{ prediction.interval.sample_count }} 個樣本外測試裡，模型誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</strong>套在這次預測上 —— 它描述的是模型過去錯多少，<strong>不是</strong>信賴區間，也不保證這次會落在裡面。{% endif %}</p>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估的機率值尚未校準，不能當成實際上漲機會解讀。{% endif %}{% if prediction.get('interval') %}誤差區間是<strong>過去 {{ prediction.interval.sample_count }} 個樣本外測試裡，模型誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</strong>套在這次預測上 —— 它描述的是模型過去錯多少，<strong>不是</strong>信賴區間，也不保證這次會落在裡面。{% endif %}</p>
     {% else %}
     <p class="empty-state">本交易日的五日情境尚未發布；沒有可用產物時不顯示機率或預測價，K 線上也不補一條估計線。</p>
     {% endif %}
@@ -131,7 +131,7 @@
           </li>
           {% endfor %}
         </ol>
-        {% if return_magnitudes %}<p class="muted small">長條共用同一個刻度（最長的一根＝{{ '%.2f%%'|format(return_scale) }}），四個期間因此可以互相比較。</p>{% else %}<p class="muted small">目前沒有已驗證的期間報酬，長條不顯示長度。</p>{% endif %}
+        {% if return_peak is not none and return_peak > 0 %}<p class="muted small">長條共用同一個刻度（最長的一根＝{{ '%.2f%%'|format(return_peak) }}），四個期間因此可以互相比較。</p>{% elif return_magnitudes %}<p class="muted small">已驗證的期間報酬目前都是 0，長條不顯示長度。</p>{% else %}<p class="muted small">目前沒有已驗證的期間報酬，長條不顯示長度。</p>{% endif %}
         <p class="chart-caveat"><strong>這不代表什麼：</strong>期間報酬是全市場的中位數，不是任何一檔股票的報酬，也不是把它延伸到下一個期間的依據。長度只表示相對大小，不代表機率。</p>
       </section>
 
@@ -149,7 +149,7 @@
             {% if new_low is not none %}<b class="viz-value">{{ new_low }} 檔</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
           </li>
         </ol>
-        <p class="chart-caveat"><strong>這不代表什麼：</strong>{% if new_high is not none or new_low is not none %}兩根長條共用刻度（最長的一根＝{{ extreme_scale }} 檔），只比較彼此的多寡；{% else %}目前沒有已驗證的新高／新低家數，長條不顯示長度；{% endif %}不代表整體市場的漲跌方向，也不是買賣訊號。</p>
+        <p class="chart-caveat"><strong>這不代表什麼：</strong>{% if extreme_peak > 0 %}兩根長條共用刻度（最長的一根＝{{ extreme_peak }} 檔），只比較彼此的多寡；{% elif new_high is not none or new_low is not none %}目前可用的已驗證家數沒有大於 0，長條不顯示長度；{% else %}目前沒有已驗證的新高／新低家數，長條不顯示長度；{% endif %}不代表整體市場的漲跌方向，也不是買賣訊號。</p>
       </section>
     </div>
   </div>
