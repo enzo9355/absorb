@@ -363,8 +363,13 @@ function Invoke-ObservationSmoke {
         'pre-market' = 'overnight-title'
     }
     foreach ($ReportType in $CanonicalReportPaths.Keys) {
+        # 連結後面可以跟 #fragment。ORDER 5 把報告頁改成三軌之後，
+        # 每個入口都帶 #track-overview / #track-table / #track-research，
+        # 原本要求 post-close 後面緊接著引號的寫法就再也對不上，
+        # 於是部署被這道閘門擋下 —— 閘門沒壞，是它只認得一種拼法。
+        # fragment 不影響是哪一份報告，所以不納入擷取的 path。
         $Pattern = 'href="(?<path>/reports/[0-9]{4}-[0-9]{2}-[0-9]{2}/' +
-            [regex]::Escape($ReportType) + ')"'
+            [regex]::Escape($ReportType) + ')(?:#[A-Za-z0-9_-]+)?"'
         $Match = [regex]::Match([string]$ReportsHtml, $Pattern)
         if (-not $Match.Success) {
             throw "Observation report link is unavailable: $ReportType"
