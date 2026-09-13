@@ -2488,7 +2488,19 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('aria-controls="dashboard-sidebar"', html)
         self.assertIn('<span class="nav-label">每日報告</span>', html)
 
-    def test_web_shell_serves_one_wordmark_font_across_devices(self):
+    def test_web_shell_wordmark_prefers_segoe_script_with_a_shipped_fallback(self):
+        """字標優先用 Segoe Script，並自帶 Allura 作為退路。
+
+        **這是刻意接受的裝置差異，不是疏漏。** 委託人指定 Segoe Script，
+        而它隨 Windows 出貨、是微軟專有字型，不能自帶進 repo，
+        CSP 又是 font-src 'self' 無法外連。所以：
+          Windows → Segoe Script
+          其他裝置 → 自帶的 Allura
+
+        這條測試守的是那個退路必須存在且真的送得出去 —— 少了它，
+        沒有 Segoe Script 的裝置會掉到泛用 cursive，
+        各家瀏覽器各給一種手寫體，那才是真的失控。
+        """
         client = stock_app.app.test_client()
         response = client.get("/static/fonts/absorb-wordmark-allura.woff2")
         font_payload = response.get_data()
@@ -2502,7 +2514,7 @@ class WebProductTests(unittest.TestCase):
             'url("fonts/absorb-wordmark-allura.woff2") format("woff2")', css
         )
         self.assertIn(
-            'font-family:"ABSORB Wordmark","Segoe Script","Brush Script MT",cursive',
+            'font-family:"Segoe Script","ABSORB Wordmark","Brush Script MT",cursive',
             css,
         )
         self.assertIn("-webkit-text-stroke:.024em currentColor", css)
