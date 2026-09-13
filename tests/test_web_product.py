@@ -1981,6 +1981,32 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('class="report-track-meta"', index_template)
         self.assertIn(".report-track-meta {", css)
 
+    def test_order8_report_index_grid_shrinks_on_mobile(self):
+        """報告索引格線不得以內容最小寬度撐破手機 viewport。"""
+        css = css_compact()
+
+        self.assertIn(
+            ".reports-page{display:grid;grid-template-columns:minmax(0,1fr);",
+            css,
+        )
+
+    def test_order8_professional_report_grid_shrinks_on_mobile(self):
+        """研究報告 KPI 格線必須在平板與手機斷點縮欄。"""
+        css = css_compact()
+
+        self.assertIn(
+            "@media(max-width:900px){.report-badge-strip,.report-kpi-grid,"
+            ".spec-meta-grid,.gate-grid,.scenario-card-grid{"
+            "grid-template-columns:repeat(2,minmax(0,1fr));}",
+            css,
+        )
+        self.assertIn(
+            "@media(max-width:600px){.report-badge-strip,.report-kpi-grid,"
+            ".spec-meta-grid,.gate-grid,.scenario-card-grid{"
+            "grid-template-columns:1fr;}",
+            css,
+        )
+
     def test_order4_chart_ma_line_reads_a_token_with_sufficient_contrast(self):
         """M-4／WCAG 1.4.11：均價線不得寫死顏色，且對底色至少 3:1。
 
