@@ -21,7 +21,7 @@ RETRY_DELAY_SECONDS = 6
 # /reports 與 /us 刻意不列入：沒有已驗證的報告時它們**應該**回 503，
 # 那是 fail-closed 正常運作，不是壞掉。拿它們當煙霧測試會讓
 # 「還沒發報告」變成「不准部署」。
-REQUIRED_OK = ("/healthz", "/dashboard", "/market", "/stocks", "/learn")
+REQUIRED_OK = ("/health", "/dashboard", "/market", "/stocks", "/learn")
 
 
 def _get(url, timeout=TIMEOUT_SECONDS):

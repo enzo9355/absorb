@@ -33,7 +33,7 @@
 3. 驗候選 revision 的環境變數 —— research 模式、Observation 開啟、
    四個 prediction flags 全關、preview prefix 不得殘留。
    等同 PowerShell 的 `Assert-ObservationEnvironment`
-4. 對候選網址做煙霧測試（`/healthz`、`/dashboard`、`/market`、`/stocks`、
+4. 對候選網址做煙霧測試（`/health`、`/dashboard`、`/market`、`/stocks`、
    `/learn`、`/health/data`），新 revision 冷啟動會重試
 5. 全部通過才切 100% 流量
 6. 切完再驗一次，失敗**自動把流量切回原本的 revision**
@@ -111,7 +111,7 @@ gcloud run revisions describe <revision> `
 
 把結果跟 `git log -1 --format=%H origin/main` 對一下就知道差幾版。
 
-**不要用 `/healthz` 判斷版本** —— 它只回 `ok`，任何版本都一樣
+**不要用 `/health` 判斷版本** —— 它只回 `ok`，任何版本都一樣
 （`stock_papi/web/routes/system.py:218`）。
 
 ## 不是快取的問題

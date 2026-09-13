@@ -174,7 +174,8 @@ class SmokeTargetsTests(unittest.TestCase):
 
         self.assertNotIn("/reports", REQUIRED_OK)
         self.assertNotIn("/us", REQUIRED_OK)
-        self.assertIn("/healthz", REQUIRED_OK)
+        self.assertIn("/health", REQUIRED_OK)
+        self.assertNotIn("/healthz", REQUIRED_OK)
         self.assertIn("/dashboard", REQUIRED_OK)
 
 
