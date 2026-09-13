@@ -401,9 +401,12 @@ function Invoke-ObservationSmoke {
     }
     $UsReports = Invoke-WebRequest -Uri ($BaseUrl.TrimEnd('/') + '/reports/us') `
         -UseBasicParsing -MaximumRedirection 0 -TimeoutSec 45
+    # 同上：三軌改版之後美股的報告入口一樣帶 #fragment。
+    # 這條是第二份寫死的樣式，第一次只修了台股那條就又被這裡擋下來 ——
+    # 修「這個實例」而不是「這一類」的代價。
     $UsMatch = [regex]::Match(
         [string]$UsReports.Content,
-        'href="(?<path>/reports/us/[0-9]{4}-[0-9]{2}-[0-9]{2}/post-close)"'
+        'href="(?<path>/reports/us/[0-9]{4}-[0-9]{2}-[0-9]{2}/post-close)(?:#[A-Za-z0-9_-]+)?"'
     )
     if (-not $UsMatch.Success) { throw 'US canonical report link is unavailable' }
     $UsPath = [string]$UsMatch.Groups['path'].Value
