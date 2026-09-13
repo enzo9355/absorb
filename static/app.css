@@ -4859,6 +4859,7 @@ span.value-unavailable {
    讓填色從中線往左長，而不是從左邊界往右長。 */
 .viz-rows {
   display:grid;
+  grid-template-columns:minmax(96px,auto) minmax(0,1fr) minmax(76px,auto);
   gap:14px;
   margin:18px 0 0;
   padding:0;
@@ -4866,7 +4867,8 @@ span.value-unavailable {
 }
 .viz-row {
   display:grid;
-  grid-template-columns:minmax(96px,auto) minmax(0,1fr) minmax(76px,auto);
+  grid-template-columns:subgrid;
+  grid-column:1 / -1;
   align-items:center;
   gap:8px 14px;
 }
@@ -4929,7 +4931,7 @@ span.value-unavailable {
 /* 窄寬度：標籤與數值維持同一列，長條移到下一列 ——
    三欄硬擠進 390px 會讓長條短到看不出差異（§12.1 的密度目標）。 */
 @media (max-width:700px) {
-  .viz-row { grid-template-columns:minmax(0,1fr) auto; }
+  .viz-rows { grid-template-columns:minmax(0,1fr) auto; }
   .viz-label { grid-column:1; grid-row:1; }
   .viz-value { grid-column:2; grid-row:1; }
   .viz-track { grid-column:1 / -1; grid-row:2; }

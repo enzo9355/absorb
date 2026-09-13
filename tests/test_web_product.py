@@ -95,7 +95,8 @@ class WebProductTests(unittest.TestCase):
         html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
 
         self.assertIn("模型推估上漲機率（未校準）", html)
-        self.assertIn("未經回測校準", html)
+        self.assertIn("機率值尚未校準", html)
+        self.assertNotIn("回測", html)
         self.assertNotIn("目前正式預測", html)
 
     @patch.object(stock_app, "_published_prediction_snapshot")
@@ -1856,6 +1857,64 @@ class WebProductTests(unittest.TestCase):
         legend = re.search(r'<dl class="chart-legend">.*?</dl>', html, re.S).group(0)
         self.assertNotIn("五日情境", legend)
         self.assertIn("尚未發布", html)
+
+    @patch.object(stock_app, "_published_prediction_snapshot")
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_market_research_prediction_uses_plain_language(
+        self, load_snapshot, load_prediction
+    ):
+        """散戶入口可揭露未校準狀態，但不帶入「回測」績效術語。"""
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "symbol": "TAIEX", "name": "加權指數", "as_of": "2026-07-15",
+            "price": 23150.25, "change": 188.4, "change_pct": 0.82,
+            "open": 22982.1, "high": 23210.8, "low": 22940.6,
+            "candles": [], "ma20": [],
+        }
+        estimate = prediction_product(symbol="TAIEX")
+        estimate["schema_version"] = 2
+        estimate["validation_mode"] = "research"
+        estimate.pop("backtest_sha256")
+        load_snapshot.return_value = snapshot
+        load_prediction.return_value = estimate
+
+        html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        self.assertIn("模型推估上漲機率（未校準）", html)
+        self.assertIn("機率值尚未校準", html)
+        self.assertNotIn("回測", html)
+
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_missing_values_do_not_turn_fallback_scales_into_data(
+        self, load_snapshot
+    ):
+        """計算用的 fallback max 不得被寫成實際最長長條。"""
+        snapshot = observation_dashboard()
+        market = snapshot["market_observation"]
+        for key in (
+            "return_1d_pct", "return_5d_pct", "return_20d_pct", "return_60d_pct",
+            "new_high_20d_count", "new_low_20d_count",
+        ):
+            market[key] = None
+        load_snapshot.return_value = snapshot
+
+        client = stock_app.app.test_client()
+        market_html = client.get("/market").get_data(as_text=True)
+        dashboard_html = client.get("/dashboard").get_data(as_text=True)
+
+        self.assertNotIn("最長的一根＝1.00%", market_html)
+        self.assertNotIn("最長的一根＝1 檔", market_html)
+        self.assertNotIn("最長的一根＝1.00%", dashboard_html)
+
+    def test_order8_visual_rows_share_one_column_grid(self):
+        """共用數值 max 之外，所有列也必須共用同一組像素欄寬。"""
+        css = css_bundle()
+        rows = re.search(r"\.viz-rows\s*\{([^}]*)\}", css, re.S).group(1)
+        row = re.search(r"\.viz-row\s*\{([^}]*)\}", css, re.S).group(1)
+
+        self.assertIn("grid-template-columns:", rows)
+        self.assertIn("grid-template-columns:subgrid", row.replace(" ", ""))
+        self.assertIn("grid-column:1 / -1", row)
 
     def test_order8_report_track_panel_is_never_turned_into_a_row(self):
         """研究版報告整份排版壞掉，是兩個元件共用同一個類名造成的。
