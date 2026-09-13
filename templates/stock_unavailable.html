@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ code }}：今天沒有已驗證的觀察｜ABSORB{% endblock %}
+{% block content %}
+{# 個股快照缺漏時的缺席狀態。
+   在這之前這條路徑回的是裸字串「查無資料」而且是 HTTP 200 ——
+   沒有外框、沒有導覽、沒有回去的路，而且會被當成一個「成功」的頁面
+   被快取與索引。這一頁照報告層 report_unavailable.html 的規矩重做。
+
+   刻意不說「查無此股」：代號是掛牌的（不是的話前面就 abort(404) 了），
+   缺的是今天這一檔通過驗證的觀察。兩件事混在一起會讓人以為自己打錯代號。 #}
+<article class="page stock-detail-page">
+  <section class="panel empty-state" role="alert">
+    <p class="eyebrow">OBSERVATION STATUS</p>
+    <h1>{{ code }} 今天沒有已驗證的觀察</h1>
+    <p>這一檔的資料還沒有通過驗證，所以這一頁不顯示任何數字。缺值就是缺值，這裡不會用推估值補位。</p>
+    <p class="muted">代號本身是掛牌的，不是你打錯。通過驗證之後這一頁就會出現內容。</p>
+    <div class="report-actions">
+      <a class="button" href="{{ stocks_url }}">回到個股與 ETF</a>
+      <a class="button button-secondary" href="{{ dashboard_url }}">回到今天市場</a>
+      <a class="button button-secondary" href="{{ reports_url }}">看每日報告</a>
+    </div>
+  </section>
+</article>
+{% endblock %}
