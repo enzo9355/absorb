@@ -181,7 +181,26 @@ def register_market_routes(
             and snapshot.get("product_mode") == "observation"
             else {}
         )
-        return render_template("market.html", observation=observation)
+        # 市場實況的指數圖本來就用 createPriceChart(predictionMarker: true) 繪製，
+        # 但這條路由從來沒有把預測帶進模板 —— 圖表拿不到 prediction 就只畫
+        # K 線與均價線，五日情境那條線在這一頁等於消失。今日市場（dashboard.html）
+        # 一直看得到，是因為 dashboard 路由有做這件事。同一份已驗證產物，
+        # 兩個入口不該只有一邊看得到。
+        market_index = observation.get("market_index") or {}
+        prediction = None
+        if market_index.get("as_of"):
+            try:
+                prediction = prediction_for(
+                    prediction_snapshot("TW"),
+                    "TW",
+                    "TAIEX",
+                    market_index["as_of"],
+                )
+            except Exception:
+                prediction = None
+        return render_template(
+            "market.html", observation=observation, market_prediction=prediction
+        )
 
     app.add_url_rule("/api/dashboard", "dashboard_api", dashboard_api)
     app.add_url_rule("/api/market-insights", "market_insights_api", market_insights_api)

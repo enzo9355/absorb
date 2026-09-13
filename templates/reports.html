@@ -72,7 +72,7 @@
                 {% if report.summary|length > 1 %}<p class="report-summary">{{ report.summary[1:]|join('；') }}</p>{% endif %}
                 {# ORDER 7（§6.1）：軌道與篇幅。索引沒有這些欄位時（本次改動
                    之前發布的報告）整段不顯示 —— 憑報告類型猜會在沒有研究版時說謊。 #}
-                {% if report.get('has_professional_report') %}<p class="report-track"><span class="report-track-badge">研究版</span>{{ report.available_section_count }}／{{ report.total_section_count }} 章有內容</p>{% endif %}
+                {% if report.get('has_professional_report') %}<p class="report-track-meta"><span class="report-track-badge">研究版</span>{{ report.available_section_count }}／{{ report.total_section_count }} 章有內容</p>{% endif %}
                 <p class="muted small">資料基準日 {{ report.source_market_date }}｜適用交易日 {{ report.applicable_trading_date }}</p>
               </div>
               <div class="report-actions report-doors" data-report-doors>

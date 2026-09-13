@@ -95,7 +95,9 @@ class WebProductTests(unittest.TestCase):
         html = stock_app.app.test_client().get("/dashboard").get_data(as_text=True)
 
         self.assertIn("模型推估上漲機率（未校準）", html)
-        self.assertIn("未經回測校準", html)
+        self.assertIn("機率值尚未校準", html)
+        self.assertIn("不能當成實際上漲機會解讀", html)
+        self.assertNotIn("回測", html)
         self.assertNotIn("目前正式預測", html)
 
     @patch.object(stock_app, "_published_prediction_snapshot")
@@ -1624,7 +1626,12 @@ class WebProductTests(unittest.TestCase):
         驗證過的東西 —— 這是本次改版一路在防的同一件事。
         """
         root = Path(__file__).resolve().parents[1]
-        for name in ("templates/stock_detail.html", "templates/dashboard.html"):
+        for name in (
+            "templates/stock_detail.html",
+            "templates/dashboard.html",
+            # ORDER 8：市場實況也開始畫這個帶，同一組措辭規則就必須跟著守
+            "templates/market.html",
+        ):
             raw = (root / name).read_text(encoding="utf-8")
             # 先去掉標籤與 Jinja，否則「不是</strong>信賴區間」這種
             # 橫跨標籤的否定句會被誤判成肯定句
@@ -1736,7 +1743,13 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_order4_market_chart_declares_its_own_legend_and_limits(self):
-        """§5.5：每張圖必須自己說清楚資料日、單位、圖例與界線。"""
+        """§5.5：每張圖必須自己說清楚資料日、單位、圖例與界線。
+
+        ORDER 8 起這一頁不只一張圖（市場廣度的堆疊長條也用同一組 token
+        色塊當圖例），所以條目數只數 K 線圖自己的 .chart-legend ——
+        數整頁的 legend-swatch 會把別張圖的圖例算進來。這是計數範圍的修正，
+        不是把規範放寬：每一張圖仍然各自要有圖例。
+        """
         snapshot = observation_dashboard()
         snapshot["market_index"] = {
             "name": "加權指數", "as_of": "2026-07-15", "price": 23450.12,
@@ -1753,10 +1766,220 @@ class WebProductTests(unittest.TestCase):
         ):
             html = stock_app.app.test_client().get("/market").get_data(as_text=True)
 
-        self.assertEqual(html.count("legend-swatch"), 3)
+        legend = re.search(r'<dl class="chart-legend">.*?</dl>', html, re.S)
+        self.assertIsNotNone(legend, "K 線圖沒有圖例")
+        self.assertEqual(legend.group(0).count("legend-swatch"), 3)
         self.assertIn("資料日 2026-07-15", html)
         self.assertIn("單位</dt><dd>指數點數</dd>", html)
         self.assertIn("這不代表什麼：", html)
+
+    @patch.object(stock_app, "_published_prediction_snapshot")
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_market_page_draws_the_same_verified_prediction_as_today(
+        self, load_snapshot, load_prediction
+    ):
+        """市場實況的五日情境線不見了，是因為路由沒把預測帶進模板。
+
+        圖表一直是用 createPriceChart(predictionMarker: true) 畫的，但
+        `market_page()` 只傳 observation；raw.prediction 是 undefined，
+        app.js 就只畫 K 線與均價線。今日市場（dashboard 路由）有做這件事，
+        所以同一份已驗證產物只有一個入口看得到。
+        """
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "symbol": "TAIEX", "name": "加權指數", "as_of": "2026-07-15",
+            "price": 23150.25, "change": 188.4, "change_pct": 0.82,
+            "open": 22982.1, "high": 23210.8, "low": 22940.6,
+            "candles": [
+                {"time": "2026-07-1%d" % i, "open": 1, "high": 2, "low": 0.5, "close": 1.5}
+                for i in range(1, 6)
+            ],
+            "ma20": [{"time": "2026-07-1%d" % i, "value": 1.2} for i in range(1, 6)],
+        }
+        load_snapshot.return_value = snapshot
+        load_prediction.return_value = prediction_product(symbol="TAIEX")
+
+        html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        payload = json.loads(
+            re.search(
+                r'id="market-index-chart-data"[^>]*>(.*?)</script>', html, re.S
+            ).group(1)
+        )
+        self.assertEqual(
+            payload["prediction"],
+            [
+                {"time": "2026-07-15", "value": 23150.25},
+                {"time": "2026-07-22", "value": 24138.765675},
+            ],
+        )
+        # §18：圖例逐條標明哪些是已發生、哪一條是估計
+        legend = re.search(r'<dl class="chart-legend">.*?</dl>', html, re.S).group(0)
+        self.assertIn("五日情境", legend)
+        self.assertIn("模型估計", legend)
+        # §18：估計的摘要數字自成區塊，標題直接說明它是估計
+        self.assertIn("AI 五日情境", html)
+        self.assertIn("以下數字全部是模型估計，不是已經發生的資料", html)
+        self.assertIn("24,138.77", html)
+        self.assertIn("2026-07-22", html)
+        # 散戶入口不得出現績效字眼，連指路文案也不行（§18）
+        for forbidden in ("回測", "勝率", "Brier"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, html)
+
+    @patch.object(stock_app, "_published_prediction_snapshot", return_value=None)
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_market_page_never_invents_a_prediction_line(
+        self, load_snapshot, _load_prediction
+    ):
+        """沒有已驗證產物時，K 線上不補估計線，摘要區塊也不補數字。"""
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "symbol": "TAIEX", "name": "加權指數", "as_of": "2026-07-15",
+            "price": 23150.25, "change": 188.4, "change_pct": 0.82,
+            "open": 22982.1, "high": 23210.8, "low": 22940.6,
+            "candles": [
+                {"time": "2026-07-1%d" % i, "open": 1, "high": 2, "low": 0.5, "close": 1.5}
+                for i in range(1, 6)
+            ],
+            "ma20": [],
+        }
+        load_snapshot.return_value = snapshot
+
+        html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        payload = json.loads(
+            re.search(
+                r'id="market-index-chart-data"[^>]*>(.*?)</script>', html, re.S
+            ).group(1)
+        )
+        self.assertNotIn("prediction", payload)
+        self.assertNotIn("band", payload)
+        legend = re.search(r'<dl class="chart-legend">.*?</dl>', html, re.S).group(0)
+        self.assertNotIn("五日情境", legend)
+        self.assertIn("尚未發布", html)
+
+    @patch.object(stock_app, "_published_prediction_snapshot")
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_market_research_prediction_uses_plain_language(
+        self, load_snapshot, load_prediction
+    ):
+        """散戶入口可揭露未校準狀態，但不帶入「回測」績效術語。"""
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "symbol": "TAIEX", "name": "加權指數", "as_of": "2026-07-15",
+            "price": 23150.25, "change": 188.4, "change_pct": 0.82,
+            "open": 22982.1, "high": 23210.8, "low": 22940.6,
+            "candles": [], "ma20": [],
+        }
+        estimate = prediction_product(symbol="TAIEX")
+        estimate["schema_version"] = 2
+        estimate["validation_mode"] = "research"
+        estimate.pop("backtest_sha256")
+        load_snapshot.return_value = snapshot
+        load_prediction.return_value = estimate
+
+        html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        self.assertIn("模型推估上漲機率（未校準）", html)
+        self.assertIn("機率值尚未校準", html)
+        self.assertIn("不能當成實際上漲機會解讀", html)
+        self.assertNotIn("回測", html)
+
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_missing_values_do_not_turn_fallback_scales_into_data(
+        self, load_snapshot
+    ):
+        """計算用的 fallback max 不得被寫成實際最長長條。"""
+        snapshot = observation_dashboard()
+        market = snapshot["market_observation"]
+        for key in (
+            "return_1d_pct", "return_5d_pct", "return_20d_pct", "return_60d_pct",
+            "new_high_20d_count", "new_low_20d_count",
+        ):
+            market[key] = None
+        load_snapshot.return_value = snapshot
+
+        client = stock_app.app.test_client()
+        market_html = client.get("/market").get_data(as_text=True)
+        dashboard_html = client.get("/dashboard").get_data(as_text=True)
+
+        self.assertNotIn("最長的一根＝1.00%", market_html)
+        self.assertNotIn("最長的一根＝1 檔", market_html)
+        self.assertNotIn("最長的一根＝1.00%", dashboard_html)
+
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_zero_values_do_not_turn_fallback_scales_into_data(
+        self, load_snapshot
+    ):
+        """全零或 0 + 缺值是合法資料，但 fallback 1 仍不是實際最大值。"""
+        for values in ((0, 0, 0, 0, 0, 0), (0, None, 0, None, 0, None)):
+            snapshot = observation_dashboard()
+            market = snapshot["market_observation"]
+            for key, value in zip((
+                "return_1d_pct", "return_5d_pct", "return_20d_pct", "return_60d_pct",
+                "new_high_20d_count", "new_low_20d_count",
+            ), values):
+                market[key] = value
+            load_snapshot.return_value = snapshot
+
+            client = stock_app.app.test_client()
+            market_html = client.get("/market").get_data(as_text=True)
+            dashboard_html = client.get("/dashboard").get_data(as_text=True)
+
+            self.assertNotIn("最長的一根＝1.00%", market_html)
+            self.assertNotIn("最長的一根＝1 檔", market_html)
+            self.assertNotIn("最長的一根＝1.00%", dashboard_html)
+
+    def test_order8_visual_rows_share_one_column_grid(self):
+        """共用數值 max 之外，所有列也必須共用同一組像素欄寬。"""
+        css = css_bundle()
+        rows = re.search(r"\.viz-rows\s*\{([^}]*)\}", css, re.S).group(1)
+        row = re.search(r"\.viz-row\s*\{([^}]*)\}", css, re.S).group(1)
+
+        self.assertIn("grid-template-columns:", rows)
+        self.assertIn(
+            "grid-template-columns:minmax(96px,auto)minmax(0,1fr)minmax(76px,auto)",
+            row.replace(" ", ""),
+        )
+        self.assertIn("grid-template-columns:subgrid", row.replace(" ", ""))
+        self.assertIn("grid-column:1 / -1", row)
+        self.assertIn(
+            ".viz-row{grid-template-columns:minmax(0,1fr)auto;grid-template-columns:subgrid;}",
+            css.replace(" ", "").replace("\n", ""),
+        )
+
+    def test_order8_report_track_panel_is_never_turned_into_a_row(self):
+        """研究版報告整份排版壞掉，是兩個元件共用同一個類名造成的。
+
+        ORDER 5 的 .report-track 是三軌閱讀的 tabpanel（版面容器），
+        ORDER 7 又拿同一個名字當報告索引卡上的一行摘要，並宣告 display:flex。
+        後出現的規則勝出，於是整個 tabpanel 變成橫列 flex 容器：九個章節被
+        擠成九個窄欄，每欄一個字換一行。修法是把摘要列改名，不是把 flex
+        改成別的值 —— 同一個類名不得同時是「一行摘要」與「版面容器」。
+        """
+        root = Path(__file__).resolve().parents[1]
+        professional = (
+            root / "templates" / "reports" / "post_close_professional.html"
+        ).read_text(encoding="utf-8")
+        panel_classes = set(
+            re.findall(r'<div class="([^"]+)"[^>]*data-report-track-panel', professional)
+        )
+        self.assertEqual(panel_classes, {"report-track"})
+
+        css = css_bundle()
+        for selectors, body in re.findall(r"([^{}@]+)\{([^{}]*)\}", css):
+            names = [name.strip() for name in selectors.split(",")]
+            if "report-track" not in [name.lstrip(".") for name in names]:
+                continue
+            with self.subTest(selectors=selectors.strip()):
+                # tabpanel 是純版面容器：唯一允許的 display 是 [hidden] 的收合
+                self.assertNotIn("display:", body)
+
+        index_template = (root / "templates" / "reports.html").read_text(encoding="utf-8")
+        self.assertNotIn('class="report-track"', index_template)
+        self.assertIn('class="report-track-meta"', index_template)
+        self.assertIn(".report-track-meta {", css)
 
     def test_order4_chart_ma_line_reads_a_token_with_sufficient_contrast(self):
         """M-4／WCAG 1.4.11：均價線不得寫死顏色，且對底色至少 3:1。

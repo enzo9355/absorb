@@ -4,20 +4,42 @@
 {% set market = observation.market_observation or {} %}
 {% set market_index = observation.market_index or {} %}
 {% set quality = observation.data_quality or {} %}
+{% set prediction = market_prediction|default(none, true) %}
 {% set available_count = quality.get('available_count', quality.get('symbol_count')) %}
 {% set advancing = market.get('advancing_count') %}
 {% set declining = market.get('declining_count') %}
 {% set unchanged = market.get('unchanged_count') %}
+{% set breadth_total = (advancing + declining + unchanged) if (advancing is not none and declining is not none and unchanged is not none) else none %}
+{% set advancing_pct = (advancing / breadth_total * 100) if breadth_total else none %}
+{% set unchanged_pct = (unchanged / breadth_total * 100) if breadth_total else none %}
+{% set declining_pct = (declining / breadth_total * 100) if breadth_total else none %}
 {% set as_of = observation.observation_as_of or '待更新' %}
-<div class="page dashboard-page" data-dashboard-endpoint="/api/dashboard">
-  <header class="page-header"><div><p class="eyebrow">MARKET ACTUALS</p><h1>市場實況</h1><p class="page-intro">檢視已發生的市場廣度、報酬與波動，不提供方向預測。</p></div></header>
+{# 期間報酬的長條共用一個刻度，四根棒子才彼此可比；刻度取四個期間裡的最大
+   絕對值，缺值不參與。全為 0 時退回 1，否則 progress 的 max 會是 0。 #}
+{% set return_periods = [('近 1 個交易日', 'return_1d_pct'), ('近 5 個交易日', 'return_5d_pct'), ('近 20 個交易日', 'return_20d_pct'), ('近 60 個交易日', 'return_60d_pct')] %}
+{% set return_magnitudes = [] %}
+{% for _label, key in return_periods %}{% if market.get(key) is not none %}{% set _ = return_magnitudes.append(market.get(key)|abs) %}{% endif %}{% endfor %}
+{% set return_peak = (return_magnitudes|max) if return_magnitudes else none %}
+{% set return_scale = return_peak if return_peak is not none and return_peak > 0 else 1 %}
+{% set new_high = market.get('new_high_20d_count') %}
+{% set new_low = market.get('new_low_20d_count') %}
+{% set extreme_peak = [new_high if new_high is not none else 0, new_low if new_low is not none else 0]|max %}
+{% set extreme_scale = extreme_peak if extreme_peak > 0 else 1 %}
+{# ORDER 8：這一頁刻意不掛 data-market-summary。
+   app.js 的 renderDashboard() 會把那個容器的內容整組換成它自己的三張卡
+   （「站上 MA20」「20 日已實現波動」），於是伺服器端已經白話化、已經
+   視覺化的區塊在 JS 跑完後被換回術語卡 —— 同一份資料在同一頁上有兩種
+   長相，而且後到的那一種比較差。資料是伺服器端算好的，這裡不需要再水合；
+   data-dashboard-endpoint 保留，因為錯誤橫幅仍然要在 API 不可用時出現。 #}
+<div class="page dashboard-page market-page" data-dashboard-endpoint="/api/dashboard">
+  <header class="page-header"><div><p class="eyebrow">MARKET ACTUALS</p><h1>市場實況</h1><p class="page-intro">已發生的市場廣度、報酬與波動為主；模型估計單獨成區，不與已發生的資料混在一起。</p></div></header>
   <div class="error-banner" data-dashboard-error hidden>市場觀察資料暫時無法取得。</div>
 
   {# ORDER 4（§5.5）：市場頁以指數走勢與市場廣度為主，不把所有數字做成
      同權重卡片。原本三張等大的 pulse-card 讓「上漲／下跌」與「20 日波動」
      看起來一樣重要，讀者無從判斷該先看哪一個。 #}
   <section class="panel market-trend-panel" aria-labelledby="market-trend-title">
-    <div class="section-heading"><div><h2 id="market-trend-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；兩者皆不填色。</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
+    <div class="section-heading"><div><h2 id="market-trend-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；{% if prediction %}虛線為模型估計，與已發生的資料分開標示。{% else %}兩者皆不填色。{% endif %}</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
     {% if market_index.get('price') is not none %}
     <div class="market-index-quote">
       <div><strong>{{ '{:,.2f}'.format(market_index.get('price')) }}</strong>{% if market_index.get('change') is not none and market_index.get('change_pct') is not none %}<span class="{{ 'positive' if market_index.get('change_pct') > 0 else 'negative' if market_index.get('change_pct') < 0 else '' }}">{{ '{:+,.2f}'.format(market_index.get('change')) }}（{{ '{:+.2f}%'.format(market_index.get('change_pct')) }}）</span>{% else %}<span class="value-unavailable">漲跌尚未驗證</span>{% endif %}</div>
@@ -29,9 +51,11 @@
     </div>
     <div id="market-index-chart" class="market-index-chart" role="img" aria-label="{{ market_index.get('name', '加權指數') }} K 線圖" aria-describedby="market-index-chart-table"></div>
     <dl class="chart-legend">
-      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>收盤高於開盤</dd></div>
-      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>收盤低於開盤</dd></div>
-      <div><dt><span class="legend-swatch legend-ma" aria-hidden="true"></span>20 日均價</dt><dd>近 20 個交易日收盤平均</dd></div>
+      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>已發生：收盤高於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>已發生：收盤低於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-ma" aria-hidden="true"></span>20 日均價</dt><dd>已發生：近 20 個交易日收盤平均</dd></div>
+      {% if prediction %}<div><dt><span class="legend-swatch legend-forecast" aria-hidden="true"></span>五日情境</dt><dd><strong>模型估計</strong>：虛線，非已發生資料</dd></div>{% endif %}
+      {% if prediction and prediction.get('interval') %}<div><dt><span class="legend-swatch legend-band" aria-hidden="true"></span>誤差區間</dt><dd><strong>模型估計</strong>：過去樣本外誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</dd></div>{% endif %}
       <div><dt>單位</dt><dd>指數點數</dd></div>
     </dl>
     <div id="market-index-chart-table" class="sr-only">
@@ -41,33 +65,110 @@
     <p class="chart-caveat"><strong>這不代表什麼：</strong>K 線只呈現已經發生的價格，不預告接下來的方向；均價線是計算結果，不是支撐或壓力。單日走勢與個別標的的表現可能完全相反。</p>
   </section>
 
-  {# ORDER 4（B-2）：缺值時數值與單位必須一起消失。
-     原本寫成 {{ 值 if 值 is not none else '—' }}%，百分號在條件式外面，
-     缺值時會輸出裸的「—%」；上漲／下跌用 `or` 判斷，0 這個真實數值
-     也會被當成缺值印成「—」。 #}
-  <section class="panel market-breadth-panel" aria-labelledby="market-breadth-title">
-    <div class="section-heading"><div><h2 id="market-breadth-title">市場廣度</h2><p>多少比例的股票在往同一個方向走</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
-    <div class="pulse-grid" data-market-summary>
-      <article class="pulse-card"><span>上漲／持平／下跌家數</span>{% if advancing is not none and declining is not none and unchanged is not none %}<strong>{{ advancing }}／{{ unchanged }}／{{ declining }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</article>
-      <article class="pulse-card"><span>站上近一個月平均價的比例</span>{% if market.get('ma20_breadth_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-breadth">MA20</a></article>
-      <article class="pulse-card"><span>最近一個月的波動程度</span>{% if market.get('realized_volatility_20d_pct') is not none %}<strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<a class="term-tag" href="/learn#term-realized-vol">20D 波動</a></article>
+  {# §18：模型估計的摘要數字自成區塊，標題直接說明它是估計，不與實際價格
+     共用同一張卡。這一段在 ORDER 8 之前整個不存在 —— 圖表以
+     predictionMarker 繪製，但路由沒有把已驗證的預測帶進來，於是五日情境
+     那條線在這一頁看不到，今日市場卻看得到。同一份產物兩個入口不該只有
+     一邊看得到。 #}
+  <section class="panel forecast-section market-forecast-panel" aria-labelledby="market-forecast-title">
+    <div class="section-heading"><div><p class="eyebrow">MODEL ESTIMATE</p><h2 id="market-forecast-title">AI 五日情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>{% if prediction %}<span class="muted small">資料日 {{ prediction.as_of }}</span>{% else %}<span class="muted small"><span class="value-unavailable">尚未發布</span></span>{% endif %}</div>
+    {% if prediction %}
+    <div class="stock-forecast-strip" aria-label="加權指數五日模型情境摘要">
+      <article><span>{{ prediction.probability_label }}</span><strong>{{ '%.1f%%'|format(prediction.probability_pct) }}</strong></article>
+      <article><span>第 5 個交易日預測價</span><strong>{{ '{:,.2f}'.format(prediction.predicted_price) }}</strong></article>
+      <article><span>預測變動</span><strong class="{{ 'positive' if prediction.predicted_change_pct > 0 else 'negative' if prediction.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(prediction.predicted_change_pct) }}</strong></article>
+      <article><span>目標交易日</span><strong>{{ prediction.target_session }}</strong><small>{% if prediction.validation_mode == 'research' %}研究推估｜機率值尚未校準{% else %}{{ '正式預測' if prediction.status == 'current' else '前次預測｜資料日 ' ~ prediction.as_of }}{% endif %}</small></article>
+      {% if prediction.get('interval') %}<article><span>誤差區間</span><strong>{{ '{:,.2f}'.format(prediction.interval.price_low) }}–{{ '{:,.2f}'.format(prediction.interval.price_high) }}</strong><small>{{ '%+.2f%%'|format(prediction.interval.return_low_pct) }} ～ {{ '%+.2f%%'|format(prediction.interval.return_high_pct) }}</small></article>{% endif %}
     </div>
-    <p class="chart-caveat"><strong>這不代表什麼：</strong>廣度高只說明參與上漲的家數多，不說明漲幅大小，也不保證延續。波動程度描述的是已經發生的價格變動幅度，不是風險評分。</p>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估的機率值尚未校準，不能當成實際上漲機會解讀。{% endif %}{% if prediction.get('interval') %}誤差區間是<strong>過去 {{ prediction.interval.sample_count }} 個樣本外測試裡，模型誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</strong>套在這次預測上 —— 它描述的是模型過去錯多少，<strong>不是</strong>信賴區間，也不保證這次會落在裡面。{% endif %}</p>
+    {% else %}
+    <p class="empty-state">本交易日的五日情境尚未發布；沒有可用產物時不顯示機率或預測價，K 線上也不補一條估計線。</p>
+    {% endif %}
+    <p class="forecast-research-link">想知道這個模型過去表現如何？完整的模型驗證資料在<a href="{{ url_for('reports_page') }}">每日報告</a>的研究版裡，找「模型驗證」那一章。</p>
   </section>
+
+  {# ORDER 8（§5.5 / §18）：數字先變成形狀，再回到數字。
+     原本這一段是三張等大的純數字卡，讀者要自己在腦中把 1200 / 700 換算成
+     比例。長條與量表只是同一組已驗證數值的第二種讀法，沒有引入任何新數字。 #}
+  <div class="market-grid">
+    <section class="panel market-breadth-panel" aria-labelledby="market-breadth-title">
+      <div class="section-heading"><div><h2 id="market-breadth-title">市場廣度</h2><p>多少比例的股票在往同一個方向走</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+      {% if breadth_total %}
+      <svg class="breadth-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <rect class="bar-up" x="0" y="0" height="6" width="{{ '%.2f'|format(advancing_pct) }}"></rect>
+        <rect class="bar-flat" x="{{ '%.2f'|format(advancing_pct) }}" y="0" height="6" width="{{ '%.2f'|format(unchanged_pct) }}"></rect>
+        <rect class="bar-down" x="{{ '%.2f'|format(advancing_pct + unchanged_pct) }}" y="0" height="6" width="{{ '%.2f'|format(declining_pct) }}"></rect>
+      </svg>
+      <dl class="breadth-split">
+        <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲</dt><dd>{{ advancing }} 檔（{{ '%.1f%%'|format(advancing_pct) }}）</dd></div>
+        <div><dt><span class="legend-swatch legend-flat" aria-hidden="true"></span>持平</dt><dd>{{ unchanged }} 檔（{{ '%.1f%%'|format(unchanged_pct) }}）</dd></div>
+        <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌</dt><dd>{{ declining }} 檔（{{ '%.1f%%'|format(declining_pct) }}）</dd></div>
+      </dl>
+      {% else %}
+      <p class="empty-state">上漲、持平與下跌家數尚未同時通過驗證，這裡不以其中一項推估整體比例。</p>
+      {% endif %}
+      <dl class="market-gauges">
+        <div><dt>站上近一個月平均價的比例<a class="term-tag" href="/learn#term-breadth">MA20</a></dt>{% if market.get('ma20_breadth_pct') is not none %}<dd><strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</strong><progress value="{{ market.get('ma20_breadth_pct') }}" max="100">{{ market.get('ma20_breadth_pct') }}%</progress><small>刻度 0～100%</small></dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>今天成交量相對平常的倍數<a class="term-tag" href="/learn#term-volume-ratio">量比</a></dt>{% if market.get('median_volume_ratio') is not none %}<dd><strong>{{ '%.2f'|format(market.get('median_volume_ratio')) }}</strong><progress value="{{ market.get('median_volume_ratio') }}" max="2">{{ market.get('median_volume_ratio') }}</progress><small>刻度 0～2 倍，1 倍＝與平常相同</small></dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>最近一個月的波動程度<a class="term-tag" href="/learn#term-realized-vol">20D 波動</a></dt>{% if market.get('realized_volatility_20d_pct') is not none %}<dd><strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</strong><progress value="{{ market.get('realized_volatility_20d_pct') }}" max="60">{{ market.get('realized_volatility_20d_pct') }}%</progress><small>刻度 0～60%（年化）</small></dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      </dl>
+      <p class="chart-caveat"><strong>這不代表什麼：</strong>廣度高只說明參與上漲的家數多，不說明漲幅大小，也不保證延續。量表的刻度上限是固定的閱讀輔助，不是門檻或目標值；波動程度描述的是已經發生的價格變動幅度，不是風險評分。</p>
+    </section>
+
+    <div class="market-grid-stack">
+      <section class="panel market-returns-panel" aria-labelledby="market-returns-title">
+        <div class="section-heading"><div><h2 id="market-returns-title">期間報酬</h2><p>全市場中位數，單位為百分比；零線置中，往右為正、往左為負</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+        <ol class="viz-rows">
+          {% for label, key in return_periods %}
+          {% set value = market.get(key) %}
+          <li class="viz-row">
+            <span class="viz-label">{{ label }}</span>
+            <span class="viz-track" aria-hidden="true">
+              <span class="viz-track-half viz-half-down">{% if value is not none and value < 0 %}<progress class="negative" value="{{ '%.4f'|format(value|abs) }}" max="{{ '%.4f'|format(return_scale) }}"></progress>{% endif %}</span>
+              <span class="viz-track-half viz-half-up">{% if value is not none and value > 0 %}<progress class="positive" value="{{ '%.4f'|format(value) }}" max="{{ '%.4f'|format(return_scale) }}"></progress>{% endif %}</span>
+            </span>
+            {% if value is not none %}<b class="viz-value {{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+        {% if return_peak is not none and return_peak > 0 %}<p class="muted small">長條共用同一個刻度（最長的一根＝{{ '%.2f%%'|format(return_peak) }}），四個期間因此可以互相比較。</p>{% elif return_magnitudes %}<p class="muted small">已驗證的期間報酬目前都是 0，長條不顯示長度。</p>{% else %}<p class="muted small">目前沒有已驗證的期間報酬，長條不顯示長度。</p>{% endif %}
+        <p class="chart-caveat"><strong>這不代表什麼：</strong>期間報酬是全市場的中位數，不是任何一檔股票的報酬，也不是把它延伸到下一個期間的依據。長度只表示相對大小，不代表機率。</p>
+      </section>
+
+      <section class="panel market-extreme-panel" aria-labelledby="market-extreme-title">
+        <div class="section-heading"><div><h2 id="market-extreme-title">走到極端的家數</h2><p>創下近一個月最高價與最低價的股票各有多少</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+        <ol class="viz-rows viz-rows-count">
+          <li class="viz-row">
+            <span class="viz-label">創近一個月新高</span>
+            <span class="viz-track viz-track-single" aria-hidden="true">{% if new_high is not none %}<progress class="positive" value="{{ new_high }}" max="{{ extreme_scale }}"></progress>{% endif %}</span>
+            {% if new_high is not none %}<b class="viz-value">{{ new_high }} 檔</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
+          </li>
+          <li class="viz-row">
+            <span class="viz-label">創近一個月新低</span>
+            <span class="viz-track viz-track-single" aria-hidden="true">{% if new_low is not none %}<progress class="negative" value="{{ new_low }}" max="{{ extreme_scale }}"></progress>{% endif %}</span>
+            {% if new_low is not none %}<b class="viz-value">{{ new_low }} 檔</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
+          </li>
+        </ol>
+        <p class="chart-caveat"><strong>這不代表什麼：</strong>{% if extreme_peak > 0 %}兩根長條共用刻度（最長的一根＝{{ extreme_peak }} 檔），只比較彼此的多寡；{% elif new_high is not none or new_low is not none %}目前可用的已驗證家數沒有大於 0，長條不顯示長度；{% else %}目前沒有已驗證的新高／新低家數，長條不顯示長度；{% endif %}不代表整體市場的漲跌方向，也不是買賣訊號。</p>
+      </section>
+    </div>
+  </div>
 
   {# 進階數據收進可展開區塊：研究者需要，一般讀者不需要先看到 #}
   <details class="data-limits">
-    <summary><span>進階數據與資料品質</span><span class="data-limits-hint">期間報酬、極值家數、覆蓋率</span></summary>
+    <summary><span>進階數據與資料品質</span><span class="data-limits-hint">原始欄位名稱、法人流向、覆蓋率</span></summary>
     <div class="data-limits-body">
       <dl class="data-limits-grid">
         {% for key, label in [('return_1d_pct','1 日報酬'),('return_5d_pct','5 日報酬'),('return_20d_pct','20 日報酬'),('return_60d_pct','60 日報酬')] %}
         {% set value = market.get(key) %}
         <div><dt>{{ label }}</dt>{% if value is not none %}<dd class="{{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
         {% endfor %}
-        <div><dt>創近一個月新高家數（new_high_20d_count）</dt>{% if market.get('new_high_20d_count') is not none %}<dd>{{ market.get('new_high_20d_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
-        <div><dt>創近一個月新低家數（new_low_20d_count）</dt>{% if market.get('new_low_20d_count') is not none %}<dd>{{ market.get('new_low_20d_count') }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>創近一個月新高家數（new_high_20d_count）</dt>{% if new_high is not none %}<dd>{{ new_high }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>創近一個月新低家數（new_low_20d_count）</dt>{% if new_low is not none %}<dd>{{ new_low }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
         <div><dt>成交量中位數倍率（median_volume_ratio）</dt>{% if market.get('median_volume_ratio') is not none %}<dd>{{ '%.2f'|format(market.get('median_volume_ratio')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
         <div><dt>法人淨流中位數（median_institution_net_ratio_pct）</dt>{% if market.get('median_institution_net_ratio_pct') is not none %}<dd>{{ '%+.2f%%'|format(market.get('median_institution_net_ratio_pct')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>站上 MA20 比例（ma20_breadth_pct）</dt>{% if market.get('ma20_breadth_pct') is not none %}<dd>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+        <div><dt>20 日已實現波動（realized_volatility_20d_pct）</dt>{% if market.get('realized_volatility_20d_pct') is not none %}<dd>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
       </dl>
       <dl class="report-meta">
         <div><dt>覆蓋率</dt>{% if quality.get('coverage') is not none %}<dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
@@ -77,7 +178,7 @@
     </div>
   </details>
 
-  {% if market_index.get('candles') %}<script id="market-index-chart-data" type="application/json">{{ {"candles": market_index.get('candles'), "ma20": market_index.get('ma20', [])}|tojson }}</script>{% endif %}
+  {% if market_index.get('candles') %}<script id="market-index-chart-data" type="application/json">{{ ({"candles": market_index.get('candles'), "ma20": market_index.get('ma20', []), "prediction": prediction.line, "band": prediction.get("band")} if prediction else {"candles": market_index.get('candles'), "ma20": market_index.get('ma20', [])})|tojson }}</script>{% endif %}
 </div>
 {% endblock %}
 
