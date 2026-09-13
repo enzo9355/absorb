@@ -1,0 +1,12 @@
+# 只有測試與維運工具需要的依賴，**不進正式映像**。
+#
+# Dockerfile 只安裝 requirements.txt，正式站不需要這些東西；
+# 放進 requirements.txt 會讓 Cloud Run 的映像白白變大。
+#
+# 但 CI 需要它們，否則會出現「本機綠、runner 紅」——
+# 2026-09-13 就是這樣：我的環境剛好裝了 Pillow，requirements.txt 沒有，
+# runner 於是 ModuleNotFoundError: No module named 'PIL'。
+
+# tests/test_absorb_brand.py（檢查品牌資產）
+# scripts/apply_rich_menu.py（LINE 圖文選單工具）
+pillow
