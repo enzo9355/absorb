@@ -20,16 +20,25 @@ body {
   align-items:center;
   gap:28px;
 }
-/* 手寫草寫 Absorb（Allura）。品牌名在內文一律寫作 ABSORB，
+/* 手寫草寫 Absorb。品牌名在內文一律寫作 ABSORB，
    導覽文字標誌是唯一例外（DESIGN.md §4）。
-   Allura 只有一個字重，加粗以 text-stroke 完成而不是 font-weight，
+
+   委託人指定用 Segoe Script，所以它排第一。**這是刻意接受的取捨**：
+   Segoe Script 隨 Windows 出貨，是微軟的專有字型，不能自帶進 repo，
+   CSP 又是 font-src 'self' 無法外連。結果是字標會因裝置而異 ——
+   Windows 看到 Segoe Script，macOS / iOS / Android / Linux 看到 Allura。
+   自帶的 Allura 留在第二順位而不是退到泛用 cursive：至少沒有 Segoe Script
+   的裝置之間彼此一致，而不是各家瀏覽器各給一種手寫體。
+
+   只有一個字重，加粗以 text-stroke 完成而不是 font-weight，
    否則瀏覽器會合成一個歪掉的偽粗體。
-   字面比 Caveat 小，字級取 type scale 內較大的一級補回等視覺大小；
-   letter-spacing 歸零、行高 1.3 是為了容納大寫 A 的起筆。 */
+   字級取 type scale 內較大的一級；letter-spacing 歸零、行高 1.3
+   是為了容納大寫 A 的起筆（依 Allura 的字面調的，Segoe Script 字面較大，
+   在 Windows 上會比這組數值原本設想的再大一些）。 */
 .brand-wordmark {
   width:max-content;
   color:var(--absorb-ink);
-  font-family:"ABSORB Wordmark","Segoe Script","Brush Script MT",cursive;
+  font-family:"Segoe Script","ABSORB Wordmark","Brush Script MT",cursive;
   font-size:32px;
   font-weight:400;
   letter-spacing:0;

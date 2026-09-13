@@ -22,7 +22,7 @@ ABSORB 是 AI 量化市場情報與決策輔助系統。介面先服務資料閱
 - Canonical 圖形來源維持 `static/brand/absorb-mark.png`，SHA-256 `2e7b3950809748d5e02648dfc26b0b403f7cabd2d706ce3130b28bad86c9443d`，供 favicon、社群預覽、LINE 與其他非導覽用途使用。
 - Canonical 圖形維持純白背景、原始比例與安全邊距；不得裁切、重畫、改色、加字、陰影或漸層。使用圖形時 HTML alt 固定為「ABSORB logo」。
 - 導覽文字標誌固定為手寫草寫的 `Absorb`（首字大寫、其餘小寫），不得搭配圓形圖示，並連回目前市場的研究摘要。
-- 文字標誌使用自架的 `static/fonts/absorb-wordmark-allura.woff2`（Allura，OFL，僅含 A b o r s 五個字元），family 名稱維持 `ABSORB Wordmark`。Allura 只有一個字重，加粗一律以 `-webkit-text-stroke:.024em currentColor` 完成，不得改用 `font-weight` 觸發合成粗體。字級取 type scale 內的值（§6）：桌機 32px、行動版 28px —— Allura 字面比 Caveat 小，取較大的一級補回等視覺大小。字距 0、行高 1.3（容納大寫 A 的起筆）；不得加陰影、漸層或外框色。
+- 文字標誌字型堆疊為 `"Segoe Script","ABSORB Wordmark","Brush Script MT",cursive`。**Segoe Script 排第一是委託人指定，並且刻意接受字標會因裝置而異**：它隨 Windows 出貨、是微軟專有字型，不得提交進 repo，CSP `font-src 'self'` 也無法外連，所以 Windows 看到 Segoe Script、其他裝置看到自架的 Allura。自架的 `static/fonts/absorb-wordmark-allura.woff2`（Allura，OFL，僅含 A b o r s 五個字元，family 名稱 `ABSORB Wordmark`）留在第二順位而不是退到泛用 `cursive` —— 沒有 Segoe Script 的裝置之間至少彼此一致。Allura 只有一個字重，加粗一律以 `-webkit-text-stroke:.024em currentColor` 完成，不得改用 `font-weight` 觸發合成粗體。字級取 type scale 內的值（§6）：桌機 32px、行動版 28px —— Allura 字面比 Caveat 小，取較大的一級補回等視覺大小。字距 0、行高 1.3（容納大寫 A 的起筆）；不得加陰影、漸層或外框色。
 
 ## 5. Color system
 
@@ -133,7 +133,7 @@ body[data-market="US"] { --price-up-on-dark: var(--absorb-on-dark-down); --price
 
 ## 6. Typography
 
-英文字優先使用系統已安裝的 `Avenir Next` 或 `Avenir`，繁體中文搭配 `Noto Sans TC`，再依序退回 `PingFang TC`、`Microsoft JhengHei` 與 `sans-serif`。不下載、內嵌或提交專有字型，也不建立外部 font request；文字標誌字型自架於 `static/fonts/`，授權全文一併保留（見 `OFL-Allura.txt`）。草寫只用於導覽文字標誌，內容標題維持人文無襯線。
+英文字優先使用系統已安裝的 `Avenir Next` 或 `Avenir`，繁體中文搭配 `Noto Sans TC`，再依序退回 `PingFang TC`、`Microsoft JhengHei` 與 `sans-serif`。不下載、內嵌或提交專有字型，也不建立外部 font request；文字標誌的自架字型放在 `static/fonts/`，授權全文一併保留（見 `OFL-Allura.txt`）。堆疊中的 `Segoe Script` 只以名稱引用系統既有安裝，**不下載也不提交字型檔**，因此不違反本條；代價是字標在沒有該字型的裝置上會退到自架的 Allura（見 §4）。草寫只用於導覽文字標誌，內容標題維持人文無襯線。
 
 ### Type scale（封閉集合）
 
