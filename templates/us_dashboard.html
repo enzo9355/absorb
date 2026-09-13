@@ -30,28 +30,7 @@
     </dl>
   </section>
 
-  {# 第 2 段：最新更新。美股的等價物是已驗證報告裡的關鍵事件。 #}
-  <section class="update-stream" aria-labelledby="summary-events-title">
-    <div class="section-heading">
-      <div><h2 id="summary-events-title">最新更新</h2><p>依重要性排序，不是發布時間倒序；只收錄已驗證的觀察與報告</p></div>
-      <a href="{{ url_for('us_reports_page') }}">查看所有報告</a>
-    </div>
-    <ol class="update-list">
-      {% for event in summary.key_events %}
-      <li class="update-item">
-        <div class="update-meta"><span class="update-type update-type-observation">關鍵事件</span><time datetime="{{ summary.source_market_date }}">{{ summary.source_market_date }}</time></div>
-        <div class="update-body"><p class="update-headline">{{ event.headline }}</p>{% if event.description and event.description != event.headline %}<p>{{ event.description }}</p>{% endif %}</div>
-      </li>
-      {% else %}
-      <li class="update-item">
-        <div class="update-meta"><span class="update-type update-type-observation">關鍵事件</span><span class="value-unavailable">尚未驗證</span></div>
-        <div class="update-body"><p class="update-headline">本次已驗證報告沒有可顯示的關鍵事件。這代表沒有事件通過驗證，不是資料缺失。</p></div>
-      </li>
-      {% endfor %}
-    </ol>
-  </section>
-
-  {# 第 3 段：為什麼會這樣。指數走勢是已發生的事實。 #}
+  {# 第 2 段：為什麼會這樣（ORDER 8 起提前一段）。指數走勢是已發生的事實。 #}
   <section class="research-command" aria-labelledby="us-index-title">
     <div class="section-heading">
       <div><p class="eyebrow">US MARKET INDEXES</p><h2 id="us-index-title">為什麼會這樣</h2><p>主要指數的實際走勢</p></div>
@@ -87,7 +66,31 @@
     {% else %}<p class="empty-state">本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。</p>{% endif %}
   </section>
 
-  {# 第 4 段：資料品質與限制，預設收合。 #}
+  {# ORDER 8（委託人裁示，與台股同一條規則）：「最新更新」離開頭版。
+     美股的等價物是已驗證報告裡的關鍵事件；它仍然是入口與摘要，不是
+     「為什麼會這樣」的證據，所以排在指數走勢與五日情境之後。
+     內容與排序規則都不變，只是不再佔第一屏。 #}
+  <section class="update-stream" aria-labelledby="summary-events-title">
+    <div class="section-heading">
+      <div><h2 id="summary-events-title">最新更新</h2><p>依重要性排序，不是發布時間倒序；只收錄已驗證的觀察與報告</p></div>
+      <a href="{{ url_for('us_reports_page') }}">查看所有報告</a>
+    </div>
+    <ol class="update-list">
+      {% for event in summary.key_events %}
+      <li class="update-item">
+        <div class="update-meta"><span class="update-type update-type-observation">關鍵事件</span><time datetime="{{ summary.source_market_date }}">{{ summary.source_market_date }}</time></div>
+        <div class="update-body"><p class="update-headline">{{ event.headline }}</p>{% if event.description and event.description != event.headline %}<p>{{ event.description }}</p>{% endif %}</div>
+      </li>
+      {% else %}
+      <li class="update-item">
+        <div class="update-meta"><span class="update-type update-type-observation">關鍵事件</span><span class="value-unavailable">尚未驗證</span></div>
+        <div class="update-body"><p class="update-headline">本次已驗證報告沒有可顯示的關鍵事件。這代表沒有事件通過驗證，不是資料缺失。</p></div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {# 最後一段：資料品質與限制，預設收合。 #}
   <details class="data-limits">
     <summary><span>資料品質與限制</span><span class="data-limits-hint">市場資料驗證、模型 Gate 狀態</span></summary>
     <div class="data-limits-body">
