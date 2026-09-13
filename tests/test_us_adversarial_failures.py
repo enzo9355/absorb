@@ -459,14 +459,26 @@ class TestUSAdversarialFailures(unittest.TestCase):
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USRateLimitError")
 
+        # 4 與 5 是唯二會走到次要來源的分支（只有 USSchemaError 與
+        # USIntegrityError 會觸發 fallback）。fallback 一定要一起 patch ——
+        # 沒 patch 的話 _fetch_and_classify_symbol 會真的去打 Nasdaq，
+        # 於是這個測試的結果取決於機器有沒有對外網路：
+        # 擋掉網路的環境 fallback 會失敗，主要錯誤往上拋，測試僥倖通過；
+        # 網路通的環境（例如 GitHub runner）fallback 拿得到資料，
+        # 分類就變成 "R"，測試紅。本檔其他測試（見上面兩個 fallback 案例）
+        # 本來就是這樣寫的，這裡補齊。
+        fallback_failed = USProviderOperationalError("fallback also failed")
+
         # 4. USSchemaError -> OP_FAIL
-        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")):
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")), \
+             patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=fallback_failed):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USSchemaError")
 
         # 5. USIntegrityError -> OP_FAIL
-        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")):
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")), \
+             patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=fallback_failed):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USIntegrityError")
