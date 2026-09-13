@@ -261,8 +261,12 @@ class USMarketPipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
         # 3. /stock/<us_code> for valid US ticker
+        # 503 是後來新增的狀態：代號掛牌、但今天沒有通過驗證的快照。
+        # 以前那個情況回的是 200 + 裸字串「查無資料」，所以這裡只列了 200/404。
+        # 現在它會渲染 stock_unavailable.html 並回 503 + Retry-After ——
+        # 與上面第 1 項（/reports/us 無資料時回 503）同一套規矩。
         resp = client.get("/stock/AAPL")
-        self.assertIn(resp.status_code, (200, 404))
+        self.assertIn(resp.status_code, (200, 404, 503))
 
         # 4. /stock/<invalid_code> -> 404
         resp = client.get("/stock/INVALID_999_TICKER")

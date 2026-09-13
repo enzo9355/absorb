@@ -1,6 +1,6 @@
 """Market-facing Flask route registration."""
 
-from flask import abort, jsonify, redirect, render_template, url_for
+from flask import abort, jsonify, make_response, redirect, render_template, url_for
 
 from stock_papi.shared.formatting import safe_float as _safe_float
 from stock_papi.services.model_evidence import sanitize_recommendation
@@ -138,10 +138,21 @@ def register_market_routes(
                 )
             except Exception:
                 prediction = None
+        if not data:
+            # 快照缺漏不是「查無此股」—— 代號掛牌與否前面已經用 abort(404) 判過了。
+            # 這裡是暫時沒有通過驗證的觀察，所以回 503 + Retry-After，
+            # 與報告層一致；回 200 會讓這個缺席狀態被當成成功頁面快取與索引。
+            response = make_response(
+                render_template("stock_unavailable.html", code=code, market=market),
+                503,
+            )
+            response.headers["Retry-After"] = "300"
+            response.headers["Cache-Control"] = "no-store"
+            return response
         return render_template(
             "stock_detail.html", d={**data, "market": market, "prediction": prediction}, peers=peers,
             peer_category=peer_group["category"],
-        ) if data else "查無資料"
+        )
 
     def us_stocks_page():
         try:
