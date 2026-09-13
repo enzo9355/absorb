@@ -22,27 +22,6 @@
   margin:4px 0 0;
   font-size:24px;
 }
-.return-grid {
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:1px;
-  margin:28px 0;
-  background:var(--absorb-border-mid);
-  border:1px solid var(--absorb-border-mid);
-}
-.return-grid div {
-  padding:17px 13px;
-  background:rgb(247 246 242 / 68%);
-}
-.return-grid dt {
-  color:var(--absorb-muted);
-  font-size:11px;
-}
-.return-grid dd {
-  margin:7px 0 0;
-  font-size:19px;
-  font-weight:750;
-}
 .market-index-quote {
   display:flex;
   align-items:end;
@@ -95,8 +74,12 @@
   border:1px dashed var(--absorb-border-dashed);
   border-radius:10px;
 }
-.market-index-canvas .return-grid {
-  margin:14px 0 0;
+/* ORDER 8：期間報酬改為共用刻度的長條列（.viz-rows），
+   原本的 .return-grid 四格純數字整組退場，不留死樣式。 */
+.market-index-canvas .market-return-bars {
+  margin:16px 0 0;
+  padding-top:14px;
+  border-top:1px solid var(--absorb-border-mid);
 }
 .market-index-canvas .canvas-note {
   padding-top:12px;
@@ -1087,13 +1070,6 @@
     margin-left:-8px;
     width:calc(100% + 16px);
   }
-  .return-grid {
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    margin:22px 0;
-  }
-  .return-grid dd {
-    font-size:19px;
-  }
   .command-insights {
     grid-column:auto;
     grid-template-columns:1fr;
@@ -1633,8 +1609,10 @@ span.value-unavailable {
    ORDER 4（A-2）：「今日」四段式。
    原本的順序是摘要 → 市場指揮台 → 資料狀態 → 今日焦點 → 今日市場準備 →
    錯誤訊息，讀者要先看完兩段語意重疊的摘要，才會在整頁中段遇到資料狀態。
-   改為四段，順序即閱讀順序：今天怎麼了 / 最新更新 / 為什麼會這樣 /
-   資料品質與限制。四段之間只用留白與標題分隔，不再各自包一層卡片外殼。
+   改為四段，順序即閱讀順序。ORDER 8 再把「最新更新」往後移一段，
+   現在是：今天怎麼了 / 為什麼會這樣 / 最新更新 / 資料品質與限制 ——
+   更新流是入口清單，不是今天的市場本身，擺在第一屏會把指數走勢與廣度
+   推出畫面。四段之間只用留白與標題分隔，不再各自包一層卡片外殼。
    ========================================================================== */
 
 /* 第 1 段：今天怎麼了。只讀這一段也要能離開，所以市場、交易日、資料狀態、
@@ -1682,7 +1660,7 @@ span.value-unavailable {
 /* current：有資料且是最新 —— 仍不使用語意色，狀態由文字承擔（M-5） */
 .state-chip.is-available { color:var(--absorb-ink); }
 
-/* 第 2 段：最新更新。取代「今日焦點」。
+/* 第 3 段：最新更新（ORDER 8 之前是第 2 段）。取代「今日焦點」。
    排序是重要性優先、時間其次：純時間倒序會把「新」誤當成「重要」。
    每則都帶類型標記與資料日，報告類型可直接進到對應報告。 */
 .update-stream { padding:24px 0 4px; }
@@ -1873,8 +1851,9 @@ span.value-unavailable {
 @media (max-width:1100px) {
   .today-brief { grid-template-columns:minmax(0,1fr); gap:24px; }
 }
-/* 行動版密度（§12.1）：「今天怎麼了」與「最新更新」必須落在第一個 800px 畫面內。
-   四項事實維持兩欄 —— 內容都是日期與短標籤，堆成四列只是把第 2 段推出畫面。 */
+/* 行動版密度（§12.1）：「今天怎麼了」與「為什麼會這樣」的第一張圖必須落在
+   第一個 800px 畫面內。四項事實維持兩欄 —— 內容都是日期與短標籤，
+   堆成四列只是把下一段推出畫面。 */
 @media (max-width:700px) {
   .update-item { grid-template-columns:minmax(0,1fr); gap:10px; padding:14px 15px; }
   .today-brief { padding:18px 2px 20px; gap:18px; }
@@ -2029,6 +2008,172 @@ span.value-unavailable {
 .chart-caveat strong { color:var(--absorb-ink); font-weight:750; }
 .market-trend-panel .market-index-chart { min-height:250px; }
 .market-breadth-panel .pulse-card .term-tag { margin:6px 0 0; justify-self:start; width:max-content; }
+
+/* ORDER 8（§5.5 / §18）：市場實況的視覺化。
+   原本這一頁除了 K 線之外全是純數字卡：讀者得自己把 1200／700 換算成比例，
+   自己在腦中把四個期間報酬排序。這裡每一個圖形都只是同一組已驗證數值的
+   第二種讀法 —— 沒有新數字、沒有平滑、沒有推估，缺值也不補。
+   §18：方向性元素一律取 --price-up / --price-down，中性段落取中性 token
+   （對底色 3.4:1，滿足 WCAG 1.4.11 的 3:1）；每個圖形旁邊都有文字數值，
+   灰階與螢幕閱讀器下都讀得出來，所以圖形本身 aria-hidden。 */
+.market-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:20px;
+  align-items:start;
+}
+/* 市場廣度：一條 100% 的堆疊長條。rect 沒有圓角與描邊，
+   preserveAspectRatio:none 只會等比拉伸矩形，不會產生形變假象。 */
+.breadth-bar {
+  display:block;
+  width:100%;
+  height:14px;
+  margin:18px 0 0;
+  border-radius:var(--radius-pill);
+  overflow:hidden;
+  background:var(--absorb-border-faint);
+}
+.breadth-bar .bar-up { fill:var(--price-up); }
+.breadth-bar .bar-flat { fill:var(--absorb-subtle); }
+.breadth-bar .bar-down { fill:var(--price-down); }
+.breadth-split {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 22px;
+  margin:12px 0 0;
+}
+.breadth-split div { min-width:0; }
+.breadth-split dt {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+.breadth-split dd {
+  margin:2px 0 0 19px;
+  font-size:var(--type-body);
+  font-weight:750;
+  line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+.legend-flat { background:var(--absorb-subtle); }
+/* 量表：刻度上限寫在旁邊，否則一條填了一半的長條無法解讀。 */
+.market-gauges {
+  display:grid;
+  gap:16px;
+  margin:20px 0 0;
+  padding-top:18px;
+  border-top:1px solid var(--absorb-hairline);
+}
+.market-gauges div { min-width:0; }
+.market-gauges dt {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  color:var(--absorb-ink);
+  font-size:var(--type-body);
+  line-height:var(--lh-body);
+}
+.market-gauges dt .term-tag { margin:0; }
+.market-gauges dd { margin:2px 0 0; }
+.market-gauges dd strong {
+  display:block;
+  font-size:var(--type-data-md);
+  line-height:var(--lh-data-md);
+  letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+}
+.market-gauges dd progress { margin-top:6px; }
+.market-gauges dd small {
+  display:block;
+  margin-top:5px;
+  color:var(--absorb-muted);
+  font-size:var(--type-label);
+  line-height:var(--lh-label);
+}
+/* 期間報酬與極值家數：共用刻度的長條列。
+   零線置中，往右為正、往左為負 —— 負值那一半把 progress 水平翻轉，
+   讓填色從中線往左長，而不是從左邊界往右長。 */
+.viz-rows {
+  display:grid;
+  gap:14px;
+  margin:18px 0 0;
+  padding:0;
+  list-style:none;
+}
+.viz-row {
+  display:grid;
+  grid-template-columns:minmax(96px,auto) minmax(0,1fr) minmax(76px,auto);
+  align-items:center;
+  gap:8px 14px;
+}
+.viz-label {
+  min-width:0;
+  color:var(--absorb-muted);
+  font-size:var(--type-caption);
+  line-height:var(--lh-caption);
+}
+.viz-track {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  align-items:center;
+  min-width:0;
+}
+.viz-track-single { grid-template-columns:minmax(0,1fr); }
+/* 軌道底色掛在「半邊」上而不是 progress 上：兩邊都要看得到刻度的範圍，
+   否則有值的那一邊有灰軌、另一邊沒有，長條會被讀成「填了一半的量表」
+   而不是「從零線往外長的發散長條」。 */
+.viz-track-half {
+  min-width:0;
+  height:10px;
+  background:var(--absorb-border-faint);
+}
+.viz-track .viz-half-down {
+  border-right:1px solid var(--absorb-subtle);
+  border-radius:var(--radius-pill) 0 0 var(--radius-pill);
+}
+.viz-track .viz-half-up { border-radius:0 var(--radius-pill) var(--radius-pill) 0; }
+.viz-track-single .viz-track-half { border-radius:var(--radius-pill); }
+.viz-track progress {
+  height:10px;
+  margin:0;
+  border-radius:0;
+  background:transparent;
+}
+.viz-track progress::-webkit-progress-bar { background:transparent; }
+/* 負值那一半把填色水平翻轉，讓它從零線往左長，而不是從左邊界往右長 */
+.viz-track .viz-half-down progress { transform:scaleX(-1); }
+.viz-value {
+  justify-self:end;
+  font-size:var(--type-body);
+  font-weight:750;
+  line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+/* 右欄兩張卡疊起來，兩欄高度才不會一邊到底、一邊留半頁空白。
+   純版面容器：沒有 padding、border、background（§13）。 */
+.market-grid-stack {
+  display:grid;
+  align-content:start;
+  gap:20px;
+  min-width:0;
+}
+/* 欄寬變窄時標題與資料日仍然同一列；日期不折行，折的是標題與說明 */
+.market-grid .section-heading>span { white-space:nowrap; }
+@media (max-width:1100px) {
+  .market-grid { grid-template-columns:minmax(0,1fr); }
+}
+/* 窄寬度：標籤與數值維持同一列，長條移到下一列 ——
+   三欄硬擠進 390px 會讓長條短到看不出差異（§12.1 的密度目標）。 */
+@media (max-width:700px) {
+  .viz-row { grid-template-columns:minmax(0,1fr) auto; }
+  .viz-label { grid-column:1; grid-row:1; }
+  .viz-value { grid-column:2; grid-row:1; }
+  .viz-track { grid-column:1 / -1; grid-row:2; }
+}
 
 /* ORDER 4（§5.5）：產業分組。組別名稱與說明取代原本的顏色暗示。 */
 .industry-group { margin-top:22px; }
@@ -2518,8 +2663,14 @@ span.value-unavailable {
   line-height:var(--lh-caption);
 }
 .command-metrics .metric-reading { justify-self:start; }
-/* ORDER 7（§6.1）：報告卡片的軌道與篇幅。索引沒有這些欄位時整段不顯示。 */
-.report-track {
+/* ORDER 7（§6.1）：報告卡片的軌道與篇幅。索引沒有這些欄位時整段不顯示。
+
+   類名刻意是 .report-track-meta 而不是 .report-track —— 後者在 ORDER 5
+   已經是研究版報告的**分頁容器**（templates/reports/post_close_professional.html
+   的三個 tabpanel）。兩者共用名稱時，這條後出現的規則會把整個分頁容器
+   變成 flex 橫列，九個章節於是被擠成九個窄欄，每欄一個字換一行。
+   同一個類名不得同時是「一行摘要」與「版面容器」。 */
+.report-track-meta {
   display:flex;
   align-items:baseline;
   gap:8px;
