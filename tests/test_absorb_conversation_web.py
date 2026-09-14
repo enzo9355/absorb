@@ -180,6 +180,7 @@ class AbsorbConversationWebTests(unittest.TestCase):
         self.assertEqual(len(model.calls), 1)
         prompt, kwargs = model.calls[0]
         self.assertIn('"median_volume_ratio":0.88', prompt)
+        self.assertIn("不得因缺少綜合指標而拒答", prompt)
         self.assertEqual(
             kwargs["generation_config"],
             {"max_output_tokens": 512, "temperature": 0.1},
