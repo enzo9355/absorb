@@ -18,6 +18,7 @@ from pathlib import Path
 from scripts.ci.cloud_run import (
     FORBIDDEN_ENVIRONMENT,
     REQUIRED_ENVIRONMENT,
+    REQUIRED_SECRET_ENVIRONMENT,
     assert_env,
     serving,
     tag_url,
@@ -28,9 +29,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "deploy_observation_production.ps1"
 
 
-def _revision(environment):
+def _revision(environment, secret_environment=None):
+    secrets = REQUIRED_SECRET_ENVIRONMENT if secret_environment is None else secret_environment
     return {"spec": {"containers": [{"env": [
-        {"name": name, "value": value} for name, value in environment.items()
+        *({"name": name, "value": value} for name, value in environment.items()),
+        *(
+            {
+                "name": name,
+                "valueFrom": {"secretKeyRef": {"name": secret, "key": "latest"}},
+            }
+            for name, secret in secrets.items()
+        ),
     ]}]}}
 
 
@@ -94,6 +103,23 @@ class AssertEnvironmentTests(unittest.TestCase):
                 del environment[name]
                 with self.assertRaises(SystemExit):
                     assert_env(_revision(environment))
+
+    def test_asksorb_secret_binding_is_required(self):
+        with self.assertRaisesRegex(SystemExit, "ASKSORB_GEMINI_API_KEY"):
+            assert_env(_revision(_valid_environment(), {}))
+        with self.assertRaisesRegex(SystemExit, "ASKSORB_GEMINI_API_KEY"):
+            assert_env(_revision(
+                _valid_environment(),
+                {"ASKSORB_GEMINI_API_KEY": "stock-papi-gemini-api-key"},
+            ))
+
+    def test_deploy_paths_bind_the_asksorb_secret(self):
+        secret = "ASKSORB_GEMINI_API_KEY=stock-papi-asksorb-gemini-api-key:latest"
+        self.assertIn(secret, DEPLOY_SCRIPT.read_text(encoding="utf-8"))
+        workflow = (REPO_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        self.assertIn(secret, workflow)
+        verifier = (REPO_ROOT / "scripts" / "verify_cutover.ps1").read_text(encoding="utf-8")
+        self.assertIn("stock-papi-asksorb-gemini-api-key", verifier)
 
     def test_preview_prefix_blocks_promotion(self):
         for name in FORBIDDEN_ENVIRONMENT:

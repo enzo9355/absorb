@@ -745,7 +745,7 @@ class WebProductTests(unittest.TestCase):
             "/market": "市場實況",
             "/industries": "產業觀察",
             "/stocks": "個股與 ETF",
-            "/ask": "ASK ABSORB",
+            "/ask": "ASKsorb",
             "/learn": "市場觀察小辭典",
         }
 
@@ -1159,7 +1159,7 @@ class WebProductTests(unittest.TestCase):
             "產業觀察",
             "市場實況",
             "個股與 ETF",
-            "ASK ABSORB",
+            "ASKsorb",
             "AI 五日情境",
         ):
             self.assertIn(label, html)
@@ -2197,7 +2197,7 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn('class="mobile-nav"', home)
         self.assertIn('aria-current="page"><span class="nav-short"', primary_nav)
         ask = client.get("/ask").get_data(as_text=True)
-        self.assertIn('<h1>ASK ABSORB</h1>', ask)
+        self.assertIn('<h1>ASKsorb</h1>', ask)
 
     def test_legacy_hash_migrator_uses_only_fixed_canonical_routes(self):
         script = Path(stock_app.app.static_folder, "app.js").read_text(

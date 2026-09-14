@@ -93,6 +93,7 @@ jobs:
             --tag "${TAG}" \
             --labels "absorb-source-commit=${GITHUB_SHA}" \
             --update-env-vars "ABSORB_PREDICTION_MODE=research,ABSORB_OBSERVATION_ENABLED=true,ABSORB_PREDICTION_PROBABILITY_ENABLED=false,ABSORB_PREDICTION_RANKING_ENABLED=false,ABSORB_PREDICTION_STRONG_ACTIONS_ENABLED=false,ABSORB_PREDICTION_PERFORMANCE_ENDORSEMENT_ENABLED=false,ABSORB_SOURCE_COMMIT=${GITHUB_SHA}" \
+            --update-secrets "ASKSORB_GEMINI_API_KEY=stock-papi-asksorb-gemini-api-key:latest" \
             --remove-env-vars "ABSORB_PREVIEW_CANDIDATE_PREFIX,PREVIEW_CANDIDATE_PREFIX" \
             --quiet
           gcloud run services describe "${CLOUD_RUN_SERVICE}" \

@@ -22,6 +22,9 @@ REQUIRED_ENVIRONMENT = {
     "ABSORB_PREDICTION_STRONG_ACTIONS_ENABLED": "false",
     "ABSORB_PREDICTION_PERFORMANCE_ENDORSEMENT_ENABLED": "false",
 }
+REQUIRED_SECRET_ENVIRONMENT = {
+    "ASKSORB_GEMINI_API_KEY": "stock-papi-asksorb-gemini-api-key",
+}
 FORBIDDEN_ENVIRONMENT = (
     "ABSORB_PREVIEW_CANDIDATE_PREFIX",
     "PREVIEW_CANDIDATE_PREFIX",
@@ -94,6 +97,11 @@ def _environment_map(revision):
 
 def assert_env(revision):
     environment = _environment_map(revision)
+    secret_environment = {}
+    for item in revision["spec"]["containers"][0].get("env") or []:
+        reference = ((item.get("valueFrom") or {}).get("secretKeyRef") or {})
+        if item.get("name") and reference:
+            secret_environment[item["name"]] = (reference.get("name"), reference.get("key"))
     problems = []
     for name, expected in REQUIRED_ENVIRONMENT.items():
         actual = environment.get(name)
@@ -102,6 +110,10 @@ def assert_env(revision):
     for name in FORBIDDEN_ENVIRONMENT:
         if name in environment:
             problems.append(f"正式 revision 不得殘留 preview prefix：{name}")
+    for name, secret in REQUIRED_SECRET_ENVIRONMENT.items():
+        actual = secret_environment.get(name)
+        if actual != (secret, "latest"):
+            problems.append(f"{name} 應綁定 {secret!r} 的 latest，實際是 {actual!r}")
     if problems:
         raise SystemExit(
             "Observation 環境檢查未通過：\n  - " + "\n  - ".join(problems)

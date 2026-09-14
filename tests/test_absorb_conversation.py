@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from absorb.conversation.context import MemoryContextStore
@@ -12,6 +13,7 @@ from absorb.conversation.provider import GeminiConversationProvider
 from absorb.conversation.schemas import ConversationContext, PendingConfirmation
 from absorb.conversation.tool_registry import ToolRegistry, ToolSpec
 from absorb.conversation.tools import build_registry, normalize_stock_analysis
+from stock_papi.runtime import _LazyGeminiModel
 
 
 UTC = dt.timezone.utc
@@ -68,6 +70,20 @@ class FakeProvider:
 
 
 class AbsorbConversationTests(unittest.TestCase):
+    def test_lazy_gemini_model_uses_configured_model_name(self):
+        created = []
+        generated = SimpleNamespace(generate_content=lambda *_args, **_kwargs: "ok")
+        module = SimpleNamespace(
+            configure=lambda **_kwargs: None,
+            GenerativeModel=lambda name: created.append(name) or generated,
+        )
+        model = _LazyGeminiModel("free-key", model_name="gemini-3.5-flash-lite")
+
+        with patch("stock_papi.runtime.importlib.import_module", return_value=module):
+            model.generate_content("question")
+
+        self.assertEqual(created, ["gemini-3.5-flash-lite"])
+
     def build(self, provider=None, *, store=None, executor=None, metrics=None):
         search = lambda query: ("2330", "台積電") if "2330" in query or "台積電" in query else (None, None)
         return ConversationOrchestrator(

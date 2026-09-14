@@ -124,9 +124,9 @@ class AbsorbBrandTests(unittest.TestCase):
         self.assertIn('>Absorb</a>', base)
         self.assertIn('aria-label="回到 ABSORB 主畫面"', base)
         self.assertNotIn('>ABSORB</a>', base)
-        self.assertIn(">ASK ABSORB</button>", base)
-        self.assertIn(">ASK ABSORB</h2>", base)
-        self.assertIn('aria-label="關閉 ASK ABSORB"', base)
+        self.assertIn(">ASKsorb</button>", base)
+        self.assertIn(">ASKsorb</h2>", base)
+        self.assertIn('aria-label="關閉 ASKsorb"', base)
 
     def test_static_accessibility_contract(self):
         templates = list((ROOT / "templates").glob("*.html"))
