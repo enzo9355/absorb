@@ -152,6 +152,17 @@ function Assert-ObservationEnvironment {
             throw "Observation environment mismatch: $($Property.Key)"
         }
     }
+    $AsksorbBinding = @(
+        $ServiceInfo.spec.template.spec.containers[0].env |
+            Where-Object { $_.name -eq 'ASKSORB_GEMINI_API_KEY' }
+    )
+    if (
+        $AsksorbBinding.Count -ne 1 -or
+        [string]$AsksorbBinding[0].valueFrom.secretKeyRef.name -ne 'stock-papi-asksorb-gemini-api-key' -or
+        [string]$AsksorbBinding[0].valueFrom.secretKeyRef.key -ne 'latest'
+    ) {
+        throw 'ASKsorb Gemini Secret Manager binding is missing or incorrect'
+    }
     foreach ($PrefixName in @(
         'ABSORB_PREVIEW_CANDIDATE_PREFIX',
         'PREVIEW_CANDIDATE_PREFIX'
@@ -609,6 +620,7 @@ try {
         '--tag', $Tag,
         '--labels', "absorb-source-commit=$Commit,absorb-source-tree=$SourceTree",
         '--update-env-vars', $EnvironmentUpdates,
+        '--update-secrets', 'ASKSORB_GEMINI_API_KEY=stock-papi-asksorb-gemini-api-key:latest',
         '--remove-env-vars', $PreviewPrefixes,
         '--quiet'
     ) | Out-Null

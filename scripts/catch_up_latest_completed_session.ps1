@@ -1415,6 +1415,45 @@ function Get-LocalObservationPromotionResume {
         metadata_sha256 = [string]$LocalPointers.reports_latest.identity.metadata_sha256
         product_mode = [string]$Candidate.report.product_mode
     }
+    $ProfessionalIndexKeys = @(
+        'has_professional_report',
+        'available_section_count',
+        'total_section_count'
+    )
+    $HasProfessionalIndexFields = $false
+    if ($TargetEntries.Count -eq 1) {
+        $HasProfessionalIndexFields = @(
+            $ProfessionalIndexKeys | Where-Object {
+                $null -ne $TargetEntries[0].PSObject.Properties[$_]
+            }
+        ).Count -gt 0
+    }
+    if ($HasProfessionalIndexFields) {
+        $ProfessionalSectionNames = @(
+            'market',
+            'capital_flows',
+            'industries',
+            'securities',
+            'quantitative_research',
+            'validation',
+            'next_session',
+            'governance',
+            'ai_reference'
+        )
+        $AvailableSectionCount = 0
+        foreach ($SectionName in $ProfessionalSectionNames) {
+            $SectionProperty = $CanonicalInfo.document.PSObject.Properties[$SectionName]
+            if ($null -eq $SectionProperty) {
+                throw 'Local professional report object is missing a required section'
+            }
+            if ([string]$SectionProperty.Value.status -eq 'available') {
+                $AvailableSectionCount += 1
+            }
+        }
+        $ExpectedTargetEntry['has_professional_report'] = $true
+        $ExpectedTargetEntry['available_section_count'] = $AvailableSectionCount
+        $ExpectedTargetEntry['total_section_count'] = $ProfessionalSectionNames.Count
+    }
     if (
         $TargetEntries.Count -ne 1 -or
         (Get-CanonicalJson -Value $TargetEntries[0]) -ne
@@ -1450,7 +1489,10 @@ import sys
 from pathlib import Path
 
 from reporting.professional_binding import validate_professional_report_binding
-from reporting.professional_schema import ProfessionalPostCloseReport
+from reporting.professional_schema import (
+    PROFESSIONAL_SECTION_NAMES,
+    ProfessionalPostCloseReport,
+)
 from reporting.schemas import ReportMetadataV2
 from reporting.web import validate_report_index, validate_report_metadata
 from stock_papi.batch.observation_products import _read_observation_candidate
@@ -1583,6 +1625,20 @@ expected_entry = {
     "metadata_sha256": target_entry["metadata_sha256"],
     "product_mode": candidate_report["product_mode"],
 }
+professional_index_keys = {
+    "has_professional_report",
+    "available_section_count",
+    "total_section_count",
+}
+if professional_index_keys & set(target_entry):
+    expected_entry.update(
+        has_professional_report=True,
+        available_section_count=sum(
+            getattr(canonical, name).status == "available"
+            for name in PROFESSIONAL_SECTION_NAMES
+        ),
+        total_section_count=len(PROFESSIONAL_SECTION_NAMES),
+    )
 if target_entry != expected_entry:
     raise ValueError("formal local report index target binding is invalid")
 print(json.dumps({"mode": "validated", "content_sha256": metadata["content_sha256"]}))

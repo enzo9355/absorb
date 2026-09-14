@@ -19,8 +19,9 @@ class _LazyModule:
 
 
 class _LazyGeminiModel:
-    def __init__(self, api_key):
+    def __init__(self, api_key, model_name="gemini-2.5-flash"):
         self._api_key = api_key
+        self._model_name = model_name
         self._model = None
         self._lock = threading.Lock()
 
@@ -30,7 +31,7 @@ class _LazyGeminiModel:
                 if self._model is None:
                     genai = importlib.import_module("google.generativeai")
                     genai.configure(api_key=self._api_key)
-                    self._model = genai.GenerativeModel("gemini-2.5-flash")
+                    self._model = genai.GenerativeModel(self._model_name)
         return self._model.generate_content(*args, **kwargs)
 
 

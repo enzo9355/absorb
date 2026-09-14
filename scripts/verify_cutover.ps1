@@ -31,6 +31,7 @@ $RequiredSecrets = @(
     'stock-papi-line-channel-access-token',
     'stock-papi-line-channel-secret',
     'stock-papi-gemini-api-key',
+    'stock-papi-asksorb-gemini-api-key',
     'stock-papi-finmind-user',
     'stock-papi-finmind-password',
     'stock-papi-alert-task-token'
