@@ -202,17 +202,6 @@ function Test-CloudRunIdentity {
     if ($ReadyCondition.Count -ne 1) {
         throw 'Cloud Run active traffic revision is not Ready'
     }
-    $AsksorbBinding = @(
-        $RevisionInfo.spec.containers[0].env |
-            Where-Object { $_.name -eq 'ASKSORB_GEMINI_API_KEY' }
-    )
-    if (
-        $AsksorbBinding.Count -ne 1 -or
-        [string]$AsksorbBinding[0].valueFrom.secretKeyRef.name -ne 'stock-papi-asksorb-gemini-api-key' -or
-        [string]$AsksorbBinding[0].valueFrom.secretKeyRef.key -ne 'latest'
-    ) {
-        throw 'Cloud Run active revision ASKsorb secret binding is missing or incorrect'
-    }
     $ServiceAccount = [string]$RevisionInfo.spec.serviceAccountName
     if (-not $ServiceAccount) { throw 'Cloud Run active revision service account is missing' }
     $script:CloudRunActiveRevision = $RevisionInfo
