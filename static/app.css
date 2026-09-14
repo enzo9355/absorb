@@ -2390,28 +2390,28 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
     line-height: 1.65;
 }
 @media (max-width: 900px) {
-    .report-badge-strip,;
-    .report-kpi-grid,;
-    .spec-meta-grid,;
-    .gate-grid,;
+    .report-badge-strip,
+    .report-kpi-grid,
+    .spec-meta-grid,
+    .gate-grid,
     .scenario-card-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-    .evidence-grid,;
-    .industry-highlight-grid,;
+    .evidence-grid,
+    .industry-highlight-grid,
     .diagnostics-grid {
         grid-template-columns: 1fr;
   }
 }
 @media (max-width: 600px) {
-    .report-badge-strip,;
-    .report-kpi-grid,;
-    .spec-meta-grid,;
-    .gate-grid,;
+    .report-badge-strip,
+    .report-kpi-grid,
+    .spec-meta-grid,
+    .gate-grid,
     .scenario-card-grid {
         grid-template-columns: 1fr;
   }
-    .report-masthead,;
+    .report-masthead,
     .report-section {
         padding: 20px 16px;
   }
@@ -3454,6 +3454,7 @@ progress::-moz-progress-bar {
 }
 .reports-page {
   display:grid;
+  grid-template-columns:minmax(0,1fr);
   gap:18px;
 }
 .reports-page>.panel {
