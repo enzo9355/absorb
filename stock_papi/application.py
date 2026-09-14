@@ -1072,6 +1072,7 @@ def _asksorb_grounded_answer(question, evidence, *, data_as_of, tools_used):
         "可以比較已發生的數據，但不得預測、提供上漲機率、買賣建議或自行補數字。"
         "現有欄位可直接做定性比較時，不得因缺少綜合指標而拒答；"
         "例如可用量比、漲跌家數與均線廣度描述量能和廣度是否同向。"
+        "量能與廣度同時偏強或偏弱是同向，不是背離；結論與依據不得矛盾。"
         "若資料真的沒有問題所需欄位，明確指出缺少哪個欄位；不要把可用資料一律說成資料不足。\n"
         f"問題：{question}\n已驗證資料：{payload}"
     )
@@ -1087,6 +1088,8 @@ def _asksorb_grounded_answer(question, evidence, *, data_as_of, tools_used):
     forbidden = ("建議買入", "建議賣出", "可以買", "適合進場", "可以追高", "上漲機率")
     grounding = [{"data": evidence}, {"data": {"metric_period_days": [1, 5, 20, 60]}}]
     if not text or any(term in text for term in forbidden):
+        return None
+    if "有背離" in text and "同向" in text:
         return None
     if not numbers_are_grounded(text, question, grounding):
         return None
@@ -1250,7 +1253,9 @@ def _observation_conversation(
             data_quality="available",
             tools_used=("verified_observation_dashboard",),
         )
-    if any(term in question for term in ("台股", "大盤", "市場", "盤勢", "今天")):
+    if any(term in question for term in (
+        "台股", "大盤", "市場", "盤勢", "今天", "量能", "量比", "廣度", "漲跌家數",
+    )):
         market = snapshot.get("market_observation", {})
         risk = {
             "normal": "一般",
@@ -1262,6 +1267,7 @@ def _observation_conversation(
             f"{_observation_signed(market.get('return_1d_pct'))}，"
             f"上漲 {market.get('advancing_count', '—')} 檔、"
             f"下跌 {market.get('declining_count', '—')} 檔，"
+            f"中位量比 {_observation_number(market.get('median_volume_ratio'))}，"
             f"站上 MA20 比例 "
             f"{_observation_number(market.get('ma20_breadth_pct'), 1, '%')}，"
             f"風險狀態為{risk}。\n\n"

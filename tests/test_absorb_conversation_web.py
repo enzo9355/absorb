@@ -224,6 +224,39 @@ class AbsorbConversationWebTests(unittest.TestCase):
         self.assertEqual(model.calls, 1)
         self.assertIn("市場實況", answer.text)
 
+    def test_observation_mode_rejects_a_contradictory_divergence_answer(self):
+        class Model:
+            def generate_content(self, *_args, **_kwargs):
+                return SimpleNamespace(text="有背離跡象，但量能與廣度其實是同向偏弱。")
+
+        snapshot = {
+            "product_mode": "observation",
+            "market": "TW",
+            "observation_as_of": "2026-09-14",
+            "market_observation": {
+                "median_volume_ratio": 0.87,
+                "advancing_count": 688,
+                "declining_count": 1138,
+                "ma20_breadth_pct": 26.1,
+                "risk_state": "elevated",
+            },
+            "industry_observations": [],
+        }
+        with (
+            patch.object(stock_app, "asksorb_model", Model()),
+            patch.object(stock_app, "_conversation_search_stock", return_value=(None, None)),
+            patch.object(stock_app, "_published_dashboard_snapshot", return_value=snapshot),
+        ):
+            answer = stock_app._observation_conversation(
+                question="量能跟廣度有沒有背離跡象？",
+                access="public",
+                market_context="TW",
+                page_context="market",
+            )
+
+        self.assertNotIn("有背離跡象", answer.text)
+        self.assertIn("市場實況", answer.text)
+
     def test_asksorb_surface_uses_consistent_name(self):
         html = stock_app.app.test_client().get("/ask").get_data(as_text=True)
 
