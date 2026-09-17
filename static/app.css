@@ -5705,6 +5705,78 @@ body[data-theme="press-block"] .data-limits-body {
   body[data-theme="press-block"] .pb-block-body { padding:20px; }
 }
 
+/* 產業觀察（/industries）：分組標題、揭露列與關注公司列，全部走虛線規則 */
+body[data-theme="press-block"] .industry-group-heading {
+  padding-bottom:10px;
+  border-bottom:3px double var(--pb-ink);
+}
+body[data-theme="press-block"] .industry-group-heading h3 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+}
+body[data-theme="press-block"] .industry-group-meaning { color:var(--pb-muted); }
+body[data-theme="press-block"] .industry-disclosure-list { gap:0; }
+body[data-theme="press-block"] .industry-disclosure {
+  border:0;
+  border-radius:0;
+  background:transparent;
+  border-bottom:1px dotted var(--pb-rule);
+}
+body[data-theme="press-block"] .industry-disclosure:last-child { border-bottom:0; }
+body[data-theme="press-block"] .industry-disclosure summary {
+  min-height:0;
+  padding:14px 0;
+  gap:24px;
+}
+body[data-theme="press-block"] .industry-disclosure[open] summary {
+  border-bottom:1px dotted var(--pb-rule);
+}
+body[data-theme="press-block"] .industry-disclosure-body {
+  padding:18px 0 20px;
+  border-top:0;
+  background:transparent;
+}
+body[data-theme="press-block"] .industry-metric-grid {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  column-gap:24px;
+  margin:0;
+  border:0;
+  background:transparent;
+}
+body[data-theme="press-block"] .industry-metric-grid div { display:contents; }
+body[data-theme="press-block"] .industry-metric-grid dt {
+  grid-column:1;
+  padding:11px 0;
+  border-bottom:1px dotted var(--pb-rule);
+  color:var(--pb-muted);
+  font-size:var(--type-caption);
+}
+body[data-theme="press-block"] .industry-metric-grid dd {
+  grid-column:2;
+  margin:0;
+  padding:11px 0;
+  border-bottom:1px dotted var(--pb-rule);
+  text-align:right;
+  font-size:var(--type-body);
+  font-variant-numeric:tabular-nums;
+}
+body[data-theme="press-block"] .industry-metric-grid div:last-of-type dt,
+body[data-theme="press-block"] .industry-metric-grid div:last-of-type dd { border-bottom:0; }
+body[data-theme="press-block"] .industry-attention-heading h3 {
+  font-family:var(--pb-font-display);
+}
+body[data-theme="press-block"] .industry-company-grid { gap:0; }
+body[data-theme="press-block"] .industry-company {
+  border:0;
+  border-bottom:1px dotted var(--pb-rule);
+  border-radius:0;
+  background:transparent;
+  padding:12px 0;
+}
+body[data-theme="press-block"] .industry-company:last-child { border-bottom:0; }
+
 .market-summary-page {
   max-width:1160px;
 }
