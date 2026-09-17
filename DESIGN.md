@@ -320,3 +320,42 @@ Primary 為深藍底白字；secondary 為白底深藍邊界；danger 僅用於�
 | 法人買賣超的中位數 | 法人淨流 / institution net flow | `#term-institution-flow` |
 
 主版面不得出現未配對白話標題的術語字串。術語以 11px 標籤形式保留在白話標題旁，並連到上表對應的錨點 —— **標籤文字必須與它指向的條目是同一個指標**，不是「錨點存在就好」。個股頁與報告頁不重寫這些解釋，一律連回學習頁。
+
+## 31. PRESS BLOCK 頁面主題
+
+台股三頁（`/`、`/market`、`/industries`）的頁面範圍主題。機制是 `body[data-theme="press-block"]`（由 `base.html` 依 endpoint 掛上，美股頁與其他頁面一律不套）；所有 token 覆寫與元件樣式都寫在這個 scope 之下，其餘頁面外觀完全不受影響。`--absorb-navy` 等品牌 token 一律保留，此主題只是三頁內不參與。
+
+### 色彩（僅限此 scope，數值由設計稿定案）
+
+| 用途 | 值 |
+| --- | --- |
+| 紙色底 | `#F0ECE3`（`--pb-paper`） |
+| 卡片／面板 | `#FBF9F5`（`--pb-card`） |
+| 墨色 | `#17151A`（`--pb-ink`） |
+| 磚紅 | `#8A2F18`（`--pb-brick`，台股上漲、眉標） |
+| 松綠 | `#14532F`（`--pb-pine`，台股下跌） |
+| 次要文字 | `#5A534B`（`--pb-muted`） |
+| 虛線規則 | `#8A8377`（`--pb-rule`） |
+| 實線細線 | `#D6CFC2`（`--pb-hairline`） |
+| 石板藍 | `#2F3A56`（`--pb-slate`，位移色塊與模型估計輔色） |
+| 墨底紙色字 | `#F0ECE3`（`--pb-on-ink`） |
+| 墨底次要字 | `#B3ACA2`（`--pb-on-ink-muted`） |
+| 墨底磚紅 | `#E9B8AB`（`--pb-on-ink-brick`） |
+
+漲跌一律經 `--price-up` / `--price-down`（scope 內重指向磚紅／松綠，`data-market="US"` 反轉），深色面板經 `--price-*-on-dark`，不寫死任何 hex 於元件樣式。
+
+### 字體
+
+- **方案 A（現行，零風險）**：serif 標題用系統 CJK 襯線堆疊 `--pb-font-display`（`"Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif`），不新增任何字型檔，接受裝置間字標差異 —— 與 §4 對 `Segoe Script` 的決定一致。無襯線維持 `--font-body`。
+- **方案 B（未實作，另開 PR）**：自架 Noto Serif TC 子集 woff2 放 `static/fonts/`（OFL），只子集模板靜態標題字元，動態內容不套 serif；附重建子集腳本，檔案上限 80KB。
+
+### 四個元件（皆掛 scope，見 `static/components.css` 檔尾）
+
+1. **雙線區塊**：`.panel` 去邊框去陰影，改紙卡底＋底部 3px 墨色雙線；`.page-header` 上緣 6px 墨色壓線、下緣 3px 雙線；`.section-heading` 底部 1px 墨線、`h2` 用 `--pb-font-display`。
+2. **虛線表格列**：`.pb-table`（並覆寫 `.data-table`），表頭 1px 墨線、列間 1px dotted `--pb-rule`、數字 `tabular-nums`。
+3. **墨色實心塊**：`.pb-block > .pb-block-body`，`::before` 以 `--pb-slate` 畫位移色塊（不用模糊陰影）；行動版縮小位移或不顯示。
+4. **零線置中長條**：`.pb-bar-centered` SVG（幾何由 Jinja 算），零線 `--pb-ink`、正負向取 `--price-up` / `--price-down`；長條只輔助，數值永遠同時以文字呈現。
+
+### 與 §29 的關係
+
+§29 禁止「暖米色主題」規範的是全站改色與品牌識別替換。PRESS BLOCK 是經核可、以 `data-theme` scope 綁定台股三頁的頁面主題：品牌 token、其他頁面、報告與 LINE 版式都不變。若日後要把紙色語彙推廣到更多頁面，需先回過頭修訂 §29 再動工。
