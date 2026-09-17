@@ -5777,6 +5777,65 @@ body[data-theme="press-block"] .industry-company {
 }
 body[data-theme="press-block"] .industry-company:last-child { border-bottom:0; }
 
+/* 今日市場（/）：today-brief 採頁標語彙，指揮台外殼轉透明，insight 卡同語彙 */
+body[data-theme="press-block"] .today-brief {
+  border-top:6px solid var(--pb-ink);
+  border-bottom:3px double var(--pb-ink);
+  border-radius:0;
+  padding:34px 0 26px;
+  background:var(--pb-paper);
+}
+body[data-theme="press-block"] .today-copy h1 {
+  font-family:var(--pb-font-display);
+  letter-spacing:-.015em;
+  font-weight:700;
+}
+body[data-theme="press-block"] .research-command {
+  background:transparent;
+  border:0;
+  border-radius:0;
+  padding:0;
+}
+body[data-theme="press-block"] .research-status { color:var(--pb-muted); }
+body[data-theme="press-block"] .research-status span {
+  background:var(--pb-pine);
+  box-shadow:none;
+}
+body[data-theme="press-block"] .evidence-canvas {
+  background:var(--pb-card);
+  border:1px solid var(--pb-hairline);
+  border-radius:0;
+  box-shadow:none;
+}
+body[data-theme="press-block"] .breadth-panel,
+body[data-theme="press-block"] .risk-panel,
+body[data-theme="press-block"] .sector-flow,
+body[data-theme="press-block"] .forecast-panel {
+  border-radius:0;
+}
+body[data-theme="press-block"] .breadth-panel,
+body[data-theme="press-block"] .risk-panel,
+body[data-theme="press-block"] .sector-flow {
+  background:var(--pb-card);
+}
+body[data-theme="press-block"] .breadth-track { stroke:var(--pb-rule); }
+body[data-theme="press-block"] .market-index-empty { border-radius:0; }
+body[data-theme="press-block"] .insight-heading {
+  padding-bottom:10px;
+  border-bottom:1px solid var(--pb-ink);
+}
+body[data-theme="press-block"] .insight-heading h3 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+}
+body[data-theme="press-block"] .forecast-panel .insight-heading {
+  border-bottom:1px solid rgb(240 236 227 / 24%);
+}
+body[data-theme="press-block"] .forecast-panel .insight-heading h3 {
+  color:var(--pb-on-ink);
+}
+
 .market-summary-page {
   max-width:1160px;
 }
