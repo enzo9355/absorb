@@ -60,6 +60,111 @@ class ReleaseOperationsTests(unittest.TestCase):
         self.assertIn("$LifecycleRules = @(", source)
         self.assertNotIn("$LifecycleRules = if (", source)
 
+    def test_cutover_bucket_security_rejects_delete_lifecycle_and_keeps_acl_gates(self) -> None:
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("PowerShell is required for executable bucket security fixtures")
+
+        cases = {
+            "delete_rule": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle": {
+                    "rule": [
+                        {"action": {"type": "Delete"}, "condition": {"age": 30}}
+                    ]
+                },
+            },
+            "delete_rule_legacy_config": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle_config": {
+                    "rule": [
+                        {"action": {"type": "Delete"}, "condition": {"age": 30}}
+                    ]
+                },
+            },
+            "empty_lifecycle": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle": {"rule": []},
+            },
+            "transition_rule": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "enforced",
+                "lifecycle": {
+                    "rule": [
+                        {
+                            "action": {
+                                "type": "SetStorageClass",
+                                "storage_class": "COLDLINE",
+                            },
+                            "condition": {"age": 365},
+                        }
+                    ]
+                },
+            },
+            "uniform_access_off": {
+                "uniform_bucket_level_access": False,
+                "public_access_prevention": "enforced",
+                "lifecycle": {"rule": []},
+            },
+            "public_access_unenforced": {
+                "uniform_bucket_level_access": True,
+                "public_access_prevention": "unspecified",
+                "lifecycle": {"rule": []},
+            },
+        }
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$Bucket = 'line-stock-bot-498908-quant-snapshots'
+$tokens = $null
+$errors = $null
+$ast = [Management.Automation.Language.Parser]::ParseFile('{str(CUTOVER.resolve()).replace("'", "''")}', [ref]$tokens, [ref]$errors)
+if ($errors.Count -ne 0) {{ throw 'verify_cutover.ps1 did not parse' }}
+$definition = @($ast.FindAll({{
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Test-BucketSecurity'
+}}, $true))[0]
+if ($null -eq $definition) {{ throw 'Test-BucketSecurity function was not found' }}
+Invoke-Expression $definition.Extent.Text
+function Invoke-Gcloud {{
+    param([string[]]$Arguments)
+    $Joined = $Arguments -join ' '
+    if ($Joined -notlike '*storage*buckets*describe*') {{ throw 'unexpected gcloud call' }}
+    return $script:BucketJson
+}}
+$Cases = @'
+{json.dumps(cases, ensure_ascii=False)}
+'@ | ConvertFrom-Json
+$Results = foreach ($Property in $Cases.PSObject.Properties) {{
+    $script:BucketJson = $Property.Value | ConvertTo-Json -Depth 8 -Compress
+    try {{
+        $null = Test-BucketSecurity
+        "$($Property.Name)=PASS"
+    }} catch {{
+        "$($Property.Name)=FAIL"
+    }}
+}}
+$Results -join ';'
+"""
+        completed = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        results = dict(item.split("=", 1) for item in completed.stdout.strip().split(";"))
+        for name in ("delete_rule", "delete_rule_legacy_config", "uniform_access_off", "public_access_unenforced"):
+            self.assertEqual(results[name], "FAIL")
+        for name in ("empty_lifecycle", "transition_rule"):
+            self.assertEqual(results[name], "PASS")
+
     def test_cutover_quant_pointer_supports_tw_v3_and_tw_us_v4(self) -> None:
         source = CUTOVER.read_text(encoding="utf-8")
         pointer = source[

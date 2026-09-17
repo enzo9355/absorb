@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}同業比較｜ABSORB{% endblock %}
+{% block content %}
+<div class="page research-page">
+  <header class="page-header"><div><p class="eyebrow">COMPANY COMPARISON</p><h1>公司比較</h1><p class="page-intro">比較同一資料日的已驗證市場觀察；缺少欄位會保留為資料不足。</p></div><a class="button button-secondary" href="{{ url_for('industry_relationships_page') }}">回到產業關係</a></header>
+  <section class="panel comparison-table-wrap"><table class="comparison-table"><thead><tr><th>指標</th>{% for row in rows %}<th><a href="{{ url_for('stock_page', code=row.code) }}">{{ row.name }}<small>{{ row.code }}</small></a></th>{% endfor %}</tr></thead><tbody>
+    <tr><th>資料日</th>{% for row in rows %}<td>{{ row.get('as_of') or '資料不足' }}</td>{% endfor %}</tr>
+    <tr><th>最新收盤</th>{% for row in rows %}<td>{{ '%.2f'|format(row.get('price')) if row.get('price') is not none else '資料不足' }}</td>{% endfor %}</tr>
+    <tr><th>近 5 日價格變動</th>{% for row in rows %}<td>{{ '%+.2f%%'|format(row.get('return_5d_pct')) if row.get('return_5d_pct') is not none else '資料不足' }}</td>{% endfor %}</tr>
+    <tr><th>近 20 日價格變動</th>{% for row in rows %}<td>{{ '%+.2f%%'|format(row.get('return_20d_pct')) if row.get('return_20d_pct') is not none else '資料不足' }}</td>{% endfor %}</tr>
+    <tr><th>均線狀態</th>{% for row in rows %}<td>{{ {'above_ma20_ma60':'站上 MA20 與 MA60','above_ma20':'站上 MA20','below_ma60':'低於 MA60','mixed':'均線交錯'}.get(row.get('trend_observation'), '資料不足') }}</td>{% endfor %}</tr>
+    <tr><th>量比</th>{% for row in rows %}<td>{{ '%.2f'|format(row.get('volume_ratio')) if row.get('volume_ratio') is not none else '資料不足' }}</td>{% endfor %}</tr>
+    <tr><th>近 5 日外資</th>{% for row in rows %}<td>{{ '%.0f'|format(row.get('foreign_net_5')) if row.get('foreign_net_5') is not none else '資料不足' }}</td>{% endfor %}</tr>
+    <tr><th>資料品質</th>{% for row in rows %}<td>{{ row.get('data_quality') or ('已驗證觀察' if row.get('as_of') else '資料不足') }}</td>{% endfor %}</tr>
+    <tr><th>產業關係</th>{% for row in rows %}<td><a href="{{ url_for('industry_relationships_page', focus=row.code) }}">查看已核對關係</a></td>{% endfor %}</tr>
+  </tbody></table></section>
+</div>
+{% endblock %}

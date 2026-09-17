@@ -516,6 +516,41 @@ function setChartRange(days) {
   chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, length - days), to: length + 5 });
 }
 
+function sameMarketCandle(left, right) {
+  return Boolean(left && right) && ["time", "open", "high", "low", "close"]
+    .every((key) => left[key] === right[key]);
+}
+
+function watchMarketChart(container, currentCandles) {
+  const url = container.dataset.chartRefreshUrl;
+  if (!url || !window.fetch) return;
+  let checking = false;
+  const check = async () => {
+    if (checking || document.visibilityState === "hidden") return;
+    checking = true;
+    try {
+      const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const current = currentCandles();
+      const latest = payload.candles || {};
+      const symbols = Object.keys(current);
+      if (symbols.length && symbols.every((symbol) => latest[symbol])
+        && symbols.some((symbol) => !sameMarketCandle(current[symbol], latest[symbol]))) {
+        window.location.reload();
+      }
+    } catch (_) {
+      // Keep showing the last verified chart and retry at the next interval.
+    } finally {
+      checking = false;
+    }
+  };
+  window.setInterval(check, 30000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") check();
+  });
+}
+
 function initStockChart() {
   const container = bySelector("#stock-chart");
   const source = bySelector("#stock-chart-data");
@@ -530,8 +565,12 @@ function initMarketIndexChart() {
   const container = bySelector("#market-index-chart");
   const source = bySelector("#market-index-chart-data");
   if (!container || !source || !window.LightweightCharts) return;
-  const marketChart = createPriceChart(container, JSON.parse(source.textContent), { compact: true, predictionMarker: true });
-  if (marketChart) marketChart.chart.timeScale().fitContent();
+  const raw = JSON.parse(source.textContent);
+  const marketChart = createPriceChart(container, raw, { compact: true, predictionMarker: true });
+  if (!marketChart) return;
+  marketChart.chart.timeScale().fitContent();
+  const candle = raw.candles[raw.candles.length - 1];
+  watchMarketChart(container, () => candle ? { TAIEX: candle } : {});
 }
 
 function initUsIndexChart() {
@@ -562,6 +601,12 @@ function initUsIndexChart() {
   };
   tabs.forEach((tab) => tab.addEventListener("click", () => select(tab.dataset.usIndexTab)));
   select(tabs[0].dataset.usIndexTab);
+  watchMarketChart(container, () => Object.fromEntries(
+    items.map((item) => [
+      item.symbol,
+      Array.isArray(item.candles) ? item.candles[item.candles.length - 1] : null,
+    ]).filter(([, candle]) => candle),
+  ));
 }
 
 document.addEventListener("click", (event) => {

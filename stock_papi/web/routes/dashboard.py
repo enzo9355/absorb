@@ -1,6 +1,6 @@
 """Dashboard page route registration."""
 
-from flask import abort, render_template, request
+from flask import abort, make_response, render_template, request
 
 from reporting.exceptions import ReportWebError
 from stock_papi.services.prediction_view import prediction_for
@@ -57,7 +57,7 @@ def register_dashboard_page(
                 )
             except Exception:
                 pass
-        return render_template(
+        response = make_response(render_template(
             "dashboard.html",
             search_query=request.args.get("q", "").strip(),
             search_error=request.args.get("error") == "not-found",
@@ -66,7 +66,9 @@ def register_dashboard_page(
             observation=snapshot,
             market_prediction=prediction,
             data_freshness=data_freshness,
-        )
+        ))
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     def industries_page():
         return render_template("industries.html", observation=_snapshot())

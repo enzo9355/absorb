@@ -58,7 +58,7 @@
   </header>
 
   <nav class="page-jump-nav glass-panel" aria-label="個股觀察導覽">
-    <a href="#summary">總覽</a><a href="#chart">價格</a><a href="#chips">籌碼</a><a href="#technicals">技術</a><a href="#risk">風險</a>
+    <a href="#summary">總覽</a>{% if related_relationships %}<a href="#relationships">關係</a>{% endif %}{% if related_events %}<a href="#company-events">事件</a>{% endif %}{% if related_opinions %}<a href="#public-opinions">觀點</a>{% endif %}<a href="#chart">價格</a><a href="#chips">籌碼</a><a href="#technicals">技術</a><a href="#risk">風險</a>
   </nav>
 
   {% if peers %}
@@ -70,6 +70,27 @@
     <div class="peer-list">
       {% for peer in peers %}<a class="peer-chip" href="{{ url_for('stock_page', code=peer.code) }}"><strong>{{ peer.name }}</strong><span>{{ peer.code }}</span></a>{% endfor %}
     </div>
+  </section>
+  {% endif %}
+
+  {% if related_relationships %}
+  <section class="panel stock-research-panel" id="relationships" aria-labelledby="stock-relationships-title">
+    <div class="section-heading"><div><p class="eyebrow">RESEARCH RELATIONSHIPS</p><h2 id="stock-relationships-title">已確認產業關係</h2></div><a class="muted small" href="/industries/ai-server/relationships">查看完整關係圖</a></div>
+    <div class="stock-research-list">{% for item in related_relationships %}<article><strong>{{ item['from']['name'] }} → {{ item['to']['name'] }}</strong><span>{{ item.type }} · {{ item.product_scope }}</span><small>{{ item.description or '已由來源確認，請開啟來源查看定位。' }}｜審核 {{ item.reviewed_at or '未提供' }}</small><a class="source-link" href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">{{ item.source.title }}</a>{% if item['from']['symbol'].isdigit() and item['to']['symbol'].isdigit() %}<a class="button button-secondary" href="/compare?symbols={{ item['from']['symbol'] }},{{ item['to']['symbol'] }}">比較兩家公司</a>{% endif %}</article>{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  {% if related_events %}
+  <section class="panel stock-research-panel" id="company-events" aria-labelledby="stock-events-title">
+    <div class="section-heading"><div><p class="eyebrow">OFFICIAL EVENTS</p><h2 id="stock-events-title">公司事件</h2></div><a class="muted small" href="/events">查看事件行事曆</a></div>
+    <div class="stock-research-list">{% for event in related_events %}<article><strong>{{ event.event_type or '公司事件' }} · {{ event.title }}</strong><span>{{ event.published_at or '日期未提供' }}</span><small>{{ event.status or '已收錄' }}</small><a class="source-link" href="{{ event.source }}" target="_blank" rel="noopener noreferrer">官方來源</a></article>{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  {% if related_opinions %}
+  <section class="panel stock-research-panel" id="public-opinions" aria-labelledby="stock-opinions-title">
+    <div class="section-heading"><div><p class="eyebrow">PUBLIC OPINIONS</p><h2 id="stock-opinions-title">公開觀點</h2></div><a class="muted small" href="/perspectives/stocks/{{ market }}/{{ d.code }}?view=timeline">查看此股觀點</a></div>
+    <div class="stock-research-list">{% for item in related_opinions %}<article><strong>{{ item.name or item.symbol }} · {{ item.stance or item.classification }}</strong><span>{{ item.summary or item.text }}</span><small>發布 {{ item.published_at }}｜{{ item.outcome_status or '價格觀察不適用' }}</small><a class="source-link" href="{{ item.original_source_url or item.source_url or item.source }}" target="_blank" rel="noopener noreferrer">原始來源</a></article>{% endfor %}</div>
   </section>
   {% endif %}
 
@@ -126,7 +147,7 @@
     </div>
   </section>
 
-  <script id="stock-chart-data" type="application/json">{{ ({"candles": candles, "ma20": ma20_line, "prediction": prediction.line} if prediction else {"candles": candles, "ma20": ma20_line})|tojson }}</script>
+  <script id="stock-chart-data" type="application/json">{% if prediction %}{{ {"candles": candles, "ma20": ma20_line, "prediction": prediction.line}|tojson }}{% else %}{{ {"candles": candles, "ma20": ma20_line}|tojson }}{% endif %}</script>
   {% endif %}
 </div>
 {% endblock %}

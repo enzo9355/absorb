@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "catalog_id": "company-events",
+  "updated_at": "2026-09-17T08:00:00+08:00",
+  "coverage_note": "只列出已核對官方來源的事件入口；來源快照不等同個別公司的公告內容。",
+  "events": [
+    {
+      "id": "twse-mops-daily-announcements-20260917",
+      "source_id": "twse-mops-daily-announcements-20260917",
+      "symbol": "",
+      "name": "台股上市公司",
+      "market": "TW",
+      "event_type": "重大訊息資料來源",
+      "title": "公開資訊觀測站重大訊息來源快照",
+      "summary": "此筆只確認官方資料入口可查，未在本版展開個別公司公告。請以來源頁面的公告內容與時間為準。",
+      "published_at": "2026-09-17T00:00:00+08:00",
+      "effective_at": null,
+      "period_start": null,
+      "period_end": null,
+      "source": "https://openapi.twse.com.tw/v1/opendata/t187ap04_L",
+      "source_title": "TWSE OpenAPI 重大訊息",
+      "source_publisher": "臺灣證券交易所",
+      "source_locator": "t187ap04_L",
+      "source_checked_at": "2026-09-17T08:00:00+08:00",
+      "source_status": "available",
+      "status": "source_snapshot",
+      "correction_of": null
+    },
+    {
+      "id": "tpex-mops-daily-announcements-20260917",
+      "source_id": "tpex-mops-daily-announcements-20260917",
+      "symbol": "",
+      "name": "台股上櫃公司",
+      "market": "TW",
+      "event_type": "重大訊息資料來源",
+      "title": "公開資訊觀測站重大訊息來源快照",
+      "summary": "此筆只確認官方資料入口可查，未在本版展開個別公司公告。請以來源頁面的公告內容與時間為準。",
+      "published_at": "2026-09-17T00:00:00+08:00",
+      "effective_at": null,
+      "period_start": null,
+      "period_end": null,
+      "source": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O",
+      "source_title": "TPEx OpenAPI 重大訊息",
+      "source_publisher": "櫃買中心",
+      "source_locator": "mopsfin_t187ap04_O",
+      "source_checked_at": "2026-09-17T08:00:00+08:00",
+      "source_status": "available",
+      "status": "source_snapshot",
+      "correction_of": null
+    }
+  ]
+}

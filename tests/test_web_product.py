@@ -51,6 +51,7 @@ def prediction_product(market="TW", symbol="2330", as_of="2026-07-15"):
 class WebProductTests(unittest.TestCase):
     @patch.object(stock_app, "_published_prediction_snapshot")
     @patch.object(stock_app, "_published_dashboard_snapshot")
+
     def test_dashboard_plainly_marks_uncalibrated_research_prediction(
         self, load_snapshot, load_prediction
     ):
@@ -74,6 +75,21 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("模型推估上漲機率（未校準）", html)
         self.assertIn("未經回測校準", html)
         self.assertNotIn("目前正式預測", html)
+
+    def test_research_perspectives_templates_keep_stock_links_and_mobile_layout(self):
+        response = stock_app.app.test_client().get("/perspectives")
+        css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")
+        stock_template = Path("templates/stock_detail.html").read_text(encoding="utf-8")
+        relationships_template = Path("templates/industry_relationships.html").read_text(encoding="utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("觀點追蹤", html)
+        self.assertIn("Coverage", html)
+        self.assertIn("perspectives/stocks", stock_template)
+        self.assertIn("研究線索", relationships_template)
+        self.assertIn(".stock-perspective-grid", css)
+        self.assertIn("overflow-wrap:anywhere", css)
 
     @patch.object(stock_app, "_published_prediction_snapshot")
     @patch.object(stock_app, "_published_dashboard_snapshot")
@@ -127,6 +143,8 @@ class WebProductTests(unittest.TestCase):
             'id="market-index-chart"',
             'role="img"',
             "加權指數最近五個交易日 OHLC",
+            'data-chart-refresh-url="/api/market-chart/TW"',
+            "TWSE 每日指數歷史資料",
             'id="market-index-chart-data"',
             '"time": "2026-07-15"',
             "五日上漲機率",
@@ -718,7 +736,7 @@ class WebProductTests(unittest.TestCase):
             "/market": "市場實況",
             "/industries": "產業觀察",
             "/stocks": "個股與 ETF",
-            "/ask": "ASK ABSORB",
+            "/ask": "ASKsorb",
             "/learn": "市場觀察小辭典",
         }
 
@@ -969,6 +987,8 @@ class WebProductTests(unittest.TestCase):
             "S&amp;P 500", "Nasdaq Composite", "道瓊工業指數",
             "五日上漲機率", "61.0%", "2026-09-02",
             'id="us-index-chart"', 'id="us-index-chart-data"',
+            'data-chart-refresh-url="/api/market-chart/US"',
+            "不是盤中即時行情",
         ):
             self.assertIn(marker, html)
 
@@ -1065,6 +1085,7 @@ class WebProductTests(unittest.TestCase):
             response = stock_app.app.test_client().get("/dashboard")
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
         analyze.assert_not_called()
         html = response.get_data(as_text=True)
         for label in (
@@ -1080,7 +1101,7 @@ class WebProductTests(unittest.TestCase):
             "產業觀察",
             "市場實況",
             "個股與 ETF",
-            "ASK ABSORB",
+            "ASKsorb",
             "AI 五日情境",
         ):
             self.assertIn(label, html)
@@ -1212,7 +1233,7 @@ class WebProductTests(unittest.TestCase):
         primary_nav = html.split('<nav class="sidebar-nav"', 1)[1].split("</nav>", 1)[0]
 
         self.assertIn('href="/ask"', primary_nav)
-        self.assertIn('<span class="nav-label">ASK ABSORB</span>', primary_nav)
+        self.assertIn('<span class="nav-label">ASKsorb</span>', primary_nav)
         self.assertIn('href="/learn"', primary_nav)
         self.assertIn('<span class="nav-label">學習</span>', primary_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
@@ -1302,7 +1323,7 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn('class="mobile-nav"', home)
         self.assertIn('aria-current="page"><span class="nav-short"', primary_nav)
         ask = client.get("/ask").get_data(as_text=True)
-        self.assertIn('<h1>ASK ABSORB</h1>', ask)
+        self.assertIn('<h1>ASKsorb</h1>', ask)
 
     def test_legacy_hash_migrator_uses_only_fixed_canonical_routes(self):
         script = Path(stock_app.app.static_folder, "app.js").read_text(
@@ -1365,6 +1386,105 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(
             response.get_json()["status"], "observation_unavailable"
         )
+
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_market_chart_refresh_api_returns_latest_verified_taiwan_candle(
+        self, load_snapshot
+    ):
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "as_of": "2026-07-15",
+            "candles": [
+                {
+                    "time": "2026-07-14",
+                    "open": 22800.0,
+                    "high": 23010.0,
+                    "low": 22760.0,
+                    "close": 22961.85,
+                },
+                {
+                    "time": "2026-07-15",
+                    "open": 22982.1,
+                    "high": 23210.8,
+                    "low": 22940.6,
+                    "close": 23150.25,
+                },
+            ],
+        }
+        load_snapshot.return_value = snapshot
+
+        response = stock_app.app.test_client().get("/api/market-chart/TW")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertEqual(
+            response.get_json(),
+            {
+                "market": "TW",
+                "candles": {
+                    "TAIEX": {
+                        "time": "2026-07-15",
+                        "open": 22982.1,
+                        "high": 23210.8,
+                        "low": 22940.6,
+                        "close": 23150.25,
+                    }
+                },
+            },
+        )
+
+    @patch.object(stock_app, "_published_prediction_snapshot")
+    @patch.object(stock_app, "_published_report_index_v2")
+    def test_market_chart_refresh_api_returns_only_report_bound_us_candles(
+        self, load_report_index, load_predictions
+    ):
+        product = prediction_product(market="US", as_of="2026-07-15")
+        product["entities"] = {}
+        for symbol, close in (
+            ("^GSPC", 6300.0),
+            ("^IXIC", 21000.0),
+            ("^DJI", 45000.0),
+        ):
+            entity = prediction_product(market="US", symbol=symbol)["entities"][symbol]
+            entity["current_price"] = close
+            entity["predicted_price"] = close * 1.0427
+            entity["candles"] = [
+                {
+                    "time": "2026-07-14",
+                    "open": close - 30,
+                    "high": close + 10,
+                    "low": close - 35,
+                    "close": close - 20,
+                },
+                {
+                    "time": "2026-07-15",
+                    "open": close - 10,
+                    "high": close + 20,
+                    "low": close - 15,
+                    "close": close,
+                },
+            ]
+            product["entities"][symbol] = entity
+        load_report_index.return_value = [
+            {
+                "market": "US",
+                "report_type": "post_close",
+                "source_market_date": "2026-07-15",
+            }
+        ]
+        load_predictions.return_value = product
+
+        response = stock_app.app.test_client().get("/api/market-chart/US")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        payload = response.get_json()
+        self.assertEqual(payload["market"], "US")
+        self.assertEqual(
+            set(payload["candles"]), {"^GSPC", "^IXIC", "^DJI"}
+        )
+        self.assertEqual(payload["candles"]["^GSPC"]["time"], "2026-07-15")
+        self.assertEqual(payload["candles"]["^GSPC"]["close"], 6300.0)
 
     def test_preview_report_is_not_public_without_preview_prefix(self):
         response = stock_app.app.test_client().get("/preview/report")
@@ -1612,21 +1732,27 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('aria-controls="dashboard-sidebar"', html)
         self.assertIn('<span class="nav-label">每日報告</span>', html)
 
-    def test_web_shell_serves_one_wordmark_font_across_devices(self):
+    def test_web_shell_serves_marker_script_wordmark_across_devices(self):
         client = stock_app.app.test_client()
+        page = client.get("/dashboard")
         response = client.get("/static/fonts/absorb-wordmark.woff2")
         font_payload = response.get_data()
         response.close()
+        html = page.get_data(as_text=True)
+        page.close()
         css = Path(stock_app.app.static_folder, "app.css").read_text(
             encoding="utf-8"
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertGreater(len(font_payload), 1_000)
+        self.assertIn('class="brand-wordmark" data-brand-wordmark', html)
+        self.assertIn('>Absorb</a>', html)
         self.assertIn('font-family:"ABSORB Wordmark"', css)
         self.assertIn('url("fonts/absorb-wordmark.woff2") format("woff2")', css)
+        self.assertIn("font-style:normal", css)
         self.assertIn(
-            'font-family:"ABSORB Wordmark","Segoe Script","Brush Script MT",cursive',
+            'font-family:"ABSORB Wordmark","Permanent Marker","Segoe Print",cursive',
             css,
         )
 

@@ -2,11 +2,29 @@ import datetime
 import hashlib
 import json
 import unittest
+from unittest.mock import patch
 
 from stock_papi.repositories.dashboard_snapshots import load_dashboard_snapshot
 
 
 class DashboardSnapshotRepositoryTests(unittest.TestCase):
+    def test_latest_dashboard_cache_expires_after_30_seconds(self):
+        cache = {"latest": ({"cached": True}, 100)}
+        times = iter((129.9, 130.0))
+        with patch(
+            "stock_papi.repositories.dashboard_snapshots.time.time",
+            side_effect=lambda: next(times),
+        ):
+            fresh_enough = load_dashboard_snapshot(
+                load_object=lambda _name, _limit: None, cache=cache
+            )
+            expired = load_dashboard_snapshot(
+                load_object=lambda _name, _limit: None, cache=cache
+            )
+
+        self.assertEqual(fresh_enough, {"cached": True})
+        self.assertIsNone(expired)
+
     def test_reads_only_hash_verified_dashboard_object(self):
         document = {
             "schema_version": 2,

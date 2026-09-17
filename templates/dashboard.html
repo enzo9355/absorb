@@ -50,7 +50,7 @@
           <div><strong>{{ '{:,.2f}'.format(market_index.get('price')) }}</strong><span class="{{ 'positive' if market_index.get('change_pct', 0) > 0 else 'negative' if market_index.get('change_pct', 0) < 0 else '' }}">{{ '{:+,.2f}'.format(market_index.get('change')) if market_index.get('change') is not none else '—' }}（{{ '{:+.2f}%'.format(market_index.get('change_pct')) if market_index.get('change_pct') is not none else '—' }}）</span></div>
           <dl><div><dt>開盤</dt><dd>{{ '{:,.2f}'.format(market_index.get('open')) if market_index.get('open') is not none else '—' }}</dd></div><div><dt>最高</dt><dd>{{ '{:,.2f}'.format(market_index.get('high')) if market_index.get('high') is not none else '—' }}</dd></div><div><dt>最低</dt><dd>{{ '{:,.2f}'.format(market_index.get('low')) if market_index.get('low') is not none else '—' }}</dd></div></dl>
         </div>
-        <div id="market-index-chart" class="market-index-chart" role="img" aria-label="加權指數 K 線圖" aria-describedby="market-index-chart-table"></div>
+        <div id="market-index-chart" class="market-index-chart" data-chart-refresh-url="{{ url_for('market_chart_refresh_api', market='TW') }}" role="img" aria-label="加權指數 K 線圖" aria-describedby="market-index-chart-table"></div>
         <div id="market-index-chart-table" class="sr-only">
           <table><caption>加權指數最近五個交易日 OHLC</caption><thead><tr><th>日期</th><th>開盤</th><th>最高</th><th>最低</th><th>收盤</th></tr></thead><tbody>{% for row in market_index.get('candles', [])[-5:] %}<tr><td>{{ row.time }}</td><td>{{ row.open }}</td><td>{{ row.high }}</td><td>{{ row.low }}</td><td>{{ row.close }}</td></tr>{% endfor %}</tbody></table>
         </div>
@@ -60,7 +60,7 @@
           {% set value = market.get(key) %}<div><dt>{{ label }}</dt><dd class="{{ 'positive' if value is not none and value > 0 else 'negative' if value is not none and value < 0 else '' }}">{{ '%+.2f%%'|format(value) if value is not none else '資料不足' }}</dd></div>
           {% endfor %}
         </dl>
-        <p class="canvas-note">K 線呈現加權指數實際走勢；期間報酬為全市場觀察，兩者分開標示。</p>
+        <p class="canvas-note">K 線呈現加權指數實際走勢；期間報酬為全市場觀察，兩者分開標示。來源：<a href="https://data.gov.tw/dataset/11755" rel="noopener noreferrer" target="_blank">TWSE 每日指數歷史資料（政府資料開放授權第 1 版）</a>。資料發布後頁面每 30 秒檢查新 K 線；這是日線，不是盤中即時行情。</p>
       </section>
 
       <div class="command-insights">

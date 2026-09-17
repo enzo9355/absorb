@@ -20,6 +20,7 @@ from stock_papi.services.auth import (
     verify_line_claims,
     verify_opaque_token,
 )
+from stock_papi.services.company_events import build_watchlist_summary
 
 
 AUTHORIZE_URL = "https://access.line.me/oauth2/v2.1/authorize"
@@ -59,6 +60,7 @@ def _public_user(value):
 
 def register_auth_routes(
     app, *, config, auth_store, line_store, search_stock, http_post, now,
+    load_events=None, load_events_status=None, stock_observation=None,
 ):
     login_attempts = defaultdict(deque)
     login_attempts_lock = threading.Lock()
@@ -97,6 +99,81 @@ def register_auth_routes(
     def csrf_matches(session):
         supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
         return isinstance(supplied, str) and hmac.compare_digest(supplied, session["csrf_token"])
+
+    def private_watchlist_summary(state):
+        if callable(load_events_status):
+            try:
+                events, event_status = load_events_status()
+                if event_status == "unavailable":
+                    raise ValueError("event reader unavailable")
+            except Exception:
+                return {
+                    "status": "unavailable",
+                    "reason": "事件資料尚未更新，稍後再試",
+                    "as_of": None,
+                    "changed": [],
+                    "new_events": [],
+                    "upcoming_events": [],
+                    "all": [],
+                }
+            if not isinstance(events, list):
+                return {
+                    "status": "unavailable",
+                    "reason": "事件資料尚未更新，稍後再試",
+                    "as_of": None,
+                    "changed": [],
+                    "new_events": [],
+                    "upcoming_events": [],
+                    "all": [],
+                }
+            try:
+                return build_watchlist_summary(
+                    state.get("watchlist", []) if isinstance(state, dict) else [],
+                    events,
+                    observation_for=stock_observation,
+                    as_of=now().date(),
+                    event_status=event_status,
+                )
+            except Exception:
+                return {
+                    "status": "unavailable",
+                    "reason": "事件資料尚未更新，稍後再試",
+                    "as_of": None,
+                    "changed": [],
+                    "new_events": [],
+                    "upcoming_events": [],
+                    "all": [],
+                }
+        if not callable(load_events):
+            return {
+                "status": "unavailable",
+                "reason": "事件資料 reader 尚未接入",
+                "as_of": None,
+                "changed": [],
+                "new_events": [],
+                "upcoming_events": [],
+                "all": [],
+            }
+        try:
+            events = load_events()
+            if not isinstance(events, list):
+                raise ValueError("event reader returned invalid data")
+            return build_watchlist_summary(
+                state.get("watchlist", []) if isinstance(state, dict) else [],
+                events,
+                observation_for=stock_observation,
+                as_of=now().date(),
+            )
+        except Exception:
+            return {
+                "status": "unavailable",
+                "reason": "事件資料尚未更新，稍後再試",
+                "as_of": None,
+                "changed": [],
+                "new_events": [],
+                "upcoming_events": [],
+                "all": [],
+            }
 
     def line_login():
         store, _states = dependencies()
@@ -259,6 +336,7 @@ def register_auth_routes(
                 {key: item.get(key) for key in ("id", "code", "name", "kind", "value")}
                 for item in state.get("alerts", []) if isinstance(item, dict)
             ],
+            "watchlist_summary": private_watchlist_summary(state),
             "csrf_token": session["csrf_token"],
         }
         return _private(jsonify(payload))
@@ -284,10 +362,14 @@ def register_auth_routes(
             state, _version = states.load(session["line_user_id"])
         except Exception:
             return _private(make_response("帳戶功能暫時無法使用", 503))
-        response = make_response(render_template(
-            template, user=_public_user(user or {}), state=state,
-            csrf_token=session["csrf_token"]
-        ))
+        context = {
+            "user": _public_user(user or {}),
+            "state": state,
+            "csrf_token": session["csrf_token"],
+        }
+        if template == "account_watchlist.html":
+            context["watchlist_summary"] = private_watchlist_summary(state)
+        response = make_response(render_template(template, **context))
         return _private(response)
 
     def mutate_watchlist():

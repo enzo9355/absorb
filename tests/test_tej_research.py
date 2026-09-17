@@ -587,6 +587,16 @@ class TejResearchTests(unittest.TestCase):
         self.assertNotIn("ABSORB-TW-PostClose", script)
         self.assertNotIn("run_tw_post_close_pipeline", script)
 
+    def test_tej_scheduler_uses_hidden_launcher(self):
+        installer = Path("scripts/install_tej_research_task.ps1").read_text(encoding="utf-8")
+        self.assertIn("run_hidden.vbs", installer)
+        self.assertIn("wscript.exe", installer)
+        self.assertIn("//B", installer)
+        self.assertIn("//NoLogo", installer)
+        self.assertIn("'-WindowStyle'", installer)
+        self.assertIn("'Hidden'", installer)
+        self.assertNotIn("-Execute 'powershell.exe'", installer)
+
 
 if __name__ == "__main__":
     unittest.main()

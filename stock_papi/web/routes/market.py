@@ -1,6 +1,6 @@
 """Market-facing Flask route registration."""
 
-from flask import abort, jsonify, redirect, render_template, url_for
+from flask import abort, jsonify, make_response, redirect, render_template, url_for
 
 from stock_papi.shared.formatting import safe_float as _safe_float
 from stock_papi.services.model_evidence import sanitize_recommendation
@@ -14,6 +14,8 @@ def register_market_routes(
     find_industry_peers, get_stock_name, dashboard_snapshot,
     us_securities_observation,
     prediction_snapshot,
+    load_report_index_v2,
+    load_relationships=None, load_events=None, load_opinions=None,
 ):
     def dashboard_api():
         snapshot = dashboard_snapshot()
@@ -119,6 +121,63 @@ def register_market_routes(
             }
         )
 
+    def market_chart_refresh_api(market):
+        def unavailable_chart():
+            response = make_response(jsonify({"status": "chart_unavailable"}), 503)
+            response.headers["Cache-Control"] = "no-store"
+            return response
+
+        if market == "TW":
+            try:
+                snapshot = dashboard_snapshot()
+            except Exception:
+                snapshot = None
+            market_index = snapshot.get("market_index") if isinstance(snapshot, dict) else None
+            candles = market_index.get("candles") if isinstance(market_index, dict) else None
+            if (
+                not isinstance(snapshot, dict)
+                or snapshot.get("product_mode") != "observation"
+                or not isinstance(candles, list)
+                or not candles
+            ):
+                return unavailable_chart()
+            latest = candles[-1]
+            chart_candles = {"TAIEX": latest} if isinstance(latest, dict) else {}
+        elif market == "US":
+            try:
+                reports = load_report_index_v2(market="US")
+            except Exception:
+                reports = None
+            report = next(
+                (
+                    item
+                    for item in reports or []
+                    if isinstance(item, dict) and item.get("report_type") == "post_close"
+                ),
+                None,
+            )
+            source_market_date = (
+                report.get("source_market_date") if isinstance(report, dict) else None
+            )
+            try:
+                product = prediction_snapshot("US") if source_market_date else None
+            except Exception:
+                product = None
+            chart_candles = {}
+            for symbol in ("^GSPC", "^IXIC", "^DJI"):
+                value = prediction_for(product, "US", symbol, source_market_date)
+                candles = value.get("candles") if isinstance(value, dict) else None
+                if isinstance(candles, list) and candles and isinstance(candles[-1], dict):
+                    chart_candles[symbol] = candles[-1]
+            if not chart_candles:
+                return unavailable_chart()
+        else:
+            abort(404)
+
+        response = make_response(jsonify({"market": market, "candles": chart_candles}))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     def market_map_page():
         return redirect(url_for("industries_page"), code=302)
 
@@ -138,9 +197,43 @@ def register_market_routes(
                 )
             except Exception:
                 prediction = None
+        related_relationships = []
+        related_events = []
+        related_opinions = []
+        if callable(load_relationships):
+            try:
+                catalog = load_relationships()
+                related_relationships = [
+                    item for item in catalog.get("relationships", [])
+                    if code in (
+                        (item.get("from") or {}).get("symbol"),
+                        (item.get("to") or {}).get("symbol"),
+                    )
+                ]
+            except Exception:
+                related_relationships = []
+        if callable(load_events):
+            try:
+                related_events = [
+                    item for item in (load_events() or [])
+                    if item.get("symbol") == code
+                ]
+            except Exception:
+                related_events = []
+        if callable(load_opinions):
+            try:
+                related_opinions = [
+                    item for item in (load_opinions() or {}).get("opinions", [])
+                    if item.get("symbol") == code
+                ]
+            except Exception:
+                related_opinions = []
         return render_template(
             "stock_detail.html", d={**data, "market": market, "prediction": prediction}, peers=peers,
             peer_category=peer_group["category"],
+            related_relationships=related_relationships,
+            related_events=related_events,
+            related_opinions=related_opinions,
         ) if data else "查無資料"
 
     def us_stocks_page():
@@ -174,6 +267,11 @@ def register_market_routes(
 
     app.add_url_rule("/api/dashboard", "dashboard_api", dashboard_api)
     app.add_url_rule("/api/market-insights", "market_insights_api", market_insights_api)
+    app.add_url_rule(
+        "/api/market-chart/<market>",
+        "market_chart_refresh_api",
+        market_chart_refresh_api,
+    )
     app.add_url_rule("/market-map", "market_map_page", market_map_page)
     app.add_url_rule("/stock/<code>", "stock_page", stock_page)
     app.add_url_rule("/us/stocks", "us_stocks_page", us_stocks_page)

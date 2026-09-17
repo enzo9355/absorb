@@ -184,10 +184,15 @@ function Test-BucketSecurity {
     if ($PublicAccessPrevention -ne 'enforced') {
         throw 'Public access prevention is not enforced'
     }
-    if ($LifecycleRules.Count -lt 1) {
-        throw 'Lifecycle rule is missing'
+    foreach ($Rule in $LifecycleRules) {
+        if ($null -eq $Rule -or $null -eq $Rule.action) {
+            continue
+        }
+        if ([string]$Rule.action.type -eq 'Delete') {
+            throw 'Lifecycle rule must not delete retained archive objects'
+        }
     }
-    return 'Bucket is private with uniform access, public access prevention and lifecycle'
+    return 'Bucket is private with uniform access, public access prevention and non-deleting lifecycle'
 }
 
 function Test-CloudRunIdentity {

@@ -37,6 +37,16 @@ def _sum(rows, field):
     return sum(values) if values else None
 
 
+def _window_return(rows, sessions):
+    if len(rows) <= sessions:
+        return None
+    current = _number(rows[-1].get("Close"))
+    baseline = _number(rows[-1 - sessions].get("Close"))
+    if current is None or baseline is None or baseline <= 0:
+        return None
+    return (current / baseline - 1) * 100
+
+
 def _risk_events(rows):
     latest = rows[-1]
     events = []
@@ -230,6 +240,8 @@ def build_stock_observation(snapshot, *, get_stock_name=None):
         "price": close,
         "change": change,
         "change_pct": change_pct,
+        "return_5d_pct": _window_return(rows, 5),
+        "return_20d_pct": _window_return(rows, 20),
         "open": _number(latest.get("Open")),
         "high": _number(latest.get("High")),
         "low": _number(latest.get("Low")),

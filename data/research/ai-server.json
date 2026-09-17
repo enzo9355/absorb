@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "catalog_id": "ai-server",
+  "topic": "AI 伺服器產業鏈",
+  "coverage_note": "本版整理 NVIDIA、SK hynix 與 IREN 官方資料，以及 NVIDIA 官方列出的伺服器合作夥伴。未列出的公司不代表不存在關係。",
+  "updated_at": "2026-09-17",
+  "stages": [
+    {
+      "id": "compute",
+      "name": "運算與加速",
+      "nodes": [
+        {"symbol": "NVDA", "name": "NVIDIA"}
+      ]
+    },
+    {
+      "id": "memory",
+      "name": "高頻寬記憶體",
+      "nodes": [
+        {"symbol": "000660", "name": "SK hynix"}
+      ]
+    },
+    {
+      "id": "server",
+      "name": "伺服器系統",
+      "nodes": [
+        {"symbol": "2317", "name": "鴻海"},
+        {"symbol": "2382", "name": "廣達"},
+        {"symbol": "3231", "name": "緯創"},
+        {"symbol": "2356", "name": "英業達"},
+        {"symbol": "2376", "name": "技嘉"}
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "name": "資料中心基礎設施",
+      "nodes": [
+        {"symbol": "IREN", "name": "IREN Limited"}
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "nvidia-rtx-pro-servers-2025-08-11",
+      "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems",
+      "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems",
+      "publisher": "NVIDIA Newsroom",
+      "published_at": "2025-08-11",
+      "locator": "Availability；NVIDIA-Certified Servers 合作夥伴名單",
+      "checked_at": "2026-09-17",
+      "status": "available"
+    },
+    {
+      "id": "skhynix-nvidia-partnership-2026-07-25",
+      "url": "https://news.skhynix.com/en/skhynix-nvidia-partnership-2026/",
+      "title": "SK Group and NVIDIA Expand Strategic Partnership Across AI Factories and Next-Generation Memory",
+      "publisher": "SK hynix Newsroom",
+      "published_at": "2026-07-25",
+      "locator": "NVIDIA and SK hynix establish long-term partnership；HBM 供應與共同開發",
+      "checked_at": "2026-09-17",
+      "status": "available"
+    },
+    {
+      "id": "nvidia-iren-partnership-2026-05-07",
+      "url": "https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-and-IREN-Announce-Strategic-Partnership-to-Accelerate-Deployment-of-up-to-5-Gigawatts-of-AI-Infrastructure/default.aspx",
+      "title": "NVIDIA and IREN Announce Strategic Partnership to Accelerate Deployment of up to 5 Gigawatts of AI Infrastructure",
+      "publisher": "NVIDIA Investor Relations",
+      "published_at": "2026-05-07",
+      "locator": "As part of the partnership；NVIDIA accelerated compute in DSX AI factories",
+      "checked_at": "2026-09-17",
+      "status": "available"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "nvidia-foxconn-rtx-pro",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "2317", "name": "鴻海"},
+      "type": "合作關係",
+      "product_scope": "NVIDIA-Certified RTX PRO Servers",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "NVIDIA 官方列出 Foxconn（鴻海）為 NVIDIA-Certified RTX PRO Server 的系統合作夥伴。"
+    },
+    {
+      "id": "nvidia-quanta-rtx-pro",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "2382", "name": "廣達"},
+      "type": "合作關係",
+      "product_scope": "NVIDIA-Certified RTX PRO Servers",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "NVIDIA 官方列出 Quanta／QCT（廣達）為 NVIDIA-Certified RTX PRO Server 的系統合作夥伴。"
+    },
+    {
+      "id": "nvidia-wistron-rtx-pro",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "3231", "name": "緯創"},
+      "type": "合作關係",
+      "product_scope": "NVIDIA-Certified RTX PRO Servers",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "NVIDIA 官方列出 Wistron（緯創）為 NVIDIA-Certified RTX PRO Server 的系統合作夥伴。"
+    },
+    {
+      "id": "nvidia-inventec-rtx-pro",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "2356", "name": "英業達"},
+      "type": "合作關係",
+      "product_scope": "NVIDIA-Certified RTX PRO Servers",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "NVIDIA 官方列出 Inventec（英業達）為 NVIDIA-Certified RTX PRO Server 的系統合作夥伴。"
+    },
+    {
+      "id": "nvidia-gigabyte-rtx-pro",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "2376", "name": "技嘉"},
+      "type": "合作關係",
+      "product_scope": "NVIDIA-Certified RTX PRO Servers",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "NVIDIA 官方列出 GIGABYTE（技嘉）為 NVIDIA-Certified RTX PRO Server 的系統合作夥伴。"
+    },
+    {
+      "id": "skhynix-nvidia-hbm-supply",
+      "from": {"symbol": "000660", "name": "SK hynix"},
+      "to": {"symbol": "NVDA", "name": "NVIDIA"},
+      "type": "供應關係",
+      "product_scope": "HBM 與次世代 AI 記憶體",
+      "source": {"id": "skhynix-nvidia-partnership-2026-07-25", "title": "SK Group and NVIDIA Expand Strategic Partnership Across AI Factories and Next-Generation Memory", "url": "https://news.skhynix.com/en/skhynix-nvidia-partnership-2026/"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "SK hynix 官方表示將與 NVIDIA 確保並共同開發包含 HBM 在內的次世代 AI 記憶體。"
+    },
+    {
+      "id": "nvidia-skhynix-memory-partnership",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "000660", "name": "SK hynix"},
+      "type": "合作關係",
+      "product_scope": "次世代 AI 記憶體共同開發與供應",
+      "source": {"id": "skhynix-nvidia-partnership-2026-07-25", "title": "SK Group and NVIDIA Expand Strategic Partnership Across AI Factories and Next-Generation Memory", "url": "https://news.skhynix.com/en/skhynix-nvidia-partnership-2026/"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "SK hynix 官方將此安排描述為 NVIDIA 與 SK hynix 的長期 AI 記憶體夥伴關係。"
+    },
+    {
+      "id": "nvidia-iren-ai-infrastructure",
+      "from": {"symbol": "NVDA", "name": "NVIDIA"},
+      "to": {"symbol": "IREN", "name": "IREN Limited"},
+      "type": "合作關係",
+      "product_scope": "DSX AI 工廠與加速運算基礎設施",
+      "source": {"id": "nvidia-iren-partnership-2026-05-07", "title": "NVIDIA and IREN Announce Strategic Partnership to Accelerate Deployment of up to 5 Gigawatts of AI Infrastructure", "url": "https://investor.nvidia.com/news/press-release-details/2026/NVIDIA-and-IREN-Announce-Strategic-Partnership-to-Accelerate-Deployment-of-up-to-5-Gigawatts-of-AI-Infrastructure/default.aspx"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "NVIDIA 投資人關係頁面的正式公告說明 NVIDIA 與 IREN 將合作部署 AI 基礎設施。"
+    },
+    {
+      "id": "foxconn-quanta-server-segment",
+      "from": {"symbol": "2317", "name": "鴻海"},
+      "to": {"symbol": "2382", "name": "廣達"},
+      "type": "同一環節／題材",
+      "product_scope": "AI 伺服器系統",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "兩家公司均被 NVIDIA 官方列為 RTX PRO 伺服器系統合作夥伴，置於同一研究環節；此分類不表示雙方存在交易。"
+    },
+    {
+      "id": "quanta-wistron-server-segment",
+      "from": {"symbol": "2382", "name": "廣達"},
+      "to": {"symbol": "3231", "name": "緯創"},
+      "type": "同一環節／題材",
+      "product_scope": "AI 伺服器系統",
+      "source": {"id": "nvidia-rtx-pro-servers-2025-08-11", "title": "NVIDIA RTX PRO Servers With Blackwell Coming to World’s Most Popular Enterprise Systems", "url": "https://nvidianews.nvidia.com/news/nvidia-rtx-pro-servers-with-blackwell-coming-to-worlds-most-popular-enterprise-systems"},
+      "reviewed_at": "2026-09-17",
+      "status": "active",
+      "description": "兩家公司均被 NVIDIA 官方列為 RTX PRO 伺服器系統合作夥伴，置於同一研究環節；此分類不表示雙方存在交易。"
+    }
+  ]
+}

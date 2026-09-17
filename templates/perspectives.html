@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}觀點追蹤｜ABSORB{% endblock %}
+{% block content %}
+<div class="page research-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">PUBLIC OPINIONS</p>
+      <h1>觀點追蹤</h1>
+      <p class="page-intro">保留來源、立場、條件與 coverage；這不是買賣指令，也不把 KOL claim 升格成事實關係。</p>
+      {% if query.query_string %}<p class="muted small">目前查詢：{{ query.query_string }}</p>{% endif %}
+    </div>
+  </header>
+
+  {% if catalog_status == 'unavailable' %}<div class="error-banner" role="status">public opinions catalog unavailable；資料暫時無法驗證。</div>{% elif catalog_status == 'empty' %}<div class="error-banner" role="status">public opinions catalog empty；目前沒有可核對紀錄。</div>{% elif catalog_status == 'stale' %}<div class="error-banner" role="status">public opinions catalog stale；以下為最後可用版本。</div>{% endif %}
+
+  <section class="panel event-filter-panel">
+    <form method="get" class="research-filters perspective-toolbar">
+      <label>市場
+        <select name="market">
+          <option value=""{% if not query.market %} selected{% endif %}>全部</option>
+          <option value="TW"{% if query.market == 'TW' %} selected{% endif %}>TW</option>
+          <option value="US"{% if query.market == 'US' %} selected{% endif %}>US</option>
+        </select>
+      </label>
+      <label>證券代碼<input name="symbol" value="{{ query.symbol or '' }}" placeholder="例如 2330 / TSM"></label>
+      <label>創作者<input name="creator_id" value="{{ query.creator_id or '' }}" list="creator-options" placeholder="creator_id"></label>
+      <datalist id="creator-options">{% for creator in creators %}<option value="{{ creator.id }}">{{ creator.name }}</option>{% endfor %}</datalist>
+      <label>立場
+        <select name="stance">
+          <option value=""{% if not query.stance %} selected{% endif %}>全部</option>
+          {% for stance in ['bullish','bearish','neutral','unclear','conditional','news','flow','trade'] %}<option value="{{ stance }}"{% if query.stance == stance %} selected{% endif %}>{{ stance }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>內容型態
+        <select name="content_type">
+          <option value=""{% if not query.content_type %} selected{% endif %}>全部</option>
+          {% for content_type in ['original_opinion','news_relay','flow_observation','trade_disclosure'] %}<option value="{{ content_type }}"{% if query.content_type == content_type %} selected{% endif %}>{{ content_type }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>窗口
+        <select name="window">
+          {% for window in [1,7,28] %}<option value="{{ window }}"{% if query.window == window %} selected{% endif %}>{{ window }} 日</option>{% endfor %}
+        </select>
+      </label>
+      <label>檢視
+        <select name="view">
+          {% for view in ['latest','consensus','timeline'] %}<option value="{{ view }}"{% if query.view == view %} selected{% endif %}>{{ view }}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="button button-secondary" type="submit">套用篩選</button>
+    </form>
+    <p class="muted small">market={{ query.market or 'ALL' }}{% if query.symbol %}&amp;symbol={{ query.symbol }}{% endif %}&amp;view={{ query.view }}；目前顯示 {{ opinions|length }} 筆已核對紀錄。</p>
+  </section>
+
+  <section class="panel creator-grid" aria-label="創作者與 coverage">
+    {% for creator in creators %}
+    {% set row = coverage_by_creator.get(creator.id) if coverage_by_creator else none %}
+    <a class="creator-card" href="{{ url_for('creator_page', creator_id=creator.id) }}">
+      <strong>{{ creator.name }}</strong>
+      <span>{{ creator.platform or '公開來源' }} · {{ creator.identity_status or creator.source_status or 'pending' }}</span>
+      <small>Coverage {{ row.status if row else 'pending' }}{% if row and row.reviewed_through %} · through {{ row.reviewed_through }}{% endif %}</small>
+      {% if row and row.gaps %}<small>{{ row.gaps|join(' / ') }}</small>{% endif %}
+    </a>
+    {% else %}<p class="empty-state">目前沒有可核對的創作者資料。</p>{% endfor %}
+  </section>
+
+  {% if consensus %}
+  <section class="panel stock-consensus-panel">
+    <div class="section-heading"><div><p class="eyebrow">CONSENSUS</p><h2>{{ consensus.market }} · {{ consensus.symbol }} 帳號 × 立場</h2></div><a class="muted small" href="{{ url_for('stock_perspectives_page', market=consensus.market, symbol=consensus.symbol) }}?window={{ query.window }}&amp;cutoff_at={{ query.cutoff_at }}">股票觀點頁</a></div>
+    <p class="muted small">有效帳號少於 2 時比例維持 None，不產生勝率或投資建議。</p>
+  </section>
+  {% endif %}
+
+  <section class="panel research-list timeline-list">
+    <div class="section-heading"><div><p class="eyebrow">REVIEWED RECORDS</p><h2>最新觀點</h2></div></div>
+    {% for item in opinions %}
+    <article class="opinion-card">
+      <div><p class="eyebrow">{{ item.market }} · {{ item.symbol }} · {{ item.stance }}</p><h2>{{ item.creator_name }} · {{ item.content_type or 'opinion' }}</h2><p>{{ item.summary }}</p></div>
+      <dl><div><dt>發布</dt><dd>{{ item.published_at }}</dd></div><div><dt>成效</dt><dd>{{ item.outcome_status or '不計算' }}</dd></div></dl>
+      {% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% else %}<span class="muted small">source pending</span>{% endif %}
+    </article>
+    {% else %}<p class="empty-state">目前沒有符合篩選的已審核觀點</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}

@@ -511,7 +511,10 @@ def register_report_routes(
                 except Exception:
                     context["data_freshness"] = {}
             response = make_response(render_template(template_name, **context))
-            return _secure_response(response)
+            return _secure_response(
+                response,
+                cache="no-store" if template_name == "us_dashboard.html" else "public, max-age=300",
+            )
         except ReportWebError as exc:
             return _report_error(503, report_type="post_close", exc=exc)
         except Exception as exc:

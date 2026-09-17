@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ query.market }} {{ query.symbol }} 觀點｜ABSORB{% endblock %}
+{% block content %}
+<div class="page research-page stock-perspective-page">
+  <header class="page-header">
+    <div><p class="eyebrow">STOCK PERSPECTIVES</p><h1>{{ query.market }} · {{ query.symbol }}</h1><p class="page-intro">帳號 × 立場；只使用 cutoff 前 confirmed、來源可用、且 validated v2 的公開觀點。</p></div>
+    <a class="button button-secondary" href="{{ url_for('perspectives_page') }}?market={{ query.market }}&amp;symbol={{ query.symbol }}&amp;view=timeline">回到觀點追蹤</a>
+  </header>
+  {% if catalog_status == 'unavailable' %}<div class="error-banner" role="status">public opinions catalog unavailable</div>{% elif catalog_status == 'empty' %}<div class="error-banner" role="status">public opinions catalog empty</div>{% elif catalog_status == 'stale' %}<div class="error-banner" role="status">public opinions catalog stale</div>{% endif %}
+  <section class="panel stock-consensus-panel">
+    <div class="section-heading"><div><p class="eyebrow">CONSENSUS</p><h2>帳號 × 立場</h2></div><span class="muted small">window={{ query.window }} · cutoff={{ query.cutoff_at }}</span></div>
+    {% if consensus %}
+    <div class="stock-perspective-grid">
+      {% for horizon, counts in consensus.counts_by_horizon.items() %}
+      <article><strong>{{ horizon }}</strong><span>bullish {{ counts.bullish }} / bearish {{ counts.bearish }}</span><small>{{ counts.status }} · ratio {{ counts.bullish_ratio if counts.bullish_ratio is not none else 'None' }}</small></article>
+      {% endfor %}
+    </div>
+    <p class="muted small">evidence_ids: {{ consensus.evidence_ids|join(', ') if consensus.evidence_ids else 'none' }}</p>
+    {% else %}<p class="empty-state">目前沒有可計算的 consensus。</p>{% endif %}
+  </section>
+  <section class="panel research-list timeline-list">
+    <div class="section-heading"><div><p class="eyebrow">TIMELINE</p><h2>公開觀點</h2></div></div>
+    {% for item in opinions %}
+    <article class="opinion-card"><div><p class="eyebrow">{{ item.creator_name }} · {{ item.stance }} · {{ item.horizon or 'unspecified' }}</p><h2>{{ item.market }} · {{ item.symbol }}</h2><p>{{ item.summary }}</p></div><p class="muted small">發布 {{ item.published_at }} · {{ item.content_type }}</p>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>
+    {% else %}<p class="empty-state">目前沒有符合篩選的已審核觀點</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}

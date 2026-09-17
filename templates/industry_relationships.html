@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}產業關係圖｜ABSORB{% endblock %}
+{% block content %}
+<div class="page research-page">
+  <header class="page-header"><div><p class="eyebrow">RELATIONSHIP EVIDENCE</p><h1>{{ catalog.topic or '產業關係圖' }}</h1><p class="page-intro">每條關係都附來源。題材相同只代表研究分類，不代表供應或合作。{% if focus %}目前研究中心：{{ focus }}{% endif %}</p></div><a class="button button-secondary" href="{{ url_for('industries_page') }}">回到產業觀察</a></header>
+  {% if catalog.coverage_note %}<div class="error-banner" role="note">{{ catalog.coverage_note }}</div>{% endif %}
+  <section class="panel relationship-layout" aria-label="產業關係與證據">
+    <div class="relationship-graph-wrap" aria-label="產業關係圖">
+      <svg class="relationship-graph" viewBox="0 0 1120 440" role="img" aria-labelledby="relationship-graph-title relationship-graph-desc">
+        <title id="relationship-graph-title">{{ catalog.topic or '產業關係圖' }}</title>
+        <desc id="relationship-graph-desc">關係線只代表資料中已審核的來源；同一環節分類以虛線表示。</desc>
+        <defs><marker id="relationship-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z"></path></marker></defs>
+        {% for edge in catalog.graph_edges or [] %}<line x1="{{ edge.x1 }}" y1="{{ edge.y1 }}" x2="{{ edge.x2 }}" y2="{{ edge.y2 }}" class="relationship-edge{% if edge.type in ('同一環節／題材', 'competition', 'same_segment') %} is-dashed{% endif %}"{% if edge.type in ('供應關係', 'supply') %} marker-end="url(#relationship-arrow)"{% endif %}></line>{% endfor %}
+        {% for node in catalog.graph_nodes or [] %}<g class="relationship-node" transform="translate({{ node.x - 92 }},{{ node.y - 28 }})"><rect width="184" height="56" rx="12"></rect><text x="92" y="24" text-anchor="middle">{{ node.name }}</text><text x="92" y="43" text-anchor="middle" class="relationship-symbol">{{ node.symbol }}</text></g>{% endfor %}
+      </svg>
+      <p class="muted small">圖形提供位置概覽；手機與鍵盤使用者可用下方清單閱讀同一批資料。</p>
+    </div>
+    <div class="relationship-stages">
+      {% for stage in catalog.stages or [] %}<div class="relationship-stage"><h2>{{ stage.name }}</h2>{% for node in stage.nodes or [] %}<a href="{{ url_for('industry_relationships_page', focus=node.symbol) if node.symbol else '#' }}"><strong>{{ node.name }}</strong>{% if node.symbol %}<small>{{ node.symbol }} · 設為研究中心</small>{% endif %}</a>{% endfor %}</div>{% endfor %}
+    </div>
+    <div class="relationship-list">
+      <div class="section-heading"><div><p class="eyebrow">REVIEWED EDGES</p><h2>已確認關係</h2></div><span class="muted small">{{ relationships|length }} 條紀錄</span></div>
+      {% for item in relationships %}<article class="relationship-card"><div class="relationship-card-head"><strong>{{ item['from']['name'] }} → {{ item['to']['name'] }}</strong><span>{{ item.type }}</span></div><p>{{ item.product_scope }}</p><small>審核日 {{ item.reviewed_at or '未提供' }}{% if item.status %} · {{ item.status }}{% endif %}</small><details><summary>查看證據與操作</summary><p>{{ item.description or '未提供額外描述。' }}</p>{% if item.source %}<dl><div><dt>來源</dt><dd>{{ item.source.title or '未提供標題' }} · {{ item.source.publisher or '未提供發布者' }}</dd></div><div><dt>發布</dt><dd>{{ item.source.published_at or '未提供' }}</dd></div><div><dt>定位</dt><dd>{{ item.source.locator or '未提供' }}</dd></div></dl>{% endif %}</details><div class="relationship-actions"><a class="source-link" href="{{ url_for('stock_page', code=item['from']['symbol']) }}">查看 {{ item['from']['symbol'] }}</a><a class="source-link" href="{{ url_for('stock_compare_page') }}?symbols={{ item['from']['symbol'] }},{{ item['to']['symbol'] }}">加入比較</a>{% if item.source and item.source.url %}<a class="source-link" href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</div></article>{% else %}<p class="empty-state">目前沒有通過審核的關係資料。</p>{% endfor %}
+    </div>
+    {% if research_leads %}
+    <div class="relationship-list research-lead-list" aria-label="研究線索">
+      <div class="section-heading"><div><p class="eyebrow">RESEARCH LEADS</p><h2>研究線索</h2></div><span class="muted small">不列入已確認關係</span></div>
+      {% for lead in research_leads %}<article class="relationship-card"><div class="relationship-card-head"><strong>{{ lead.title or lead.symbol }}</strong><span>{{ lead.status or 'pending' }}</span></div><p>{{ lead.summary or '公開說法仍待官方或文件來源確認。' }}</p><small>{{ lead.market or '' }} {{ lead.symbol or '' }}</small>{% if lead.source_url %}<a class="source-link" href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">研究線索來源</a>{% endif %}</article>{% endfor %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

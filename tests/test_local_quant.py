@@ -243,6 +243,44 @@ class LocalQuantTests(unittest.TestCase):
             self.assertEqual(summary["skipped_reparse_points"], int(linked))
             self.assertFalse((root / "cache" / "tmp" / "nested").exists())
 
+    def test_cleanup_preserves_publish_graph_while_still_removing_old_logs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "StockPapiData"
+            ensure_layout(root)
+            now = at(6, 0)
+            old_31_days = (now - datetime.timedelta(days=31)).timestamp()
+
+            report_index = (
+                root / "publish" / "reports" / "v2" / "index-TW.json"
+            )
+            metadata = (
+                root / "publish" / "reports" / "v2" / "metadata"
+                / f"{'a' * 64}.json"
+            )
+            canonical = (
+                root / "publish" / "reports" / "v2" / "objects" / "canonical"
+                / f"{'b' * 64}.json"
+            )
+            source_manifest = (
+                root / "publish" / "quant" / "v1" / "manifests"
+                / "TW-20260807T090000Z-cccccccccccc.json"
+            )
+            old_log = root / "logs" / "old.log"
+            publish_files = (report_index, metadata, canonical, source_manifest)
+            for path in (*publish_files, old_log):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(path.name, encoding="utf-8")
+                os.utime(path, (old_31_days, old_31_days))
+
+            with patch("local_quant.validate_data_root", return_value=root):
+                summary = cleanup_expired_data(root, now=now)
+
+            self.assertFalse(old_log.exists())
+            for path in publish_files:
+                self.assertTrue(path.exists())
+            self.assertEqual(summary["deleted_files"], 1)
+
     def test_data_root_must_be_stock_papi_directory_on_d_drive(self):
         self.assertEqual(
             validate_data_root(Path("D:/StockPapiData")),

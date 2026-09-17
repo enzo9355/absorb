@@ -18,7 +18,7 @@ MAX_DASHBOARD_BYTES = 5_000_000
 def load_dashboard_snapshot(today=None, *, load_object, cache=DASHBOARD_CACHE):
     now = time.time()
     cached = cache.get("latest")
-    if cached and now - cached[1] < 300:
+    if cached and now - cached[1] < 30:
         return cached[0]
     latest_bytes = load_object("dashboard/v1/latest-TW.json", 100_000)
     if latest_bytes is None:

@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import json
 import unittest
+from unittest.mock import patch
 
 from stock_papi.repositories.prediction_snapshots import load_prediction_snapshot
 
@@ -13,6 +14,23 @@ def canonical(value):
 
 
 class PredictionSnapshotRepositoryTests(unittest.TestCase):
+    def test_prediction_cache_expires_after_30_seconds(self):
+        cache = {"US": ({"cached": True}, 100)}
+        times = iter((129.9, 130.0))
+        with patch(
+            "stock_papi.repositories.prediction_snapshots.time.time",
+            side_effect=lambda: next(times),
+        ):
+            fresh_enough = load_prediction_snapshot(
+                "US", load_object=lambda _name, _limit: None, cache=cache
+            )
+            expired = load_prediction_snapshot(
+                "US", load_object=lambda _name, _limit: None, cache=cache
+            )
+
+        self.assertEqual(fresh_enough, {"cached": True})
+        self.assertIsNone(expired)
+
     def product(self):
         return {
             "schema_version": 1,

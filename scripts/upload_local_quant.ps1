@@ -8,6 +8,7 @@ param(
     [string]$LkgReceiptPath,
     [string]$PreflightDataRoot,
     [switch]$ReportV2Only,
+    [switch]$AllowReportIndexRepair,
     [string]$Market = ''
 )
 
@@ -358,7 +359,7 @@ function Update-ObservationLkgReceipt {
 
 function Assert-ObservationReportIndexPreservesLkg {
     param([object]$LocalIndex)
-    if (-not $ObservationOnly -or -not $LkgReceiptPath) { return }
+    if ($AllowReportIndexRepair -or -not $ObservationOnly -or -not $LkgReceiptPath) { return }
     $IndexUri = "gs://$Bucket/reports/v2/index-TW.json"
     $CapturedPointers = @($ReceiptPreflight.pointers | Where-Object {
         [string]$_.uri -eq $IndexUri

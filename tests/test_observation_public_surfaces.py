@@ -191,7 +191,7 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
             "今日焦點",
             "產業觀察",
             "個股與 ETF",
-            "ASK ABSORB",
+            "ASKsorb",
             "AI 五日情境",
         ):
             self.assertIn(label, html)

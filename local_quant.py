@@ -55,12 +55,14 @@ RUN_END = datetime.time(9, 30)
 LAYOUT_DIRS = (
     "raw", "cache", "checkpoints", "artifacts", "publish", "logs", "secrets",
 )
+# publish is intentionally absent: the immutable publish graph (report
+# indexes, metadata/canonical objects, quant manifests, latest pointers) is
+# still referenced by indexes beyond any age cutoff and must not be pruned.
 RETENTION_DAYS = {
     "cache/tmp": 1,
     "cache/pycache": 30,
     "raw": 30,
     "logs": 30,
-    "publish": 30,
 }
 SEC_US_UNIVERSE_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 SEC_US_UNIVERSE_MAX_BYTES = 5 * 1024 * 1024

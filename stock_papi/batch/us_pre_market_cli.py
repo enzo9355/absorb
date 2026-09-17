@@ -40,12 +40,19 @@ def run_us_pre_market(
     meta_rel = post_close_ptr["metadata"]
     base_meta = json.loads((root / "publish" / "reports" / "v2" / meta_rel).read_text(encoding="utf-8"))
 
+    base_applicable_date = base_meta.get("applicable_trading_date")
+    if base_applicable_date != target_market_date.isoformat():
+        raise ValueError(
+            f"Base post-close applicable trading date {base_applicable_date} "
+            f"does not equal target market date {target_market_date.isoformat()}"
+        )
+
     post_close_meta_sha = base_meta.get("metadata_sha256") or post_close_ptr.get("metadata_sha256")
     content = {
         "base_metadata_sha256": post_close_meta_sha,
         "core": base_meta.get("content", {}),
         "overnight_overlay": {
-            "status": "mixed",
+            "status": "insufficient",
             "message": f"美股 {target_market_date} 開盤前觀察",
             "as_of": target_market_date.isoformat(),
             "available": [],

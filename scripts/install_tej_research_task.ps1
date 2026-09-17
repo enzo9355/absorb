@@ -33,9 +33,30 @@ if (
 }
 
 $ScriptPath = (Resolve-Path (Join-Path $PSScriptRoot 'run_tej_research.ps1')).Path
+$HiddenLauncher = (Resolve-Path (Join-Path $PSScriptRoot 'run_hidden.vbs')).Path
+$WscriptExe = (Get-Command wscript.exe -ErrorAction Stop).Source
+$PowerShellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
+$ActionArguments = @(
+    '//B'
+    '//NoLogo'
+    "`"$HiddenLauncher`""
+    "`"$PowerShellExe`""
+    '-NoProfile'
+    '-NonInteractive'
+    '-WindowStyle'
+    'Hidden'
+    '-ExecutionPolicy'
+    'Bypass'
+    '-File'
+    "`"$ScriptPath`""
+    '-Command'
+    'backfill'
+    '-DataRoot'
+    'D:\AbsorbData'
+) -join ' '
 $Action = New-ScheduledTaskAction `
-    -Execute 'powershell.exe' `
-    -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$ScriptPath`" -Command backfill -DataRoot D:\AbsorbData" `
+    -Execute $WscriptExe `
+    -Argument $ActionArguments `
     -WorkingDirectory $RepoRoot
 $Trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact($At, 'HH:mm', $null))
 $Settings = New-ScheduledTaskSettingsSet `

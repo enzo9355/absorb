@@ -19,7 +19,7 @@ def load_prediction_snapshot(market, today=None, *, load_object, cache=PREDICTIO
         return None
     now = time.time()
     cached = cache.get(market)
-    if cached and now - cached[1] < 300:
+    if cached and now - cached[1] < 30:
         return cached[0]
     pointer_bytes = load_object(f"predictions/v1/latest-{market}.json", 100_000)
     if pointer_bytes is None:

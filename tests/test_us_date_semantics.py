@@ -17,6 +17,8 @@ from stock_papi.integrations.market_data.us_calendar import (
     get_us_exchange_holidays,
 )
 from stock_papi.integrations.market_data.us_universe import USUniverseBreakdown
+from stock_papi.services.report_view import build_observation_report_view
+from reporting.exceptions import ReportWebError
 
 
 class TestUSDateSemantics(unittest.TestCase):
@@ -63,7 +65,9 @@ class TestUSDateSemantics(unittest.TestCase):
 
     def test_post_close_and_pre_market_date_flow(self):
         """PostClose on Wednesday 2026-08-19 has applicable_trading_date 2026-08-20.
-        PreMarket on Thursday 2026-08-20 binds source 2026-08-19 and applicable 2026-08-20."""
+        PreMarket on Thursday 2026-08-20 binds source 2026-08-19 and applicable 2026-08-20.
+        The placeholder overlay must render as legacy_unavailable; reverting to the old
+        mixed placeholder must be rejected by the fail-closed reader."""
         wednesday = datetime.date(2026, 8, 19)
         thursday = datetime.date(2026, 8, 20)
 
@@ -104,6 +108,31 @@ class TestUSDateSemantics(unittest.TestCase):
             pm_meta = json.loads((self.root / "publish" / "reports" / "v2" / latest_pm["metadata"]).read_text(encoding="utf-8"))
             self.assertEqual(pm_meta["source_market_date"], "2026-08-19")
             self.assertEqual(pm_meta["applicable_trading_date"], "2026-08-20")
+
+            view = build_observation_report_view(
+                pm_meta,
+                expected_base_metadata_sha256=latest_pc["metadata_sha256"],
+            )
+            self.assertEqual(view.overnight_overlay["status"], "legacy_unavailable")
+
+            regressed = json.loads(json.dumps(pm_meta))
+            regressed["content"]["overnight_overlay"]["status"] = "mixed"
+            with self.assertRaises(ReportWebError):
+                build_observation_report_view(
+                    regressed,
+                    expected_base_metadata_sha256=latest_pc["metadata_sha256"],
+                )
+
+            # 3. Attempt PreMarket for Friday when base post-close still applies to Thursday
+            friday = datetime.date(2026, 8, 21)
+            meta_files_before = set((self.root / "publish" / "reports" / "v2" / "metadata").glob("*.json"))
+            with self.assertRaises(ValueError):
+                run_us_pre_market(self.root, friday)
+            meta_files_after = set((self.root / "publish" / "reports" / "v2" / "metadata").glob("*.json"))
+            self.assertEqual(meta_files_before, meta_files_after)
+
+            latest_pm_after = json.loads((self.root / "publish" / "reports" / "v2" / "latest-US-pre_market.json").read_text(encoding="utf-8"))
+            self.assertEqual(latest_pm_after["metadata_sha256"], latest_pm["metadata_sha256"])
 
     def test_friday_to_monday_session_transition(self):
         """Friday session next_session must resolve to Monday, skipping Saturday and Sunday."""

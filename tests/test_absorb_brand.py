@@ -112,14 +112,14 @@ class AbsorbBrandTests(unittest.TestCase):
         for name in ("404.html", "500.html"):
             self.assertIn("ABSORB", (ROOT / "templates" / name).read_text(encoding="utf-8"))
 
-    def test_product_shell_uses_accessible_uppercase_product_labels(self):
+    def test_product_shell_uses_accessible_product_labels(self):
         base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
 
         self.assertIn('aria-label="回到 ABSORB 主畫面"', base)
-        self.assertIn('>ABSORB</a>', base)
-        self.assertIn(">ASK ABSORB</button>", base)
-        self.assertIn(">ASK ABSORB</h2>", base)
-        self.assertIn('aria-label="關閉 ASK ABSORB"', base)
+        self.assertIn('>Absorb</a>', base)
+        self.assertIn(">ASKsorb</button>", base)
+        self.assertIn(">ASKsorb</h2>", base)
+        self.assertIn('aria-label="關閉 ASKsorb"', base)
 
     def test_static_accessibility_contract(self):
         templates = list((ROOT / "templates").glob("*.html"))

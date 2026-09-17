@@ -5,6 +5,8 @@
 .deps/
 .report-deps/
 .playwright-cli/
+.deployment-evidence/
+.superpowers/
 .venv/
 __pycache__/
 *.py[cod]
@@ -15,6 +17,12 @@ output/pdf/
 test-output/
 report-cache/
 tmp/pdfs/
+tmp/
+data/research/x-candidates/
+data/research/x-history/
+data/research/x-review-draft.json
+data/research/x-watch-status.json
+data/research/x-watch.lock
 *.pdf
 !static/samples/
 !static/samples/stock-papi-tw-industry-daily-SAMPLE.pdf

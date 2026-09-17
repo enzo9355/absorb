@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ creator.name }}觀點｜ABSORB{% endblock %}
+{% block content %}
+<div class="page research-page">
+  <header class="page-header">
+    <div><p class="eyebrow">CREATOR PROFILE</p><h1>{{ creator.name }}</h1><p class="page-intro">{{ creator.description or '只收錄可回查的公開內容。' }}</p>{% if query.query_string %}<p class="muted small">目前查詢：{{ query.query_string }}</p>{% endif %}</div>
+    <a class="button button-secondary" href="{{ url_for('perspectives_page') }}">回到觀點追蹤</a>
+  </header>
+  {% if catalog_status == 'unavailable' %}<div class="error-banner" role="status">public opinions catalog unavailable</div>{% elif catalog_status == 'empty' %}<div class="error-banner" role="status">public opinions catalog empty</div>{% elif catalog_status == 'stale' %}<div class="error-banner" role="status">public opinions catalog stale</div>{% endif %}
+  <section class="panel coverage-list" aria-label="Coverage">
+    <div class="section-heading"><div><p class="eyebrow">Coverage</p><h2>來源可行性</h2></div><a class="muted small" href="{{ creator.canonical_profile_url or '#' }}" target="_blank" rel="noopener noreferrer">來源 CTA</a></div>
+    <dl>
+      <div><dt>identity</dt><dd>{{ creator.identity_status or 'pending' }}</dd></div>
+      <div><dt>source</dt><dd>{{ creator.source_status or 'pending' }}</dd></div>
+      <div><dt>status</dt><dd>{{ coverage.status if coverage else 'pending' }}</dd></div>
+      <div><dt>reviewed_through</dt><dd>{{ coverage.reviewed_through if coverage else '未提供' }}</dd></div>
+    </dl>
+    {% if coverage and coverage.gaps %}<p class="muted small">{{ coverage.gaps|join(' / ') }}</p>{% else %}<p class="muted small">沒有額外 coverage gap。</p>{% endif %}
+  </section>
+  <section class="panel research-list timeline-list">
+    {% if ingestion %}
+    <p role="status">免費來源已取得 {{ ingestion.count }} 筆待審貼文；尚未計入選股共識。上次成功抓取：{{ ingestion.fetched_at }}。{% if ingestion.has_more %}尚有未抓取頁面，資料覆蓋不完整。{% endif %}</p>
+    {% endif %}
+    {% for item in opinions %}
+    <article class="opinion-card"><div><p class="eyebrow">{{ item.market }} · {{ item.symbol }} · {{ item.stance }}</p><h2>{{ item.name or item.symbol }}</h2><p>{{ item.summary }}</p></div><p class="muted small">發布 {{ item.published_at }} · {{ item.outcome_status or '結果不適用' }}</p>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>
+    {% else %}<p class="empty-state">此創作者目前沒有已審核觀點。</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}

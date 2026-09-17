@@ -3,6 +3,7 @@
 from stock_papi.web.routes.dashboard import register_dashboard_page
 from stock_papi.web.routes.market import register_market_routes
 from stock_papi.web.routes.reports import register_report_routes
+from stock_papi.web.routes.research import register_research_routes
 from stock_papi.web.routes.system import (
     create_data_freshness_loader,
     register_system_routes,
@@ -63,6 +64,20 @@ def register_routes(app, dependencies):
         dashboard_snapshot=dependencies["dashboard_snapshot"],
         us_securities_observation=dependencies["us_securities_observation"],
         prediction_snapshot=dependencies["prediction_snapshot"],
+        load_report_index_v2=dependencies["load_report_index_v2"],
+        load_relationships=dependencies["load_research_relationships"],
+        load_events=dependencies["load_research_events"],
+        load_opinions=dependencies["load_public_opinions"],
+    )
+    register_research_routes(
+        app,
+        load_relationships=dependencies["load_research_relationships"],
+        load_events=dependencies["load_research_events"],
+        load_events_status=dependencies.get("load_research_events_status"),
+        load_opinions=dependencies["load_public_opinions"],
+        stock_observation=dependencies["stock_observation"],
+        get_stock_name=dependencies["get_stock_name"],
+        allowed_symbols=dependencies["twstock_codes"],
     )
     register_auth_routes(
         app,
@@ -72,6 +87,9 @@ def register_routes(app, dependencies):
         search_stock=dependencies["search_stock"],
         http_post=dependencies["auth_http_post"],
         now=dependencies["auth_now"],
+        load_events=dependencies.get("load_research_events"),
+        load_events_status=dependencies.get("load_research_events_status"),
+        stock_observation=dependencies.get("stock_observation"),
     )
     register_conversation_routes(
         app,

@@ -27,3 +27,8 @@ output/pdf/
 *.pdf.tmp
 *.ttf
 *.ttc
+data/research/x-candidates/
+data/research/x-history/
+data/research/x-review-draft.json
+data/research/x-watch-status.json
+data/research/x-watch.lock

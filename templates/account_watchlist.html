@@ -1,12 +1,54 @@
 {% extends "base.html" %}
 {% block title %}我的關注｜ABSORB{% endblock %}
 {% block content %}
-<div class="page account-page">
-  <header class="page-header"><div><p class="eyebrow">SYNCED WITH LINE</p><h1>我的關注</h1><p class="muted">這份清單直接讀寫 LINE Bot 既有的使用者狀態，不建立第二份資料。</p></div></header>
-  <section class="panel">
+<div class="page account-page watchlist-summary-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">SYNCED WITH LINE</p>
+      <h1>我的關注</h1>
+      <p class="muted">這份清單直接讀寫 LINE Bot 既有的使用者狀態；每日摘要只讀取已發布觀察與事件。</p>
+    </div>
+  </header>
+
+  {% set summary = watchlist_summary if watchlist_summary is defined else {} %}
+  <section class="panel watchlist-data-status" aria-labelledby="watchlist-data-status-title">
+    <div class="section-heading">
+      <div>
+        <h2 id="watchlist-data-status-title">資料更新狀態</h2>
+        <p>{% if summary.status == 'available' %}觀察日 {{ summary.as_of }}；涵蓋過去 30 日與未來 14 日已公布事件。{% elif summary.status == 'unavailable' %}事件資料尚未更新，既有關注清單仍可查看。{% else %}事件摘要尚未接入。{% endif %}</p>
+      </div>
+      <span class="muted small">{{ summary.status or 'unavailable' }}</span>
+    </div>
+    {% if summary.status == 'unavailable' %}<p class="empty-state">{{ summary.reason or '暫時無法取得事件摘要。' }}</p>{% endif %}
+  </section>
+
+  <section class="panel watchlist-summary-section" aria-labelledby="watchlist-changes-title">
+    <div class="section-heading"><div><h2 id="watchlist-changes-title">有新變化的公司</h2><p>只列已發布觀察或觀察日當天事件，不把缺值當成零。</p></div></div>
+    {% for row in summary.changed or [] %}
+      <article class="watchlist-summary-row">
+        <div><h3>{{ row.name }} · {{ row.code }}</h3>
+          {% if row.observation and row.observation.change_pct is not none %}<p>價格變動 {{ '%+.2f%%'|format(row.observation.change_pct) }}（資料日 {{ row.observation.observation_as_of or '未提供' }}）</p>{% endif %}
+          {% if row.observation and row.observation.risk_events %}<p>{{ row.observation.risk_events|join('；') }}</p>{% endif %}
+          {% for event in row.new_events %}<p>{{ event.event_type }}：{{ event.title }}</p>{% endfor %}
+          {% if row.event_status == 'not_covered' %}<p class="muted small">事件資料尚未涵蓋這家公司；未推論沒有公告。</p>{% elif row.event_status == 'unavailable' %}<p class="muted small">事件資料尚未更新。</p>{% endif %}
+        </div>
+        <a class="button button-secondary" href="{{ url_for('stock_page', code=row.code) }}">查看個股</a>
+      </article>
+    {% else %}<p class="empty-state">這個觀察窗口沒有新增變化。</p>{% endfor %}
+  </section>
+
+  <section class="panel watchlist-summary-section" aria-labelledby="watchlist-upcoming-title">
+    <div class="section-heading"><div><h2 id="watchlist-upcoming-title">接下來已公布事件</h2><p>只顯示已確認日期；時間未公布時會明確標示。</p></div></div>
+    {% for event in summary.upcoming_events or [] %}
+      <article class="watchlist-summary-row"><div><h3>{{ event.name }} · {{ event.symbol }}</h3><p>{{ event.event_type }}：{{ event.title }}</p><p class="muted small">生效 {{ event.effective_at or '時間未公布' }} · {{ event.summary }}</p></div><a class="source-link" href="{{ event.source }}" target="_blank" rel="noopener noreferrer">官方來源</a></article>
+    {% else %}<p class="empty-state">目前沒有未來 14 日的已公布事件。</p>{% endfor %}
+  </section>
+
+  <section class="panel" aria-labelledby="watchlist-all-title">
+    <div class="section-heading"><div><h2 id="watchlist-all-title">全部關注公司</h2><p>{{ state.watchlist|length }} 檔；與 LINE Bot 共用。</p></div></div>
     <div class="account-watchlist">
       {% for item in state.watchlist %}
-        <article><div><strong>{{ item.name }}</strong><span>{{ item.code }}</span></div><a class="button button-secondary" href="{{ url_for('stock_page', code=item.code) }}">查看分析</a></article>
+        <article><div><strong>{{ item.name }}</strong><span>{{ item.code }}</span></div><div class="watchlist-actions"><a class="button button-secondary" href="{{ url_for('stock_page', code=item.code) }}">查看分析</a><a class="source-link" href="/events?symbol={{ item.code }}">查看事件</a></div></article>
       {% else %}<div class="empty-state">目前沒有關注股票；可從個股頁加入。</div>{% endfor %}
     </div>
   </section>

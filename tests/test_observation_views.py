@@ -57,6 +57,8 @@ class ObservationViewTests(unittest.TestCase):
         self.assertEqual(document["price"], 164.0)
         self.assertEqual(document["prediction_status"], "AI 預測研究中")
         self.assertEqual(document["trend_observation"], "above_ma20_ma60")
+        self.assertAlmostEqual(document["return_5d_pct"], (164 / 159 - 1) * 100, places=6)
+        self.assertAlmostEqual(document["return_20d_pct"], (164 / 144 - 1) * 100, places=6)
         self.assertTrue(document["risk_events"])
         self.assertTrue(json.loads(document["candles"]))
         self.assertTrue(json.loads(document["ma20_line"]))

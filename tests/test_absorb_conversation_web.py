@@ -140,6 +140,95 @@ class AbsorbConversationWebTests(unittest.TestCase):
         self.assertIn("美股市場實況", answer.text)
         self.assertEqual(answer.data_as_of, "2026-08-21")
 
+    def test_observation_mode_uses_one_bounded_model_call_for_natural_question(self):
+        class Model:
+            def __init__(self):
+                self.calls = []
+
+            def generate_content(self, prompt, **kwargs):
+                self.calls.append((prompt, kwargs))
+                return SimpleNamespace(text="成交量中位比為 0.88，站上 MA20 比例為 35.6%。")
+
+        model = Model()
+        snapshot = {
+            "product_mode": "observation",
+            "market": "TW",
+            "observation_as_of": "2026-09-08",
+            "market_observation": {
+                "median_volume_ratio": 0.88,
+                "ma20_breadth_pct": 35.6,
+            },
+            "industry_observations": [],
+            "daily_focus": [],
+            "stock_events": [],
+        }
+        with (
+            patch.object(stock_app, "asksorb_model", model, create=True),
+            patch.object(stock_app, "_conversation_search_stock", return_value=(None, None)),
+            patch.object(stock_app, "_published_dashboard_snapshot", return_value=snapshot),
+        ):
+            answer = stock_app._observation_conversation(
+                question="量能跟廣度有沒有背離跡象？",
+                access="public",
+                market_context="TW",
+                page_context="market",
+            )
+
+        self.assertIn("成交量中位比為 0.88", answer.text)
+        self.assertIn("資料截至：2026-09-08", answer.text)
+        self.assertEqual(answer.tools_used, ("verified_observation_dashboard",))
+        self.assertEqual(len(model.calls), 1)
+        prompt, kwargs = model.calls[0]
+        self.assertIn('"median_volume_ratio":0.88', prompt)
+        self.assertEqual(
+            kwargs["generation_config"],
+            {"max_output_tokens": 512, "temperature": 0.1},
+        )
+
+    def test_observation_mode_model_failure_falls_back_without_retry(self):
+        class Model:
+            def __init__(self):
+                self.calls = 0
+
+            def generate_content(self, *_args, **_kwargs):
+                self.calls += 1
+                raise RuntimeError("quota exhausted")
+
+        model = Model()
+        snapshot = {
+            "product_mode": "observation",
+            "market": "TW",
+            "observation_as_of": "2026-09-08",
+            "market_observation": {
+                "return_1d_pct": -0.5,
+                "advancing_count": 536,
+                "declining_count": 1283,
+                "ma20_breadth_pct": 35.6,
+                "risk_state": "elevated",
+            },
+            "industry_observations": [],
+        }
+        with (
+            patch.object(stock_app, "asksorb_model", model, create=True),
+            patch.object(stock_app, "_conversation_search_stock", return_value=(None, None)),
+            patch.object(stock_app, "_published_dashboard_snapshot", return_value=snapshot),
+        ):
+            answer = stock_app._observation_conversation(
+                question="今天市場如何？",
+                access="public",
+                market_context="TW",
+                page_context="market",
+            )
+
+        self.assertEqual(model.calls, 1)
+        self.assertIn("市場實況", answer.text)
+
+    def test_asksorb_surface_uses_consistent_name(self):
+        html = stock_app.app.test_client().get("/ask").get_data(as_text=True)
+
+        self.assertIn("ASKsorb", html)
+        self.assertNotIn("ASK ABSORB", html)
+
     def test_explicit_tw_symbol_overrides_us_page_context(self):
         observation = {
             "code": "2330",
