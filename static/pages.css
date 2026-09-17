@@ -598,3 +598,33 @@
         padding: 20px 16px;
   }
 }
+
+/* ==========================================================================
+   PRESS BLOCK（頁面範圍主題）三頁版面骨架
+   只作用在 body[data-theme="press-block"]（台股 今日／市場／產業）。
+   桌機 .page 內距歸零，水平節奏改由 .panel 與 .page-header 自帶 40px
+   （見 components.css 檔尾的 scope 樣式）；行動版收回 20px。
+   樣式規格見 DESIGN.md §31。 */
+body[data-theme="press-block"] .page {
+  padding:0 0 76px;
+}
+body[data-theme="press-block"] .industries-page {
+  display:grid;
+  gap:20px;
+}
+body[data-theme="press-block"] .error-banner,
+body[data-theme="press-block"] .data-limits,
+body[data-theme="press-block"] .update-stream,
+body[data-theme="press-block"] .today-brief,
+body[data-theme="press-block"] .market-grid {
+  margin-inline:40px;
+}
+@media (max-width:720px) {
+  body[data-theme="press-block"] .error-banner,
+  body[data-theme="press-block"] .data-limits,
+  body[data-theme="press-block"] .update-stream,
+  body[data-theme="press-block"] .today-brief,
+  body[data-theme="press-block"] .market-grid {
+    margin-inline:20px;
+  }
+}
