@@ -924,7 +924,14 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("button,input,select,textarea{font:inherit", css)
         self.assertIn(".button{display:inline-flex", css)
         self.assertIn(".command-metrics{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr))", css)
-        self.assertNotIn("border-left:4px", css)
+        # PRESS BLOCK scope 內 .chart-caveat 的 4px 石板藍實線是設計稿指定
+        # （DESIGN.md §31：左側 4px --pb-slate 實線）。§0.4 禁的是
+        # 「左側彩色 accent 邊條 + 圓角卡」的全站語彙；移除該 scope 規則後，
+        # 全站其餘地方仍不得出現左側 accent 邊條。
+        css_outside_scope = re.sub(
+            r'body\[data-theme="press-block"\]\s*\.chart-caveat\s*\{[^}]*\}', "", css
+        )
+        self.assertNotIn("border-left:4px", css_outside_scope)
         self.assertNotIn("border-top:3px", css)
         version = re.search(r'/static/app\.css\?v=([0-9a-f]{12})', html)
         self.assertIsNotNone(version)
@@ -2826,7 +2833,7 @@ class WebProductTests(unittest.TestCase):
         css = css_bundle()
         hex_count = len(re.findall(r"#[0-9a-fA-F]{3,8}\b", css))
         token_count = len(
-            set(re.findall(r"--(?:absorb-[a-z0-9-]+|price-[a-z0-9-]+)", css))
+            set(re.findall(r"--(?:absorb-[a-z0-9-]+|price-[a-z0-9-]+|pb-[a-z0-9-]+)", css))
         )
         self.assertLessEqual(hex_count, token_count, (hex_count, token_count))
 

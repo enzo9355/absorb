@@ -2711,3 +2711,137 @@ span.value-unavailable {
   font-size:var(--type-caption);
   line-height:var(--lh-caption);
 }
+
+/* ==========================================================================
+   PRESS BLOCK（頁面範圍主題）：四個元件與台股三頁樣式
+   全部掛在 body[data-theme="press-block"] 之下，其餘頁面不受影響。
+   規格見 DESIGN.md §31。新增樣式只放這裡，不重排上方既有規則。 */
+
+/* 4.1 雙線區塊：.panel 改紙卡底＋底部 3px 墨色雙線，去邊框陰影圓角 */
+body[data-theme="press-block"] .panel {
+  background:var(--pb-card);
+  border:0;
+  border-bottom:3px double var(--pb-ink);
+  border-radius:0;
+  box-shadow:none;
+  padding:32px 40px 36px;
+}
+body[data-theme="press-block"] .panel:last-child { border-bottom:0; }
+body[data-theme="press-block"] .section-heading {
+  display:flex; align-items:baseline; gap:16px;
+  padding-bottom:14px; border-bottom:1px solid var(--pb-ink);
+}
+body[data-theme="press-block"] .section-heading h2 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-title); line-height:var(--lh-title); font-weight:700; margin:0;
+}
+body[data-theme="press-block"] .section-heading > :last-child { margin-left:auto; }
+body[data-theme="press-block"] .eyebrow {
+  font-size:var(--type-label); font-weight:700; letter-spacing:.26em;
+  color:var(--pb-brick); margin:0; text-transform:uppercase;
+}
+body[data-theme="press-block"] .page-header {
+  border-top:6px solid var(--pb-ink);
+  border-bottom:3px double var(--pb-ink);
+  padding:34px 40px 26px;
+  background:var(--pb-paper);
+}
+body[data-theme="press-block"] .page-header h1 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-display); line-height:var(--lh-display);
+  letter-spacing:-.015em; font-weight:700; margin:10px 0 0;
+}
+
+/* 4.2 虛線表格列：.pb-table 與既有 .data-table 在此 scope 內共用版式 */
+body[data-theme="press-block"] .pb-table,
+body[data-theme="press-block"] .data-table { width:100%; border-collapse:collapse; }
+body[data-theme="press-block"] .pb-table th,
+body[data-theme="press-block"] .data-table th {
+  text-align:left; font-size:var(--type-label); letter-spacing:.18em;
+  color:var(--pb-muted); font-weight:700; padding:10px 0;
+  border-bottom:1px solid var(--pb-ink);
+}
+body[data-theme="press-block"] .pb-table td,
+body[data-theme="press-block"] .data-table td {
+  padding:11px 0; border-bottom:1px dotted var(--pb-rule);
+  font-variant-numeric:tabular-nums;
+}
+body[data-theme="press-block"] .pb-table tr:last-child td,
+body[data-theme="press-block"] .data-table tr:last-child td { border-bottom:0; }
+body[data-theme="press-block"] .pb-table td:last-child,
+body[data-theme="press-block"] .pb-table th:last-child { text-align:right; }
+
+/* 4.3 墨色實心塊＋位移色塊：不用模糊陰影，用 ::before 畫實心位移塊 */
+body[data-theme="press-block"] .pb-block { position:relative; }
+body[data-theme="press-block"] .pb-block::before {
+  content:""; position:absolute; inset:12px -12px -12px 12px;
+  background:var(--pb-slate); z-index:0;
+}
+body[data-theme="press-block"] .pb-block > * { position:relative; z-index:1; }
+body[data-theme="press-block"] .pb-block-body {
+  background:var(--pb-ink); color:var(--pb-on-ink); padding:26px;
+}
+body[data-theme="press-block"] .pb-block-body .muted,
+body[data-theme="press-block"] .pb-block-body .small { color:var(--pb-on-ink-muted); }
+/* 墨色塊內：muted／hairline／方向色重映射到 on-dark 語彙，維持 WCAG AA */
+body[data-theme="press-block"] .pb-block-body {
+  --absorb-muted:var(--pb-on-ink-muted);
+  --absorb-hairline:rgb(240 236 227 / 22%);
+  --price-up:var(--price-up-on-dark);
+  --price-down:var(--price-down-on-dark);
+}
+
+/* 4.4 零線置中長條：幾何由 Jinja 算（centered_bar macro），文字數值在旁 */
+body[data-theme="press-block"] .pb-bar-centered { display:block; width:100%; height:10px; }
+body[data-theme="press-block"] .pb-bar-zero { stroke:var(--pb-ink); stroke-width:1; }
+body[data-theme="press-block"] .pb-bar-pos { fill:var(--price-up); }
+body[data-theme="press-block"] .pb-bar-neg { fill:var(--price-down); }
+/* 既有 svg.breadth-bar 沿用，只有持平段換成虛線規則色 */
+body[data-theme="press-block"] .breadth-bar .bar-flat { fill:var(--pb-rule); }
+
+/* 「這不代表什麼」：左側 4px 石板藍實線，去底去圓角 */
+body[data-theme="press-block"] .chart-caveat {
+  border:0;
+  border-left:4px solid var(--pb-slate);
+  border-radius:0;
+  background:transparent;
+  color:var(--pb-muted);
+}
+body[data-theme="press-block"] .chart-caveat strong { color:var(--pb-ink); }
+
+/* 模型估計眉標使用既有警示 token，不新增 hex */
+body[data-theme="press-block"] .market-forecast-panel .eyebrow { color:var(--absorb-warning); }
+
+/* 進階數據 details：summary 墨色細體＋CSS ::after 呈現 ＋/－ */
+body[data-theme="press-block"] .data-limits {
+  border:0;
+  border-top:1px solid var(--pb-ink);
+  border-bottom:3px double var(--pb-ink);
+  border-radius:0;
+  background:transparent;
+}
+body[data-theme="press-block"] .data-limits>summary {
+  list-style:none;
+  padding:14px 0;
+  font-weight:400;
+}
+body[data-theme="press-block"] .data-limits>summary::-webkit-details-marker { display:none; }
+body[data-theme="press-block"] .data-limits>summary::marker { content:""; }
+body[data-theme="press-block"] .data-limits>summary::after {
+  content:"＋";
+  margin-left:auto;
+  font-weight:400;
+  color:var(--pb-ink);
+}
+body[data-theme="press-block"] .data-limits[open]>summary::after { content:"－"; }
+body[data-theme="press-block"] .data-limits-body {
+  padding:0 0 18px;
+  border-top:0;
+}
+
+@media (max-width:720px) {
+  body[data-theme="press-block"] .panel { padding:24px 20px 28px; }
+  body[data-theme="press-block"] .page-header { padding:26px 20px 20px; }
+  body[data-theme="press-block"] .pb-block::before { inset:8px -8px -8px 8px; }
+  body[data-theme="press-block"] .pb-block-body { padding:20px; }
+}
