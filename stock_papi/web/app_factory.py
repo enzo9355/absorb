@@ -38,6 +38,11 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         )
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        # HSTS: browsers only honour this over HTTPS, so it is inert on local http.
+        # `preload` is intentionally omitted until every subdomain is HTTPS-only.
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+        )
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         if request.endpoint == "static":

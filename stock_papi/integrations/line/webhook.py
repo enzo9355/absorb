@@ -14,11 +14,24 @@ def register_line_routes(
     get_broadcast_insight, refresh_sector_signals, run_alert_checks,
     observe=None, observation_mode=False,
 ):
+    def _broadcast_authorized(token):
+        # Preferred: Authorization: Bearer <token> header, consistent with the
+        # /tasks/* endpoints and keeping the secret out of URLs, access logs and
+        # Referer headers. The legacy ?token= query parameter is still accepted
+        # for backward compatibility with existing schedulers; migrate the
+        # Cloud Scheduler job to the header, then this query fallback can be
+        # removed. Both comparisons are constant-time.
+        header = request.headers.get("Authorization", "")
+        if header and hmac.compare_digest(header, f"Bearer {token}"):
+            return True
+        legacy = request.args.get("token", "")
+        return bool(legacy) and hmac.compare_digest(legacy, token)
+
     def broadcast_weekly():
         token = get_broadcast_token()
         if not token:
             return "廣播功能未設定", 503
-        if not hmac.compare_digest(request.args.get("token", ""), token):
+        if not _broadcast_authorized(token):
             return "身份驗證失敗", 403
         data = (observe or analyze)("TAIEX")
         if not data:
