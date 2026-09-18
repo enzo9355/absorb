@@ -1,5 +1,6 @@
 # Security
 
+- Assessment & hardening log: [`assessment-2026-09-18.md`](assessment-2026-09-18.md)
 - Secret identifiers and rotation: [`SECRETS.md`](../SECRETS.md)
 - Trust boundaries: [`architecture_overview.md`](../architecture_overview.md)
 - Incident response: [`runbook_incident_response.md`](../runbook_incident_response.md)
