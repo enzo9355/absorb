@@ -13,6 +13,13 @@
   font-weight:400;
   font-display:swap;
 }
+@font-face {
+  font-family:"ABSORB Serif";
+  src:url("fonts/absorb-serif.woff2") format("woff2");
+  font-style:normal;
+  font-weight:600 900;
+  font-display:swap;
+}
 :root {
     --absorb-pure-white:#fff;
     /* ORDER 3（C-5）：承載內容的深色表面。品牌深藍不參與資料語意，
@@ -154,10 +161,10 @@ body[data-market="US"] {
   --price-up:var(--price-up-on-dark);
   --price-down:var(--price-down-on-dark);
 }
-/* PRESS BLOCK：台股三頁（/、/market、/industries）的頁面範圍主題。
+/* PRESS BLOCK：台美六頁的頁面範圍主題。
    body[data-theme="press-block"] 由 base.html 依 endpoint 掛上；
-   美股頁與其餘頁面不受影響。--absorb-navy 等既有 token 全部保留
-   （其他頁面仍在使用），此 scope 只在三頁內重新指向紙面語彙。 */
+   其餘頁面不受影響。--absorb-navy 等既有 token 全部保留，
+   此 scope 只在六頁內重新指向紙面語彙。 */
 body[data-theme="press-block"] {
   --pb-paper:#f0ece3;
   --pb-card:#fbf9f5;
@@ -171,7 +178,7 @@ body[data-theme="press-block"] {
   --pb-on-ink:#f0ece3;
   --pb-on-ink-muted:#b3aca2;
   --pb-on-ink-brick:#e9b8ab;
-  --pb-font-display:"Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif;
+  --pb-font-display:"ABSORB Serif","Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif;
 
   /* 既有中性 alias 在此 scope 內重新指向紙面語彙 */
   --bg:var(--pb-paper);
@@ -2479,8 +2486,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 }
 
 /* ==========================================================================
-   PRESS BLOCK（頁面範圍主題）三頁版面骨架
-   只作用在 body[data-theme="press-block"]（台股 今日／市場／產業）。
+   PRESS BLOCK（頁面範圍主題）六頁版面骨架
+   只作用在 body[data-theme="press-block"]（台美 今日／市場／產業）。
    桌機 .page 內距歸零，水平節奏改由 .panel 與 .page-header 自帶 40px
    （見 components.css 檔尾的 scope 樣式）；行動版收回 20px。
    樣式規格見 DESIGN.md §31。 */
@@ -5573,7 +5580,7 @@ span.value-unavailable {
 }
 
 /* ==========================================================================
-   PRESS BLOCK（頁面範圍主題）：四個元件與台股三頁樣式
+   PRESS BLOCK（頁面範圍主題）：四個元件與台美六頁樣式
    全部掛在 body[data-theme="press-block"] 之下，其餘頁面不受影響。
    規格見 DESIGN.md §31。新增樣式只放這裡，不重排上方既有規則。 */
 
@@ -5591,7 +5598,7 @@ body[data-theme="press-block"] .section-heading {
   display:flex; align-items:baseline; gap:16px;
   padding-bottom:14px; border-bottom:1px solid var(--pb-ink);
 }
-body[data-theme="press-block"] .section-heading h2 {
+body[data-theme="press-block"] .section-heading h2:not(.pb-dynamic-title) {
   font-family:var(--pb-font-display);
   font-size:var(--type-title); line-height:var(--lh-title); font-weight:700; margin:0;
 }
@@ -5835,6 +5842,54 @@ body[data-theme="press-block"] .forecast-panel .insight-heading {
 }
 body[data-theme="press-block"] .forecast-panel .insight-heading h3 {
   color:var(--pb-on-ink);
+}
+
+/* 美股三頁共用同一套紙面元件；方向色由 data-market="US" 在 tokens.css 反轉。 */
+body[data-theme="press-block"] .market-summary-page > .panel > h2,
+body[data-theme="press-block"] .market-summary-page h3 {
+  font-family:var(--pb-font-display);
+}
+body[data-theme="press-block"] .us-index-actual-list article {
+  border-radius:0;
+  background:var(--pb-card);
+}
+body[data-theme="press-block"] .us-index-forecast-list article {
+  border-radius:0;
+  background:var(--pb-ink);
+  color:var(--pb-on-ink);
+}
+body[data-theme="press-block"] .us-index-forecast-list article > span,
+body[data-theme="press-block"] .us-index-forecast-list article dt,
+body[data-theme="press-block"] .us-index-forecast-list article small {
+  color:var(--pb-on-ink-muted);
+}
+body[data-theme="press-block"] .summary-table-wrap table.pb-table {
+  min-width:420px;
+}
+
+/* 設計稿的 wipe：CSS-only，減少動效時完全移除遮罩。 */
+@keyframes pb-page-wipe {
+  from { transform:scaleX(1); }
+  to { transform:scaleX(0); }
+}
+body[data-theme="press-block"]::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:10000;
+  pointer-events:none;
+  background:var(--pb-ink);
+  transform-origin:left center;
+  animation:pb-page-wipe 420ms cubic-bezier(.16,1,.3,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-theme="press-block"]::before {
+    display:none;
+    animation:none;
+  }
+}
+@media print {
+  body[data-theme="press-block"]::before { display:none; }
 }
 
 .market-summary-page {

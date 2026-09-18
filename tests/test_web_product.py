@@ -2801,6 +2801,58 @@ class WebProductTests(unittest.TestCase):
             r'body\[data-theme="press-block"\]\{[^}]*--absorb-canvas:var\(--pb-paper\)',
         )
 
+    def test_press_block_scope_covers_both_markets(self):
+        base = Path(stock_app.app.template_folder, "base.html").read_text(
+            encoding="utf-8"
+        )
+        for endpoint in (
+            "dashboard_page",
+            "market_page",
+            "industries_page",
+            "us_dashboard_page",
+            "us_market_page",
+            "us_industries_page",
+        ):
+            with self.subTest(endpoint=endpoint):
+                self.assertIn(endpoint, base)
+
+        us_industries = Path(
+            stock_app.app.template_folder, "us_industries.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn('<table class="pb-table">', us_industries)
+
+    def test_press_block_display_font_is_self_hosted_and_rebuildable(self):
+        static_root = Path(stock_app.app.static_folder)
+        font = static_root / "fonts" / "absorb-serif.woff2"
+        license_file = static_root / "fonts" / "OFL-NotoSerifTC.txt"
+        builder = Path(stock_app.app.root_path, "scripts", "build_press_block_font.py")
+        css = css_bundle()
+
+        self.assertTrue(font.is_file())
+        self.assertLessEqual(font.stat().st_size, 80 * 1024)
+        self.assertTrue(license_file.is_file())
+        self.assertIn("SIL OPEN FONT LICENSE", license_file.read_text(encoding="utf-8"))
+        self.assertTrue(builder.is_file())
+        self.assertIn('font-family:"ABSORB Serif"', css)
+        self.assertIn(
+            'url("fonts/absorb-serif.woff2") format("woff2")',
+            css,
+        )
+        self.assertIn('--pb-font-display:"ABSORB Serif"', css)
+
+    def test_press_block_wipe_is_disabled_for_reduced_motion(self):
+        css = css_compact()
+        self.assertIn("@keyframespb-page-wipe", css)
+        self.assertRegex(
+            css,
+            r'body\[data-theme="press-block"\]::before\{[^}]*animation:pb-page-wipe',
+        )
+        self.assertIn("@media(prefers-reduced-motion:reduce)", css)
+        self.assertRegex(
+            css,
+            r'@media\(prefers-reduced-motion:reduce\)\{[^}]*::before\{[^}]*display:none',
+        )
+
     def test_order3_font_sizes_are_confined_to_the_type_scale(self):
         """所有字級都必須屬於 type scale 八級（C-2）。
 

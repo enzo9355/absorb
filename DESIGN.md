@@ -323,7 +323,7 @@ Primary 為深藍底白字；secondary 為白底深藍邊界；danger 僅用於�
 
 ## 31. PRESS BLOCK 頁面主題
 
-台股三頁（`/`、`/market`、`/industries`）的頁面範圍主題。機制是 `body[data-theme="press-block"]`（由 `base.html` 依 endpoint 掛上，美股頁與其他頁面一律不套）；所有 token 覆寫與元件樣式都寫在這個 scope 之下，其餘頁面外觀完全不受影響。`--absorb-navy` 等品牌 token 一律保留，此主題只是三頁內不參與。
+台美六頁（`/`、`/market`、`/industries`、`/us`、`/us/market`、`/us/industries`）的頁面範圍主題。機制是 `body[data-theme="press-block"]`（由 `base.html` 依 endpoint 掛上，其他頁面一律不套）；所有 token 覆寫與元件樣式都寫在這個 scope 之下，其餘頁面外觀完全不受影響。`--absorb-navy` 等品牌 token 一律保留，此主題只在六頁內重新指向紙面語彙。
 
 ### 色彩（僅限此 scope，數值由設計稿定案）
 
@@ -346,8 +346,7 @@ Primary 為深藍底白字；secondary 為白底深藍邊界；danger 僅用於�
 
 ### 字體
 
-- **方案 A（現行，零風險）**：serif 標題用系統 CJK 襯線堆疊 `--pb-font-display`（`"Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif`），不新增任何字型檔，接受裝置間字標差異 —— 與 §4 對 `Segoe Script` 的決定一致。無襯線維持 `--font-body`。
-- **方案 B（未實作，另開 PR）**：自架 Noto Serif TC 子集 woff2 放 `static/fonts/`（OFL），只子集模板靜態標題字元，動態內容不套 serif；附重建子集腳本，檔案上限 80KB。
+- **方案 B（現行）**：自架 Google Fonts Noto Serif TC（OFL）靜態標題子集 `static/fonts/absorb-serif.woff2`，由 `scripts/build_press_block_font.py` 以模板靜態標題字元重建，檔案上限 80KB。動態內容不套 serif，仍保留方案 A 的系統 CJK fallback；授權全文在 `static/fonts/OFL-NotoSerifTC.txt`。
 
 ### 四個元件（皆掛 scope，見 `static/components.css` 檔尾）
 
@@ -358,4 +357,4 @@ Primary 為深藍底白字；secondary 為白底深藍邊界；danger 僅用於�
 
 ### 與 §29 的關係
 
-§29 禁止「暖米色主題」規範的是全站改色與品牌識別替換。PRESS BLOCK 是經核可、以 `data-theme` scope 綁定台股三頁的頁面主題：品牌 token、其他頁面、報告與 LINE 版式都不變。若日後要把紙色語彙推廣到更多頁面，需先回過頭修訂 §29 再動工。
+§29 禁止「暖米色主題」規範的是全站改色與品牌識別替換。PRESS BLOCK 是經核可、以 `data-theme` scope 綁定台美六頁的頁面主題：品牌 token、其他頁面、報告與 LINE 版式都不變。wipe 僅是六頁的 CSS-only 進場遮罩，`prefers-reduced-motion: reduce` 時不渲染；若日後要把紙色語彙推廣到更多頁面，需先回過頭修訂 §29 再動工。

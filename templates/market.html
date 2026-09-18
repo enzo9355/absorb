@@ -49,7 +49,7 @@
      同權重卡片。原本三張等大的 pulse-card 讓「上漲／下跌」與「20 日波動」
      看起來一樣重要，讀者無從判斷該先看哪一個。 #}
   <section class="panel market-trend-panel" aria-labelledby="market-trend-title">
-    <div class="section-heading"><div><p class="eyebrow">01 ／ 已發生</p><h2 id="market-trend-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；{% if prediction %}虛線為模型估計，與已發生的資料分開標示。{% else %}兩者皆不填色。{% endif %}</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
+    <div class="section-heading"><div><p class="eyebrow">01 ／ 已發生</p><h2 id="market-trend-title" class="pb-dynamic-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；{% if prediction %}虛線為模型估計，與已發生的資料分開標示。{% else %}兩者皆不填色。{% endif %}</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
     {% if market_index.get('price') is not none %}
     <div class="pb-block"><div class="pb-block-body">
     <div class="market-index-quote">

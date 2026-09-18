@@ -3,8 +3,14 @@
 # M-7 只指名 tests.test_web_product，但 ORDER 3 新增 /_catalog 路由時
 # tests.test_route_inventory 就紅了而沒人發現 —— 單一模組的檢查太窄。
 set -e
-python3 scripts/build_css.py --check
-python3 -m unittest \
+PYTHON_BIN=python3
+if [ -x .venv/bin/python ]; then
+  PYTHON_BIN=.venv/bin/python
+elif [ -x .venv/Scripts/python.exe ]; then
+  PYTHON_BIN=.venv/Scripts/python.exe
+fi
+"$PYTHON_BIN" scripts/build_css.py --check
+"$PYTHON_BIN" -m unittest \
   tests.test_web_product \
   tests.test_absorb_brand \
   tests.test_us_presentation_regression \

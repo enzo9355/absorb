@@ -600,8 +600,8 @@
 }
 
 /* ==========================================================================
-   PRESS BLOCK（頁面範圍主題）三頁版面骨架
-   只作用在 body[data-theme="press-block"]（台股 今日／市場／產業）。
+   PRESS BLOCK（頁面範圍主題）六頁版面骨架
+   只作用在 body[data-theme="press-block"]（台美 今日／市場／產業）。
    桌機 .page 內距歸零，水平節奏改由 .panel 與 .page-header 自帶 40px
    （見 components.css 檔尾的 scope 樣式）；行動版收回 20px。
    樣式規格見 DESIGN.md §31。 */

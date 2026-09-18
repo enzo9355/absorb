@@ -9,6 +9,13 @@
   font-weight:400;
   font-display:swap;
 }
+@font-face {
+  font-family:"ABSORB Serif";
+  src:url("fonts/absorb-serif.woff2") format("woff2");
+  font-style:normal;
+  font-weight:600 900;
+  font-display:swap;
+}
 :root {
     --absorb-pure-white:#fff;
     /* ORDER 3（C-5）：承載內容的深色表面。品牌深藍不參與資料語意，
@@ -150,10 +157,10 @@ body[data-market="US"] {
   --price-up:var(--price-up-on-dark);
   --price-down:var(--price-down-on-dark);
 }
-/* PRESS BLOCK：台股三頁（/、/market、/industries）的頁面範圍主題。
+/* PRESS BLOCK：台美六頁的頁面範圍主題。
    body[data-theme="press-block"] 由 base.html 依 endpoint 掛上；
-   美股頁與其餘頁面不受影響。--absorb-navy 等既有 token 全部保留
-   （其他頁面仍在使用），此 scope 只在三頁內重新指向紙面語彙。 */
+   其餘頁面不受影響。--absorb-navy 等既有 token 全部保留，
+   此 scope 只在六頁內重新指向紙面語彙。 */
 body[data-theme="press-block"] {
   --pb-paper:#f0ece3;
   --pb-card:#fbf9f5;
@@ -167,7 +174,7 @@ body[data-theme="press-block"] {
   --pb-on-ink:#f0ece3;
   --pb-on-ink-muted:#b3aca2;
   --pb-on-ink-brick:#e9b8ab;
-  --pb-font-display:"Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif;
+  --pb-font-display:"ABSORB Serif","Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif;
 
   /* 既有中性 alias 在此 scope 內重新指向紙面語彙 */
   --bg:var(--pb-paper);
