@@ -16,7 +16,7 @@
 | 2 | Medium | Gunicorn `--timeout 0` + 單 worker/8 threads | ✅ 已修補（`--timeout 120 --graceful-timeout 30`） |
 | 3 | Low | 廣播端點以 GET query string 傳 token | ✅ 已修補（改收 `Authorization: Bearer`；保留 query 為過渡相容，見下方 ops note） |
 | 4 | Low | 容器以 root 執行 | ✅ 已修補（新增非 root `appuser`，`USER appuser`） |
-| 5 | Low | `requirements.txt` 核心相依未鎖版本 | ⚙️ 部分緩解（新增 Dependabot 週更 PR）；完整鎖版本列為後續 |
+| 5 | Low | `requirements.txt` 核心相依未鎖版本 | ✅ 已修補（top-level 全部 `==` 鎖版本 + `pip-audit` CVE 掃描 + Dependabot 週更） |
 | 6 | Low | 缺少 HSTS 標頭 | ✅ 已修補（`Strict-Transport-Security: max-age=63072000; includeSubDomains`） |
 | 7 | Info | `.env.example` 預設 `AUTH_COOKIE_SECURE=false` | ✅ 已修補（改為 true，並加註本機例外） |
 | 8 | Info | unpkg 第三方腳本 | 保留（已用 SRI + CSP 緩解；可選自我 host） |
@@ -29,7 +29,7 @@
 | 2 | `Dockerfile` | `--timeout 0` → `--timeout 120 --graceful-timeout 30`。 |
 | 3 | `stock_papi/integrations/line/webhook.py` | 廣播改優先接受 `Authorization: Bearer <token>` header；`?token=` 保留為過渡相容。 |
 | 4 | `Dockerfile` | 建立 `appuser`（uid 10001），`COPY --chown`，`USER appuser`。 |
-| 5 | `.github/dependabot.yml` | pip 與 github-actions 週更 PR（分組）。 |
+| 5 | `requirements.txt` / `requirements-dev.txt` / `.github/workflows/ci.yml` / `.github/dependabot.yml` | top-level 相依全部鎖為 `==`（在 py3.10 與 py3.11 各跑 1527 tests 驗證；`pypdf` 依既有守門測試維持 `>=5,<7`）；新增 `pip-audit`（CI advisory job，不擋 deploy）與 Dependabot 週更。 |
 | 6 | `stock_papi/web/app_factory.py` | `security_headers` 新增 HSTS（不含 `preload`）。 |
 | 7 | `.env.example` | `AUTH_COOKIE_SECURE=true`（本機開發才設 false）。 |
 
@@ -43,11 +43,21 @@
 
 完成排程遷移後，可移除 `webhook.py` 中 `_broadcast_authorized` 的 query fallback 分支。
 
-## 後續建議（非本次變更）
+## 後續建議
 
-1. **完整鎖版本**：以 pip-tools/uv 產生含 hash 的 lock 檔，CI 以 `--require-hashes` 安裝，並加入 `pip-audit`。
-2. **速率限制跨實例**：若 Cloud Run 會擴充到多實例且需全域限流，改用共享儲存或在前面加 Cloud Armor / API Gateway 速率限制；目前為 per-instance 緩解。
-3. **X-Forwarded-For**：速率限制以 `request.remote_addr` 為 key（沿用既有 login limiter 慣例）；若要以真實 client IP 限流，需在信任的代理層解析 `X-Forwarded-For`。
+### 需在 GCP 端做（程式無法代勞，建議用 Cloud Armor 一次解決）
+
+限流的「跨實例」與「真實 client IP」兩個問題，正確的解法都在**邊界**，而不是在應用碼裡猜代理拓撲（猜錯會讓限流被 IP 偽造繞過，或誤傷同一 NAT 後的正常使用者）。建議在 Cloud Run 前面掛 **Cloud Armor** rate-limit policy：
+
+- `rate_limit_options`：例如 `count=60, interval_sec=60`，`enforce_on_key=IP`（Cloud Armor 由可信邊界判定 client IP，天然免疫 XFF 偽造）。
+- 對 `/api/conversation`、`/broadcast_weekly`、`/tasks/*` 套用；超限回 429。
+- 這同時取代目前應用層 per-instance 限流的「跨實例」缺口；應用層限流保留為第二層防護即可。
+- 若不用 Cloud Armor 而要在應用層以真實 IP 限流，必須依實際代理跳數設定 `ProxyFix(x_for=n)`，否則 `request.remote_addr` 不是真正的 client IP。
+
+### 相依套件
+
+- `pip-audit` 已在 CI 掃描；首次掃描即發現 `setuptools`（基底映像自帶、非宣告相依）有 `PYSEC-2026-3447`，修復版 `>=83.0.0`。建議在部署基底層升級 setuptools，或於映像建置後 `pip install -U 'setuptools>=83'`。
+- 若日後要更嚴格的可重現建置，可再進一步用 pip-tools/uv 產生含 hash 的完整 transitive lock，CI 以 `--require-hashes` 安裝（本次未做，因跨 py3.10/3.11 與 slim 映像的 hash 鎖較脆弱，須另行驗證）。
 
 ## 已確認正確的既有防護（節錄）
 
