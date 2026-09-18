@@ -1,11 +1,12 @@
 """LINE webhook, broadcast, and scheduled-task route registration."""
 
 import datetime
-import hmac
 
 from flask import abort, request
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import FlexSendMessage, TextSendMessage
+
+from stock_papi.shared.validation import constant_time_equals
 
 
 def register_line_routes(
@@ -21,11 +22,9 @@ def register_line_routes(
         # for backward compatibility with existing schedulers; migrate the
         # Cloud Scheduler job to the header, then this query fallback can be
         # removed. Both comparisons are constant-time.
-        header = request.headers.get("Authorization", "")
-        if header and hmac.compare_digest(header, f"Bearer {token}"):
+        if constant_time_equals(request.headers.get("Authorization", ""), f"Bearer {token}"):
             return True
-        legacy = request.args.get("token", "")
-        return bool(legacy) and hmac.compare_digest(legacy, token)
+        return constant_time_equals(request.args.get("token", ""), token)
 
     def broadcast_weekly():
         token = get_broadcast_token()
@@ -81,7 +80,7 @@ def register_line_routes(
         token = get_alert_task_token()
         if not token:
             return "產業預測排程尚未設定", 503
-        if not hmac.compare_digest(
+        if not constant_time_equals(
             request.headers.get("Authorization", ""), f"Bearer {token}"
         ):
             return "身份驗證失敗", 403
@@ -100,7 +99,7 @@ def register_line_routes(
         token = get_alert_task_token()
         if not token:
             return "提醒排程尚未設定", 503
-        if not hmac.compare_digest(
+        if not constant_time_equals(
             request.headers.get("Authorization", ""), f"Bearer {token}"
         ):
             return "身份驗證失敗", 403

@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /install /usr/local
 
+# The base image ships a setuptools affected by PYSEC-2026-3447 (fixed in 83.0.0).
+# pip-audit in CI flags it, so patch it in the runtime layer.
+RUN pip install --no-cache-dir --upgrade 'setuptools>=83.0.0'
+
 # Run as an unprivileged user (defence in depth: a code path bug does not run as root).
 RUN useradd --create-home --uid 10001 appuser
 

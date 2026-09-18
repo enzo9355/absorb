@@ -12,7 +12,6 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 import twstock
 import json
-import hmac
 import re
 
 from market_insights import build_industries, build_supply_chains
@@ -60,6 +59,7 @@ from stock_papi.config.capabilities import PredictionCapabilityState
 from stock_papi.shared.formatting import clamp as _clamp
 from stock_papi.shared.formatting import format_sentiment_summary as _format_sentiment_summary
 from stock_papi.shared.formatting import safe_float as _safe_float
+from stock_papi.shared.validation import constant_time_equals
 from stock_papi.shared.validation import is_crypto_query as _is_crypto_query
 from stock_papi.shared.validation import is_us_ticker
 from stock_papi.shared.logging import (
@@ -1355,9 +1355,7 @@ def _web_conversation_identity(http_request):
     supplied = http_request.headers.get("X-CSRF-Token")
     if (
         re.fullmatch(r"U[0-9a-f]{32}", user_id) is None
-        or not isinstance(csrf_token, str)
-        or not isinstance(supplied, str)
-        or not hmac.compare_digest(supplied, csrf_token)
+        or not constant_time_equals(supplied, csrf_token)
     ):
         return None
     return f"line:{user_id}", "authenticated"

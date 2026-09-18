@@ -20,6 +20,7 @@
 | 6 | Low | 缺少 HSTS 標頭 | ✅ 已修補（`Strict-Transport-Security: max-age=63072000; includeSubDomains`） |
 | 7 | Info | `.env.example` 預設 `AUTH_COOKIE_SECURE=false` | ✅ 已修補（改為 true，並加註本機例外） |
 | 8 | Info | unpkg 第三方腳本 | 保留（已用 SRI + CSP 緩解；可選自我 host） |
+| 9 | Low | 偽造憑證（非 ASCII）讓認證端點回 500 而非 403 | ✅ 已修補（新增 `constant_time_equals`，套用到全部 request 來源的比對） |
 
 ## 本次已在此分支套用的修補
 
@@ -32,6 +33,25 @@
 | 5 | `requirements.txt` / `requirements-dev.txt` / `.github/workflows/ci.yml` / `.github/dependabot.yml` | top-level 相依全部鎖為 `==`（在 py3.10 與 py3.11 各跑 1527 tests 驗證；`pypdf` 依既有守門測試維持 `>=5,<7`）；新增 `pip-audit`（CI advisory job，不擋 deploy）與 Dependabot 週更。 |
 | 6 | `stock_papi/web/app_factory.py` | `security_headers` 新增 HSTS（不含 `preload`）。 |
 | 7 | `.env.example` | `AUTH_COOKIE_SECURE=true`（本機開發才設 false）。 |
+| 9 | `stock_papi/shared/validation.py` 等 5 檔 | 新增 `constant_time_equals()`，取代所有「request 來源」的 `hmac.compare_digest` 呼叫。 |
+
+### Finding 9 補充（本次 code review 新發現）
+
+`hmac.compare_digest` 對**非 ASCII 字串會丟 `TypeError`**。原本各認證邊界直接把 request 來的值餵進去，
+因此任何人送一個非 ASCII 憑證（例如 `Authorization: Bearer ñ`）就會得到 **500 而不是 403**，
+並在 log 產生 ERROR。這不是認證繞過（非 ASCII 永遠不可能等於 ASCII secret），但屬於
+未驗證使用者就能穩定觸發的錯誤路徑，已修正為乾淨的驗證失敗。
+
+實測（修補前）：`GET /broadcast_weekly` 帶 `Authorization: Bearer ñ` → `500`；修補後 → `403`。
+
+已套用的邊界：
+
+- `stock_papi/integrations/line/webhook.py`：`/broadcast_weekly`、`/tasks/check-alerts`、`/tasks/refresh-sector-signals`
+- `stock_papi/web/routes/auth.py`：CSRF 比對、OAuth `state` 比對
+- `stock_papi/services/auth.py`：`verify_opaque_token`、OIDC `nonce` 比對
+- `stock_papi/application.py`：conversation CSRF 比對
+
+`repositories/*` 的 `compare_digest` 是 digest 對 digest（本質 ASCII），不受影響，未更動。
 
 ## ⚠️ 上線前必做的 Ops 步驟（Finding 3）
 
@@ -53,6 +73,23 @@
 - 對 `/api/conversation`、`/broadcast_weekly`、`/tasks/*` 套用；超限回 429。
 - 這同時取代目前應用層 per-instance 限流的「跨實例」缺口；應用層限流保留為第二層防護即可。
 - 若不用 Cloud Armor 而要在應用層以真實 IP 限流，必須依實際代理跳數設定 `ProxyFix(x_for=n)`，否則 `request.remote_addr` 不是真正的 client IP。
+
+### ⚠️ 合併前建議本機驗證 Docker image
+
+Dockerfile 這次有三處變更（非 root `appuser`、`--timeout 120`、setuptools 升級）。
+**審計環境無法建置映像**（sandbox 的網路政策擋掉 Docker Hub blob CDN，`python:3.10-slim` 拉不下來），
+所以這三項是靜態審查過、但**未經實機建置驗證**。由於 `deploy.yml` 會在 main 自動部署，
+建議合併前在本機跑一次：
+
+```bash
+docker build -t absorb-verify .
+docker run --rm -e PORT=8080 -p 8080:8080 absorb-verify &
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/healthz   # 期望 200
+docker run --rm absorb-verify id                                          # 期望 uid=10001(appuser)
+```
+
+特別留意非 root 化後是否有任何執行期寫入路徑失去權限（本專案 `PYTHONDONTWRITEBYTECODE=1`
+且 `/app` 已 `--chown` 給 appuser，理論上沒有，但實機跑一次最確定）。
 
 ### 相依套件
 
