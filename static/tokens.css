@@ -186,6 +186,7 @@ body[data-theme="press-block"] {
   /* 部分元件直接讀 --absorb-* 中性 token；一併指向紙面語彙，
      否則藍灰文字與邊界會留在紙色底上。深色面板 --absorb-ink-surface 不動。 */
   --absorb-ink:var(--pb-ink);
+  --absorb-canvas:var(--pb-paper);
   --absorb-muted:var(--pb-muted);
   --absorb-subtle:var(--pb-muted);
   --absorb-hairline:var(--pb-hairline);

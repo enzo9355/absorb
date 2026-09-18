@@ -1834,6 +1834,35 @@ class WebProductTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, html)
 
+    @patch.object(stock_app, "_published_prediction_snapshot")
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_prediction_interval_uses_the_press_block_structure(
+        self, load_snapshot, load_prediction
+    ):
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "symbol": "TAIEX", "name": "加權指數", "as_of": "2026-07-15",
+            "price": 23150.25, "change": 188.4, "change_pct": 0.82,
+            "open": 22982.1, "high": 23210.8, "low": 22940.6,
+            "candles": [], "ma20": [],
+        }
+        estimate = prediction_product(symbol="TAIEX")
+        estimate["entities"]["TAIEX"]["prediction_interval"] = {
+            "price_low": 23900.0, "price_high": 24500.0,
+            "return_low_pct": 3.2, "return_high_pct": 5.8,
+            "coverage_pct": 80.0, "sample_count": 240,
+        }
+        load_snapshot.return_value = snapshot
+        load_prediction.return_value = estimate
+
+        html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        self.assertRegex(
+            html,
+            r'<div class="pb-block">\s*<div class="pb-block-body">\s*'
+            r'<span>誤差區間</span>',
+        )
+
     @patch.object(stock_app, "_published_prediction_snapshot", return_value=None)
     @patch.object(stock_app, "_published_dashboard_snapshot")
     def test_order8_market_page_never_invents_a_prediction_line(
@@ -2764,6 +2793,13 @@ class WebProductTests(unittest.TestCase):
                 (Path(stock_app.app.static_folder) / name).is_file(),
                 name,
             )
+
+    def test_press_block_pages_use_paper_for_the_page_canvas(self):
+        css = css_compact()
+        self.assertRegex(
+            css,
+            r'body\[data-theme="press-block"\]\{[^}]*--absorb-canvas:var\(--pb-paper\)',
+        )
 
     def test_order3_font_sizes_are_confined_to_the_type_scale(self):
         """所有字級都必須屬於 type scale 八級（C-2）。
