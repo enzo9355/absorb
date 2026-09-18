@@ -25,7 +25,7 @@
       {% if group %}
       <section class="industry-group" aria-labelledby="us-industry-group-{{ key }}">
         <div class="industry-group-heading"><h3 id="us-industry-group-{{ key }}">{{ title }}</h3><span class="industry-group-meaning">{{ group|length }} 個產業 · {{ meaning }}</span></div>
-        <div class="summary-table-wrap"><table><thead><tr><th scope="col">排名</th><th scope="col">產業</th><th scope="col">5 日相對大盤</th><th scope="col">資料覆蓋率</th><th scope="col">有效樣本 / 成分數</th></tr></thead><tbody>
+        <div class="summary-table-wrap"><table class="pb-table"><thead><tr><th scope="col">排名</th><th scope="col">產業</th><th scope="col">5 日相對大盤</th><th scope="col">資料覆蓋率</th><th scope="col">有效樣本 / 成分數</th></tr></thead><tbody>
         {% for item in group %}
           <tr>
             <td>{{ item.rank|default(loop.index) }}</td>

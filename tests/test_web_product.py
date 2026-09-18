@@ -924,7 +924,14 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("button,input,select,textarea{font:inherit", css)
         self.assertIn(".button{display:inline-flex", css)
         self.assertIn(".command-metrics{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr))", css)
-        self.assertNotIn("border-left:4px", css)
+        # PRESS BLOCK scope 內 .chart-caveat 的 4px 石板藍實線是設計稿指定
+        # （DESIGN.md §31：左側 4px --pb-slate 實線）。§0.4 禁的是
+        # 「左側彩色 accent 邊條 + 圓角卡」的全站語彙；移除該 scope 規則後，
+        # 全站其餘地方仍不得出現左側 accent 邊條。
+        css_outside_scope = re.sub(
+            r'body\[data-theme="press-block"\]\s*\.chart-caveat\s*\{[^}]*\}', "", css
+        )
+        self.assertNotIn("border-left:4px", css_outside_scope)
         self.assertNotIn("border-top:3px", css)
         version = re.search(r'/static/app\.css\?v=([0-9a-f]{12})', html)
         self.assertIsNotNone(version)
@@ -1826,6 +1833,35 @@ class WebProductTests(unittest.TestCase):
         for forbidden in ("回測", "勝率", "Brier"):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, html)
+
+    @patch.object(stock_app, "_published_prediction_snapshot")
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    def test_order8_prediction_interval_uses_the_press_block_structure(
+        self, load_snapshot, load_prediction
+    ):
+        snapshot = observation_dashboard()
+        snapshot["market_index"] = {
+            "symbol": "TAIEX", "name": "加權指數", "as_of": "2026-07-15",
+            "price": 23150.25, "change": 188.4, "change_pct": 0.82,
+            "open": 22982.1, "high": 23210.8, "low": 22940.6,
+            "candles": [], "ma20": [],
+        }
+        estimate = prediction_product(symbol="TAIEX")
+        estimate["entities"]["TAIEX"]["prediction_interval"] = {
+            "price_low": 23900.0, "price_high": 24500.0,
+            "return_low_pct": 3.2, "return_high_pct": 5.8,
+            "coverage_pct": 80.0, "sample_count": 240,
+        }
+        load_snapshot.return_value = snapshot
+        load_prediction.return_value = estimate
+
+        html = stock_app.app.test_client().get("/market").get_data(as_text=True)
+
+        self.assertRegex(
+            html,
+            r'<div class="pb-block">\s*<div class="pb-block-body">\s*'
+            r'<span>誤差區間</span>',
+        )
 
     @patch.object(stock_app, "_published_prediction_snapshot", return_value=None)
     @patch.object(stock_app, "_published_dashboard_snapshot")
@@ -2758,6 +2794,65 @@ class WebProductTests(unittest.TestCase):
                 name,
             )
 
+    def test_press_block_pages_use_paper_for_the_page_canvas(self):
+        css = css_compact()
+        self.assertRegex(
+            css,
+            r'body\[data-theme="press-block"\]\{[^}]*--absorb-canvas:var\(--pb-paper\)',
+        )
+
+    def test_press_block_scope_covers_both_markets(self):
+        base = Path(stock_app.app.template_folder, "base.html").read_text(
+            encoding="utf-8"
+        )
+        for endpoint in (
+            "dashboard_page",
+            "market_page",
+            "industries_page",
+            "us_dashboard_page",
+            "us_market_page",
+            "us_industries_page",
+        ):
+            with self.subTest(endpoint=endpoint):
+                self.assertIn(endpoint, base)
+
+        us_industries = Path(
+            stock_app.app.template_folder, "us_industries.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn('<table class="pb-table">', us_industries)
+
+    def test_press_block_display_font_is_self_hosted_and_rebuildable(self):
+        static_root = Path(stock_app.app.static_folder)
+        font = static_root / "fonts" / "absorb-serif.woff2"
+        license_file = static_root / "fonts" / "OFL-NotoSerifTC.txt"
+        builder = Path(stock_app.app.root_path, "scripts", "build_press_block_font.py")
+        css = css_bundle()
+
+        self.assertTrue(font.is_file())
+        self.assertLessEqual(font.stat().st_size, 80 * 1024)
+        self.assertTrue(license_file.is_file())
+        self.assertIn("SIL OPEN FONT LICENSE", license_file.read_text(encoding="utf-8"))
+        self.assertTrue(builder.is_file())
+        self.assertIn('font-family:"ABSORB Serif"', css)
+        self.assertIn(
+            'url("fonts/absorb-serif.woff2") format("woff2")',
+            css,
+        )
+        self.assertIn('--pb-font-display:"ABSORB Serif"', css)
+
+    def test_press_block_wipe_is_disabled_for_reduced_motion(self):
+        css = css_compact()
+        self.assertIn("@keyframespb-page-wipe", css)
+        self.assertRegex(
+            css,
+            r'body\[data-theme="press-block"\]::before\{[^}]*animation:pb-page-wipe',
+        )
+        self.assertIn("@media(prefers-reduced-motion:reduce)", css)
+        self.assertRegex(
+            css,
+            r'@media\(prefers-reduced-motion:reduce\)\{[^}]*::before\{[^}]*display:none',
+        )
+
     def test_order3_font_sizes_are_confined_to_the_type_scale(self):
         """所有字級都必須屬於 type scale 八級（C-2）。
 
@@ -2826,7 +2921,7 @@ class WebProductTests(unittest.TestCase):
         css = css_bundle()
         hex_count = len(re.findall(r"#[0-9a-fA-F]{3,8}\b", css))
         token_count = len(
-            set(re.findall(r"--(?:absorb-[a-z0-9-]+|price-[a-z0-9-]+)", css))
+            set(re.findall(r"--(?:absorb-[a-z0-9-]+|price-[a-z0-9-]+|pb-[a-z0-9-]+)", css))
         )
         self.assertLessEqual(hex_count, token_count, (hex_count, token_count))
 

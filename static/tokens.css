@@ -9,6 +9,13 @@
   font-weight:400;
   font-display:swap;
 }
+@font-face {
+  font-family:"ABSORB Serif";
+  src:url("fonts/absorb-serif.woff2") format("woff2");
+  font-style:normal;
+  font-weight:600 900;
+  font-display:swap;
+}
 :root {
     --absorb-pure-white:#fff;
     /* ORDER 3（C-5）：承載內容的深色表面。品牌深藍不參與資料語意，
@@ -149,4 +156,65 @@ body[data-market="US"] {
 .forecast-panel,.us-index-forecast-list article {
   --price-up:var(--price-up-on-dark);
   --price-down:var(--price-down-on-dark);
+}
+/* PRESS BLOCK：台美六頁的頁面範圍主題。
+   body[data-theme="press-block"] 由 base.html 依 endpoint 掛上；
+   其餘頁面不受影響。--absorb-navy 等既有 token 全部保留，
+   此 scope 只在六頁內重新指向紙面語彙。 */
+body[data-theme="press-block"] {
+  --pb-paper:#f0ece3;
+  --pb-card:#fbf9f5;
+  --pb-ink:#17151a;
+  --pb-brick:#8a2f18;
+  --pb-pine:#14532f;
+  --pb-muted:#5a534b;
+  --pb-rule:#8a8377;
+  --pb-hairline:#d6cfc2;
+  --pb-slate:#2f3a56;
+  --pb-on-ink:#f0ece3;
+  --pb-on-ink-muted:#b3aca2;
+  --pb-on-ink-brick:#e9b8ab;
+  --pb-font-display:"ABSORB Serif","Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif;
+
+  /* 既有中性 alias 在此 scope 內重新指向紙面語彙 */
+  --bg:var(--pb-paper);
+  --surface:var(--pb-card);
+  --surface-2:var(--pb-card);
+  --surface-3:var(--pb-paper);
+  --line:var(--pb-hairline);
+  --line-strong:var(--pb-ink);
+  --text:var(--pb-ink);
+  --muted:var(--pb-muted);
+  --price-up:var(--pb-brick);
+  --price-down:var(--pb-pine);
+  --price-up-on-dark:var(--pb-on-ink-brick);
+  --price-down-on-dark:#a9dbc3;
+
+  /* 部分元件直接讀 --absorb-* 中性 token；一併指向紙面語彙，
+     否則藍灰文字與邊界會留在紙色底上。深色面板 --absorb-ink-surface 不動。 */
+  --absorb-ink:var(--pb-ink);
+  --absorb-canvas:var(--pb-paper);
+  --absorb-muted:var(--pb-muted);
+  --absorb-subtle:var(--pb-muted);
+  --absorb-hairline:var(--pb-hairline);
+  --absorb-border-faint:var(--pb-hairline);
+  --absorb-surface:var(--pb-card);
+  --absorb-surface-raised:var(--pb-card);
+
+  /* 圓角封閉集合在此 scope 歸零 */
+  --radius-sm:0; --radius-md:0; --radius-lg:0; --radius:0; --radius-pill:0;
+
+  /* 字級：標題放大，內文沿用 */
+  --type-display:54px;  --lh-display:1.08;
+  --type-title:26px;    --lh-title:1.25;
+  --type-subtitle:21px; --lh-subtitle:1.4;
+}
+body[data-theme="press-block"][data-market="US"] {
+  --price-up:var(--pb-pine);
+  --price-down:var(--pb-brick);
+  --price-up-on-dark:#a9dbc3;
+  --price-down-on-dark:var(--pb-on-ink-brick);
+}
+@media (max-width:720px) {
+  body[data-theme="press-block"] { --type-display:34px; --type-title:22px; }
 }

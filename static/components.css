@@ -2711,3 +2711,316 @@ span.value-unavailable {
   font-size:var(--type-caption);
   line-height:var(--lh-caption);
 }
+
+/* ==========================================================================
+   PRESS BLOCK（頁面範圍主題）：四個元件與台美六頁樣式
+   全部掛在 body[data-theme="press-block"] 之下，其餘頁面不受影響。
+   規格見 DESIGN.md §31。新增樣式只放這裡，不重排上方既有規則。 */
+
+/* 4.1 雙線區塊：.panel 改紙卡底＋底部 3px 墨色雙線，去邊框陰影圓角 */
+body[data-theme="press-block"] .panel {
+  background:var(--pb-card);
+  border:0;
+  border-bottom:3px double var(--pb-ink);
+  border-radius:0;
+  box-shadow:none;
+  padding:32px 40px 36px;
+}
+body[data-theme="press-block"] .panel:last-child { border-bottom:0; }
+body[data-theme="press-block"] .section-heading {
+  display:flex; align-items:baseline; gap:16px;
+  padding-bottom:14px; border-bottom:1px solid var(--pb-ink);
+}
+body[data-theme="press-block"] .section-heading h2:not(.pb-dynamic-title) {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-title); line-height:var(--lh-title); font-weight:700; margin:0;
+}
+body[data-theme="press-block"] .section-heading > :last-child { margin-left:auto; }
+body[data-theme="press-block"] .eyebrow {
+  font-size:var(--type-label); font-weight:700; letter-spacing:.26em;
+  color:var(--pb-brick); margin:0; text-transform:uppercase;
+}
+body[data-theme="press-block"] .page-header {
+  border-top:6px solid var(--pb-ink);
+  border-bottom:3px double var(--pb-ink);
+  padding:34px 40px 26px;
+  background:var(--pb-paper);
+}
+body[data-theme="press-block"] .page-header h1 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-display); line-height:var(--lh-display);
+  letter-spacing:-.015em; font-weight:700; margin:10px 0 0;
+}
+
+/* 4.2 虛線表格列：.pb-table 與既有 .data-table 在此 scope 內共用版式 */
+body[data-theme="press-block"] .pb-table,
+body[data-theme="press-block"] .data-table { width:100%; border-collapse:collapse; }
+body[data-theme="press-block"] .pb-table th,
+body[data-theme="press-block"] .data-table th {
+  text-align:left; font-size:var(--type-label); letter-spacing:.18em;
+  color:var(--pb-muted); font-weight:700; padding:10px 0;
+  border-bottom:1px solid var(--pb-ink);
+}
+body[data-theme="press-block"] .pb-table td,
+body[data-theme="press-block"] .data-table td {
+  padding:11px 0; border-bottom:1px dotted var(--pb-rule);
+  font-variant-numeric:tabular-nums;
+}
+body[data-theme="press-block"] .pb-table tr:last-child td,
+body[data-theme="press-block"] .data-table tr:last-child td { border-bottom:0; }
+body[data-theme="press-block"] .pb-table td:last-child,
+body[data-theme="press-block"] .pb-table th:last-child { text-align:right; }
+
+/* 4.3 墨色實心塊＋位移色塊：不用模糊陰影，用 ::before 畫實心位移塊 */
+body[data-theme="press-block"] .pb-block { position:relative; }
+body[data-theme="press-block"] .pb-block::before {
+  content:""; position:absolute; inset:12px -12px -12px 12px;
+  background:var(--pb-slate); z-index:0;
+}
+body[data-theme="press-block"] .pb-block > * { position:relative; z-index:1; }
+body[data-theme="press-block"] .pb-block-body {
+  background:var(--pb-ink); color:var(--pb-on-ink); padding:26px;
+}
+body[data-theme="press-block"] .pb-block-body .muted,
+body[data-theme="press-block"] .pb-block-body .small { color:var(--pb-on-ink-muted); }
+/* 墨色塊內：muted／hairline／方向色重映射到 on-dark 語彙，維持 WCAG AA */
+body[data-theme="press-block"] .pb-block-body {
+  --absorb-muted:var(--pb-on-ink-muted);
+  --absorb-hairline:rgb(240 236 227 / 22%);
+  --price-up:var(--price-up-on-dark);
+  --price-down:var(--price-down-on-dark);
+}
+
+/* 4.4 零線置中長條：幾何由 Jinja 算（centered_bar macro），文字數值在旁 */
+body[data-theme="press-block"] .pb-bar-centered { display:block; width:100%; height:10px; }
+body[data-theme="press-block"] .pb-bar-zero { stroke:var(--pb-ink); stroke-width:1; }
+body[data-theme="press-block"] .pb-bar-pos { fill:var(--price-up); }
+body[data-theme="press-block"] .pb-bar-neg { fill:var(--price-down); }
+/* 既有 svg.breadth-bar 沿用，只有持平段換成虛線規則色 */
+body[data-theme="press-block"] .breadth-bar .bar-flat { fill:var(--pb-rule); }
+
+/* 「這不代表什麼」：左側 4px 石板藍實線，去底去圓角 */
+body[data-theme="press-block"] .chart-caveat {
+  border:0;
+  border-left:4px solid var(--pb-slate);
+  border-radius:0;
+  background:transparent;
+  color:var(--pb-muted);
+}
+body[data-theme="press-block"] .chart-caveat strong { color:var(--pb-ink); }
+
+/* 模型估計眉標使用既有警示 token，不新增 hex */
+body[data-theme="press-block"] .market-forecast-panel .eyebrow { color:var(--absorb-warning); }
+
+/* 進階數據 details：summary 墨色細體＋CSS ::after 呈現 ＋/－ */
+body[data-theme="press-block"] .data-limits {
+  border:0;
+  border-top:1px solid var(--pb-ink);
+  border-bottom:3px double var(--pb-ink);
+  border-radius:0;
+  background:transparent;
+}
+body[data-theme="press-block"] .data-limits>summary {
+  list-style:none;
+  padding:14px 0;
+  font-weight:400;
+}
+body[data-theme="press-block"] .data-limits>summary::-webkit-details-marker { display:none; }
+body[data-theme="press-block"] .data-limits>summary::marker { content:""; }
+body[data-theme="press-block"] .data-limits>summary::after {
+  content:"＋";
+  margin-left:auto;
+  font-weight:400;
+  color:var(--pb-ink);
+}
+body[data-theme="press-block"] .data-limits[open]>summary::after { content:"－"; }
+body[data-theme="press-block"] .data-limits-body {
+  padding:0 0 18px;
+  border-top:0;
+}
+
+@media (max-width:720px) {
+  body[data-theme="press-block"] .panel { padding:24px 20px 28px; }
+  body[data-theme="press-block"] .page-header { padding:26px 20px 20px; }
+  body[data-theme="press-block"] .pb-block::before { inset:8px -8px -8px 8px; }
+  body[data-theme="press-block"] .pb-block-body { padding:20px; }
+}
+
+/* 產業觀察（/industries）：分組標題、揭露列與關注公司列，全部走虛線規則 */
+body[data-theme="press-block"] .industry-group-heading {
+  padding-bottom:10px;
+  border-bottom:3px double var(--pb-ink);
+}
+body[data-theme="press-block"] .industry-group-heading h3 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+}
+body[data-theme="press-block"] .industry-group-meaning { color:var(--pb-muted); }
+body[data-theme="press-block"] .industry-disclosure-list { gap:0; }
+body[data-theme="press-block"] .industry-disclosure {
+  border:0;
+  border-radius:0;
+  background:transparent;
+  border-bottom:1px dotted var(--pb-rule);
+}
+body[data-theme="press-block"] .industry-disclosure:last-child { border-bottom:0; }
+body[data-theme="press-block"] .industry-disclosure summary {
+  min-height:0;
+  padding:14px 0;
+  gap:24px;
+}
+body[data-theme="press-block"] .industry-disclosure[open] summary {
+  border-bottom:1px dotted var(--pb-rule);
+}
+body[data-theme="press-block"] .industry-disclosure-body {
+  padding:18px 0 20px;
+  border-top:0;
+  background:transparent;
+}
+body[data-theme="press-block"] .industry-metric-grid {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  column-gap:24px;
+  margin:0;
+  border:0;
+  background:transparent;
+}
+body[data-theme="press-block"] .industry-metric-grid div { display:contents; }
+body[data-theme="press-block"] .industry-metric-grid dt {
+  grid-column:1;
+  padding:11px 0;
+  border-bottom:1px dotted var(--pb-rule);
+  color:var(--pb-muted);
+  font-size:var(--type-caption);
+}
+body[data-theme="press-block"] .industry-metric-grid dd {
+  grid-column:2;
+  margin:0;
+  padding:11px 0;
+  border-bottom:1px dotted var(--pb-rule);
+  text-align:right;
+  font-size:var(--type-body);
+  font-variant-numeric:tabular-nums;
+}
+body[data-theme="press-block"] .industry-metric-grid div:last-of-type dt,
+body[data-theme="press-block"] .industry-metric-grid div:last-of-type dd { border-bottom:0; }
+body[data-theme="press-block"] .industry-attention-heading h3 {
+  font-family:var(--pb-font-display);
+}
+body[data-theme="press-block"] .industry-company-grid { gap:0; }
+body[data-theme="press-block"] .industry-company {
+  border:0;
+  border-bottom:1px dotted var(--pb-rule);
+  border-radius:0;
+  background:transparent;
+  padding:12px 0;
+}
+body[data-theme="press-block"] .industry-company:last-child { border-bottom:0; }
+
+/* 今日市場（/）：today-brief 採頁標語彙，指揮台外殼轉透明，insight 卡同語彙 */
+body[data-theme="press-block"] .today-brief {
+  border-top:6px solid var(--pb-ink);
+  border-bottom:3px double var(--pb-ink);
+  border-radius:0;
+  padding:34px 0 26px;
+  background:var(--pb-paper);
+}
+body[data-theme="press-block"] .today-copy h1 {
+  font-family:var(--pb-font-display);
+  letter-spacing:-.015em;
+  font-weight:700;
+}
+body[data-theme="press-block"] .research-command {
+  background:transparent;
+  border:0;
+  border-radius:0;
+  padding:0;
+}
+body[data-theme="press-block"] .research-status { color:var(--pb-muted); }
+body[data-theme="press-block"] .research-status span {
+  background:var(--pb-pine);
+  box-shadow:none;
+}
+body[data-theme="press-block"] .evidence-canvas {
+  background:var(--pb-card);
+  border:1px solid var(--pb-hairline);
+  border-radius:0;
+  box-shadow:none;
+}
+body[data-theme="press-block"] .breadth-panel,
+body[data-theme="press-block"] .risk-panel,
+body[data-theme="press-block"] .sector-flow,
+body[data-theme="press-block"] .forecast-panel {
+  border-radius:0;
+}
+body[data-theme="press-block"] .breadth-panel,
+body[data-theme="press-block"] .risk-panel,
+body[data-theme="press-block"] .sector-flow {
+  background:var(--pb-card);
+}
+body[data-theme="press-block"] .breadth-track { stroke:var(--pb-rule); }
+body[data-theme="press-block"] .market-index-empty { border-radius:0; }
+body[data-theme="press-block"] .insight-heading {
+  padding-bottom:10px;
+  border-bottom:1px solid var(--pb-ink);
+}
+body[data-theme="press-block"] .insight-heading h3 {
+  font-family:var(--pb-font-display);
+  font-size:var(--type-subtitle);
+  line-height:var(--lh-subtitle);
+}
+body[data-theme="press-block"] .forecast-panel .insight-heading {
+  border-bottom:1px solid rgb(240 236 227 / 24%);
+}
+body[data-theme="press-block"] .forecast-panel .insight-heading h3 {
+  color:var(--pb-on-ink);
+}
+
+/* 美股三頁共用同一套紙面元件；方向色由 data-market="US" 在 tokens.css 反轉。 */
+body[data-theme="press-block"] .market-summary-page > .panel > h2,
+body[data-theme="press-block"] .market-summary-page h3 {
+  font-family:var(--pb-font-display);
+}
+body[data-theme="press-block"] .us-index-actual-list article {
+  border-radius:0;
+  background:var(--pb-card);
+}
+body[data-theme="press-block"] .us-index-forecast-list article {
+  border-radius:0;
+  background:var(--pb-ink);
+  color:var(--pb-on-ink);
+}
+body[data-theme="press-block"] .us-index-forecast-list article > span,
+body[data-theme="press-block"] .us-index-forecast-list article dt,
+body[data-theme="press-block"] .us-index-forecast-list article small {
+  color:var(--pb-on-ink-muted);
+}
+body[data-theme="press-block"] .summary-table-wrap table.pb-table {
+  min-width:420px;
+}
+
+/* 設計稿的 wipe：CSS-only，減少動效時完全移除遮罩。 */
+@keyframes pb-page-wipe {
+  from { transform:scaleX(1); }
+  to { transform:scaleX(0); }
+}
+body[data-theme="press-block"]::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:10000;
+  pointer-events:none;
+  background:var(--pb-ink);
+  transform-origin:left center;
+  animation:pb-page-wipe 420ms cubic-bezier(.16,1,.3,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-theme="press-block"]::before {
+    display:none;
+    animation:none;
+  }
+}
+@media print {
+  body[data-theme="press-block"]::before { display:none; }
+}

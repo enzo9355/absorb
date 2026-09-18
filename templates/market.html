@@ -21,10 +21,20 @@
 {% for _label, key in return_periods %}{% if market.get(key) is not none %}{% set _ = return_magnitudes.append(market.get(key)|abs) %}{% endif %}{% endfor %}
 {% set return_peak = (return_magnitudes|max) if return_magnitudes else none %}
 {% set return_scale = return_peak if return_peak is not none and return_peak > 0 else 1 %}
+{# PRESS BLOCK：零線置中長條（幾何由 Jinja 算）。scale 由模板傳入，
+   四個期間共用同一個刻度；數值永遠同時以文字呈現在長條旁。 #}
+{% macro centered_bar(value, scale) -%}
+{% set clamped = [[value, scale]|min, -scale]|max %}
+{% set half = 50 %}
+{% set width = (clamped|abs / scale * half)|round(2) %}
+<svg class="pb-bar-centered viz-track" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="{{ '%+.2f%%'|format(value) }}">
+  <line class="pb-bar-zero" x1="50" y1="0" x2="50" y2="10"></line>
+  <rect class="{{ 'pb-bar-pos' if clamped >= 0 else 'pb-bar-neg' }}" x="{{ 50 if clamped >= 0 else 50 - width }}" y="2" width="{{ width }}" height="6"></rect>
+</svg>
+{%- endmacro %}
 {% set new_high = market.get('new_high_20d_count') %}
 {% set new_low = market.get('new_low_20d_count') %}
 {% set extreme_peak = [new_high if new_high is not none else 0, new_low if new_low is not none else 0]|max %}
-{% set extreme_scale = extreme_peak if extreme_peak > 0 else 1 %}
 {# ORDER 8：這一頁刻意不掛 data-market-summary。
    app.js 的 renderDashboard() 會把那個容器的內容整組換成它自己的三張卡
    （「站上 MA20」「20 日已實現波動」），於是伺服器端已經白話化、已經
@@ -39,8 +49,9 @@
      同權重卡片。原本三張等大的 pulse-card 讓「上漲／下跌」與「20 日波動」
      看起來一樣重要，讀者無從判斷該先看哪一個。 #}
   <section class="panel market-trend-panel" aria-labelledby="market-trend-title">
-    <div class="section-heading"><div><h2 id="market-trend-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；{% if prediction %}虛線為模型估計，與已發生的資料分開標示。{% else %}兩者皆不填色。{% endif %}</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
+    <div class="section-heading"><div><p class="eyebrow">01 ／ 已發生</p><h2 id="market-trend-title" class="pb-dynamic-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；{% if prediction %}虛線為模型估計，與已發生的資料分開標示。{% else %}兩者皆不填色。{% endif %}</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
     {% if market_index.get('price') is not none %}
+    <div class="pb-block"><div class="pb-block-body">
     <div class="market-index-quote">
       <div><strong>{{ '{:,.2f}'.format(market_index.get('price')) }}</strong>{% if market_index.get('change') is not none and market_index.get('change_pct') is not none %}<span class="{{ 'positive' if market_index.get('change_pct') > 0 else 'negative' if market_index.get('change_pct') < 0 else '' }}">{{ '{:+,.2f}'.format(market_index.get('change')) }}（{{ '{:+.2f}%'.format(market_index.get('change_pct')) }}）</span>{% else %}<span class="value-unavailable">漲跌尚未驗證</span>{% endif %}</div>
       <dl>
@@ -49,6 +60,7 @@
         <div><dt>最低</dt>{% if market_index.get('low') is not none %}<dd>{{ '{:,.2f}'.format(market_index.get('low')) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
       </dl>
     </div>
+    </div></div>
     <div id="market-index-chart" class="market-index-chart" role="img" aria-label="{{ market_index.get('name', '加權指數') }} K 線圖" aria-describedby="market-index-chart-table"></div>
     <dl class="chart-legend">
       <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>已發生：收盤高於開盤</dd></div>
@@ -59,7 +71,7 @@
       <div><dt>單位</dt><dd>指數點數</dd></div>
     </dl>
     <div id="market-index-chart-table" class="sr-only">
-      <table><caption>{{ market_index.get('name', '加權指數') }}最近五個交易日 OHLC</caption><thead><tr><th>日期</th><th>開盤</th><th>最高</th><th>最低</th><th>收盤</th></tr></thead><tbody>{% for row in market_index.get('candles', [])[-5:] %}<tr><td>{{ row.time }}</td><td>{{ row.open }}</td><td>{{ row.high }}</td><td>{{ row.low }}</td><td>{{ row.close }}</td></tr>{% endfor %}</tbody></table>
+      <table class="data-table"><caption>{{ market_index.get('name', '加權指數') }}最近五個交易日 OHLC</caption><thead><tr><th>日期</th><th>開盤</th><th>最高</th><th>最低</th><th>收盤</th></tr></thead><tbody>{% for row in market_index.get('candles', [])[-5:] %}<tr><td>{{ row.time }}</td><td>{{ row.open }}</td><td>{{ row.high }}</td><td>{{ row.low }}</td><td>{{ row.close }}</td></tr>{% endfor %}</tbody></table>
     </div>
     {% else %}<p class="empty-state">已驗證的指數 K 線尚待發布，這裡不以推估值補位。</p>{% endif %}
     <p class="chart-caveat"><strong>這不代表什麼：</strong>K 線只呈現已經發生的價格，不預告接下來的方向；均價線是計算結果，不是支撐或壓力。單日走勢與個別標的的表現可能完全相反。</p>
@@ -71,14 +83,14 @@
      那條線在這一頁看不到，今日市場卻看得到。同一份產物兩個入口不該只有
      一邊看得到。 #}
   <section class="panel forecast-section market-forecast-panel" aria-labelledby="market-forecast-title">
-    <div class="section-heading"><div><p class="eyebrow">MODEL ESTIMATE</p><h2 id="market-forecast-title">AI 五日情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>{% if prediction %}<span class="muted small">資料日 {{ prediction.as_of }}</span>{% else %}<span class="muted small"><span class="value-unavailable">尚未發布</span></span>{% endif %}</div>
+    <div class="section-heading"><div><p class="eyebrow">02 ／ MODEL ESTIMATE</p><h2 id="market-forecast-title">AI 五日情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>{% if prediction %}<span class="muted small">資料日 {{ prediction.as_of }}</span>{% else %}<span class="muted small"><span class="value-unavailable">尚未發布</span></span>{% endif %}</div>
     {% if prediction %}
     <div class="stock-forecast-strip" aria-label="加權指數五日模型情境摘要">
       <article><span>{{ prediction.probability_label }}</span><strong>{{ '%.1f%%'|format(prediction.probability_pct) }}</strong></article>
       <article><span>第 5 個交易日預測價</span><strong>{{ '{:,.2f}'.format(prediction.predicted_price) }}</strong></article>
       <article><span>預測變動</span><strong class="{{ 'positive' if prediction.predicted_change_pct > 0 else 'negative' if prediction.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(prediction.predicted_change_pct) }}</strong></article>
       <article><span>目標交易日</span><strong>{{ prediction.target_session }}</strong><small>{% if prediction.validation_mode == 'research' %}研究推估｜機率值尚未校準{% else %}{{ '正式預測' if prediction.status == 'current' else '前次預測｜資料日 ' ~ prediction.as_of }}{% endif %}</small></article>
-      {% if prediction.get('interval') %}<article><span>誤差區間</span><strong>{{ '{:,.2f}'.format(prediction.interval.price_low) }}–{{ '{:,.2f}'.format(prediction.interval.price_high) }}</strong><small>{{ '%+.2f%%'|format(prediction.interval.return_low_pct) }} ～ {{ '%+.2f%%'|format(prediction.interval.return_high_pct) }}</small></article>{% endif %}
+      {% if prediction.get('interval') %}<div class="pb-block"><div class="pb-block-body"><span>誤差區間</span><strong>{{ '{:,.2f}'.format(prediction.interval.price_low) }}–{{ '{:,.2f}'.format(prediction.interval.price_high) }}</strong><small>{{ '%+.2f%%'|format(prediction.interval.return_low_pct) }} ～ {{ '%+.2f%%'|format(prediction.interval.return_high_pct) }}</small></div></div>{% endif %}
     </div>
     <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。{% if prediction.validation_mode == 'research' %}本次推估的機率值尚未校準，不能當成實際上漲機會解讀。{% endif %}{% if prediction.get('interval') %}誤差區間是<strong>過去 {{ prediction.interval.sample_count }} 個樣本外測試裡，模型誤差的中間 {{ '%.0f'|format(prediction.interval.coverage_pct) }}%</strong>套在這次預測上 —— 它描述的是模型過去錯多少，<strong>不是</strong>信賴區間，也不保證這次會落在裡面。{% endif %}</p>
     {% else %}
@@ -123,10 +135,7 @@
           {% set value = market.get(key) %}
           <li class="viz-row">
             <span class="viz-label">{{ label }}</span>
-            <span class="viz-track" aria-hidden="true">
-              <span class="viz-track-half viz-half-down">{% if value is not none and value < 0 %}<progress class="negative" value="{{ '%.4f'|format(value|abs) }}" max="{{ '%.4f'|format(return_scale) }}"></progress>{% endif %}</span>
-              <span class="viz-track-half viz-half-up">{% if value is not none and value > 0 %}<progress class="positive" value="{{ '%.4f'|format(value) }}" max="{{ '%.4f'|format(return_scale) }}"></progress>{% endif %}</span>
-            </span>
+            {% if value is not none %}{{ centered_bar(value, return_scale) }}{% else %}<span class="viz-track" aria-hidden="true"></span>{% endif %}
             {% if value is not none %}<b class="viz-value {{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
           </li>
           {% endfor %}
@@ -137,19 +146,15 @@
 
       <section class="panel market-extreme-panel" aria-labelledby="market-extreme-title">
         <div class="section-heading"><div><h2 id="market-extreme-title">走到極端的家數</h2><p>創下近一個月最高價與最低價的股票各有多少</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
-        <ol class="viz-rows viz-rows-count">
-          <li class="viz-row">
-            <span class="viz-label">創近一個月新高</span>
-            <span class="viz-track viz-track-single" aria-hidden="true">{% if new_high is not none %}<progress class="positive" value="{{ new_high }}" max="{{ extreme_scale }}"></progress>{% endif %}</span>
-            {% if new_high is not none %}<b class="viz-value">{{ new_high }} 檔</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
-          </li>
-          <li class="viz-row">
-            <span class="viz-label">創近一個月新低</span>
-            <span class="viz-track viz-track-single" aria-hidden="true">{% if new_low is not none %}<progress class="negative" value="{{ new_low }}" max="{{ extreme_scale }}"></progress>{% endif %}</span>
-            {% if new_low is not none %}<b class="viz-value">{{ new_low }} 檔</b>{% else %}<b class="viz-value"><span class="value-unavailable">尚未驗證</span></b>{% endif %}
-          </li>
-        </ol>
-        <p class="chart-caveat"><strong>這不代表什麼：</strong>{% if extreme_peak > 0 %}兩根長條共用刻度（最長的一根＝{{ extreme_peak }} 檔），只比較彼此的多寡；{% elif new_high is not none or new_low is not none %}目前可用的已驗證家數沒有大於 0，長條不顯示長度；{% else %}目前沒有已驗證的新高／新低家數，長條不顯示長度；{% endif %}不代表整體市場的漲跌方向，也不是買賣訊號。</p>
+        <table class="pb-table">
+          <caption class="sr-only">走到極端的家數</caption>
+          <thead><tr><th scope="col">觀察項目</th><th scope="col">家數</th></tr></thead>
+          <tbody>
+            <tr><td>創近一個月新高</td>{% if new_high is not none %}<td>{{ new_high }} 檔</td>{% else %}<td><span class="value-unavailable">尚未驗證</span></td>{% endif %}</tr>
+            <tr><td>創近一個月新低</td>{% if new_low is not none %}<td>{{ new_low }} 檔</td>{% else %}<td><span class="value-unavailable">尚未驗證</span></td>{% endif %}</tr>
+          </tbody>
+        </table>
+        <p class="chart-caveat"><strong>這不代表什麼：</strong>{% if extreme_peak > 0 %}新高與新低家數並列，只比較彼此的多寡；{% elif new_high is not none or new_low is not none %}目前可用的已驗證家數沒有大於 0；{% else %}目前沒有已驗證的新高／新低家數；{% endif %}不代表整體市場的漲跌方向，也不是買賣訊號。</p>
       </section>
     </div>
   </div>
