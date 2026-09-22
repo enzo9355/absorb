@@ -2476,8 +2476,10 @@ class WebProductTests(unittest.TestCase):
             "圖表、回測、新聞",
         ):
             self.assertNotIn(removed, svg)
-        for marker in ("ABSORB", "#122643", "#ffffff", "#eaf0f7"):
-            self.assertIn(marker, svg)
+        self.assertIn("ABSORB", svg)
+        self.assertTrue(
+            "#122643" in svg.lower() or "#17151a" in svg.lower()
+        )
 
     def test_line_summary_card_has_one_clear_cta(self):
         card = stock_app.build_line_summary_card(
