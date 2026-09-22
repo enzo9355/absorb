@@ -484,6 +484,14 @@ function parseChartPoints(value) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+function chartColor(value) {
+  const normalized = String(value || "").trim();
+  const modernRgb = /^rgb\(\s*(\d+)\s+(\d+)\s+(\d+)\s*\)$/i.exec(normalized);
+  return modernRgb
+    ? `rgb(${modernRgb[1]}, ${modernRgb[2]}, ${modernRgb[3]})`
+    : normalized;
+}
+
 function createPriceChart(container, raw, { predictionMarker = false, compact = false } = {}) {
   const candles = parseChartPoints(raw.candles);
   if (!candles.length) return null;
@@ -499,8 +507,8 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
     timeScale: { borderColor: "#aebfc8", rightOffset: predictionMarker ? 6 : 1 },
   });
   const directionStyle = getComputedStyle(document.body);
-  const priceUp = directionStyle.getPropertyValue("--price-up").trim();
-  const priceDown = directionStyle.getPropertyValue("--price-down").trim();
+  const priceUp = chartColor(directionStyle.getPropertyValue("--price-up"));
+  const priceDown = chartColor(directionStyle.getPropertyValue("--price-down"));
   // 帶刻意畫在 K 線之前：Lightweight Charts 依建立順序繪製，
   // 遮罩層若在 K 線之後建立，會把最後一根 K 棒的下緣蓋掉。
   // ORDER 7（§7-2）：五日預測區間。
@@ -512,8 +520,8 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   // 上緣填色到底，下緣再用背景色蓋掉，剩下的就是帶。
   const band = Array.isArray(raw.band) ? raw.band : [];
   if (predictionMarker && band.length > 1) {
-    const infoColor = directionStyle.getPropertyValue("--absorb-info").trim();
-    const canvasColor = directionStyle.getPropertyValue("--absorb-canvas").trim();
+    const infoColor = chartColor(directionStyle.getPropertyValue("--absorb-info"));
+    const canvasColor = chartColor(directionStyle.getPropertyValue("--absorb-canvas"));
     const points = band
       .map((point) => ({
         time: point && point.time,
@@ -561,12 +569,12 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
   const ma20 = parseChartPoints(raw.ma20);
   if (ma20.length) {
     // ORDER 4（M-4）：均價線顏色改讀 token，圖例色塊與線條同源。
-    const maColor = directionStyle.getPropertyValue("--chart-ma").trim();
+    const maColor = chartColor(directionStyle.getPropertyValue("--chart-ma"));
     chart.addLineSeries({ color: maColor, lineWidth: 2, title: "MA20" }).setData(ma20);
   }
   const prediction = parseChartPoints(raw.prediction);
   if (predictionMarker && prediction.length > 1) {
-    const infoColor = directionStyle.getPropertyValue("--absorb-info").trim();
+    const infoColor = chartColor(directionStyle.getPropertyValue("--absorb-info"));
     const predictionSeries = chart.addLineSeries({
       color: infoColor,
       lineWidth: 2,

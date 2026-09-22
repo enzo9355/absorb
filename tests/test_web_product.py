@@ -2574,6 +2574,15 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("--pb-brick:#8a2f18", css)
         self.assertIn("--pb-pine:#14532f", css)
 
+    def test_price_chart_normalizes_cssom_rgb_for_legacy_chart_parser(self):
+        js = (Path(stock_app.app.static_folder) / "app.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("function chartColor(value)", js)
+        self.assertIn('const priceUp = chartColor(', js)
+        self.assertIn('const priceDown = chartColor(', js)
+
     def test_research_layout_supports_4k_and_tall_ask_workspace(self):
         css = css_compact()
 
