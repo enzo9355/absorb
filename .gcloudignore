@@ -2,6 +2,7 @@
 .gitignore
 .gcloudignore
 .codex/
+.superpowers/
 .pytest_cache/
 AGENTS.md
 tmp/
