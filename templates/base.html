@@ -24,7 +24,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ABSORB","applicationCategory":"FinanceApplication","operatingSystem":"Web, LINE","description":"已驗證市場觀察"}</script>
   {% block head %}{% endblock %}
 </head>
-<body data-account-session="{{ 'present' if request.cookies.get('stock_papi_session') else 'anonymous' }}" data-market="{{ market|default('US' if (request.endpoint or '').startswith('us_') else 'TW', true) }}">
+<body data-account-session="{{ 'present' if request.cookies.get('stock_papi_session') else 'anonymous' }}" data-market="{{ market|default('US' if (request.endpoint or '').startswith('us_') else 'TW', true) }}"{% if (request.endpoint or '') in ('dashboard_page', 'market_page', 'industries_page') %} data-theme="press-block"{% endif %}>
   {% set endpoint = request.endpoint or '' %}
   {% set market_context = market|default('US' if endpoint.startswith('us_') else 'TW', true) %}
   {% set us_market_active = market_context == 'US' %}

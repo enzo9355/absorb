@@ -150,3 +150,64 @@ body[data-market="US"] {
   --price-up:var(--price-up-on-dark);
   --price-down:var(--price-down-on-dark);
 }
+/* PRESS BLOCK：台美六頁的頁面範圍主題。
+   body[data-theme="press-block"] 由 base.html 依 endpoint 掛上；
+   其餘頁面不受影響。--absorb-navy 等既有 token 全部保留，
+   此 scope 只在六頁內重新指向紙面語彙。 */
+body[data-theme="press-block"] {
+  --pb-paper:rgb(240 236 227);
+  --pb-card:rgb(251 249 245);
+  --pb-ink:rgb(23 21 26);
+  --pb-brick:rgb(138 47 24);
+  --pb-pine:rgb(20 83 47);
+  --pb-muted:rgb(90 83 75);
+  --pb-rule:rgb(138 131 119);
+  --pb-hairline:rgb(214 207 194);
+  --pb-slate:rgb(47 58 86);
+  --pb-on-ink:rgb(240 236 227);
+  --pb-on-ink-muted:rgb(179 172 162);
+  --pb-on-ink-brick:rgb(233 184 171);
+  --pb-font-display:"ABSORB Serif","Noto Serif CJK TC","Source Han Serif TC","Songti TC",serif;
+
+  /* 既有中性 alias 在此 scope 內重新指向紙面語彙 */
+  --bg:var(--pb-paper);
+  --surface:var(--pb-card);
+  --surface-2:var(--pb-card);
+  --surface-3:var(--pb-paper);
+  --line:var(--pb-hairline);
+  --line-strong:var(--pb-ink);
+  --text:var(--pb-ink);
+  --muted:var(--pb-muted);
+  --price-up:var(--pb-brick);
+  --price-down:var(--pb-pine);
+  --price-up-on-dark:var(--pb-on-ink-brick);
+  --price-down-on-dark:var(--absorb-on-dark-down);
+
+  /* 部分元件直接讀 --absorb-* 中性 token；一併指向紙面語彙，
+     否則藍灰文字與邊界會留在紙色底上。深色面板 --absorb-ink-surface 不動。 */
+  --absorb-ink:var(--pb-ink);
+  --absorb-canvas:var(--pb-paper);
+  --absorb-muted:var(--pb-muted);
+  --absorb-subtle:var(--pb-muted);
+  --absorb-hairline:var(--pb-hairline);
+  --absorb-border-faint:var(--pb-hairline);
+  --absorb-surface:var(--pb-card);
+  --absorb-surface-raised:var(--pb-card);
+
+  /* 圓角封閉集合在此 scope 歸零 */
+  --radius-sm:0; --radius-md:0; --radius-lg:0; --radius:0; --radius-pill:0;
+
+  /* 字級：標題放大，內文沿用 */
+  --type-display:54px;  --lh-display:1.08;
+  --type-title:26px;    --lh-title:1.25;
+  --type-subtitle:21px; --lh-subtitle:1.4;
+}
+body[data-theme="press-block"][data-market="US"] {
+  --price-up:var(--pb-pine);
+  --price-down:var(--pb-brick);
+  --price-up-on-dark:var(--absorb-on-dark-down);
+  --price-down-on-dark:var(--pb-on-ink-brick);
+}
+@media (max-width:720px) {
+  body[data-theme="press-block"] { --type-display:34px; --type-title:22px; }
+}
