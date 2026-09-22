@@ -828,5 +828,51 @@ class ObservationProductsTests(unittest.TestCase):
             )
 
 
+class Batch3PriceGapRegressionTests(unittest.TestCase):
+    def _gap_stock(self, first_date, second_date, first_close, second_close):
+        from stock_papi.batch.observation_products import _return_pct
+
+        stock = _stock("8277", [first_close, second_close])
+        stock.daily[0]["Date"] = first_date + "T00:00:00.000"
+        stock.daily[1]["Date"] = second_date + "T00:00:00.000"
+        stock.as_of = datetime.date.fromisoformat(second_date)
+        return stock
+
+    def test_twelve_day_gap_is_not_a_single_day_return(self):
+        from stock_papi.batch.observation_products import _return_pct
+
+        stock = self._gap_stock("2026-09-09", "2026-09-21", 8.05, 16.85)
+        self.assertIsNone(_return_pct(stock, 1))
+
+    def test_weekend_gap_remains_comparable(self):
+        from stock_papi.batch.observation_products import _return_pct
+
+        stock = self._gap_stock("2026-09-18", "2026-09-21", 8.05, 8.30)
+        result = _return_pct(stock, 1)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result, (8.30 / 8.05 - 1) * 100)
+
+    def test_gap_stock_does_not_emit_single_day_price_move(self):
+        from stock_papi.batch.observation_products import _stock_events
+
+        stock = self._gap_stock("2026-09-09", "2026-09-21", 8.05, 16.85)
+        stock.daily[1]["RSI"] = 55.0
+        stock.daily[1]["VOL_RATIO"] = 1.0
+        events = [e for e in _stock_events([stock]) if e["symbol"] == "8277"]
+        price_moves = [e for e in events if e["event_type"] == "price_move"]
+        self.assertEqual(price_moves, [])
+
+    def test_observation_view_mirrors_gap_guard(self):
+        from stock_papi.services.observation_view import _risk_events, _window_return
+
+        rows = [
+            {"Date": "2026-09-09T00:00:00.000", "Close": 8.05},
+            {"Date": "2026-09-21T00:00:00.000", "Close": 16.85, "VOL_RATIO": 1.0, "RSI": 55.0},
+        ]
+        self.assertIsNone(_window_return(rows, 1))
+        events = _risk_events(rows)
+        self.assertNotIn("單日漲幅異常", events)
+
+
 if __name__ == "__main__":
     unittest.main()

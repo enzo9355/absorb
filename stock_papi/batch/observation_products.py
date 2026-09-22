@@ -179,12 +179,30 @@ def _rounded(value, digits=2):
     return None if value is None else round(float(value), digits)
 
 
+def _row_date(row):
+    try:
+        return datetime.date.fromisoformat(
+            str(row.get("Date") or "").split("T", 1)[0]
+        )
+    except (ValueError, AttributeError):
+        return None
+
+
 def _return_pct(stock, periods):
     if len(stock.daily) <= periods:
         return None
     current = _number(stock.daily[-1].get("Close"))
     previous = _number(stock.daily[-1 - periods].get("Close"))
     if current is None or previous is None or previous <= 0:
+        return None
+    # 相鄰報價列若橫跨過長日曆區間（停牌、缺漏、公司行動參考價重設），
+    # 直接相除會產生名為「單日」實為多日斷點的報酬；此時維持缺值，
+    # 不以舊日期或不可比基準補成正常。容許 periods+4 天以涵蓋週末與短連假。
+    current_date = _row_date(stock.daily[-1])
+    previous_date = _row_date(stock.daily[-1 - periods])
+    if current_date is None or previous_date is None:
+        return None
+    if (current_date - previous_date).days > periods + 4:
         return None
     return (current / previous - 1.0) * 100.0
 

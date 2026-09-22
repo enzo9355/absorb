@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import datetime
 from typing import Any
+import zoneinfo
 
 from .professional_schema import ProfessionalPostCloseReport, ProfessionalSection
 from .regression_schema import RegressionResearchArtifact
@@ -45,6 +47,15 @@ def build_professional_report_view(
         raise TypeError("regression_artifact must be RegressionResearchArtifact")
 
     identity = report.identity
+    try:
+        published_moment = identity.published_at
+        if published_moment.tzinfo is None:
+            published_moment = published_moment.replace(tzinfo=datetime.timezone.utc)
+        published_taipei = published_moment.astimezone(
+            zoneinfo.ZoneInfo("Asia/Taipei")
+        ).strftime("%Y-%m-%d %H:%M") + "（台北時間）"
+    except (ValueError, AttributeError, zoneinfo.ZoneInfoNotFoundError):
+        published_taipei = None
     if regression_artifact is None:
         safe_reason = (
             regression_unavailable_reason
@@ -111,6 +122,7 @@ def build_professional_report_view(
             "source_market_date": identity.source_market_date.isoformat(),
             "applicable_trading_date": identity.applicable_trading_date.isoformat(),
             "published_at": identity.published_at.isoformat(),
+            "published_at_taipei": published_taipei,
             "content_sha256_short": identity.content_sha256[:12],
             "source_manifest_sha256_short": identity.source_manifest_sha256[:12],
             "code_commit_sha_short": identity.code_commit_sha[:12],

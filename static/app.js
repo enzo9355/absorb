@@ -259,11 +259,41 @@ async function loadAccountState() {
   }
 }
 
-function appendConversationMessage(log, role, text) {
+function isVerifiedCitationUrl(url) {
+  return typeof url === "string"
+    && /^\/(reports|stock|industries|market|ask|learn)(\/|$)/.test(url)
+    && !/[<>"'\s\\]/.test(url);
+}
+
+function appendConversationCitations(log, citations) {
+  if (!Array.isArray(citations)) return;
+  const verified = citations.filter(
+    (item) => item && typeof item === "object" && isVerifiedCitationUrl(item.url)
+  );
+  if (!verified.length) return;
+  const wrap = document.createElement("div");
+  wrap.className = "conversation-citations";
+  const title = document.createElement("span");
+  title.textContent = "可驗證來源：";
+  wrap.append(title);
+  verified.slice(0, 3).forEach((item) => {
+    const link = document.createElement("a");
+    link.href = item.url;
+    const chapters = Array.isArray(item.chapters) ? item.chapters.filter((c) => typeof c === "string").join("、") : "";
+    link.textContent = item.label || item.url;
+    link.title = chapters ? `${item.date || ""}｜${chapters}` : (item.date || "");
+    wrap.append(link);
+  });
+  log.append(wrap);
+  log.scrollTop = log.scrollHeight;
+}
+
+function appendConversationMessage(log, role, text, citations) {
   const empty = bySelector(".empty-state", log);
   if (empty) empty.remove();
   const message = element("p", `conversation-message ${role}`, text);
   log.append(message);
+  if (role === "assistant") appendConversationCitations(log, citations);
   log.scrollTop = log.scrollHeight;
 }
 
@@ -298,7 +328,7 @@ function initConversations() {
           body: JSON.stringify(payload),
         });
         const data = await response.json();
-        appendConversationMessage(log, "assistant", response.ok ? data.text : "自然語言分析暫時無法使用，請稍後再試。");
+        appendConversationMessage(log, "assistant", response.ok ? data.text : "自然語言分析暫時無法使用，請稍後再試。", response.ok ? data.citations : undefined);
       } catch (_error) {
         appendConversationMessage(log, "assistant", "自然語言分析暫時無法使用，固定指令與股票查詢不受影響。");
       } finally {

@@ -7,7 +7,8 @@
     <a class="back-link" href="{{ url_for('trading_day_report_page', trading_date=report.applicable_trading_date) }}">返回當日報告</a>
     <p class="eyebrow">{{ report.label }}</p>
     <h1>{{ report.title }}</h1>
-    <p class="muted">資料基準日 {{ report.source_market_date }}｜今日適用交易日 {{ report.applicable_trading_date }}｜發布 {{ report.published_at }}</p>
+    <p class="muted">資料基準日 {{ report.source_market_date }}｜今日適用交易日 {{ report.applicable_trading_date }}｜發布 {{ report.published_at_taipei or report.published_at }}</p>
+    {% if report.published_at_taipei %}<p class="muted small">原始發布時間（UTC）{{ report.published_at }}</p>{% endif %}
     <p class="muted small">AI 預測研究中；本頁只呈現已發生且通過發布驗證的市場資料。</p>
   </header>
 
@@ -16,7 +17,7 @@
       <p class="eyebrow">OVERNIGHT UPDATE</p>
       <h2 id="overnight-title">盤前風險更新</h2>
       <p>{{ report.overnight_overlay.message }}</p>
-      <p class="muted small">更新時間 {{ report.overnight_overlay.as_of }}</p>
+      <p class="muted small">更新時間 {{ report.overnight_overlay.as_of_taipei or report.overnight_overlay.as_of }}{% if report.overnight_overlay.as_of_taipei %}（原始 UTC {{ report.overnight_overlay.as_of }}){% endif %}</p>
     </section>
   {% endif %}
 

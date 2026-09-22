@@ -370,5 +370,84 @@ class ProfessionalReportHtmlTests(unittest.TestCase):
         self.assertIn("目前沒有符合此情境的已驗證條件", output_pos)
 
 
+class Batch4ReportClaimRegressionTests(unittest.TestCase):
+    def _render(self, report):
+        template_text = pathlib.Path(
+            "templates/reports/post_close_professional.html"
+        ).read_text(encoding="utf-8")
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "reports/post_close_professional.html": template_text,
+                    "base.html": "{% block title %}{% endblock %}{% block nav_reports %}{% endblock %}{% block content %}{% endblock %}",
+                }
+            )
+        )
+        return env.get_template("reports/post_close_professional.html").render(
+            report=report
+        )
+
+    def _view(self):
+        metadata = ProfessionalReportHtmlTests()._metadata()
+        report = build_professional_post_close_artifact(
+            metadata, code_commit_sha="b" * 40
+        )
+        return build_professional_report_view(report)
+
+    def test_unavailable_ai_does_not_claim_gemini_generation(self):
+        view = self._view()
+        self.assertEqual(view["ai_reference"]["status"], "unavailable")
+        output = self._render(view)
+        self.assertNotIn("由 Google Gemini", output)
+        self.assertIn("Gemini", output)
+
+    def test_subtitle_does_not_claim_unavailable_chapters(self):
+        view = self._view()
+        output = self._render(view)
+        self.assertNotIn(
+            "已驗證市場結構、產業輪動、籌碼流向、解釋型量化回歸與下一交易日情境框架",
+            output,
+        )
+        self.assertIn("未提供的章節不列入本頁宣稱", output)
+
+    def test_event_units_render_percent_sign_not_raw_key(self):
+        view = self._view()
+        view["securities"]["data"]["stock_events"] = [
+            {
+                "symbol": "2330",
+                "name": "台積電",
+                "observation": "單日漲幅異常",
+                "as_of": "2026-07-17",
+                "metric_value": 6.12,
+                "unit": "pct",
+                "event_type": "price_move",
+                "severity": "high",
+            }
+        ]
+        output = self._render(view)
+        self.assertIn("6.12%", output)
+        self.assertNotIn("6.12 pct", output)
+
+    def test_publish_time_prefers_taipei_with_utc_secondary(self):
+        view = self._view()
+        # 2026-07-17T10:30:00Z == 18:30 台北時間
+        self.assertEqual(view["identity"]["published_at_taipei"], "2026-07-17 18:30（台北時間）")
+        output = self._render(view)
+        self.assertIn("2026-07-17 18:30", output)
+
+    def test_publish_time_crossing_utc_midnight(self):
+        # 2026-09-21T23:30:00Z == 2026-09-22 07:30 台北時間（日期進位）
+        from stock_papi.services.report_view import taipei_display
+
+        self.assertEqual(
+            taipei_display("2026-09-21T23:30:03.573308Z"),
+            "2026-09-22 07:30（台北時間）",
+        )
+        self.assertEqual(
+            taipei_display("2026-09-21T13:26:33.474106Z"),
+            "2026-09-21 21:26（台北時間）",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -44,6 +44,21 @@ def _window_return(rows, sessions):
     baseline = _number(rows[-1 - sessions].get("Close"))
     if current is None or baseline is None or baseline <= 0:
         return None
+    # 與 observation_products._return_pct 一致：橫跨過長日曆區間的報價列
+    # 不可比，直接維持缺值，不以斷點價格相除。
+    current_date = _date_text(rows[-1].get("Date"))
+    baseline_date = _date_text(rows[-1 - sessions].get("Date"))
+    if current_date is None or baseline_date is None:
+        return None
+    try:
+        gap = (
+            datetime.date.fromisoformat(current_date)
+            - datetime.date.fromisoformat(baseline_date)
+        ).days
+    except ValueError:
+        return None
+    if gap > sessions + 4:
+        return None
     return (current / baseline - 1) * 100
 
 
@@ -54,11 +69,25 @@ def _risk_events(rows):
     if len(rows) > 1:
         previous = _number(rows[-2].get("Close"))
         if close is not None and previous is not None and previous > 0:
-            change = (close / previous - 1) * 100
-            if abs(change) >= 5:
-                events.append(
-                    "單日漲幅異常" if change > 0 else "單日跌幅異常"
-                )
+            latest_date = _date_text(latest.get("Date"))
+            previous_date = _date_text(rows[-2].get("Date"))
+            comparable = False
+            if latest_date is not None and previous_date is not None:
+                try:
+                    comparable = (
+                        datetime.date.fromisoformat(latest_date)
+                        - datetime.date.fromisoformat(previous_date)
+                    ).days <= 5
+                except ValueError:
+                    comparable = False
+            if comparable:
+                change = (close / previous - 1) * 100
+                if abs(change) >= 5:
+                    events.append(
+                        "單日漲幅異常" if change > 0 else "單日跌幅異常"
+                    )
+            else:
+                events.append("相鄰報價區間過長，單日漲跌幅暫不判定")
     volume = _number(latest.get("VOL_RATIO"))
     if volume is not None and volume >= 2:
         events.append("量能異常放大")

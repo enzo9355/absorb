@@ -110,8 +110,8 @@
     <section class="panel foreign-panel" id="chips">
       <div class="section-heading"><div><p class="eyebrow">CAPITAL FLOW</p><h2>籌碼觀察</h2></div></div>
       <div class="indicator-grid">
-        <article><span>外資近 5 日</span><strong>{{ '{:,.0f}'.format(foreign_net_5) if foreign_net_5 is not none else '資料不足' }}</strong><small>依已發布快照加總</small></article>
-        <article><span>外資近 20 日</span><strong>{{ '{:,.0f}'.format(foreign_net_20) if foreign_net_20 is not none else '資料不足' }}</strong><small>資料可能受市場揭露時差影響</small></article>
+        <article><span>外資近 5 日（股）</span><strong>{{ '{:,.0f}'.format(foreign_net_5) if foreign_net_5 is not none else '資料不足' }}</strong><small>單位：股，以外資買賣超加總呈現</small></article>
+        <article><span>外資近 20 日（股）</span><strong>{{ '{:,.0f}'.format(foreign_net_20) if foreign_net_20 is not none else '資料不足' }}</strong><small>單位：股；資料可能受市場揭露時差影響</small></article>
         <article><span>機構淨流量比</span><strong>{{ '%+.2f%%'|format(institution_net_ratio_pct) if institution_net_ratio_pct is not none else '資料不足' }}</strong><small>最新資料列</small></article>
         <article><span>量比</span><strong>{{ '%.2f'|format(volume_ratio) if volume_ratio is not none else '資料不足' }}</strong><small>成交量相對近期常態</small></article>
       </div>

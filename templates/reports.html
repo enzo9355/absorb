@@ -49,9 +49,12 @@
                 <h3>{{ report.title }}</h3>
                 <p class="report-summary">{{ report.summary|join('；') }}</p>
                 <p class="muted small">資料基準日 {{ report.source_market_date }}｜適用交易日 {{ report.applicable_trading_date }}</p>
+                {% if report.duplicate_notice %}<p class="muted small" role="note">{{ report.duplicate_notice }}</p>{% endif %}
               </div>
               <div class="report-actions">
-                {% if report_type == 'post_close' %}
+                {% if report.index_conflict %}
+                  <p class="empty-state" role="alert">此報告索引存在內容衝突，暫不提供閱讀連結；雜湊見上方說明。</p>
+                {% elif report_type == 'post_close' %}
                   <a class="button button-secondary" href="{{ url_for(post_close_endpoint, trading_date=report.source_market_date) }}">閱讀盤後觀察</a>
                 {% else %}
                   <a class="button button-secondary" href="{{ url_for(pre_market_endpoint, trading_date=report.applicable_trading_date) }}">閱讀盤前更新</a>

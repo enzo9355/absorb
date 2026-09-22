@@ -314,5 +314,52 @@ class ProfessionalReportBuilderTests(unittest.TestCase):
         self.assertIsNone(r.capital_flows.data["investment_trust_net"])
         self.assertIsNone(r.capital_flows.data["dealer_net"])
 
+class Batch2SemanticsRegressionTests(unittest.TestCase):
+    def test_market_action_label_does_not_reuse_risk_name(self):
+        import pathlib as _pathlib
+
+        report = build_professional_post_close_artifact(
+            ProfessionalReportBuilderTests()._metadata(), code_commit_sha="b" * 40
+        )
+        conclusion = report.executive_summary.to_document()["one_line_conclusion"]
+        self.assertIn("規則式市場行動", conclusion)
+        self.assertNotIn("規則式風險狀態", conclusion)
+
+    def test_rank_based_weakest_can_be_positive_so_label_must_say_rank(self):
+        metadata = ProfessionalReportBuilderTests()._metadata()
+        metadata["content"]["industry_observations"] = [
+            {"name": f"產業{i}", "available_count": 6, "component_count": 6,
+             "relative_return_5d_pct": value}
+            for i, value in enumerate([8.49, 7.09, 5.56, 3.90, 2.86, 2.70, 1.39, 0.5])
+        ]
+        report = build_professional_post_close_artifact(metadata, code_commit_sha="b" * 40)
+        weakest = report.executive_summary.to_document()["weakest_industries"]
+        # 排名後三即使全為正值仍會列出弱勢組，因此模板必須標示為排名而非跑輸大盤
+        self.assertTrue(all(isinstance(name, str) for name in weakest))
+        import pathlib as _pathlib
+
+        template = _pathlib.Path("templates/reports/post_close_professional.html").read_text(encoding="utf-8")
+        self.assertIn("排名後三", template)
+        self.assertIn("排名前三", template)
+        self.assertNotIn("🔥 強勢領先產業", template)
+
+    def test_industry_badges_use_documented_pm2_threshold(self):
+        import pathlib as _pathlib
+
+        template = _pathlib.Path("templates/reports/post_close_professional.html").read_text(encoding="utf-8")
+        self.assertIn("relative_return_5d_pct >= 2", template)
+        self.assertIn("relative_return_5d_pct > -2", template)
+        # +2.70% 必須落在強勢或貼近大盤，不得被歸為相對落後
+        self.assertNotIn("relative_return_5d_pct >= 1.5", template)
+
+    def test_median_return_label_does_not_claim_index(self):
+        import pathlib as _pathlib
+
+        template = _pathlib.Path("templates/reports/post_close_professional.html").read_text(encoding="utf-8")
+        self.assertIn("全市場單日中位報酬", template)
+        self.assertIn("全市場股票中位數", template)
+        self.assertNotIn("大盤單日報酬", template)
+
+
 if __name__ == "__main__":
     unittest.main()

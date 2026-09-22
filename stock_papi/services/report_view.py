@@ -1,8 +1,10 @@
 """Normalize verified report metadata before it reaches Jinja."""
 
 from dataclasses import dataclass
+import datetime
 import re
 from typing import Any, Mapping
+import zoneinfo
 
 from reporting.exceptions import ReportWebError
 from stock_papi.batch.observation_products import (
@@ -83,6 +85,109 @@ def _valid_core_items(value: dict[str, Any]) -> bool:
     return True
 
 
+def _url_identity(item: Mapping[str, Any]) -> tuple:
+    """Canonical list identity: entries resolving to the same reader URL."""
+    report_type = item.get("report_type")
+    if report_type == "post_close":
+        return ("post_close", item.get("source_market_date"))
+    if report_type == "pre_market":
+        return ("pre_market", item.get("applicable_trading_date"))
+    return (
+        report_type,
+        item.get("source_market_date"),
+        item.get("applicable_trading_date"),
+    )
+
+
+def dedupe_reports_for_list(
+    reports: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Deduplicate v2 index entries for list display without deleting history.
+
+    Rules (no title-text matching, no plain first-pick, no string-date sort):
+    - Entries sharing a reader URL are one display group; keep the latest
+      ``published_at`` (the publisher's version order) and attach a
+      ``duplicate_notice`` when siblings differ, preserving their hashes.
+    - Entries sharing the full logical key
+      (type/source/applicable) with different ``metadata_sha256`` conflict;
+      the card is marked ``index_conflict`` and shown as unavailable with
+      diagnostic hashes instead of a reader link. History files are untouched.
+    """
+    groups: dict[tuple, list[Mapping[str, Any]]] = {}
+    for item in reports or []:
+        if not isinstance(item, Mapping):
+            continue
+        groups.setdefault(_url_identity(item), []).append(item)
+    ordered_keys = sorted(
+        groups,
+        key=lambda key: str(key[1] if len(key) > 1 else ""),
+        reverse=True,
+    )
+    display: list[dict[str, Any]] = []
+    for key in ordered_keys:
+        members = sorted(
+            groups[key],
+            key=lambda item: str(item.get("published_at") or ""),
+            reverse=True,
+        )
+        chosen = dict(members[0])
+        logical = (
+            chosen.get("report_type"),
+            chosen.get("source_market_date"),
+            chosen.get("applicable_trading_date"),
+        )
+        same_logical = [
+            item
+            for item in members
+            if (
+                item.get("report_type"),
+                item.get("source_market_date"),
+                item.get("applicable_trading_date"),
+            )
+            == logical
+        ]
+        shas = {
+            str(item.get("metadata_sha256") or "")
+            for item in same_logical
+        }
+        if len(shas) > 1:
+            chosen["index_conflict"] = True
+            chosen["duplicate_notice"] = (
+                "同一報告身分有多筆不同內容（"
+                + "、".join(sorted(sha[:12] for sha in shas if sha))
+                + "）；依既有規則無法判定可信版本，暫不提供閱讀連結。"
+            )
+        elif len(members) > 1:
+            siblings = [
+                f"{item.get('applicable_trading_date')}（{str(item.get('metadata_sha256') or '')[:12]}）"
+                for item in members[1:]
+            ]
+            chosen["duplicate_notice"] = (
+                "索引另有同來源版本，適用交易日"
+                + "、".join(siblings)
+                + "；此處顯示最新發布版本，歷史檔案均保留。"
+            )
+        display.append(chosen)
+    return display
+
+
+def taipei_display(utc_text: Any) -> str | None:
+    """Render a UTC instant primarily in Taipei time; raw UTC stays secondary."""
+    try:
+        moment = datetime.datetime.fromisoformat(
+            str(utc_text).replace("Z", "+00:00")
+        )
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    try:
+        taipei = moment.astimezone(zoneinfo.ZoneInfo("Asia/Taipei"))
+    except (ValueError, zoneinfo.ZoneInfoNotFoundError):
+        return None
+    return taipei.strftime("%Y-%m-%d %H:%M") + "（台北時間）"
+
+
 @dataclass(frozen=True)
 class ObservationReportView:
     report_type: str
@@ -91,6 +196,7 @@ class ObservationReportView:
     source_market_date: str
     applicable_trading_date: str
     published_at: str
+    published_at_taipei: str | None
     summary: tuple[str, ...]
     warnings: tuple[str, ...]
     core: Mapping[str, Any]
@@ -156,6 +262,7 @@ def _overnight_overlay(value: Any) -> dict[str, Any]:
             "message": "此歷史盤前報告沒有隔夜資料。",
             "symbols": [],
             "as_of": value["as_of"],
+            "as_of_taipei": taipei_display(value.get("as_of")),
             "previous_as_of": None,
             "source_manifest": None,
             "source_manifest_sha256": None,
@@ -198,6 +305,7 @@ def _overnight_overlay(value: Any) -> dict[str, Any]:
             "message": value["message"],
             "symbols": [],
             "as_of": value["as_of"],
+            "as_of_taipei": taipei_display(value.get("as_of")),
             "previous_as_of": None,
             "required_as_of": value["required_as_of"],
             "observed_as_of": observed_as_of,
@@ -231,6 +339,7 @@ def _overnight_overlay(value: Any) -> dict[str, Any]:
         "message": value["message"],
         "symbols": list(symbols),
         "as_of": value["as_of"],
+        "as_of_taipei": taipei_display(value.get("as_of")),
         "previous_as_of": value["previous_as_of"],
         "source_manifest": value["source_manifest"],
         "source_manifest_sha256": value["source_manifest_sha256"],
@@ -290,6 +399,7 @@ def build_observation_report_view(
         source_market_date=str(metadata["source_market_date"]),
         applicable_trading_date=str(metadata["applicable_trading_date"]),
         published_at=str(metadata["published_at"]),
+        published_at_taipei=taipei_display(metadata.get("published_at")),
         summary=tuple(str(value) for value in metadata.get("summary") or ()),
         warnings=tuple(str(value) for value in metadata.get("warnings") or ()),
         core=core,

@@ -93,7 +93,7 @@ def _executive_summary(
         "market_state": state,
         "one_line_conclusion": (
             f"市場單日報酬 {_format_pct(daily_return)}，站上 MA20 比例 {breadth_text}；"
-            f"目前規則式風險狀態為「{state}」。"
+            f"目前規則式市場行動為「{state}」。"
         ),
         "supporting_evidence": supporting,
         "opposing_evidence": opposing,

@@ -179,7 +179,8 @@ class AbsorbConversationWebTests(unittest.TestCase):
         self.assertEqual(answer.tools_used, ("verified_observation_dashboard",))
         self.assertEqual(len(model.calls), 1)
         prompt, kwargs = model.calls[0]
-        self.assertIn('"median_volume_ratio":0.88', prompt)
+        self.assertIn('"中位量比":0.88', prompt)
+        self.assertNotIn("median_volume_ratio", prompt)
         self.assertEqual(
             kwargs["generation_config"],
             {"max_output_tokens": 512, "temperature": 0.1},
@@ -481,6 +482,126 @@ class AbsorbConversationWebTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(converse.call_args.kwargs["page_context"], "market")
         self.assertIsNone(converse.call_args.kwargs["symbol_context"])
+
+
+class Batch6AskCitationsRegressionTests(unittest.TestCase):
+    def _snapshot(self):
+        return {
+            "product_mode": "observation",
+            "market": "TW",
+            "observation_as_of": "2026-09-21",
+            "market_observation": {
+                "advancing_count": 977,
+                "declining_count": 854,
+                "unchanged_count": 202,
+                "ma20_breadth_pct": 50.6,
+                "return_1d_pct": 0.0,
+                "risk_state": "normal",
+            },
+            "industry_observations": [],
+            "daily_focus": [],
+            "stock_events": [],
+        }
+
+    def test_breadth_answer_uses_chinese_fields_and_verified_citation(self):
+        class Model:
+            def __init__(self):
+                self.calls = []
+
+            def generate_content(self, prompt, **kwargs):
+                self.calls.append(prompt)
+                return SimpleNamespace(
+                    text="上漲家數 977 檔、下跌 854 檔，站上 MA20 比例 50.6%。"
+                )
+
+        model = Model()
+        with (
+            patch.object(stock_app, "asksorb_model", model, create=True),
+            patch.object(stock_app, "_conversation_search_stock", return_value=(None, None)),
+            patch.object(stock_app, "_published_dashboard_snapshot", return_value=self._snapshot()),
+        ):
+            answer = stock_app._observation_conversation(
+                question="最近一份盤後觀察裡，市場廣度那一段說了什麼？",
+                access="public",
+                market_context="TW",
+                page_context="market",
+            )
+
+        prompt = model.calls[0]
+        self.assertIn("上漲家數", prompt)
+        self.assertNotIn("advancing_count", prompt)
+        self.assertNotIn("market_observation", prompt)
+        self.assertEqual(answer.data_as_of, "2026-09-21")
+        self.assertEqual(len(answer.citations), 1)
+        citation = answer.citations[0]
+        self.assertEqual(citation["url"], "/reports/2026-09-21/post-close")
+        self.assertEqual(citation["date"], "2026-09-21")
+        self.assertIn("市場實況", citation["chapters"])
+
+    def test_citation_url_never_comes_from_model_text(self):
+        class Model:
+            def generate_content(self, prompt, **kwargs):
+                return SimpleNamespace(
+                    text="詳見 https://evil.example/report，站上 MA20 比例 50.6%。"
+                )
+
+        with (
+            patch.object(stock_app, "asksorb_model", Model(), create=True),
+            patch.object(stock_app, "_conversation_search_stock", return_value=(None, None)),
+            patch.object(stock_app, "_published_dashboard_snapshot", return_value=self._snapshot()),
+        ):
+            answer = stock_app._observation_conversation(
+                question="市場廣度如何？",
+                access="public",
+                market_context="TW",
+                page_context="market",
+            )
+
+        urls = [item["url"] for item in answer.citations]
+        self.assertNotIn("https://evil.example/report", urls)
+        self.assertTrue(all(url.startswith("/reports/") for url in urls))
+
+    def test_model_failure_fallback_stays_chinese_with_citation(self):
+        class Model:
+            def generate_content(self, *_args, **_kwargs):
+                raise RuntimeError("quota exhausted")
+
+        with (
+            patch.object(stock_app, "asksorb_model", Model(), create=True),
+            patch.object(stock_app, "_conversation_search_stock", return_value=(None, None)),
+            patch.object(stock_app, "_published_dashboard_snapshot", return_value=self._snapshot()),
+        ):
+            answer = stock_app._observation_conversation(
+                question="今天市場如何？",
+                access="public",
+                market_context="TW",
+                page_context="market",
+            )
+
+        self.assertIn("市場實況", answer.text)
+        self.assertNotIn("advancing_count", answer.text)
+        self.assertEqual(len(answer.citations), 1)
+
+    def test_conversation_api_exposes_citations(self):
+        client = stock_app.app.test_client()
+        with patch.object(
+            stock_app,
+            "run_absorb_conversation",
+            return_value=ConversationAnswer(
+                "市場實況摘要",
+                citations=({"label": "2026-09-21 盤後觀察", "url": "/reports/2026-09-21/post-close"},),
+            ),
+        ):
+            response = client.post(
+                "/api/conversation",
+                json={"question": "今天市場如何？", "market": "TW", "page": "market"},
+            )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(
+            payload["citations"],
+            [{"label": "2026-09-21 盤後觀察", "url": "/reports/2026-09-21/post-close"}],
+        )
 
 
 if __name__ == "__main__":

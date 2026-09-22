@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 {% block title %}美股產業觀察｜ABSORB{% endblock %}
 {% block content %}
+{% set freshness = (data_freshness|default({}, true)).get('US', {}) %}
+{% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness.get('status'), '暫時無法取得') %}
 <div class="page market-summary-page">
   <header class="page-header"><div><h1>美股產業觀察</h1><p class="page-intro">資料日 {{ summary.source_market_date }}；排名與觀察均來自已驗證的美股正式報告。</p></div></header>
+  <section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-labelledby="us-industries-freshness-title">
+    <div><h2 id="us-industries-freshness-title">已驗證資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
+    <dl><div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or summary.source_market_date or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div></dl>
+    {% if freshness.get('status') == 'stale' %}<p class="freshness-warning">目前沒有涵蓋最新交易日的已驗證資料；以下數字為最近一次報告，不代表今日即時行情。</p>{% endif %}
+  </section>
   <section class="panel" aria-labelledby="us-industries-title">
     <h2 id="us-industries-title">產業資料</h2>
     {% if summary.industries.status == 'available' %}
@@ -20,12 +27,12 @@
       {% endfor %}
       </tbody></table></div>
     {% else %}
-      <p class="empty-state">{{ summary.industries.reason }}</p>
+      <p class="empty-state">{{ summary.industries.reason or '產業觀察資料暫時無法顯示。' }}</p>
     {% endif %}
   </section>
   <section class="panel" aria-labelledby="us-securities-title">
     <h2 id="us-securities-title">個股與 ETF</h2>
-    {% if summary.securities.status == 'available' %}<p class="page-intro">已驗證事件 {{ summary.securities.data.stock_events|default([])|length }} 筆；ETF 觀察 {{ summary.securities.data.etf_observations|default([])|length }} 筆。</p>{% else %}<p class="empty-state">{{ summary.securities.reason }}</p>{% endif %}
+    {% if summary.securities.status == 'available' %}<p class="page-intro">已驗證事件 {{ summary.securities.data.stock_events|default([])|length }} 筆；ETF 觀察 {{ summary.securities.data.etf_observations|default([])|length }} 筆。</p>{% else %}<p class="empty-state">{{ summary.securities.reason or '個股與 ETF 資料暫時無法顯示。' }}</p>{% endif %}
   </section>
 </div>
 {% endblock %}

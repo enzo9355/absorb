@@ -62,6 +62,7 @@ class ConversationAnswer:
     tools_used: tuple[str, ...] = ()
     action_label: str | None = None
     requires_confirmation: bool = False
+    citations: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)

@@ -40,7 +40,7 @@
         <article><span>市場廣度</span><strong>{{ '%.1f%%'|format(market.get('ma20_breadth_pct')) if market.get('ma20_breadth_pct') is not none else '資料不足' }}</strong><small>站上 MA20</small>{% if market.get('ma20_breadth_pct') is not none %}<progress value="{{ market.get('ma20_breadth_pct') }}" max="100">{{ market.get('ma20_breadth_pct') }}%</progress>{% endif %}</article>
         <article><span>成交動能</span><strong>{{ '%.2f'|format(market.get('median_volume_ratio')) if market.get('median_volume_ratio') is not none else '資料不足' }}</strong><small>成交量中位比</small>{% if market.get('median_volume_ratio') is not none %}<progress value="{{ market.get('median_volume_ratio') }}" max="2">{{ market.get('median_volume_ratio') }}</progress>{% endif %}</article>
         <article><span>波動壓力</span><strong>{{ '%.1f%%'|format(market.get('realized_volatility_20d_pct')) if market.get('realized_volatility_20d_pct') is not none else '資料不足' }}</strong><small>20 日已實現波動</small></article>
-        <article><span>風險狀態</span><strong>{{ {'normal':'一般','cautious':'謹慎','elevated':'升高'}.get(market.get('risk_state'), '資料不足') }}</strong><small>已驗證狀態</small></article>
+        <article><span>風險狀態</span><strong>{{ {'normal':'一般','cautious':'謹慎','elevated':'升高'}.get(market.get('risk_state'), '資料不足') }}</strong><small>{{ '已驗證狀態' if market.get('risk_state') in ['normal','cautious','elevated'] else '資料待驗證' }}</small></article>
       </div>
 
       <section class="evidence-canvas market-index-canvas" aria-labelledby="return-title">

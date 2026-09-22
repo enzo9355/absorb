@@ -26,7 +26,10 @@ from reporting.regression_schema import (
     RegressionResearchArtifact,
 )
 from reporting.schemas import ReportMetadataV2
-from stock_papi.services.report_view import build_observation_report_view
+from stock_papi.services.report_view import (
+    build_observation_report_view,
+    dedupe_reports_for_list,
+)
 from stock_papi.services.market_summary import build_market_summary_view
 from stock_papi.services.prediction_view import prediction_for
 from reporting.config import MAX_CANONICAL_REPORT_BYTES
@@ -376,7 +379,8 @@ def register_report_routes(
                 return _report_error(503, exc=exc)
             reports_v2 = None
         response = make_response(render_template(
-            "reports.html", reports=reports or [], reports_v2=reports_v2 or [],
+            "reports.html", reports=reports or [],
+            reports_v2=dedupe_reports_for_list(reports_v2 or []),
             unavailable=reports is None and reports_v2 is None,
             market="TW",
         ))
@@ -456,7 +460,8 @@ def register_report_routes(
                 return _report_error(503, exc=exc)
             reports_v2 = None
         response = make_response(render_template(
-            "reports.html", reports=[], reports_v2=reports_v2 or [],
+            "reports.html", reports=[],
+            reports_v2=dedupe_reports_for_list(reports_v2 or []),
             unavailable=reports_v2 is None,
             market="US",
         ))
@@ -503,7 +508,7 @@ def register_report_routes(
                 except Exception:
                     predictions = []
                 context["index_predictions"] = predictions
-            if template_name == "us_dashboard.html" and load_data_freshness:
+            if load_data_freshness:
                 try:
                     context["data_freshness"] = {
                         "US": load_data_freshness("US", reports=reports)
