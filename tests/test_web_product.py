@@ -2568,6 +2568,12 @@ class WebProductTests(unittest.TestCase):
         self.assertNotIn("backdrop-filter", css)
         self.assertEqual(manifest["background_color"], "#f7f6f2")
 
+    def test_press_block_chart_tokens_use_legacy_color_syntax(self):
+        css = css_bundle()
+
+        self.assertIn("--pb-brick:#8a2f18", css)
+        self.assertIn("--pb-pine:#14532f", css)
+
     def test_research_layout_supports_4k_and_tall_ask_workspace(self):
         css = css_compact()
 

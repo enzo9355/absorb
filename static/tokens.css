@@ -158,8 +158,8 @@ body[data-theme="press-block"] {
   --pb-paper:rgb(240 236 227);
   --pb-card:rgb(251 249 245);
   --pb-ink:rgb(23 21 26);
-  --pb-brick:rgb(138 47 24);
-  --pb-pine:rgb(20 83 47);
+  --pb-brick:#8a2f18;
+  --pb-pine:#14532f;
   --pb-muted:rgb(90 83 75);
   --pb-rule:rgb(138 131 119);
   --pb-hairline:rgb(214 207 194);
