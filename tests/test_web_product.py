@@ -1692,7 +1692,7 @@ class WebProductTests(unittest.TestCase):
             "圖表、回測、新聞",
         ):
             self.assertNotIn(removed, svg)
-        for marker in ("ABSORB", "#122643", "#ffffff", "#eaf0f7"):
+        for marker in ("ABSORB", "#F0ECE3", "#17151A", "#8A2F18", "#8A8377"):
             self.assertIn(marker, svg)
 
     def test_line_summary_card_has_one_clear_cta(self):
@@ -1731,6 +1731,58 @@ class WebProductTests(unittest.TestCase):
         self.assertIn(".dashboard-sidebar", css)
         self.assertIn('aria-controls="dashboard-sidebar"', html)
         self.assertIn('<span class="nav-label">每日報告</span>', html)
+
+    def test_mobile_shell_keeps_secondary_routes_and_login_reachable(self):
+        response = stock_app.app.test_client().get("/dashboard")
+        html = response.get_data(as_text=True)
+        css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="mobile-primary-nav"', html)
+        self.assertIn('class="mobile-more-menu"', html)
+        for href in (
+            'href="/industries/ai-server/relationships"',
+            'href="/events"',
+            'href="/perspectives"',
+            'href="/auth/line/login?return_to=/dashboard"',
+        ):
+            self.assertIn(href, html)
+        self.assertIn(".mobile-primary-nav", css)
+        self.assertIn(".account-nav{display:block}", css)
+        self.assertIn(".conversation-control{display:grid;grid-template-columns:1fr}", css)
+
+    def test_stock_event_groups_start_collapsed_to_keep_long_pages_scannable(self):
+        snapshot = observation_dashboard()
+        snapshot["stock_events"] = [
+            {
+                "event_type": "price_move",
+                "metric_value": 3.2,
+                "severity": "high",
+                "symbol": "2330",
+                "name": "台積電",
+                "observation": "單日上漲",
+                "unit": "pct",
+                "as_of": "2026-07-15",
+            }
+        ]
+        with patch.object(stock_app, "_published_dashboard_snapshot", return_value=snapshot):
+            html = stock_app.app.test_client().get("/stocks").get_data(as_text=True)
+
+        self.assertIn('<details class="event-group event-up"', html)
+        self.assertNotIn('<section class="event-group event-up"', html)
+
+    def test_mobile_hides_floating_ask_and_keeps_toolbar_entry(self):
+        response = stock_app.app.test_client().get("/dashboard")
+        html = response.get_data(as_text=True)
+        css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")
+
+        mobile_block = css.split("@media(max-width:760px)", 1)[1]
+        self.assertIn(".quick-ask-trigger{display:none}", mobile_block.replace(" ", ""))
+        # 手機 ASKsorb 改由「更多」工具列進入，不遮正文
+        self.assertIn('href="/ask"', html)
+        self.assertIn('class="mobile-more-menu"', html)
+        # 手機保留頂欄登入入口
+        self.assertIn('href="/auth/line/login?return_to=/dashboard"', html)
+        self.assertIn(".topbar-account", css)
 
     def test_web_shell_serves_marker_script_wordmark_across_devices(self):
         client = stock_app.app.test_client()

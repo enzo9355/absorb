@@ -105,6 +105,7 @@ class ReportWebTests(unittest.TestCase):
         canonical_key = next(key for key in objects if "objects/canonical/" in key)
         from reporting.professional_schema import ProfessionalPostCloseReport
         from stock_papi.services.market_summary import build_market_summary_view
+        from stock_papi.services.us_presentation import localize_us_key_event
 
         report = ProfessionalPostCloseReport.from_document(
             json.loads(objects[canonical_key])
@@ -120,7 +121,8 @@ class ReportWebTests(unittest.TestCase):
             report.identity.applicable_trading_date.isoformat(),
         )
         self.assertEqual(view["industries"], report.industries.to_document())
-        self.assertEqual(view["key_events"], list(report.key_events))
+        expected_key_events = [localize_us_key_event(event) for event in report.key_events]
+        self.assertEqual(view["key_events"], expected_key_events)
         self.assertEqual(view["securities"], report.securities.to_document())
         self.assertEqual(view["validation"], report.validation.to_document())
 

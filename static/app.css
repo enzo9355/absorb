@@ -146,6 +146,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{
 .conversation-message{max-width:78ch;margin:0;padding:12px 14px;border-radius:8px;white-space:pre-wrap;line-height:1.7}
 .conversation-message.user{justify-self:end;background:var(--absorb-navy);color:#fff}
 .conversation-message.assistant{background:var(--surface);border:1px solid var(--line)}
+.conversation-citations{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0;padding:10px 14px;border:1px dashed var(--line-strong);border-radius:8px;font-size:12px;color:var(--muted)}
+.conversation-citations a{color:var(--absorb-navy);font-weight:700}
 .conversation-form{display:grid;gap:8px}
 .conversation-form label{font-size:13px;font-weight:750;color:var(--muted)}
 .conversation-control{display:flex;gap:10px}
@@ -1411,3 +1413,39 @@ body.sidebar-collapsed .sidebar-nav .nav-link{justify-content:center;padding-inl
 .stock-perspective-grid strong,.stock-perspective-grid span,.stock-perspective-grid small{display:block}
 .timeline-list .opinion-card{overflow-wrap:anywhere}
 @media (max-width:760px){.perspective-toolbar{grid-template-columns:1fr}.stock-perspective-grid{grid-template-columns:1fr}.research-lead-list{max-width:100%;overflow-x:hidden}}
+
+/* Final responsive fixes for the current research shell. */
+.mobile-primary-nav{display:none}
+.event-group>summary{list-style:none;cursor:pointer}
+.event-group>summary::-webkit-details-marker{display:none}
+.event-group>summary::after{content:"+";margin-left:auto;color:var(--command-muted);font-size:18px;font-weight:400}
+.event-group[open]>summary::after{content:"−"}
+.market-action-state{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:var(--command-muted);font-size:12px}
+.market-action-state span{font-weight:750}
+.market-action-state strong{color:var(--command-ink);font-size:16px}
+.freshness-warning{grid-column:1/-1;margin:0;padding:10px 12px;border:1px solid #d7b46a;border-radius:8px;background:#fff8e8;color:#765315;font-size:12px;line-height:1.6}
+@media(max-width:760px){
+ .dashboard-sidebar{display:none}
+ .account-nav{display:block}
+ .topbar{grid-template-columns:minmax(0,1fr) auto auto;gap:8px;padding-inline:10px}
+ .topbar-account{padding-inline:8px;font-size:11px}
+ .mobile-primary-nav{position:fixed;z-index:40;right:12px;bottom:12px;left:12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(52px,.9fr);gap:6px;padding:8px;border:1px solid var(--command-line);border-radius:12px;background:rgb(247 246 242 / 96%);box-shadow:0 12px 30px rgb(24 49 71 / 18%)}
+ .mobile-primary-nav>a,.mobile-more-menu>summary{display:grid;min-width:0;min-height:44px;place-items:center;padding:0 4px;border:1px solid var(--command-line);border-radius:8px;color:var(--command-muted);font-size:11px;font-weight:750;text-decoration:none;white-space:nowrap}
+ .mobile-primary-nav>a.active,.mobile-more-menu[open]>summary{border-color:var(--command-blue);background:var(--command-accent-surface);color:var(--command-ink)}
+ .mobile-more-menu{position:relative;min-width:0}
+ .mobile-more-menu>summary{cursor:pointer;list-style:none}
+ .mobile-more-menu>summary::-webkit-details-marker{display:none}
+ .mobile-more-menu>div{position:absolute;right:0;bottom:52px;display:grid;min-width:150px;gap:5px;padding:8px;border:1px solid var(--command-line);border-radius:10px;background:var(--command-paper);box-shadow:0 12px 28px rgb(24 49 71 / 18%)}
+ .mobile-more-menu:not([open])>div{display:none}
+ .mobile-more-menu>div a{padding:8px 9px;border-radius:6px;color:var(--command-ink);font-size:12px;text-decoration:none;white-space:nowrap}
+ .mobile-more-menu>div a:hover,.mobile-more-menu>div a[aria-current="page"]{background:var(--command-accent-surface)}
+ /* 手機不顯示右下角浮動 ASKsorb，避免遮住正文與底部導覽；ASKsorb 改由「更多」選單進入。 */
+ .quick-ask-trigger{display:none}
+ .quick-ask-backdrop{place-items:end center}
+ .conversation-panel{min-width:0}
+ .conversation-control{display:grid;grid-template-columns:1fr}
+ .conversation-control input,.conversation-control button{width:100%;min-width:0}
+ .page,.content-column,.main-content{min-width:0}
+ .market-action-state{align-items:start;display:grid;gap:3px}
+ .freshness-warning{grid-column:auto}
+}

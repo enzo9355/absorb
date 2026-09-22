@@ -35,6 +35,9 @@
   {% set reports_active = 'report' in endpoint %}
   {% set ask_active = endpoint == 'ask_page' %}
   {% set learn_active = endpoint == 'learn_page' %}
+  {% set relationships_active = endpoint == 'relationships_page' %}
+  {% set events_active = endpoint == 'events_page' %}
+  {% set perspectives_active = endpoint == 'perspectives_page' %}
   {% set page_context = 'home' if dashboard_active else ('market' if market_active else ('industries' if industries_active else ('stock' if endpoint == 'stock_page' else ('stocks' if stocks_active else ('reports' if reports_active else ('learn' if learn_active else 'ask')))))) %}
   {% set dashboard_url = '/us' if us_market_active else '/' %}
   {% set market_url = '/us/market' if us_market_active else '/market' %}
@@ -74,6 +77,23 @@
       <footer class="site-footer"><span>ABSORB｜市場觀察與五日模型</span><span>模型估計不構成投資建議。</span></footer>
     </div>
   </div>
+  <nav class="mobile-primary-nav" aria-label="手機主要功能">
+    <a class="{{ 'active' if dashboard_active else '' }}" href="{{ dashboard_url }}"{% if dashboard_active %} aria-current="page"{% endif %}>今天</a>
+    <a class="{{ 'active' if market_active else '' }}" href="{{ market_url }}"{% if market_active %} aria-current="page"{% endif %}>市場</a>
+    <a class="{{ 'active' if stocks_active else '' }}" href="{{ stocks_url }}"{% if stocks_active %} aria-current="page"{% endif %}>個股</a>
+    <a class="{{ 'active' if reports_active else '' }}" href="{{ reports_url }}"{% if reports_active %} aria-current="page"{% endif %}>報告</a>
+    <details class="mobile-more-menu"{% if industries_active or ask_active or learn_active or relationships_active or events_active or perspectives_active %} open{% endif %}>
+      <summary aria-label="開啟更多功能">更多</summary>
+      <div>
+        <a href="{{ industries_url }}"{% if industries_active %} aria-current="page"{% endif %}>產業觀察</a>
+        <a href="/ask"{% if ask_active %} aria-current="page"{% endif %}>ASKsorb</a>
+        <a href="/learn"{% if learn_active %} aria-current="page"{% endif %}>學習</a>
+        <a class="{{ 'active' if relationships_active else '' }}" href="/industries/ai-server/relationships"{% if relationships_active %} aria-current="page"{% endif %}>產業關係</a>
+        <a class="{{ 'active' if events_active else '' }}" href="/events"{% if events_active %} aria-current="page"{% endif %}>公司事件</a>
+        <a class="{{ 'active' if perspectives_active else '' }}" href="/perspectives"{% if perspectives_active %} aria-current="page"{% endif %}>觀點追蹤</a>
+      </div>
+    </details>
+  </nav>
   {% if not ask_active %}
   <button class="quick-ask-trigger" type="button" data-quick-ask-open aria-controls="quick-ask-dialog" aria-expanded="false">ASKsorb</button>
   <div class="quick-ask-backdrop" data-quick-ask-dialog id="quick-ask-dialog" hidden>

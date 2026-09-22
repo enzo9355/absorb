@@ -16,6 +16,7 @@ MARKET_OBSERVATION_LABELS = {
     "return_20d_pct": "20 日報酬",
     "return_60d_pct": "60 日報酬",
     "median_volume_ratio": "中位量比",
+    "median_institution_net_ratio_pct": "法人淨流中位",
     "risk_state": "風險狀態",
     "market_state": "市場狀態",
 }
@@ -55,6 +56,8 @@ def format_market_value(key: str, value: Any) -> str:
         return "尚無已驗證資料"
     if key == "risk_state" and isinstance(value, str):
         return RISK_STATE_LABELS.get(value, value)
+    if key == "median_institution_net_ratio_pct" and isinstance(value, (int, float)):
+        return f"{value:+.2f}%"
     if key.endswith("_pct") and isinstance(value, (int, float)):
         return f"{value:+.2f}%" if "return" in key else f"{value:.1f}%"
     if key == "median_volume_ratio" and isinstance(value, (int, float)):
@@ -64,6 +67,24 @@ def format_market_value(key: str, value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.2f}"
     return str(value)
+
+
+def localize_us_key_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Translate machine risk-state text without changing verified event data."""
+    if not isinstance(event, dict):
+        return event
+    localized = dict(event)
+    for field in ("headline", "description"):
+        value = localized.get(field)
+        if not isinstance(value, str):
+            continue
+        for separator in ("：", ":"):
+            prefix = f"市場風險狀態{separator}"
+            if value.startswith(prefix):
+                raw_state = value[len(prefix):].strip()
+                localized[field] = f"市場風險狀態：{RISK_STATE_LABELS.get(raw_state, raw_state)}"
+                break
+    return localized
 
 
 def build_us_market_observation_view(market_section: dict) -> list[dict[str, Any]]:

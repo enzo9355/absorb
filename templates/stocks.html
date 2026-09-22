@@ -12,7 +12,7 @@
 </a>
 {%- endmacro %}
 {% macro event_group(key, title, items) -%}
-<section class="event-group event-{{ key }}" data-event-group="{{ key }}"><div class="event-group-heading"><h3>{{ title }}</h3><span>{{ items|length }} 件</span></div><div class="top-picks">{% for item in items %}{{ event_card(item) }}{% else %}<div class="empty-state">目前沒有{{ title }}事件。</div>{% endfor %}</div></section>
+<details class="event-group event-{{ key }}" data-event-group="{{ key }}"><summary class="event-group-heading"><h3>{{ title }}</h3><span>{{ items|length }} 件</span></summary><div class="top-picks">{% for item in items %}{{ event_card(item) }}{% else %}<div class="empty-state">目前沒有{{ title }}事件。</div>{% endfor %}</div></details>
 {%- endmacro %}
 {% set events = observation.stock_events or [] %}
 {% set groups = namespace(up=[], down=[], volume=[], institution=[], technical=[], data=[]) %}
@@ -41,7 +41,7 @@
       {{ event_group('volume', '量能異常', groups.volume) }}
       {{ event_group('institution', '法人動向', groups.institution) }}
       {{ event_group('technical', '技術面', groups.technical) }}
-      <section class="event-group event-official" data-event-group="official"><div class="event-group-heading"><h3>官方事件</h3><span>{{ official|length }} 件</span></div><div class="top-picks">{% for item in official %}<a class="pick-card event-card severity-high" href="{{ url_for('stock_page', code=item.symbol) }}"><span>{{ item.name }} · {{ item.symbol }}</span><strong>{{ item.label }}</strong><div class="event-card-meta"><b>官方</b></div><small>驗證日 {{ item.observation_as_of }}</small></a>{% else %}<div class="empty-state">目前沒有官方事件。</div>{% endfor %}</div></section>
+      <details class="event-group event-official" data-event-group="official"><summary class="event-group-heading"><h3>官方事件</h3><span>{{ official|length }} 件</span></summary><div class="top-picks">{% for item in official %}<a class="pick-card event-card severity-high" href="{{ url_for('stock_page', code=item.symbol) }}"><span>{{ item.name }} · {{ item.symbol }}</span><strong>{{ item.label }}</strong><div class="event-card-meta"><b>官方</b></div><small>驗證日 {{ item.observation_as_of }}</small></a>{% else %}<div class="empty-state">目前沒有官方事件。</div>{% endfor %}</div></details>
       {{ event_group('data', '資料警示', groups.data) }}
     </div>
   </section>

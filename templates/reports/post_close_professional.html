@@ -44,7 +44,7 @@
           </a>
         {% endif %}
       </div>
-      <p class="report-subtitle">已驗證市場結構、產業輪動、籌碼流向、解釋型量化回歸與下一交易日情境框架。</p>
+      <p class="report-subtitle">已驗證市場結構、產業輪動與下一交易日情境框架{% if flows_sec.status == 'available' %}、籌碼流向{% endif %}{% if quant_sec.status == 'available' %}、解釋型量化回歸{% endif %}。{% if flows_sec.status != 'available' or quant_sec.status != 'available' %}未提供的章節不列入本頁宣稱，詳見各章節可用狀態。{% endif %}</p>
     </div>
 
     <!-- Key Metadata Badges -->
@@ -60,9 +60,9 @@
         <span class="badge-sub">下一交易日決策</span>
       </div>
       <div class="report-badge">
-        <span class="badge-label">發布時間 (UTC)</span>
-        <strong class="badge-value">{{ (ident.published_at or report.published_at or '')[:16].replace('T', ' ') or '—' }}</strong>
-        <span class="badge-sub">內容雜湊 {{ ident.content_sha256_short or '—' }}</span>
+        <span class="badge-label">發布時間</span>
+        <strong class="badge-value">{{ ident.published_at_taipei or (ident.published_at or report.published_at or '')[:16].replace('T', ' ') or '—' }}</strong>
+        <span class="badge-sub">UTC {{ (ident.published_at or report.published_at or '')[:16].replace('T', ' ') or '—' }}｜內容雜湊 {{ ident.content_sha256_short or '—' }}</span>
       </div>
       <div class="report-badge">
         <span class="badge-label">報告層級 / 驗證</span>
@@ -95,7 +95,7 @@
       </div>
       <div class="market-state-badge state-{{ 'defensive' if exec_summary.market_state == '提高防守' else ('improving' if exec_summary.market_state == '風險改善' else 'neutral') }}">
         <span class="state-dot"></span>
-        <span>規則式風險狀態：{{ exec_summary.market_state or '中性觀察' }}</span>
+        <span>規則式市場行動：{{ exec_summary.market_state or '中性觀察' }}</span>
       </div>
     </div>
 
@@ -175,11 +175,11 @@
       {% set market = market_sec.data %}
       <div class="report-kpi-grid">
         <div class="kpi-card">
-          <span class="kpi-label">大盤單日報酬</span>
+          <span class="kpi-label">全市場單日中位報酬</span>
           <strong class="kpi-value {{ 'positive' if market.return_1d_pct and market.return_1d_pct >= 0 else 'negative' }}">
             {{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}
           </strong>
-          <span class="kpi-sub">{{ market_index_label }}</span>
+          <span class="kpi-sub">全市場股票中位數，非{{ market_index_label }}；指數走勢見首頁 K 線</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">上漲／下跌家數</span>
@@ -279,7 +279,7 @@
       {% if exec_summary.strongest_industries or exec_summary.weakest_industries %}
         <div class="industry-highlight-grid">
           <div class="highlight-group strong-group">
-            <span class="group-title positive">🔥 強勢領先產業</span>
+            <span class="group-title positive">🔥 排名前三（相對最強）</span>
             <div class="group-tags">
               {% for ind in exec_summary.strongest_industries %}
                 <span class="tag strong-tag">{{ ind }}</span>
@@ -289,7 +289,7 @@
             </div>
           </div>
           <div class="highlight-group weak-group">
-            <span class="group-title negative">❄️ 弱勢落後產業</span>
+            <span class="group-title negative">❄️ 排名後三（相對最弱，非全部跑輸大盤）</span>
             <div class="group-tags">
               {% for ind in exec_summary.weakest_industries %}
                 <span class="tag weak-tag">{{ ind }}</span>
@@ -337,12 +337,12 @@
                 </td>
                 <td class="align-center">
                   {% if industry.relative_return_5d_pct is not none %}
-                    {% if industry.relative_return_5d_pct >= 1.5 %}
-                      <span class="badge badge-success">強勢跑贏</span>
-                    {% elif industry.relative_return_5d_pct >= -0.5 %}
-                      <span class="badge badge-neutral">貼近大盤</span>
+                    {% if industry.relative_return_5d_pct >= 2 %}
+                      <span class="badge badge-success">強勢跑贏（≥+2%）</span>
+                    {% elif industry.relative_return_5d_pct > -2 %}
+                      <span class="badge badge-neutral">貼近大盤（-2%～+2%）</span>
                     {% else %}
-                      <span class="badge badge-danger">相對落後</span>
+                      <span class="badge badge-danger">相對落後（≤-2%）</span>
                     {% endif %}
                   {% else %}
                     <span class="badge badge-muted">資料不足</span>
@@ -410,8 +410,9 @@
         {% set report_groups = namespace(up=[], down=[], volume=[], institution=[], technical=[], data=[]) %}
         {% for item in sec_sec.data.stock_events %}{% if item.event_type == 'price_move' and item.metric_value > 0 %}{% set report_groups.up = report_groups.up + [item] %}{% elif item.event_type == 'price_move' %}{% set report_groups.down = report_groups.down + [item] %}{% elif item.event_type in ('volume_surge','volume_dry_up') %}{% set report_groups.volume = report_groups.volume + [item] %}{% elif item.event_type == 'institution_flow' %}{% set report_groups.institution = report_groups.institution + [item] %}{% elif item.event_type in ('rsi_overbought','rsi_oversold','new_high_20d','new_low_20d') %}{% set report_groups.technical = report_groups.technical + [item] %}{% elif item.event_type == 'data_warning' %}{% set report_groups.data = report_groups.data + [item] %}{% endif %}{% endfor %}
         <div class="report-event-columns">
+          {% set unit_labels = {'pct':'%','ratio':'倍','index':'','price':'','flag':''} %}
           {% for key, title, items in [('up', '異常上漲', report_groups.up), ('down', '異常下跌', report_groups.down), ('volume', '量能異常', report_groups.volume), ('institution', '法人動向', report_groups.institution), ('technical', '技術面', report_groups.technical), ('data', '資料警示', report_groups.data)] %}
-            <section data-report-event-group="{{ key }}"><h4>{{ title }}</h4><div class="event-card-list">{% for item in items %}<div class="event-item"><div class="event-meta"><span class="event-symbol"><strong>{{ item.name }}</strong>（{{ item.symbol }}）</span><span class="badge badge-neutral">{{ item.as_of }}</span></div><p class="event-desc">{{ item.observation }}</p>{% if item.metric_value is defined and item.metric_value is not none %}<span class="muted small">數值：{{ item.metric_value }} {{ item.unit }}</span>{% endif %}</div>{% else %}<p class="muted small">目前沒有{{ title }}事件。</p>{% endfor %}</div></section>
+            <section data-report-event-group="{{ key }}"><h4>{{ title }}</h4><div class="event-card-list">{% for item in items %}<div class="event-item"><div class="event-meta"><span class="event-symbol"><strong>{{ item.name }}</strong>（{{ item.symbol }}）</span><span class="badge badge-neutral">{{ item.as_of }}</span></div><p class="event-desc">{{ item.observation }}</p>{% if item.metric_value is defined and item.metric_value is not none %}<span class="muted small">數值：{{ item.metric_value }}{{ unit_labels.get(item.unit, '') }}</span>{% endif %}</div>{% else %}<p class="muted small">目前沒有{{ title }}事件。</p>{% endfor %}</div></section>
           {% endfor %}
         </div>
       </div>
@@ -719,9 +720,14 @@
       <p>
         <strong>免責聲明：</strong>
         {% if market_code == 'US' %}
-          本報告內容由 Google Gemini 根據 ABSORB 可取得之美國公開市場資料、已驗證產業架構及量化回歸研究模型分析生成。
+          {% set report_sources = '美國公開市場資料、已驗證產業架構及量化回歸研究模型' %}
         {% else %}
-          本報告內容由 Google Gemini 根據 ABSORB 可取得之台灣證券交易所 (TWSE)、證券櫃檯買賣中心 (TPEx) 公開市場資料、已驗證產業架構及量化回歸研究模型分析生成。
+          {% set report_sources = '台灣證券交易所 (TWSE)、證券櫃檯買賣中心 (TPEx) 公開市場資料、已驗證產業架構及量化回歸研究模型' %}
+        {% endif %}
+        {% if ai_sec.status == 'available' %}
+          本報告內容由 Google Gemini 根據 ABSORB 可取得之{{ report_sources }}分析生成。
+        {% else %}
+          本報告由 ABSORB 規則式研究框架根據可取得之{{ report_sources }}生成；{{ ai_sec.reason or 'Gemini 參考解讀尚未產生' }}。
         {% endif %}
         本報告僅供學術量化研究與市場觀察參考，不構成任何證券、金融商品之買賣推薦、要約或投資顧問服務。投資人應獨立評估投資風險，並就投資決策自行承擔盈虧責任。
       </p>

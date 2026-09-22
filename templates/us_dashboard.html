@@ -18,6 +18,7 @@
   <section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-labelledby="us-freshness-title">
     <div><h2 id="us-freshness-title">已驗證資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
     <dl><div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or '尚無已驗證日期' }}</dd></div></dl>
+    {% if freshness.get('status') == 'stale' %}<p class="freshness-warning">目前沒有涵蓋最新交易日的已驗證資料；以下數字為最近一次報告，不代表今日即時行情。</p>{% endif %}
   </section>
   <section class="panel us-index-workspace" aria-labelledby="us-index-title">
     <div class="section-heading"><div><p class="eyebrow">US MARKET INDEXES</p><h2 id="us-index-title">主要指數與 AI 五日情境</h2></div></div>
@@ -32,6 +33,7 @@
     {% else %}<p class="empty-state">本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。</p>{% endif %}
   </section>
   <section class="panel summary-conclusion" aria-labelledby="summary-conclusion-title">
+    <p class="market-action-state"><span>規則式市場行動</span><strong>{{ summary.executive_summary.market_state }}</strong></p>
     <h2 id="summary-conclusion-title">{{ summary.executive_summary.one_line_conclusion }}</h2>
     <p>{{ summary.executive_summary.largest_risk }}</p>
   </section>

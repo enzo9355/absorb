@@ -2,12 +2,49 @@ import unittest
 from unittest.mock import patch
 import os
 from pathlib import Path
+from flask import render_template
 
 os.environ.setdefault("LINE_CHANNEL_ACCESS_TOKEN", "test")
 os.environ.setdefault("LINE_CHANNEL_SECRET", "test")
 import app as stock_app
 
 class USPresentationRegressionTests(unittest.TestCase):
+    def test_us_market_template_uses_localized_view_model_and_separates_action(self):
+        summary = {
+            "source_market_date": "2026-08-24",
+            "applicable_trading_date": "2026-08-25",
+            "executive_summary": {"market_state": "提高防守", "supporting_evidence": [], "opposing_evidence": []},
+            "market_observation": {
+                "status": "available",
+                "data": {"risk_state": "normal", "median_institution_net_ratio_pct": 1.2},
+            },
+        }
+        with stock_app.app.test_request_context("/us/market"):
+            html = render_template(
+                "us_market.html",
+                summary=summary,
+                market="US",
+                market_observation_view=[
+                    {"label": "風險狀態", "formatted": "一般"},
+                    {"label": "法人淨流中位", "formatted": "+1.20%"},
+                ],
+            )
+
+        self.assertIn("規則式市場行動", html)
+        self.assertIn("提高防守", html)
+        self.assertIn("法人淨流中位", html)
+        self.assertNotIn("median_institution_net_ratio_pct", html)
+
+    def test_key_event_localizer_translates_machine_risk_state(self):
+        from stock_papi.services.us_presentation import localize_us_key_event
+
+        event = localize_us_key_event(
+            {"headline": "市場風險狀態：normal", "description": "市場風險狀態：normal"}
+        )
+
+        self.assertEqual(event["headline"], "市場風險狀態：一般")
+        self.assertEqual(event["description"], "市場風險狀態：一般")
+
     def test_us_market_page_has_no_raw_keys_and_localized_labels(self):
         # Simulate a professional report with market_observation containing raw keys
         from stock_papi.services.market_summary import build_market_summary_view
@@ -31,6 +68,7 @@ class USPresentationRegressionTests(unittest.TestCase):
                     "ma20_breadth_pct": 55.5,
                     "return_1d_pct": -0.33,
                     "median_volume_ratio": 1.23,
+                    "median_institution_net_ratio_pct": 1.2,
                     "risk_state": "normal",
                     "unchanged_count": 10,
                     "realized_volatility_20d_pct": 18.5,
@@ -58,6 +96,11 @@ class USPresentationRegressionTests(unittest.TestCase):
         self.assertEqual(adv["formatted"], "1200")
         ret = next(r for r in view if r["key"] == "return_1d_pct")
         self.assertIn("-0.33%", ret["formatted"])
+        institution_flow = next(
+            r for r in view if r["key"] == "median_institution_net_ratio_pct"
+        )
+        self.assertEqual(institution_flow["label"], "法人淨流中位")
+        self.assertEqual(institution_flow["formatted"], "+1.20%")
         # None handling
         summary_none = {"status": "available", "data": {"advancing_count": None, "return_1d_pct": None}}
         view_none = build_us_market_observation_view(summary_none)
