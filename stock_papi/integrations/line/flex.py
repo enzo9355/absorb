@@ -1,5 +1,6 @@
 import datetime
 
+from stock_papi.integrations.line import press_block as pb
 from stock_papi.shared.formatting import format_sentiment_summary as _format_sentiment_summary
 from stock_papi.services.recommendation_engine import recommend_analysis
 
@@ -20,65 +21,31 @@ def _observation_trend_label(value):
 
 
 def _stock_observation_bubble(code, name, body, url, watched):
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": ABSORB_NAVY,
-            "paddingAll": "20px",
-            "contents": [
-                {"type": "text", "text": "ABSORB｜市場觀察", "color": "#FFFFFF", "weight": "bold", "size": "xs"},
-                {"type": "text", "text": f"{name} ({code})", "color": "#FFFFFF", "weight": "bold", "size": "xl", "wrap": True},
-            ],
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": "#f8fafc",
-            "paddingAll": "20px",
-            "spacing": "md",
-            "contents": body,
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": "#f8fafc",
-            "paddingAll": "16px",
-            "spacing": "sm",
-            "contents": [
+    return pb.bubble(
+        f"{name} ({code})",
+        body,
+        footer=pb.button_stack([
+            pb.button(
+                "移除關注" if watched else "加入關注",
                 {
-                    "type": "button",
-                    "style": "secondary",
-                    "action": {
-                        "type": "postback",
-                        "label": "移除關注" if watched else "加入關注",
-                        "data": f"watch:{'remove' if watched else 'add'}:{code}",
-                    },
+                    "type": "postback",
+                    "data": f"watch:{'remove' if watched else 'add'}:{code}",
                 },
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "action": {
-                        "type": "postback",
-                        "label": "設定實況提醒",
-                        "data": f"alert:menu:{code}",
-                    },
-                },
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "color": ABSORB_NAVY,
-                    "action": {
-                        "type": "uri",
-                        "label": "查看完整觀察",
-                        "uri": url,
-                    },
-                },
-            ],
-        },
-    }
+            ),
+            pb.button(
+                "設定實況提醒",
+                {"type": "postback", "data": f"alert:menu:{code}"},
+            ),
+            pb.button(
+                "查看完整觀察",
+                {"type": "uri", "uri": url},
+                style="primary",
+                color=pb.BRICK,
+            ),
+        ]),
+        size="mega",
+        eyebrow_text="ABSORB｜市場觀察",
+    )
 
 
 def build_stock_observation_flex(code, name, data, url, watched=False):
@@ -88,36 +55,15 @@ def build_stock_observation_flex(code, name, data, url, watched=False):
         "official_no_regular_trade",
     }:
         body = [
-            {
-                "type": "text",
-                "text": str(data["status_label"]),
-                "color": "#b45309",
-                "size": "md",
-                "weight": "bold",
-                "wrap": True,
-            },
-            {
-                "type": "text",
-                "text": f"官方狀態驗證日 {data['observation_as_of']}",
-                "color": "#64748b",
-                "size": "xs",
-                "wrap": True,
-            },
+            pb.eyebrow(str(data["status_label"])),
+            pb.disclaimer(f"官方狀態驗證日 {data['observation_as_of']}"),
         ]
         if data.get("last_regular_close") is not None:
-            body.append(
-                {
-                    "type": "text",
-                    "text": (
-                        "最後正常交易收盤 "
-                        f"{float(data['last_regular_close']):.2f}"
-                        f"（{data['latest_regular_price_date']}）"
-                    ),
-                    "color": "#64748b",
-                    "size": "sm",
-                    "wrap": True,
-                }
-            )
+            body.append(pb.disclaimer(
+                "最後正常交易收盤 "
+                f"{float(data['last_regular_close']):.2f}"
+                f"（{data['latest_regular_price_date']}）"
+            ))
         return _stock_observation_bubble(code, name, body, url, watched)
     risk_events = [
         str(value)[:120]
@@ -125,101 +71,43 @@ def build_stock_observation_flex(code, name, data, url, watched=False):
         if isinstance(value, str) and value.strip()
     ][:3]
     body = [
-        {
-            "type": "text",
-            "text": "AI 預測研究中",
-            "color": "#b45309",
-            "size": "sm",
-            "weight": "bold",
-            "wrap": True,
-        },
-        {
-            "type": "text",
-            "text": "目前只顯示已驗證的市場觀察資料。",
-            "color": "#64748b",
-            "size": "xs",
-            "wrap": True,
-        },
-        {"type": "separator", "margin": "md", "color": "#cbd5e1"},
-        {
-            "type": "box",
-            "layout": "horizontal",
-            "contents": [
-                {"type": "text", "text": "最新收盤", "color": "#64748b", "size": "sm", "flex": 4},
-                {
-                    "type": "text",
-                    "text": f"{float(data['price']):.2f}",
-                    "color": "#0f172a",
-                    "size": "md",
-                    "weight": "bold",
-                    "align": "end",
-                    "flex": 5,
-                },
-            ],
-        },
-        {
-            "type": "box",
-            "layout": "horizontal",
-            "contents": [
-                {"type": "text", "text": "均線狀態", "color": "#64748b", "size": "sm", "flex": 4},
-                {
-                    "type": "text",
-                    "text": _observation_trend_label(data.get("trend_observation")),
-                    "color": "#0f172a",
-                    "size": "sm",
-                    "weight": "bold",
-                    "align": "end",
-                    "wrap": True,
-                    "flex": 5,
-                },
-            ],
-        },
-        {
-            "type": "box",
-            "layout": "horizontal",
-            "contents": [
-                {"type": "text", "text": "量比", "color": "#64748b", "size": "sm", "flex": 4},
-                {
-                    "type": "text",
-                    "text": (
-                        f"{float(data['volume_ratio']):.2f}"
-                        if data.get("volume_ratio") is not None
-                        else "資料不足"
-                    ),
-                    "color": "#0f172a",
-                    "size": "sm",
-                    "align": "end",
-                    "flex": 5,
-                },
-            ],
-        },
-        {
-            "type": "text",
-            "text": f"資料日期 {data.get('as_of') or '待更新'}",
-            "color": "#94a3b8",
-            "size": "xs",
-            "wrap": True,
-        },
+        pb.eyebrow("AI 預測研究中"),
+        pb.disclaimer("目前只顯示已驗證的市場觀察資料。"),
+        {"type": "separator", "margin": "md", "color": pb.RULE},
+        pb.kv_table([
+            (
+                "最新收盤",
+                f"{float(data['price']):.2f}",
+            ),
+            (
+                "均線狀態",
+                _observation_trend_label(data.get("trend_observation")),
+            ),
+            (
+                "量比",
+                f"{float(data['volume_ratio']):.2f}"
+                if data.get("volume_ratio") is not None
+                else "資料不足",
+            ),
+        ]),
+        pb.disclaimer(f"資料日期 {data.get('as_of') or '待更新'}"),
     ]
+    if data.get("change_pct") is not None:
+        body.insert(
+            4,
+            pb.kv_table([(
+                "日變動",
+                f"{float(data['change_pct']):+.2f}%",
+                pb.delta_color(data["change_pct"]),
+            )]),
+        )
     if risk_events:
         body.extend(
             [
-                {"type": "separator", "margin": "md", "color": "#cbd5e1"},
-                {
-                    "type": "text",
-                    "text": "已觸發事件",
-                    "color": "#0f172a",
-                    "size": "sm",
-                    "weight": "bold",
-                },
+                {"type": "separator", "margin": "md", "color": pb.RULE},
+                pb.headline("已觸發事件", size="md"),
                 *[
-                    {
-                        "type": "text",
-                        "text": f"• {event}",
-                        "color": "#64748b",
-                        "size": "xs",
-                        "wrap": True,
-                    }
+                    pb.disclaimer(f"• {event}")
                     for event in risk_events
                 ],
             ]
@@ -422,24 +310,20 @@ def build_stock_flex_message(code, name, data, url, watched=False):
     }
 
 
-def _empty_line_bubble(title, description):
-    return {
-        "type": "bubble",
-        "size": "kilo",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "paddingAll": "20px",
-            "spacing": "md",
-            "contents": [
-                {"type": "text", "text": title, "weight": "bold", "size": "lg", "wrap": True},
-                {"type": "text", "text": description, "color": "#64748b", "size": "sm", "wrap": True},
-            ],
-        },
-    }
+def _empty_line_bubble(title, description, action=None):
+    footer = None
+    if action:
+        footer = pb.button_stack([pb.button(action.get("label", "查股票"), action)])
+    return pb.bubble(
+        title,
+        [pb.disclaimer(description)],
+        footer=footer,
+        size="kilo",
+        eyebrow_text="ABSORB｜空狀態",
+    )
 
 
-def _watchlist_card(item, snapshot, base_url):
+def _watchlist_card(item, snapshot, base_url, empty_detail="待收盤更新"):
     code = item["code"]
     name = item["name"]
     if snapshot:
@@ -452,36 +336,33 @@ def _watchlist_card(item, snapshot, base_url):
             f"資料日期 {snapshot['as_of']}",
         ]
     else:
-        details = ["待收盤更新"]
-    return {
-        "type": "bubble",
-        "size": "kilo",
-        "body": {
-            "type": "box", "layout": "vertical", "paddingAll": "18px", "spacing": "sm",
-            "contents": [
-                {"type": "text", "text": f"{name} ({code})", "weight": "bold", "size": "lg", "wrap": True},
-                *[
-                    {"type": "text", "text": detail, "color": "#64748b", "size": "sm", "wrap": True}
-                    for detail in details
-                ],
-            ],
-        },
-        "footer": {
-            "type": "box", "layout": "vertical", "paddingAll": "14px", "spacing": "sm",
-            "contents": [
-                {"type": "button", "style": "secondary", "action": {
-                    "type": "postback", "label": "移除關注", "data": f"watch:remove:{code}",
-                }},
-                {"type": "button", "style": "secondary", "action": {
-                    "type": "postback", "label": "設定提醒", "data": f"alert:menu:{code}",
-                }},
-                {"type": "button", "style": "primary", "color": ABSORB_NAVY, "action": {
-                    "type": "uri", "label": "查看完整分析",
-                    "uri": f"{base_url.rstrip('/')}/stock/{code}",
-                }},
-            ],
-        },
-    }
+        details = [empty_detail]
+    rows = []
+    for detail in details:
+        label, _, value = detail.partition(" ")
+        rows.append((label, value or detail))
+    return pb.bubble(
+        f"{name} ({code})",
+        [pb.kv_table(rows)],
+        footer=pb.button_stack([
+            pb.button(
+                "移除關注",
+                {"type": "postback", "data": f"watch:remove:{code}"},
+            ),
+            pb.button(
+                "設定提醒",
+                {"type": "postback", "data": f"alert:menu:{code}"},
+            ),
+            pb.button(
+                "查看完整分析",
+                {"type": "uri", "uri": f"{base_url.rstrip('/')}/stock/{code}"},
+                style="primary",
+                color=pb.BRICK,
+            ),
+        ]),
+        size="kilo",
+        eyebrow_text="ABSORB｜我的關注",
+    )
 
 
 def build_watchlist_flex(state, base_url):
@@ -511,64 +392,14 @@ def build_observation_watchlist_flex(state, base_url):
         return _empty_line_bubble(
             "我的關注",
             "尚未加入關注股票。請先查詢個股，再點選「加入關注」。",
+            {"type": "message", "label": "查股票", "text": "2330"},
         )
-    root = base_url.rstrip("/")
     return {
         "type": "carousel",
         "contents": [
-            {
-                "type": "bubble",
-                "size": "kilo",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "paddingAll": "18px",
-                    "spacing": "sm",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": f"{item['name']} ({item['code']})",
-                            "weight": "bold",
-                            "size": "lg",
-                            "wrap": True,
-                        },
-                        {
-                            "type": "text",
-                            "text": "開啟個股頁查看最新已驗證觀察。",
-                            "color": "#64748b",
-                            "size": "sm",
-                            "wrap": True,
-                        },
-                    ],
-                },
-                "footer": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "paddingAll": "14px",
-                    "spacing": "sm",
-                    "contents": [
-                        {
-                            "type": "button",
-                            "style": "secondary",
-                            "action": {
-                                "type": "postback",
-                                "label": "移除關注",
-                                "data": f"watch:remove:{item['code']}",
-                            },
-                        },
-                        {
-                            "type": "button",
-                            "style": "primary",
-                            "color": ABSORB_NAVY,
-                            "action": {
-                                "type": "uri",
-                                "label": "查看完整觀察",
-                                "uri": f"{root}/stock/{item['code']}",
-                            },
-                        },
-                    ],
-                },
-            }
+            _watchlist_card(
+                item, None, base_url, "開啟個股頁查看最新已驗證觀察。"
+            )
             for item in watchlist
         ],
     }
@@ -585,24 +416,18 @@ def _alert_condition_text(alert):
 
 
 def _alert_management_card(alert):
-    return {
-        "type": "bubble",
-        "size": "kilo",
-        "body": {
-            "type": "box", "layout": "vertical", "paddingAll": "18px", "spacing": "sm",
-            "contents": [
-                {"type": "text", "text": "提醒管理", "weight": "bold", "size": "sm", "color": ABSORB_NAVY},
-                {"type": "text", "text": f"{alert['name']} ({alert['code']})", "weight": "bold", "size": "lg", "wrap": True},
-                {"type": "text", "text": _alert_condition_text(alert), "color": "#64748b", "size": "sm", "wrap": True},
-            ],
-        },
-        "footer": {
-            "type": "box", "layout": "vertical", "paddingAll": "14px",
-            "contents": [{"type": "button", "style": "secondary", "action": {
-                "type": "postback", "label": "取消提醒", "data": f"alert:remove:{alert['id']}",
-            }}],
-        },
-    }
+    return pb.bubble(
+        f"{alert['name']} ({alert['code']})",
+        [pb.eyebrow("提醒管理"), pb.disclaimer(_alert_condition_text(alert))],
+        footer=pb.button_stack([
+            pb.button(
+                "取消提醒",
+                {"type": "postback", "data": f"alert:remove:{alert['id']}"},
+            ),
+        ]),
+        size="kilo",
+        eyebrow_text="ABSORB｜提醒管理",
+    )
 
 
 def build_alerts_flex(state, prediction_allowed=True):
@@ -628,22 +453,18 @@ def build_alert_menu_flex(code, name, prediction_allowed=True):
             2,
             ("上漲機率門檻", f"alert:start:{code}:probability"),
         )
-    return {
-        "type": "bubble",
-        "size": "kilo",
-        "body": {
-            "type": "box", "layout": "vertical", "paddingAll": "18px", "spacing": "sm",
-            "contents": [
-                {"type": "text", "text": f"設定 {name} ({code}) 提醒", "weight": "bold", "size": "lg", "wrap": True},
-                *[
-                    {"type": "button", "style": "secondary", "action": {
-                        "type": "postback", "label": label, "data": payload,
-                    }}
-                    for label, payload in choices
-                ],
+    return pb.bubble(
+        "設定提醒",
+        [
+            pb.headline(f"{name} ({code})"),
+            *[
+                pb.button(label, {"type": "postback", "data": payload})
+                for label, payload in choices
             ],
-        },
-    }
+        ],
+        size="kilo",
+        eyebrow_text="ABSORB｜提醒管理",
+    )
 
 
 def build_calculator_menu_flex(code, name):
