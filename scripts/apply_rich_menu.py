@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 def cloud_run_info(project, region, service):
     raw = subprocess.check_output(
         [
-            "gcloud",
+            "gcloud.cmd" if os.name == "nt" else "gcloud",
             "run",
             "services",
             "describe",
