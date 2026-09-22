@@ -3,9 +3,11 @@
 import datetime
 import json
 import pandas as pd
+import tempfile
 import unittest
 import urllib.parse
 import zoneinfo
+from pathlib import Path
 from unittest.mock import patch
 
 from stock_papi.integrations.market_data.us_market_data import (
@@ -645,3 +647,263 @@ class USMarketDataTests(unittest.TestCase):
         outside.loc[pd.Timestamp(target), "High"] = 99.9998
         with self.assertRaises(USIntegrityError):
             fetch_us_stock_history("TOLERANCEFAIL", target_market_date=target, mock_df=outside)
+
+
+class USHistoricalBarReliabilityTests(unittest.TestCase):
+    """Corrupt pre-target vendor bars must not block the whole market (KTTAW)."""
+
+    @staticmethod
+    def _chart_response(payload):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode("utf-8")
+
+        return Response()
+
+    @staticmethod
+    def _payload(dates, opens, highs, lows, closes, volumes):
+        new_york = zoneinfo.ZoneInfo("America/New_York")
+
+        def timestamp(session_date):
+            return int(
+                datetime.datetime.combine(
+                    session_date, datetime.time(12, 0), tzinfo=new_york
+                ).timestamp()
+            )
+
+        return {
+            "chart": {
+                "result": [
+                    {
+                        "timestamp": [timestamp(day) for day in dates],
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "open": list(opens),
+                                    "high": list(highs),
+                                    "low": list(lows),
+                                    "close": list(closes),
+                                    "volume": list(volumes),
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+
+    def test_corrupt_historical_bar_is_skipped_with_evidence(self):
+        target = datetime.date(2026, 9, 21)
+        stale = datetime.date(2026, 9, 15)
+        payload = self._payload(
+            [stale, target],
+            [0.0122, 55.0],
+            [0.0028, 56.0],
+            [0.0027, 54.0],
+            [0.0028, 55.5],
+            [383.0, 242888.0],
+        )
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._chart_response(payload),
+        ):
+            result = fetch_direct_yahoo_chart("KTTAW", target_market_date=target)
+
+        self.assertEqual(list(result.index), [target])
+        unreliable = result.attrs.get("unreliable_historical_bars")
+        self.assertEqual(len(unreliable), 1)
+        self.assertEqual(unreliable[0]["date"], "2026-09-15")
+        self.assertEqual(unreliable[0]["error_type"], "USIntegrityError")
+
+    def test_corrupt_target_bar_still_fails_closed(self):
+        target = datetime.date(2026, 9, 21)
+        stale = datetime.date(2026, 9, 15)
+        payload = self._payload(
+            [stale, target],
+            [0.0100, 0.0122],
+            [0.0110, 0.0028],
+            [0.0090, 0.0027],
+            [0.0105, 0.0028],
+            [400.0, 383.0],
+        )
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._chart_response(payload),
+        ):
+            with self.assertRaises(USIntegrityError):
+                fetch_direct_yahoo_chart("KTTAW", target_market_date=target)
+
+    def test_missing_close_target_bar_still_fails_closed(self):
+        target = datetime.date(2026, 9, 21)
+        friday = datetime.date(2026, 9, 18)
+        payload = self._payload(
+            [friday, target],
+            [55.0, 55.1],
+            [56.0, 55.9],
+            [54.0, 55.0],
+            [55.5, None],
+            [200000.0, 1000.0],
+        )
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._chart_response(payload),
+        ):
+            with self.assertRaises(USSchemaError):
+                fetch_direct_yahoo_chart("UHAL-B", target_market_date=target)
+
+    def test_untargeted_fetch_keeps_strict_history_validation(self):
+        payload = self._payload(
+            [datetime.date(2026, 9, 15)],
+            [0.0122],
+            [0.0028],
+            [0.0027],
+            [0.0028],
+            [383.0],
+        )
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._chart_response(payload),
+        ):
+            with self.assertRaises(USIntegrityError):
+                fetch_direct_yahoo_chart("KTTAW")
+
+
+class USHistoricalBarClassificationTests(unittest.TestCase):
+    """_fetch_and_classify_symbol routes unreliable history to M, not OP_FAIL."""
+
+    @staticmethod
+    def _frame(rows, unreliable=()):
+        frame = pd.DataFrame.from_records(rows)
+        frame = frame.set_index("Date").sort_index()
+        frame.attrs["dropped_non_observation_placeholder_count"] = 0
+        frame.attrs["unreliable_historical_bars"] = list(unreliable)
+        return frame
+
+    def test_only_corrupt_history_becomes_m_not_op_fail(self):
+        from stock_papi.batch.us_official_post_close_cli import (
+            _fetch_and_classify_symbol,
+        )
+
+        target = datetime.date(2026, 9, 21)
+        frame = pd.DataFrame()
+        frame.attrs["dropped_non_observation_placeholder_count"] = 0
+        frame.attrs["unreliable_historical_bars"] = [
+            {
+                "date": "2026-09-15",
+                "error_type": "USIntegrityError",
+                "detail": "bad tick",
+            }
+        ]
+        with (
+            tempfile.TemporaryDirectory() as root,
+            patch(
+                "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+                return_value=frame,
+            ),
+        ):
+            result = _fetch_and_classify_symbol(
+                Path(root), "KTTAW", target, None, None
+            )
+
+        self.assertEqual(result.kind, "M")
+        self.assertEqual(result.reason_code, "provider_healthy_no_target_observation")
+
+    def test_valid_target_with_corrupt_history_becomes_m_with_evidence(self):
+        from stock_papi.batch.us_official_post_close_cli import (
+            _fetch_and_classify_symbol,
+        )
+
+        target = datetime.date(2026, 9, 21)
+        frame = self._frame(
+            [
+                {
+                    "Date": datetime.date(2026, 9, 18),
+                    "Open": 55.0,
+                    "High": 56.0,
+                    "Low": 54.0,
+                    "Close": 55.5,
+                    "Volume": 200000.0,
+                },
+                {
+                    "Date": target,
+                    "Open": 55.1,
+                    "High": 55.9,
+                    "Low": 55.0,
+                    "Close": 55.6,
+                    "Volume": 242888.0,
+                },
+            ],
+            unreliable=[
+                {
+                    "date": "2026-09-15",
+                    "error_type": "USIntegrityError",
+                    "detail": "bad tick",
+                }
+            ],
+        )
+        with (
+            tempfile.TemporaryDirectory() as root,
+            patch(
+                "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+                return_value=frame,
+            ),
+        ):
+            result = _fetch_and_classify_symbol(
+                Path(root), "KTTAW", target, None, None
+            )
+
+        self.assertEqual(result.kind, "M")
+        self.assertEqual(result.reason_code, "historical_bar_unreliable")
+        self.assertEqual(
+            result.detail["unreliable_historical_bars"][0]["date"], "2026-09-15"
+        )
+        provider_result = result.provider_result or {}
+        self.assertEqual(
+            provider_result["unreliable_historical_bars"][0]["date"], "2026-09-15"
+        )
+
+    def test_clean_target_history_stays_regular_price(self):
+        from stock_papi.batch.us_official_post_close_cli import (
+            _fetch_and_classify_symbol,
+        )
+
+        target = datetime.date(2026, 9, 21)
+        frame = self._frame(
+            [
+                {
+                    "Date": datetime.date(2026, 9, 18),
+                    "Open": 55.0,
+                    "High": 56.0,
+                    "Low": 54.0,
+                    "Close": 55.5,
+                    "Volume": 200000.0,
+                },
+                {
+                    "Date": target,
+                    "Open": 55.1,
+                    "High": 55.9,
+                    "Low": 55.0,
+                    "Close": 55.6,
+                    "Volume": 242888.0,
+                },
+            ]
+        )
+        with (
+            tempfile.TemporaryDirectory() as root,
+            patch(
+                "stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history",
+                return_value=frame,
+            ),
+        ):
+            result = _fetch_and_classify_symbol(
+                Path(root), "UHAL-B", target, None, None
+            )
+
+        self.assertEqual(result.kind, "R")
+        self.assertEqual(result.reason_code, "regular_price_observed")

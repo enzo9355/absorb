@@ -667,6 +667,7 @@ def fetch_direct_yahoo_chart(
     if not timestamps:
         empty = pd.DataFrame()
         empty.attrs["dropped_non_observation_placeholder_count"] = 0
+        empty.attrs["unreliable_historical_bars"] = []
         return empty
     if not isinstance(timestamps, list):
         raise USSchemaError(f"Yahoo chart timestamps are invalid for {symbol}")
@@ -694,6 +695,7 @@ def fetch_direct_yahoo_chart(
     records = []
     dropped_placeholder_count = 0
     ignored_future_session_row_count = 0
+    unreliable_historical_bars: list[dict[str, str]] = []
     for i in range(n):
         try:
             dt = datetime.datetime.fromtimestamp(
@@ -713,16 +715,34 @@ def fetch_direct_yahoo_chart(
         if is_explicit_non_observation_placeholder(values):
             dropped_placeholder_count += 1
             continue
-        numeric = {
-            field: _coerce_us_number(
-                value,
-                symbol=symbol,
-                field=field,
-                date=dt,
-            )
-            for field, value in values.items()
-        }
-        _validate_us_price_values(symbol=symbol, date=dt, values=numeric)
+        try:
+            numeric = {
+                field: _coerce_us_number(
+                    value,
+                    symbol=symbol,
+                    field=field,
+                    date=dt,
+                )
+                for field, value in values.items()
+            }
+            _validate_us_price_values(symbol=symbol, date=dt, values=numeric)
+        except (USSchemaError, USIntegrityError) as row_exc:
+            # Target-session rows stay strictly fail-closed. Pre-target rows
+            # with corrupt vendor bars (bad ticks on illiquid names) are
+            # recorded as evidence and skipped so one historical bar cannot
+            # block the whole market; the classifier routes such symbols to
+            # M instead of R. Without a target date there is no basis to
+            # distinguish, so keep raising.
+            if target_market_date is not None and dt < target_market_date:
+                unreliable_historical_bars.append(
+                    {
+                        "date": dt.isoformat(),
+                        "error_type": type(row_exc).__name__,
+                        "detail": str(row_exc),
+                    }
+                )
+                continue
+            raise
         records.append({
             "Date": dt,
             **numeric,
@@ -734,6 +754,7 @@ def fetch_direct_yahoo_chart(
         + dropped_placeholder_count
     )
     prepared.attrs["ignored_future_session_row_count"] = ignored_future_session_row_count
+    prepared.attrs["unreliable_historical_bars"] = unreliable_historical_bars
     return prepared
 
 

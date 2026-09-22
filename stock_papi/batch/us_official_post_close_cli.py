@@ -108,6 +108,10 @@ def _provider_result(
             "message": str(primary_failure),
         }
     attrs = getattr(df, "attrs", {}) if df is not None else {}
+    if attrs.get("unreliable_historical_bars") is not None:
+        result["unreliable_historical_bars"] = list(
+            attrs.get("unreliable_historical_bars") or []
+        )
     if attrs.get("source_schema_version"):
         result["secondary_fallback"] = {
             key: attrs.get(key)
@@ -158,6 +162,9 @@ def _fetch_and_classify_symbol(
                 "dropped_non_observation_placeholder_count", 0
             )
             or 0
+        )
+        unreliable_bars = list(
+            getattr(df, "attrs", {}).get("unreliable_historical_bars") or []
         )
         if df.empty:
             # Empty dataframe from provider: check if authoritative halt evidence exists (N) or unavailable (M)
@@ -239,6 +246,29 @@ def _fetch_and_classify_symbol(
         latest_date_value = latest.get("Date", latest.get("index", ""))
         as_of = str(latest_date_value).split("T", 1)[0]
         if as_of == target_iso:
+            if unreliable_bars:
+                # Target bar is valid but pre-target history contains corrupt
+                # vendor bars, so indicators cannot be trusted. Route to M
+                # with evidence instead of R; target-session failures still
+                # raise and stay OP_FAIL upstream.
+                return ObservationResult(
+                    symbol=symbol,
+                    kind="M",
+                    detail={
+                        "unreliable_historical_bars": unreliable_bars,
+                        "target_observation": as_of,
+                    },
+                    reason_code="historical_bar_unreliable",
+                    security_evidence=(security_evidence_by_symbol or {}).get(symbol),
+                    provider_result=_provider_result(
+                        df,
+                        status="healthy",
+                        target_observation="absent",
+                        dropped_placeholder_count=dropped_placeholder_count,
+                        latest_regular_price_date=as_of,
+                        primary_failure=primary_failure,
+                    ),
+                )
             # Valid regular price observation on target date (R)
             payload = {
                 "schema_version": 2,
