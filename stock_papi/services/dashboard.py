@@ -113,9 +113,13 @@ def dashboard_top_picks(cards, limit=3):
         
         label = leader.get("model_output_label") or "五日上漲機率"
         suffix = "%" if label == "五日上漲機率" else ""
-        summary = f"{label} {leader['prob']}{suffix}・{leader['trend']}"
-        if not is_etf and leader.get("foreign_net_5") is not None:
-            summary += f"・外資5日 {leader['foreign_net_5']:,}"
+        prob = leader.get("prob")
+        prob_text = f"{prob}{suffix}" if isinstance(prob, (int, float)) else "資料不足"
+        trend_text = leader.get("trend") or "資料不足"
+        summary = f"{label} {prob_text}・{trend_text}"
+        foreign_net_5 = leader.get("foreign_net_5")
+        if not is_etf and isinstance(foreign_net_5, (int, float)):
+            summary += f"・外資5日 {foreign_net_5:,}"
             
         picks.append({
             "code": code,

@@ -179,7 +179,7 @@ def register_market_routes(
         return response
 
     def market_map_page():
-        return redirect(url_for("industries_page"), code=302)
+        return redirect(url_for("industries_page"), code=301)
 
     def stock_page(code):
         code = code.upper()

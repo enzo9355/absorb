@@ -26,6 +26,7 @@ data/research/x-watch.lock
 *.pdf
 !static/samples/
 !static/samples/stock-papi-tw-industry-daily-SAMPLE.pdf
+!static/samples/absorb-tw-industry-daily-SAMPLE.pdf
 *.pdf.tmp
 *.ttf
 *.ttc

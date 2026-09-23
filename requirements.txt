@@ -4,6 +4,10 @@ line-bot-sdk
 requests
 defusedxml
 pypdf>=5,<7
+Pillow>=10,<12
+matplotlib>=3.8,<3.11
+reportlab>=4.2,<5
+statsmodels>=0.14.4,<0.15.0
 pandas
 numpy
 twstock

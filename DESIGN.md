@@ -32,10 +32,10 @@ Logo 實測主要深藍為 `#122643`。CSS token：
 --absorb-navy-hover: #1b365d;
 --absorb-navy-active: #0b1b31;
 --absorb-navy-soft: #eaf0f7;
---absorb-white: #ffffff;
+--absorb-white: #f7f6f2;
 --absorb-canvas: #f7f9fc;
---absorb-surface: #ffffff;
---absorb-surface-raised: #fbfcfe;
+--absorb-surface: #f5f5f2;
+--absorb-surface-raised: #faf9f6;
 --absorb-ink: #152033;
 --absorb-muted: #586579;
 --absorb-subtle: #7a8798;
@@ -75,7 +75,7 @@ Logo 實測主要深藍為 `#122643`。CSS token：
 
 ## 12. Surfaces
 
-Canvas 使用淡中性，主要內容使用純白；raised surface 僅用於選單、dialog 或必要層級。
+Canvas 使用淡中性，主要內容使用暖紙色（`#f7f6f2` 系，不用純白刺眼）；raised surface 僅用於選單、dialog 或必要層級。
 
 ## 13. Cards
 
@@ -143,4 +143,4 @@ Primary 為深藍底白字；secondary 為白底深藍邊界；danger 僅用於�
 
 ## 29. Anti-patterns
 
-禁止舊品牌、蝴蝶、父系／長輩人格、Logo watermark、圖片內嵌文字、暖米色主題、玻璃擬態、大面積純黑、金色裝飾、過量圓角、無來源即時數字、只靠顏色表示漲跌，以及把 Dashboard 改成促銷 Landing Page。
+禁止舊品牌、蝴蝶、父系／長輩人格、Logo watermark、圖片內嵌文字、純白刺眼主題、玻璃擬態、大面積純黑、金色裝飾、過量圓角、無來源即時數字、只靠顏色表示漲跌，以及把 Dashboard 改成促銷 Landing Page。

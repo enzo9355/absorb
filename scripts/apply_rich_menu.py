@@ -34,45 +34,60 @@ def cloud_run_info(project, region, service):
     return payload["status"]["url"].rstrip("/"), envs
 
 
-def draw_menu(path, font_path, logo_path):
+def _dashed_line(draw, start, end, fill, width=4, dash=24, gap=16):
+    x1, y1 = start
+    x2, y2 = end
+    if x1 == x2:
+        for y in range(y1, y2, dash + gap):
+            draw.line((x1, y, x2, min(y + dash, y2)), fill=fill, width=width)
+    else:
+        for x in range(x1, x2, dash + gap):
+            draw.line((x, y1, min(x + dash, x2), y2), fill=fill, width=width)
+
+
+def draw_menu(path, font_path, serif_font_path=None):
+    font_path = Path(font_path)
+    if not font_path.is_file():
+        raise SystemExit(f"font missing: {font_path}")
+    serif_font_path = Path(serif_font_path) if serif_font_path else None
+    if not serif_font_path or not serif_font_path.is_file():
+        serif_font_path = font_path
+
     width, height = 2500, 1686
-    image = Image.new("RGB", (width, height), "#ffffff")
+    paper = "#F0ECE3"
+    ink = "#17151A"
+    brick = "#8A2F18"
+    rule = "#8A8377"
+    image = Image.new("RGB", (width, height), paper)
     draw = ImageDraw.Draw(image)
 
-    font_brand = ImageFont.truetype(str(font_path), 56)
-    font_label = ImageFont.truetype(str(font_path), 140)
-    font_hint = ImageFont.truetype(str(font_path), 46)
-    font_code = ImageFont.truetype(str(font_path), 82)
-    logo = Image.open(logo_path).convert("RGB").resize((88, 88), Image.Resampling.LANCZOS)
-    image.paste(logo, (42, 12))
-    draw.text((150, 24), "ABSORB", font=font_brand, fill="#122643")
+    font_label = ImageFont.truetype(str(serif_font_path), 116)
+    font_hint = ImageFont.truetype(str(font_path), 34)
+    font_code = ImageFont.truetype(str(font_path), 42)
 
     tiles = [
-        (42, 132, "01", "看大盤", "市場報酬、廣度與風險"),
-        (852, 132, "02", "看產業", "實際報酬與市場廣度"),
-        (1662, 132, "03", "查自選", "你的關注清單"),
-        (42, 884, "04", "設提醒", "價格與趨勢通知"),
-        (852, 884, "05", "查股票", "價格、均線與風險事件"),
-        (1662, 884, "06", "市場觀察", "完整市場與事件頁面"),
+        (0, 0, 833, 843, "01", "看大盤", "市場報酬、廣度與風險"),
+        (833, 0, 834, 843, "02", "看產業", "實際報酬與市場廣度"),
+        (1667, 0, 833, 843, "03", "查自選", "你的關注清單"),
+        (0, 843, 833, 843, "04", "設提醒", "價格與趨勢通知"),
+        (833, 843, 834, 843, "05", "查股票", "價格、均線與風險事件"),
+        (1667, 843, 833, 843, "06", "市場觀察", "完整市場與事件頁面"),
     ]
-    for x, y, code, label, hint in tiles:
-        draw.rounded_rectangle(
-            [x, y, x + 790, y + 710],
-            radius=46,
-            fill="#ffffff" if code in {"01", "03", "05"} else "#eaf0f7",
-            outline="#d9e0e8",
-            width=5,
-        )
-        draw.rounded_rectangle(
-            [x + 42, y + 92, x + 180, y + 200],
-            radius=32,
-            fill="#122643",
-            outline="#122643",
-            width=4,
-        )
-        draw.text((x + 68, y + 103), code, font=font_code, fill="#ffffff")
-        draw.text((x + 84, y + 290), label, font=font_label, fill="#152033")
-        draw.text((x + 84, y + 520), hint, font=font_hint, fill="#586579")
+    draw.rectangle((0, 0, width, 14), fill=ink)
+    draw.rectangle((1667, 14, width, 843), fill=ink)
+    for x, y, tile_width, tile_height, code, label, hint in tiles:
+        selected = code == "03"
+        fill = ink if selected else paper
+        text_color = paper if selected else ink
+        eyebrow_color = paper if selected else brick
+        draw.rectangle((x, y, x + tile_width - 1, y + tile_height - 1), fill=fill)
+        draw.text((x + 64, y + 76), code, font=font_code, fill=eyebrow_color)
+        draw.text((x + 64, y + 270), label, font=font_label, fill=text_color)
+        draw.text((x + 64, y + 520), hint, font=font_hint, fill=text_color)
+
+    _dashed_line(draw, (833, 14), (833, height), rule)
+    _dashed_line(draw, (1667, 14), (1667, height), rule)
+    _dashed_line(draw, (0, 843), (width, 843), rule)
 
     image.save(path, "PNG", optimize=True)
 
@@ -93,17 +108,23 @@ def line_request(method, url, token, body=None, content_type="application/json")
 
 
 def main():
+    root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", default="line-stock-bot-498908")
     parser.add_argument("--region", default="asia-east1")
     parser.add_argument("--service", default="line-stock-bot")
     parser.add_argument("--base-url")
+    parser.add_argument("--font", type=Path, default=root / "taipei_sans.ttf")
+    parser.add_argument(
+        "--serif-font",
+        type=Path,
+        default=root / "assets" / "fonts" / "NotoSerifTC-Black.otf",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    root = Path(__file__).resolve().parents[1]
     png = root / "assets" / "rich-menu.png"
-    draw_menu(png, root / "taipei_sans.ttf", root / "static" / "brand" / "absorb-mark-128.png")
+    draw_menu(png, args.font, args.serif_font)
 
     if args.base_url:
         base_url, envs = args.base_url.rstrip("/"), {}
@@ -113,6 +134,8 @@ def main():
     if args.dry_run:
         print(f"png={png} bytes={png.stat().st_size}")
         print(f"baseUrl={base_url}")
+        print(f"font={args.font}")
+        print(f"serifFont={args.serif_font if args.serif_font.is_file() else args.font}")
         print("dryRun=True")
         return
 
@@ -123,7 +146,7 @@ def main():
 
     areas = [
         (0, 0, 833, 843, {"type": "uri", "uri": f"{base_url}/market"}),
-        (833, 0, 834, 843, {"type": "uri", "uri": f"{base_url}/market-map"}),
+        (833, 0, 834, 843, {"type": "uri", "uri": f"{base_url}/industries"}),
         (1667, 0, 833, 843, {"type": "message", "text": "我的關注"}),
         (0, 843, 833, 843, {"type": "message", "text": "提醒管理"}),
         (833, 843, 834, 843, {"type": "message", "text": "2330"}),

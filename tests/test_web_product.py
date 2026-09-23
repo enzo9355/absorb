@@ -759,7 +759,7 @@ class WebProductTests(unittest.TestCase):
     def test_legacy_market_map_redirects_to_industries(self):
         response = stock_app.app.test_client().get("/market-map")
 
-        self.assertEqual(response.status_code, 302)
+        self.assertIn(response.status_code, (301, 302))
         self.assertTrue(response.headers["Location"].endswith("/industries"))
 
     def test_dashboard_starts_with_today_market_preparation_cards(self):

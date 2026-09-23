@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#122643">
   <meta name="description" content="ABSORB 已驗證市場觀察系統">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_Hant">
   <meta property="og:site_name" content="ABSORB">
   <meta property="og:title" content="ABSORB｜已驗證市場觀察">
   <meta property="og:description" content="整理已發生的市場、產業、個股事件與 ETF 資料。">
@@ -60,16 +61,18 @@
     <aside class="dashboard-sidebar" id="dashboard-sidebar" aria-label="Dashboard">
       <p class="sidebar-title">DASHBOARD</p>
       <nav class="sidebar-nav" aria-label="主要功能">
+        <p class="sidebar-group" aria-hidden="true">市場</p>
         <a class="nav-link{{ ' active' if dashboard_active else '' }}" href="{{ dashboard_url }}" aria-label="今天市場"{% if dashboard_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">今</span><span class="nav-label">今天市場</span></a>
         <a class="nav-link{{ ' active' if market_active else '' }}" href="{{ market_url }}" aria-label="市場實況"{% if market_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">市</span><span class="nav-label">市場實況</span></a>
         <a class="nav-link{{ ' active' if industries_active else '' }}" href="{{ industries_url }}" aria-label="產業觀察"{% if industries_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">產</span><span class="nav-label">產業觀察</span></a>
-        <a class="nav-link research-nav-link" href="/industries/ai-server/relationships" aria-label="產業關係"><span class="nav-short" aria-hidden="true">鏈</span><span class="nav-label">產業關係</span></a>
         <a class="nav-link{{ ' active' if stocks_active else '' }}" href="{{ stocks_url }}" aria-label="個股與 ETF"{% if stocks_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">股</span><span class="nav-label">個股與 ETF</span></a>
         <a class="nav-link{{ ' active' if reports_active else '' }}" href="{{ reports_url }}" aria-label="每日報告"{% if reports_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">報</span><span class="nav-label">每日報告</span></a>
+        <p class="sidebar-group" aria-hidden="true">研究</p>
         <a class="nav-link{{ ' active' if ask_active else '' }}" href="/ask" aria-label="ASKsorb"{% if ask_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">問</span><span class="nav-label">ASKsorb</span></a>
-        <a class="nav-link{{ ' active' if learn_active else '' }}" href="/learn" aria-label="學習"{% if learn_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">學</span><span class="nav-label">學習</span></a>
+        <a class="nav-link research-nav-link" href="/industries/ai-server/relationships" aria-label="產業關係"><span class="nav-short" aria-hidden="true">鏈</span><span class="nav-label">產業關係</span></a>
         <a class="nav-link research-nav-link" href="/events" aria-label="公司事件"><span class="nav-short" aria-hidden="true">事</span><span class="nav-label">公司事件</span></a>
         <a class="nav-link research-nav-link" href="/perspectives" aria-label="觀點追蹤"><span class="nav-short" aria-hidden="true">觀</span><span class="nav-label">觀點追蹤</span></a>
+        <a class="nav-link{{ ' active' if learn_active else '' }}" href="/learn" aria-label="學習"{% if learn_active %} aria-current="page"{% endif %}><span class="nav-short" aria-hidden="true">學</span><span class="nav-label">學習</span></a>
       </nav>
     </aside>
     <div class="content-column">

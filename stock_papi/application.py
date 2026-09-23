@@ -291,9 +291,15 @@ SAMPLE_REPORT_FILENAME = "absorb-tw-industry-daily-SAMPLE.pdf"
 _SAMPLE_DIRECTORY = os.path.join(APPLICATION_ROOT, "static", "samples")
 _ABSORB_SAMPLE_PATH = os.path.join(_SAMPLE_DIRECTORY, SAMPLE_REPORT_FILENAME)
 _LEGACY_SAMPLE_PATH = os.path.join(_SAMPLE_DIRECTORY, "stock-papi-tw-industry-daily-SAMPLE.pdf")
-SAMPLE_REPORT_PATH = _ABSORB_SAMPLE_PATH if os.path.isfile(_ABSORB_SAMPLE_PATH) else _LEGACY_SAMPLE_PATH
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
+def _resolve_sample_report_path():
+    # Deferred so import performs no filesystem I/O; resolved when the
+    # application object is actually built.
+    return _ABSORB_SAMPLE_PATH if os.path.isfile(_ABSORB_SAMPLE_PATH) else _LEGACY_SAMPLE_PATH
+
+
+SAMPLE_REPORT_PATH = None
+line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN) if LINE_CHANNEL_ACCESS_TOKEN else None
+handler = WebhookHandler(LINE_CHANNEL_SECRET or "unconfigured")
 supabase_client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
@@ -2267,6 +2273,8 @@ def market_insights_payload():
 
 
 def _reply_text(event, text):
+    if line_bot_api is None:
+        raise RuntimeError("LINE 尚未設定")
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=text))
 
 
@@ -2393,7 +2401,7 @@ def route_dependencies():
         "load_regression_artifact": lambda object_path, max_bytes=2_000_000: load_regression_artifact(
             object_path, max_bytes=max_bytes
         ),
-        "sample_report_path": SAMPLE_REPORT_PATH,
+        "sample_report_path": _resolve_sample_report_path(),
         "sample_report_filename": SAMPLE_REPORT_FILENAME,
         "max_pdf_bytes": REPORT_PDF_MAX_BYTES,
         "line_login_config": line_login_config,

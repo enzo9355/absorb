@@ -56,11 +56,13 @@ def register_conversation_routes(app, *, converse, resolve_authenticated_identit
         )
         response = _private(jsonify(render_web(answer)))
         if set_cookie:
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+            is_secure = bool(request.is_secure or forwarded_proto.lower().split(",")[0].strip() == "https")
             response.set_cookie(
                 COOKIE_NAME,
                 cookie_value,
                 max_age=1800,
-                secure=request.is_secure,
+                secure=is_secure,
                 httponly=True,
                 samesite="Lax",
                 path="/",

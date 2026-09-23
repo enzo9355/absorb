@@ -66,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("output/pdf/absorb-tw-industry-daily-SAMPLE-2026-07-03.pdf"),
     )
     args = parser.parse_args(argv)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         write_quant_publish(root, build_documents())
@@ -107,6 +108,12 @@ def main(argv: list[str] | None = None) -> int:
         "sha256": hashlib.sha256(args.output.read_bytes()).hexdigest(),
         "sample": True,
     }, ensure_ascii=False))
+    repo_root = Path(__file__).resolve().parent.parent
+    static_dir = repo_root / "static" / "samples"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    static_copy = static_dir / "absorb-tw-industry-daily-SAMPLE.pdf"
+    static_copy.write_bytes(args.output.read_bytes())
+    print(json.dumps({"static_copy": str(static_copy.resolve())}, ensure_ascii=False))
     return 0
 
 

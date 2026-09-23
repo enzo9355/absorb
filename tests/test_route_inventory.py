@@ -9,6 +9,7 @@ EXPECTED_ROUTES = {
     ("/account/watchlist", "account_watchlist_page", frozenset({"GET"})),
     ("/api/account/state", "account_state", frozenset({"GET"})),
     ("/api/account/watchlist", "account_watchlist_api", frozenset({"POST"})),
+    ("/api/client-error", "client_error", frozenset({"POST"})),
     ("/api/conversation", "conversation_api", frozenset({"POST"})),
     ("/api/dashboard", "dashboard_api", frozenset({"GET"})),
     ("/api/market-insights", "market_insights_api", frozenset({"GET"})),

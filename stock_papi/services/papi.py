@@ -161,32 +161,47 @@ class AbsorbResearchService:
         return None, None
 
 
+    @staticmethod
+    def _fmt_number(value, spec, missing="資料不足"):
+        try:
+            if value is None:
+                return missing
+            return format(float(value), spec)
+        except (TypeError, ValueError):
+            return missing
+
     def build_single_context(self, data):
         """Build a data context string for a single analyzed stock."""
-        bt = data.get("bt", {})
-        foreign = data.get("foreign_flow", {})
+        data = data if isinstance(data, dict) else {}
+        bt = data.get("bt", {}) if isinstance(data.get("bt", {}), dict) else {}
+        foreign = data.get("foreign_flow", {}) if isinstance(data.get("foreign_flow", {}), dict) else {}
         foreign_str = ""
         if foreign.get("available"):
-            foreign_str = f"外資買賣超：{foreign.get('status', '未知')}（近5日淨額 {foreign.get('net_5', 0):.0f}）"
-        news_titles = "\n".join(
-            [f"  - {n['title']}" for n in data.get("news", [])[:3]]
-        )
+            foreign_str = (
+                f"外資買賣超：{foreign.get('status', '未知')}"
+                f"（近5日淨額 {self._fmt_number(foreign.get('net_5'), '.0f')}）"
+            )
+        prob_raw = data.get("prob")
+        try:
+            prob_text = f"{float(prob_raw):g}%" if prob_raw is not None else "資料不足"
+        except (TypeError, ValueError):
+            prob_text = "資料不足"
         return (
             f"▸ {data.get('name', '?')} ({data.get('code', '?')})："
-            f"收盤 {data['price']:.2f}，"
-            f"五日上漲機率 {data['prob']}%，"
-            f"趨勢 {data['trend']}，"
-            f"RSI {data['rsi']:.1f}，"
-            f"{'紅柱' if data['macd_osc'] > 0 else '綠柱'}，"
-            f"KD {'黃金交叉' if data['k'] > data['d'] else '死亡交叉'}，"
-            f"情緒 {data['s_status']}（{data['s_score']:.0f}），"
-            f"情緒動能 {data.get('news_momentum', 0):+.0f}，"
-            f"情緒分歧 {data.get('news_disagreement', 0):.0f}，"
-            f"情緒波動 {data.get('news_weighted_volatility', 0):.0f}，"
+            f"收盤 {self._fmt_number(data.get('price'), '.2f')}，"
+            f"五日上漲機率 {prob_text}，"
+            f"趨勢 {data.get('trend') or '資料不足'}，"
+            f"RSI {self._fmt_number(data.get('rsi'), '.1f')}，"
+            f"{'紅柱' if isinstance(data.get('macd_osc'), (int, float)) and data['macd_osc'] > 0 else '綠柱' if isinstance(data.get('macd_osc'), (int, float)) else 'MACD資料不足'}，"
+            f"KD {'黃金交叉' if isinstance(data.get('k'), (int, float)) and isinstance(data.get('d'), (int, float)) and data['k'] > data['d'] else '死亡交叉' if isinstance(data.get('k'), (int, float)) and isinstance(data.get('d'), (int, float)) else 'KD資料不足'}，"
+            f"情緒 {data.get('s_status') or '資料不足'}（{self._fmt_number(data.get('s_score'), '.0f')}），"
+            f"情緒動能 {self._fmt_number(data.get('news_momentum'), '+.0f')}，"
+            f"情緒分歧 {self._fmt_number(data.get('news_disagreement'), '.0f')}，"
+            f"情緒波動 {self._fmt_number(data.get('news_weighted_volatility'), '.0f')}，"
             f"{foreign_str}，"
-            f"回測策略報酬 {bt.get('strat_cum', 0):.1f}%，"
-            f"策略交易勝率 {bt.get('win_rate', 0):.0f}%，"
-            f"夏普 {bt.get('sharpe', 0):.2f}"
+            f"回測策略報酬 {self._fmt_number(bt.get('strat_cum'), '.1f')}%，"
+            f"策略交易勝率 {self._fmt_number(bt.get('win_rate'), '.0f')}%，"
+            f"夏普 {self._fmt_number(bt.get('sharpe'), '.2f')}"
         )
 
 
@@ -240,13 +255,15 @@ class AbsorbResearchService:
         items.sort(key=lambda pair: self.safe_float(pair[1].get("score")), reverse=True)
         lines = []
         for category, item in items[:limit]:
+            if not isinstance(item.get("prob"), (int, float)):
+                continue
             code = item.get('code')
             is_etf = get_instrument_type(code) == "ETF"
-            foreign_str = f"，外資5日 {int(self.safe_float(item.get('foreign_net_5'))):,}" if not is_etf and item.get('foreign_net_5') is not None else ""
+            foreign_str = f"，外資5日 {int(self.safe_float(item.get('foreign_net_5'))):,}" if not is_etf and isinstance(item.get('foreign_net_5'), (int, float)) else ""
             lines.append(
                 f"- {item.get('name')} ({code})：{category}，"
                 f"五日上漲機率 {int(self.safe_float(item.get('prob')))}%，"
-                f"{item.get('trend', '中性')}"
+                f"{item.get('trend') or '資料不足'}"
                 + foreign_str
             )
         if not lines:

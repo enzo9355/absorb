@@ -6,18 +6,20 @@ LINE 負責關注清單、提醒與快速摘要；Web 只負責完整圖表、�
 
 | 區塊 | LINE 動作 | Web 目的地 |
 | --- | --- | --- |
-| 看大盤 | 傳送文字 `今日盤勢`，回覆大盤摘要卡 | `/market` |
-| 找機會 | 傳送文字 `預測`，在 LINE 內開啟產業分類與每日產業預測 | 無 |
+| 看大盤 | 開啟 `/market` | `/market` |
+| 看產業 | 開啟 `/industries` | `/industries` |
 | 查自選 | 傳送文字 `我的關注`，在 LINE 內回覆關注清單 | 無 |
 | 設提醒 | 傳送文字 `提醒管理`，在 LINE 內列出提醒並提供取消按鈕 | 無 |
-| 算報酬 | 傳送文字 `投資試算`，回覆操作說明；查詢個股後可點按鈕試算 | 無 |
-| 深度分析 | 傳送文字 `完整分析`，回覆單一 CTA 卡 | `/dashboard` |
+| 查股票 | 傳送文字 `2330`，在 LINE 內回覆個股觀察卡 | 無 |
+| 市場觀察 | 開啟 `/dashboard` | `/dashboard` |
 
-LINE Official Account Manager 建立 Rich Menu 時，依上表設定六個 action。`功能選單` 可用來預覽相同資訊架構，不需要額外後端狀態。
+LINE Official Account Manager 建立 Rich Menu 時，依上表設定六個 action。`03 查自選` 是六格中唯一的墨色反白格；`查股票` 的 `2330` 是可替換的範例代號。
 
 ## Flex Message 結構
 
-所有卡片共用 `build_line_summary_card()`，維持 ABSORB 深海軍藍、白色與中性灰層級，且每張卡只保留一個明確 CTA。
+LINE 卡片共用 PRESS BLOCK 色票：紙色 `#F0ECE3`、墨色 `#17151A`、磚紅 `#8A2F18`、規則線 `#8A8377`。按鈕保留原有 postback／URI data，只調整視覺層。
+
+所有卡片共用 PRESS BLOCK 元件，維持紙色、墨色與磚紅層級，且每張卡只保留一個明確 CTA。
 
 | 卡片 | 摘要內容 | CTA |
 | --- | --- | --- |

@@ -10,7 +10,10 @@ from stock_papi.integrations.market_data.tw_security_master import is_taiwan_sym
 def sector_signal_score(data):
     bt = data.get("bt") or {}
     foreign = data.get("foreign_flow") or {}
-    prob = _safe_float(data.get("prob"))
+    raw_prob = data.get("prob")
+    if not isinstance(raw_prob, (int, float)):
+        return None
+    prob = _safe_float(raw_prob)
     strat_bonus = _clamp(_safe_float(bt.get("strat_cum")), -20.0, 20.0) * 0.35
     foreign_bonus = _clamp(
         _safe_float(foreign.get("net_5")) / 1000.0, -5.0, 5.0
@@ -44,6 +47,12 @@ def sector_candidates(category, codes, limit=20, activity=None):
 def sector_signal_item(code, data, *, get_stock_name):
     if not data or not isinstance(data.get("as_of"), str):
         return None
+    if not isinstance(data.get("price"), (int, float)):
+        return None
+    if not isinstance(data.get("prob"), (int, float)):
+        return None
+    if not isinstance(data.get("trend"), str) or not data.get("trend"):
+        return None
     bt = data.get("bt") or {}
     foreign = data.get("foreign_flow") or {}
     name = (
@@ -51,13 +60,16 @@ def sector_signal_item(code, data, *, get_stock_name):
         if is_taiwan_symbol(code)
         else data.get("name") or get_stock_name(code)
     )
+    score = sector_signal_score(data)
+    if score is None:
+        return None
     return {
         "code": code,
         "name": name,
         "price": _safe_float(data.get("price")),
         "prob": int(round(_safe_float(data.get("prob")))),
-        "trend": data.get("trend") or "中性",
-        "score": sector_signal_score(data),
+        "trend": data.get("trend"),
+        "score": score,
         "strat_cum": _safe_float(bt.get("strat_cum")),
         "mdd": _safe_float(bt.get("mdd")),
         "foreign_net_5": _safe_float(foreign.get("net_5")),

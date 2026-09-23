@@ -69,13 +69,24 @@ def compute_ols_hac_regression(
         use_t=True,
     )
 
+    f_value = fit_res.fvalue
+    f_pvalue = fit_res.f_pvalue
+    try:
+        f_statistic = float(f_value)
+        f_p_value = float(f_pvalue)
+    except (TypeError, ValueError):
+        raise ValueError("F statistics unavailable – refuse to publish misleading fit")
+    if not (math.isfinite(f_statistic) and math.isfinite(f_p_value)):
+        raise ValueError("F statistics non-finite – refuse to publish misleading fit")
+    if not 0 <= f_p_value <= 1:
+        raise ValueError("F p-value out of range – refuse to publish misleading fit")
     fit_stats = {
         "r_squared": float(fit_res.rsquared),
         "adjusted_r_squared": float(fit_res.rsquared_adj),
         "residual_standard_error": float(math.sqrt(fit_res.mse_resid)),
         "degrees_of_freedom": int(fit_res.df_resid),
-        "f_statistic": float(fit_res.fvalue) if fit_res.fvalue is not None else 0.0,
-        "f_p_value": float(fit_res.f_pvalue) if fit_res.f_pvalue is not None else 1.0,
+        "f_statistic": f_statistic,
+        "f_p_value": f_p_value,
     }
 
     # Calculate 95% confidence intervals
@@ -130,6 +141,18 @@ def compute_ols_hac_regression(
     jb_calc = get_jarque_bera_test()
     jb_val, jb_pval, _, _ = jb_calc(residuals)
 
+    # Data quality is measured on the fitted sample: inputs were already
+    # rejected above if non-finite, so missing_rate is genuinely 0 here.
+    # Pre-filter loss (rows dropped before regression) belongs to the input
+    # builder's lineage, not this adapter. Outliers are counted from
+    # standardized residuals (|z| > 3) so the field is real, not a placeholder.
+    import numpy as _np
+    resid = _np.asarray(residuals, dtype=float)
+    resid_std = float(_np.std(resid)) if resid.size else float("nan")
+    if resid.size and math.isfinite(resid_std) and resid_std > 0:
+        outlier_count = int(_np.sum(_np.abs(resid - _np.mean(resid)) / resid_std > 3))
+    else:
+        outlier_count = 0
     diagnostics = {
         "multicollinearity": {
             "status": "passed" if max_vif < 5.0 else "warning",
@@ -154,7 +177,7 @@ def compute_ols_hac_regression(
         },
         "data_quality": {
             "missing_rate": 0.0,
-            "outlier_count": 0,
+            "outlier_count": outlier_count,
         },
         "warnings": [],
     }

@@ -29,14 +29,26 @@ def market_quality_chart(report: DailyIndustryReport, config: ReportConfig) -> i
     fig, (returns_axis, breadth_axis) = plt.subplots(
         1, 2, figsize=(config.theme.chart_width_in, 2.4), facecolor=config.theme.surface
     )
+    import math as _math
     periods = (1, 5, 20, 60)
     returns = [report.market.returns.get(period) for period in periods]
-    return_values = [value * 100 if value is not None else 0 for value in returns]
-    returns_axis.bar(
-        [f"{period}日" for period in periods],
-        return_values,
-        color=[config.theme.up if value >= 0 else config.theme.down for value in return_values],
-    )
+    return_values = [value * 100 if value is not None else float("nan") for value in returns]
+    # Honest rendering: missing values are skipped, never plotted as zero.
+    honest_returns = [value for value in return_values if value == value and _math.isfinite(value)]
+    honest_labels = [f"{period}日" for period, value in zip(periods, return_values) if value == value and _math.isfinite(value)]
+    missing_periods = [f"{period}日" for period, value in zip(periods, return_values) if value != value or not _math.isfinite(value)]
+    if honest_returns:
+        returns_axis.bar(
+            honest_labels,
+            honest_returns,
+            color=[config.theme.up if value >= 0 else config.theme.down for value in honest_returns],
+        )
+    if missing_periods:
+        returns_axis.text(
+            0.5, 0.5, f"缺值：{ '、'.join(missing_periods)}",
+            transform=returns_axis.transAxes, ha="center", va="center",
+            fontproperties=font, fontsize=8, color=config.theme.muted,
+        )
     returns_axis.axhline(0, color=config.theme.line, linewidth=0.8)
     returns_axis.set_title("市場近期報酬", fontproperties=font, fontsize=10)
     returns_axis.set_ylabel("%", fontproperties=font, fontsize=8)
@@ -47,16 +59,31 @@ def market_quality_chart(report: DailyIndustryReport, config: ReportConfig) -> i
         report.market.ma60_breadth,
         report.market.high_score_ratio,
     ]
-    breadth_values = [value * 100 if value is not None else 0 for value in breadth]
-    breadth_axis.barh(
-        breadth_labels,
-        breadth_values,
-        color=[config.theme.mint, config.theme.apricot, config.theme.lavender],
-    )
+    breadth_values = [value * 100 if value is not None else float("nan") for value in breadth]
+    honest_breadth = [
+        (label, value, color)
+        for label, value, color in zip(
+            breadth_labels, breadth_values,
+            [config.theme.mint, config.theme.apricot, config.theme.lavender],
+        )
+        if value == value and _math.isfinite(value)
+    ]
+    if honest_breadth:
+        breadth_axis.barh(
+            [label for label, _, _ in honest_breadth],
+            [value for _, value, _ in honest_breadth],
+            color=[color for _, _, color in honest_breadth],
+        )
+    else:
+        breadth_axis.text(
+            0.5, 0.5, "廣度缺值",
+            transform=breadth_axis.transAxes, ha="center", va="center",
+            fontproperties=font, fontsize=8, color=config.theme.muted,
+        )
     breadth_axis.set_xlim(0, 100)
     breadth_axis.set_title("市場廣度與模型高分", fontproperties=font, fontsize=10)
     breadth_axis.set_xlabel("%", fontproperties=font, fontsize=8)
-    for index, value in enumerate(breadth_values):
+    for index, (_, value, _) in enumerate(honest_breadth):
         breadth_axis.text(value + 1, index, f"{value:.1f}%", fontproperties=font, fontsize=7)
     for axis in (returns_axis, breadth_axis):
         axis.set_facecolor(config.theme.surface)
@@ -91,7 +118,8 @@ def rotation_chart(report: DailyIndustryReport, config: ReportConfig) -> io.Byte
     values = [
         abs(value * 100)
         for item in plotted
-        for value in (item.relative_return_20d or 0, item.relative_return_5d or 0)
+        for value in (item.relative_return_20d, item.relative_return_5d)
+        if value is not None
     ]
     limit = max(0.5, max(values, default=0.5) * 1.25)
     axis.set_xlim(-limit, limit)
@@ -151,15 +179,15 @@ def return_ranking_chart(report: DailyIndustryReport, config: ReportConfig) -> i
     """繪製產業五日上漲機率前五與後五名。"""
     plt, font = _plot_modules(config.font_path)
     candidates = [item for item in report.industries if item.average_probability is not None]
-    candidates.sort(key=lambda item: item.average_probability or 0.0)
+    candidates.sort(key=lambda item: item.average_probability)
     selected = candidates[:5] + candidates[-5:]
     unique = {item.name: item for item in selected}
-    selected = sorted(unique.values(), key=lambda item: item.average_probability or 0.0)
+    selected = sorted(unique.values(), key=lambda item: item.average_probability)
     fig, axis = plt.subplots(
         figsize=(config.theme.chart_width_in, config.theme.chart_height_in),
         facecolor=config.theme.surface,
     )
-    values = [item.average_probability or 0.0 for item in selected]
+    values = [item.average_probability for item in selected]
     axis.barh(
         range(len(selected)),
         values,

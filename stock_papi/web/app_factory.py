@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from stock_papi.web.route_registration import register_routes
 from stock_papi.services.content import AI_QUANT_DISCLOSURE
@@ -14,6 +15,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     from stock_papi import application
 
     flask_app = Flask("app", root_path=application.APPLICATION_ROOT)
+    flask_app.wsgi_app = ProxyFix(flask_app.wsgi_app, x_proto=1, x_host=1)
     flask_app.config["MAX_CONTENT_LENGTH"] = 1_000_000
     if config:
         flask_app.config.update(config)

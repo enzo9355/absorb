@@ -60,6 +60,8 @@ def requires_tool_data(question: str, *, has_context=False) -> bool:
         "今天", "明天", "昨天", "現在", "最近", "目前", "最新",
         "轉強", "轉弱", "盤勢", "大盤", "預測", "模型準",
         "報告", "自選", "關注", "提醒",
+        "可以買", "能買", "買嗎", "進場", "追", "買進",
+        "賣出", "賣嗎", "持有", "加碼", "空手",
     )
     return any(term in question for term in current_data_terms) or (
         has_context and any(term in question for term in ("這個機率", "那", "這檔", "第二檔", "第一檔"))

@@ -420,6 +420,9 @@ def register_report_routes(
         return redirect(url_for("report_page", report_date=report_date), code=302)
 
     def sample_report_download():
+        # Policy: SAMPLE must never be served as a report download; the
+        # static copy under static/samples/ exists only for local visual
+        # verification. Always redirect to the public HTML list.
         return redirect(url_for("reports_page"), code=302)
 
     def trading_day_report_page(trading_date):

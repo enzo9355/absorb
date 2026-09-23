@@ -59,6 +59,17 @@ async function loadDashboard() {
   } catch (_error) {
     const banner = bySelector("[data-dashboard-error]");
     if (banner) banner.hidden = false;
+    try {
+      const detail = _error && _error.name === "AbortError" ? "timeout" : "fetch-failed";
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          "/api/client-error",
+          JSON.stringify({ page: "dashboard", detail, url: window.location.pathname }),
+        );
+      }
+    } catch (_) {
+      // Never break the page for telemetry.
+    }
   } finally {
     window.clearTimeout(timeout);
   }
@@ -101,7 +112,7 @@ function renderDashboard(data) {
       element("p", "action-label action-insufficient", `市場風險狀態：${riskState}`),
       element("h1", "market-headline", `上漲 ${marketData.advancing_count ?? "—"} 檔、下跌 ${marketData.declining_count ?? "—"} 檔`),
       element("p", "hero-risk", `近 5 日市場中位報酬 ${displaySigned(marketData.return_5d_pct)}`),
-      element("p", "muted small", `資料日 ${data.observation_as_of || "待更新"} · 覆蓋率 ${displayNumber((data.data_quality?.coverage || 0) * 100, 1, "%")}`),
+      element("p", "muted small", `資料日 ${data.observation_as_of || "待更新"} · 覆蓋率 ${data.data_quality?.coverage != null ? displayNumber(data.data_quality.coverage * 100, 1, "%") : "資料不足"}`),
     ]);
   }
 
@@ -136,7 +147,7 @@ function renderDashboard(data) {
       card("a", `heatmap-cell ${["hot", "cold", "steady"].includes(item.tone) ? item.tone : "steady"}`, [
         ["span", "", item.name],
         ["strong", "", displaySigned(item.metric_value_pct)],
-        ["small", "", `${item.available_count ?? "—"} 檔 · 覆蓋 ${displayNumber((item.coverage || 0) * 100, 1, "%")}`],
+        ["small", "", `${item.available_count ?? "—"} 檔 · 覆蓋 ${item.coverage != null ? displayNumber(item.coverage * 100, 1, "%") : "資料不足"}`],
       ], "/industries")
     ) : [emptyState("產業相對報酬資料不足。")]);
   }
@@ -403,6 +414,49 @@ function initQuickAsk() {
   });
 }
 
+function initStockResearchTabs() {
+  const group = bySelector("[data-research-tabs]");
+  if (!group) return;
+  const tabs = [...group.querySelectorAll("[data-research-tab]")];
+  const panels = [...group.querySelectorAll("[data-research-panel]")];
+  if (!tabs.length || !panels.length) return;
+  const select = (id, focusTab = false) => {
+    tabs.forEach((tab) => {
+      const active = tab.dataset.researchTab === id;
+      tab.setAttribute("aria-selected", String(active));
+      tab.classList.toggle("active", active);
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focusTab) tab.focus({ preventScroll: true });
+    });
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.researchPanel !== id;
+    });
+  };
+  // Progressive enhancement: hide non-default panels only when JS runs.
+  const firstSelected = tabs.find((tab) => tab.getAttribute("aria-selected") === "true") || tabs[0];
+  select(firstSelected.dataset.researchTab);
+  // Deep link: only fixed research anchors open a tab, no generic hash parsing.
+  const currentHash = window.location.hash;
+  const deepLink = {
+    "#panel-peers": "panel-peers",
+    "#relationships": "relationships",
+    "#company-events": "company-events",
+    "#public-opinions": "public-opinions",
+  }[currentHash];
+  if (deepLink && tabs.some((tab) => tab.dataset.researchTab === deepLink)) select(deepLink);
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => select(tab.dataset.researchTab));
+    tab.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const next = event.key === "ArrowRight"
+        ? tabs[(index + 1) % tabs.length]
+        : tabs[(index - 1 + tabs.length) % tabs.length];
+      select(next.dataset.researchTab, true);
+    });
+  });
+}
+
 function initSidebar() {
   const toggle = bySelector("[data-sidebar-toggle]");
   const sidebar = bySelector("#dashboard-sidebar");
@@ -542,8 +596,14 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
 
 function setChartRange(days) {
   if (!window.stockChart) return;
-  const { chart, length } = window.stockChart;
-  chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, length - days), to: length + 5 });
+  const container = bySelector("#stock-chart");
+  if (container) container.setAttribute("aria-busy", "true");
+  try {
+    const { chart, length } = window.stockChart;
+    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, length - days), to: length + 5 });
+  } finally {
+    if (container) container.setAttribute("aria-busy", "false");
+  }
 }
 
 function sameMarketCandle(left, right) {
@@ -581,10 +641,20 @@ function watchMarketChart(container, currentCandles) {
   });
 }
 
+function showChartFallback(container, message) {
+  if (!container || container.dataset.chartFallbackShown) return;
+  container.dataset.chartFallbackShown = "true";
+  container.replaceChildren(emptyState(message || "圖表套件暫時無法載入，價格數據請見下方表格。"));
+}
+
 function initStockChart() {
   const container = bySelector("#stock-chart");
   const source = bySelector("#stock-chart-data");
-  if (!container || !source || !window.LightweightCharts) return;
+  if (!container || !source) return;
+  if (!window.LightweightCharts) {
+    showChartFallback(container, "K 線圖表套件載入失敗，收盤與均線數值請見本頁摘要。");
+    return;
+  }
   const raw = JSON.parse(source.textContent);
   window.stockChart = createPriceChart(container, raw, { predictionMarker: true });
   if (!window.stockChart) return;
@@ -594,7 +664,11 @@ function initStockChart() {
 function initMarketIndexChart() {
   const container = bySelector("#market-index-chart");
   const source = bySelector("#market-index-chart-data");
-  if (!container || !source || !window.LightweightCharts) return;
+  if (!container || !source) return;
+  if (!window.LightweightCharts) {
+    showChartFallback(container, "指數圖表套件載入失敗，指數數值請見本頁報價區。");
+    return;
+  }
   const raw = JSON.parse(source.textContent);
   const marketChart = createPriceChart(container, raw, { compact: true, predictionMarker: true });
   if (!marketChart) return;
@@ -607,7 +681,11 @@ function initUsIndexChart() {
   const container = bySelector("#us-index-chart");
   const source = bySelector("#us-index-chart-data");
   const tabs = document.querySelectorAll("[data-us-index-tab]");
-  if (!container || !source || !tabs.length || !window.LightweightCharts) return;
+  if (!container || !source || !tabs.length) return;
+  if (!window.LightweightCharts) {
+    showChartFallback(container, "美股指數圖表套件載入失敗，指數數值請見本頁報價區。");
+    return;
+  }
   const items = JSON.parse(source.textContent);
   let activeChart = null;
   const select = (symbol) => {
@@ -719,6 +797,7 @@ document.addEventListener("click", (event) => {
 migrateLegacyHashRoute();
 loadDashboard();
 loadAccountState();
+initStockResearchTabs();
 initStockChart();
 initMarketIndexChart();
 initUsIndexChart();

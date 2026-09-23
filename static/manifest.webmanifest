@@ -2,7 +2,7 @@
   "name": "ABSORB",
   "short_name": "ABSORB",
   "description": "AI 量化市場情報與決策輔助系統",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f6f2",
   "theme_color": "#122643",

@@ -15,6 +15,8 @@ def register_line_routes(
     observe=None, observation_mode=False,
 ):
     def broadcast_weekly():
+        if get_line_bot_api() is None:
+            return "LINE 尚未設定", 503
         token = get_broadcast_token()
         if not token:
             return "廣播功能未設定", 503
@@ -55,6 +57,8 @@ def register_line_routes(
             return f"發送失敗：{str(exc)}", 500
 
     def callback():
+        if get_line_bot_api() is None:
+            return "LINE 尚未設定", 503
         try:
             handler.handle(
                 request.get_data(as_text=True),
@@ -96,6 +100,8 @@ def register_line_routes(
             return "關注功能尚未設定", 503
 
         def push(user_id, contents):
+            if get_line_bot_api() is None:
+                raise RuntimeError("LINE 尚未設定")
             messages = contents if isinstance(contents, list) else [contents]
             messages = [
                 FlexSendMessage(alt_text="股票提醒已觸發", contents=message)

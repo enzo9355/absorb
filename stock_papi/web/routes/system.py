@@ -249,8 +249,30 @@ def register_system_routes(
     def watchlist_page():
         return redirect("/dashboard", code=302)
 
+    def client_error():
+        # Privacy-preserving frontend telemetry: fixed counters only,
+        # no free-text, no user id, no stock code stored.
+        try:
+            payload = request.get_json(silent=True) or {}
+        except Exception:
+            payload = {}
+        page = payload.get("page") if isinstance(payload, dict) else None
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        allowed_pages = {"dashboard", "market", "stock", "industries"}
+        allowed_details = {"timeout", "fetch-failed", "chart-failed"}
+        if page not in allowed_pages:
+            page = "unknown"
+        if detail not in allowed_details:
+            detail = "unknown"
+        try:
+            app.logger.info("client_error page=%s detail=%s", page, detail)
+        except Exception:
+            pass
+        return ("", 204)
+
     app.add_url_rule("/healthz", "healthz", healthz)
     app.add_url_rule("/health", "healthz", healthz)
     app.add_url_rule("/health/data", "data_health", data_health)
     app.add_url_rule("/search", "search_page", search_page)
     app.add_url_rule("/watchlist", "watchlist_page", watchlist_page)
+    app.add_url_rule("/api/client-error", "client_error", client_error, methods=["POST"])
