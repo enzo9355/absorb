@@ -677,6 +677,40 @@ def fetch_published_quant_snapshot(code, today=None):
     )
 
 
+def build_verified_us_trade_plan(market, symbol, evidence_ids):
+    """Production trade-plan builder: verified quant artifact only.
+
+    Raises on any unverified/missing input (callers map to 503/400); never
+    falls back to live vendor fetches or Taipei-date estimation.
+    """
+    from stock_papi.integrations.market_data.us_calendar import get_us_calendar_documents
+    from stock_papi.repositories.quant_snapshots import fetch_quant_snapshot_with_digest
+    from stock_papi.services.trade_plan_market import PlanUnavailable, build_us_plan
+
+    if str(market or "").upper() != "US":
+        raise PlanUnavailable("unsupported_market")
+
+    def fetch_artifact(stock_symbol):
+        return fetch_quant_snapshot_with_digest(
+            stock_symbol,
+            is_us_ticker_fn=is_us_ticker,
+            load_manifest=_published_quant_manifest,
+            load_object=_gcs_get_object,
+        )
+
+    try:
+        return build_us_plan(
+            symbol, list(evidence_ids or []),
+            fetch_artifact=fetch_artifact,
+            calendar_documents=get_us_calendar_documents(),
+            now=utc_now(),
+        )
+    except PlanUnavailable:
+        raise
+    except (TypeError, ValueError) as exc:
+        raise PlanUnavailable("plan_unavailable") from exc
+
+
 def fetch_market_insights(today=None):
     return load_market_insights(
         today=today,
@@ -1891,6 +1925,9 @@ def _lookup_trade_plan(market, symbol):
     return None
 
 
+set_trade_plan_builder_for_tests(build_verified_us_trade_plan)
+
+
 def _trade_plan_template(question, plan, activities):
     from stock_papi.services.trade_plans import action_text as _text
     action = str(plan.get("action") or "wait")
@@ -2681,7 +2718,7 @@ def route_dependencies():
         "load_research_events_status": _load_research_events_status,
         "load_public_opinions": _load_public_opinions,
         "trading_beta_users": trading_beta_users,
-        "trade_plan_builder": None,
+        "trade_plan_builder": build_verified_us_trade_plan,
         "run_trade_plan_checks": _run_trade_plan_checks,
         "trade_plan_context": lambda: {"enabled": False, "dry_run": True,
             "reason": "trade-plan schedule/push awaits trial authorization; see Task9 release list"},

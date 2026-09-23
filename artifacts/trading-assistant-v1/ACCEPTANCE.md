@@ -87,9 +87,30 @@ console（`*.console.log`）。網路以狀態檔＋server 存取紀錄為證（
 | 回饋與匯出 | 提交可讀回；匯出僅本人三類；無憑證 | 通過 |
 | 舊路徑回歸 | 單元涵蓋；harness 靜態 200 | 通過 |
 
-殘留證據缺口（故仍非 BETA_READY）：雙真實 LINE 帳號 OAuth 端到端；
+殘留證據缺口（故仍非 BETA_READY）：真實 LINE OAuth 雙帳號端到端；
 已 opt-in 真實推播 read-back（無同意帳號，故 **LINE 實際送達：未驗證**，僅 fake push）；
 候選版 read-back；2 週試用觀察。
+
+## 偏差記錄（2026-09-24，使用者選項 2）
+
+- 原計畫要求兩個隔離測試帳號先行；使用者無第二帳號，改為：**單一真實帳號驗證
+  （登入＋beta 開／關），跨帳號端到端延至試用開跑、以前兩位同學為測試帳號補做**。
+- 單人驗證步驟（待使用者在候選版按一次 LINE 登入後執行；全唯讀＋一次存取皆經本人帳號）：
+  1. 未加入名單：`/account/trading` 403 鎖定頁、`GET /api/account/trading` 403
+  2. 加入名單後：同上 200、私人殼無他人資料、`GET /api/account/trade-plan/US/INTC` 回真實計畫
+  3. 移除名單：恢復 403（退出即停新建議，歷史可讀）
+  4. 回饋／匯出僅本人（匯出不含憑證）
+- 生產 wiring 缺口已補（見下）；補完後**候選版須重建**（另行授權，當前 `00283-zif`
+  的 plan 預覽仍為 503）。
+
+## 生產快照轉接（2026-09-24 補）
+
+- `trade_plan_builder` 在生產原為 `None`（plan 預覽一律 503）；已補
+  `build_verified_us_trade_plan`：唯一來源為已驗證 quant artifact
+ （`fetch_quant_snapshot_with_digest` 新函式回傳文件＋真實 digest；舊函式行為不變），
+  日曆為確定性 NYSE 規則生成（無週一至週五 fallback），公司行動基準誠實標示未調整聲明。
+- 真實 INTC 產物（`fcc39dcb…`，2026-09-21）端到端測試：digest 原樣保留、計畫可建、ID 穩定
+ （`tests/test_trade_plan_market.py`）。
 
 ## 第 1 節使用流程對照（§13.3 最低條件）
 

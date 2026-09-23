@@ -7,7 +7,12 @@
   tag `trading-ffda040`，0% 流量；read-back 見 `CANDIDATE-READBACK.md`。
   正式流量仍為 `00281-qeq` 100%，未動。
 
-## 1. 候選版（~~需授權 A：建候選~~ 已執行，見 CANDIDATE-READBACK.md）
+## 1. 候選版（~~需授權 A：建候選~~ A 已執行，見 CANDIDATE-READBACK.md）
+
+- **重建待授權**：生產 wiring（`build_verified_us_trade_plan`）補完後，當前候選
+  `00283-zif` 的 plan 預覽仍為舊碼（503）。重建命令同 §1（tag 改為新 SHA，
+  如 `trading-<sha>`），零流量；重建後重做 §2 read-back（含
+  `/api/account/trade-plan/US/INTC` 未登入應 401、`Cache-Control: private, no-store`）。
 
 按 `docs/deployment_guide.md` 既有流程，保留現行 secrets 對應，另加
 `--no-traffic` 建立零流量候選（以下 `<...>` 部署時填入，不寫入本文件）：

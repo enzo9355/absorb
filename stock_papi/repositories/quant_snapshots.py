@@ -229,6 +229,59 @@ def published_quant_manifest(market, today=None, *, load_object, cache=QUANT_MAN
     return result
 
 
+def _decode_verified_artifact(compressed, uncompressed_size):
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as stream:
+            decoded = stream.read(MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES + 1)
+        if len(decoded) != uncompressed_size:
+            return None
+        document = json.loads(decoded.decode("utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    return document if isinstance(document, dict) else None
+
+
+def fetch_quant_snapshot_with_digest(
+    market_or_code,
+    code=None,
+    today=None,
+    *,
+    is_us_ticker_fn=None,
+    load_manifest,
+    load_object,
+):
+    """fetch_quant_snapshot plus the verified artifact digest.
+
+    Same fail-closed validation; returns (document, digest) so callers can
+    preserve the reader's real artifact hash instead of re-hashing arbitrary
+    inputs. Bypassing this reader (e.g. live vendor fetches) is not verified.
+    """
+    if code is not None:
+        market = market_or_code
+        symbol = code
+    else:
+        symbol = market_or_code
+        market = "US" if (is_us_ticker_fn and is_us_ticker_fn(symbol)) else "TW"
+    manifest = load_manifest(market, today=today) if callable(load_manifest) else None
+    entry = ((manifest or {}).get("symbols", {}) or {}).get(symbol)
+    if not isinstance(entry, dict):
+        return None
+    digest = str(entry.get("sha256") or "")
+    if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        return None
+    document = fetch_quant_snapshot(
+        market, symbol, today,
+        is_us_ticker_fn=is_us_ticker_fn,
+        load_manifest=load_manifest,
+        load_object=load_object,
+    )
+    if not isinstance(document, dict):
+        return None
+    if document.get("symbol") != symbol or document.get("as_of") != entry.get("as_of"):
+        return None
+    return document, digest
+
+
 def fetch_quant_snapshot(
     market_or_code,
     code=None,
@@ -294,11 +347,9 @@ def fetch_quant_snapshot(
             or not hmac.compare_digest(hashlib.sha256(compressed).hexdigest(), digest)
         ):
             return None
-        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as stream:
-            decoded = stream.read(MAX_QUANT_ARTIFACT_UNCOMPRESSED_BYTES + 1)
-        if len(decoded) != uncompressed_size:
+        document = _decode_verified_artifact(compressed, uncompressed_size)
+        if document is None:
             return None
-        document = json.loads(decoded.decode("utf-8"))
         if (
             not isinstance(document, dict)
             or document.get("schema_version") != (1 if manifest_schema == 2 else 2)
