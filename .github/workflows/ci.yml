@@ -36,3 +36,24 @@ jobs:
         # 範圍與排除理由寫在 scripts/check_ci.sh 裡。
         # 排除的是需要 Windows 或選用依賴的模組，不是「會紅所以關掉」。
         run: ./scripts/check_ci.sh
+
+  audit:
+    # 相依套件的已知 CVE 掃描（供應鏈防護 follow-up）。
+    # 刻意「advisory」：新披露的上游 CVE 只顯示、不擋 PR，才不會讓
+    # 不相關的變更被卡住。要改成強制時，把 continue-on-error 拿掉並
+    # 維護一份 --ignore-vuln 清單即可。deploy.yml 不掛這個 job，
+    # 上線流程不會因為一個新 CVE 而被擋。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: pip-audit (advisory)
+        continue-on-error: true
+        run: pip-audit

@@ -21,9 +21,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /install /usr/local
 
-COPY . .
+# The base image ships a setuptools affected by PYSEC-2026-3447 (fixed in 83.0.0).
+# pip-audit in CI flags it, so patch it in the runtime layer.
+RUN pip install --no-cache-dir --upgrade 'setuptools>=83.0.0'
+
+# Run as an unprivileged user (defence in depth: a code path bug does not run as root).
+RUN useradd --create-home --uid 10001 appuser
+
+COPY --chown=appuser:appuser . .
+
+USER appuser
 
 ENV PORT 5000
 EXPOSE 5000
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
+# A finite worker timeout recycles a stuck thread instead of holding it forever
+# (only 8 threads exist, so a few hung requests could otherwise exhaust the pool).
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 120 --graceful-timeout 30 app:app

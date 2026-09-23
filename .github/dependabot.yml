@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Python dependencies: surface known-vulnerable / outdated packages as PRs.
+  # Core runtime pins are intentionally loose in requirements*.txt; these weekly
+  # PRs are the compensating control for supply-chain drift.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      python-deps:
+        patterns:
+          - "*"
+
+  # Keep GitHub Actions used by CI/deploy patched.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

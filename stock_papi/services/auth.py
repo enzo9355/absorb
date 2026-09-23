@@ -10,6 +10,8 @@ import secrets
 from dataclasses import dataclass
 from urllib.parse import unquote, urlsplit
 
+from stock_papi.shared.validation import constant_time_equals
+
 
 @dataclass(frozen=True)
 class LineLoginConfig:
@@ -91,7 +93,7 @@ def verify_opaque_token(value, secret):
         expected = sign_opaque_token(token, secret).rsplit(".", 1)[1]
     except ValueError:
         return None
-    return token if hmac.compare_digest(supplied, expected) else None
+    return token if constant_time_equals(supplied, expected) else None
 
 
 def _https_picture(value):
@@ -122,7 +124,7 @@ def verify_line_claims(claims, config, expected_nonce, now):
     if expiration <= now.timestamp():
         raise ValueError("LINE ID token expired")
     nonce = claims.get("nonce")
-    if not isinstance(nonce, str) or not hmac.compare_digest(nonce, expected_nonce):
+    if not constant_time_equals(nonce, expected_nonce):
         raise ValueError("LINE nonce mismatch")
     user_id = claims.get("sub")
     if not isinstance(user_id, str) or re.fullmatch(r"U[0-9a-f]{32}", user_id) is None:

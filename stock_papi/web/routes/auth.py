@@ -1,7 +1,6 @@
 """LINE Login、server-side session 與共用 LINE 使用者狀態路由。"""
 
 import datetime
-import hmac
 import re
 import secrets
 import threading
@@ -13,6 +12,7 @@ from flask import (
 )
 
 from line_state import StateError, add_watch, remove_watch
+from stock_papi.shared.validation import constant_time_equals
 from stock_papi.services.auth import (
     create_pkce_pair,
     safe_return_path,
@@ -96,7 +96,7 @@ def register_auth_routes(
 
     def csrf_matches(session):
         supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
-        return isinstance(supplied, str) and hmac.compare_digest(supplied, session["csrf_token"])
+        return constant_time_equals(supplied, session["csrf_token"])
 
     def line_login():
         store, _states = dependencies()
@@ -161,7 +161,7 @@ def register_auth_routes(
             not 20 <= len(state) <= 200
             or not 1 <= len(code) <= 2048
             or cookie_state is None
-            or not hmac.compare_digest(state, cookie_state)
+            or not constant_time_equals(state, cookie_state)
         ):
             return _private(make_response("LINE Login 驗證失敗", 400))
         try:
