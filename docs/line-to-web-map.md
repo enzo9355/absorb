@@ -30,3 +30,10 @@ LINE 卡片共用 PRESS BLOCK 色票：紙色 `#F0ECE3`、墨色 `#17151A`、磚
 | 關注提醒 | 觸發條件、目前值、觸發時間 | LINE Push；CTA 前往 `/stock/<code>` |
 
 目前關注與提醒使用 LINE `userId` 加 Firestore 保存；舊 `/watchlist` 只保留相容性轉址到 `/dashboard`。
+
+## 交易助手（2026-09-24）
+
+- 大咖動態：`/perspectives`（沿用主入口，導覽改為「大咖動態」；新增 `/perspectives/subjects/<subject_id>`）。
+- 我的交易：`/account/trading`（需 LINE 登入＋受邀；私人資料經 `Cache-Control: private, no-store` API 載入）。
+- 個股計畫卡：`/stock/<code>` 頂部容器經 `/api/account/trade-plan/<market>/<symbol>` 載入（GET 不儲存、不通知）。
+- 舊自選／提醒／報告／ASK 入口不變；追蹤不等於自動開啟 LINE 通知。

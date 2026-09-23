@@ -13,6 +13,7 @@ def register_line_routes(
     get_broadcast_token, get_alert_task_token, analyze,
     get_broadcast_insight, refresh_sector_signals, run_alert_checks,
     observe=None, observation_mode=False,
+    run_trade_plan_checks=None, trade_plan_context=None,
 ):
     def broadcast_weekly():
         if get_line_bot_api() is None:
@@ -122,6 +123,25 @@ def register_line_routes(
             )
         except Exception:
             return "提醒排程執行失敗", 500
+        # Trade-plan checks share the authorized entry; old alerts are unaffected.
+        # New results never reuse last_triggered_date=today dedupe.
+        try:
+            checker = run_trade_plan_checks
+            context = trade_plan_context() if callable(trade_plan_context) else trade_plan_context
+            if callable(checker) and isinstance(context, dict) and context.get("enabled", True):
+                def _trade_push(user_id, record, plan):
+                    from stock_papi.integrations.line.notifications import deliver_trade_plan_event as _deliver
+                    _deliver(store, user_id, record.get("event_id"), plan,
+                             allowed_users=context.get("allowed_users") or frozenset(),
+                             push_fn=context.get("push_fn") or (lambda uid, contents, key: push(uid, contents)),
+                             build_flex=context.get("build_flex"))
+                checker(store, context.get("load_snapshot"),
+                        now=context.get("now"), calendar=context.get("calendar"),
+                        expected_session=context.get("expected_session"),
+                        allowed_users=context.get("allowed_users") or frozenset(),
+                        push_fn=_trade_push, dry_run=bool(context.get("dry_run", False)))
+        except Exception:
+            pass
         return "提醒排程執行完成", 200
 
     app.add_url_rule(

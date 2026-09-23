@@ -17,6 +17,16 @@ logger = logging.getLogger("line_state")
 MAX_WATCHLIST = 12
 MAX_ALERTS = 20
 PENDING_SECONDS = 600
+ASSISTANT_SCHEMA_VERSION = 1
+ASSISTANT_VIEW_PREFERENCES = {"data", "people", "combined"}
+ASSISTANT_MAX_FOLLOWS = 20
+ASSISTANT_MAX_PLANS = 20
+ASSISTANT_MAX_PLAN_BYTES = 8 * 1024
+ASSISTANT_MAX_EVENTS = 200
+ASSISTANT_MAX_EVENT_BYTES = 1024
+ASSISTANT_MAX_FEEDBACK = 20
+ASSISTANT_MAX_FEEDBACK_CHARS = 500
+ASSISTANT_MAX_TOTAL_BYTES = 450 * 1024
 METADATA_TOKEN_URL = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 
 
@@ -433,7 +443,96 @@ def empty_state():
         "alerts": [],
         "pending": None,
         "signals": {"as_of": None, "items": []},
+        "assistant": empty_assistant(),
     }
+
+
+def empty_assistant():
+    return {
+        "schema_version": ASSISTANT_SCHEMA_VERSION,
+        "view_preference": "combined",
+        "followed_subject_ids": [],
+        "followed_creator_ids": [],
+        "saved_plans": [],
+        "events": [],
+        "feedback": [],
+        "line_notifications_enabled": False,
+    }
+
+
+def _assistant_size_bytes(assistant):
+    try:
+        return len(json.dumps(assistant, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    except (TypeError, ValueError):
+        return ASSISTANT_MAX_TOTAL_BYTES + 1
+
+
+def _is_valid_assistant_id(value):
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= 200 and value.strip() == value
+
+
+def normalize_assistant(value):
+    """Return (assistant_or_raw, errors). Invalid input is preserved raw by caller."""
+    errors = []
+    if not isinstance(value, dict):
+        return None, ["assistant_not_mapping"]
+    if value.get("schema_version") != ASSISTANT_SCHEMA_VERSION:
+        errors.append("invalid_assistant_schema")
+    preference = value.get("view_preference")
+    if preference not in ASSISTANT_VIEW_PREFERENCES:
+        errors.append("invalid_view_preference")
+    for key in ("followed_subject_ids", "followed_creator_ids"):
+        items = value.get(key)
+        if not isinstance(items, list) or any(not _is_valid_assistant_id(v) for v in items):
+            errors.append(f"invalid_{key}")
+    if len(value.get("followed_subject_ids") or []) + len(value.get("followed_creator_ids") or []) > ASSISTANT_MAX_FOLLOWS:
+        errors.append("assistant_follow_limit")
+    for key, limit in (("saved_plans", ASSISTANT_MAX_PLANS), ("events", ASSISTANT_MAX_EVENTS),
+                       ("feedback", ASSISTANT_MAX_FEEDBACK)):
+        items = value.get(key)
+        if not isinstance(items, list):
+            errors.append(f"invalid_{key}")
+        elif len(items) > limit:
+            errors.append(f"{key}_limit")
+    if not isinstance(value.get("line_notifications_enabled"), bool):
+        errors.append("invalid_notifications_flag")
+    # Size checks (per-item and total) are enforced on write; normalize reports them.
+    for plan in value.get("saved_plans") or []:
+        try:
+            if len(json.dumps(plan, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > ASSISTANT_MAX_PLAN_BYTES:
+                errors.append("saved_plan_too_large")
+                break
+        except (TypeError, ValueError):
+            errors.append("saved_plan_unserializable")
+            break
+    for event in value.get("events") or []:
+        try:
+            if len(json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > ASSISTANT_MAX_EVENT_BYTES:
+                errors.append("event_too_large")
+                break
+        except (TypeError, ValueError):
+            errors.append("event_unserializable")
+            break
+    for item in value.get("feedback") or []:
+        text = item.get("text") if isinstance(item, dict) else None
+        if not isinstance(text, str) or len(text) > ASSISTANT_MAX_FEEDBACK_CHARS:
+            errors.append("invalid_feedback_text")
+            break
+    if _assistant_size_bytes(value) > ASSISTANT_MAX_TOTAL_BYTES:
+        errors.append("assistant_too_large")
+    if errors:
+        return None, errors
+    normalized = {
+        "schema_version": ASSISTANT_SCHEMA_VERSION,
+        "view_preference": value.get("view_preference"),
+        "followed_subject_ids": list(value.get("followed_subject_ids") or []),
+        "followed_creator_ids": list(value.get("followed_creator_ids") or []),
+        "saved_plans": copy.deepcopy(value.get("saved_plans") or []),
+        "events": copy.deepcopy(value.get("events") or []),
+        "feedback": copy.deepcopy(value.get("feedback") or []),
+        "line_notifications_enabled": bool(value.get("line_notifications_enabled")),
+    }
+    return normalized, []
 
 
 def normalize_state(value):
@@ -538,6 +637,17 @@ def normalize_state(value):
                 if len(state["signals"]["items"]) == 5:
                     break
 
+    if "assistant" not in value:
+        state["assistant"] = empty_assistant()
+    else:
+        normalized, assistant_errors = normalize_assistant(value.get("assistant"))
+        if normalized is not None:
+            state["assistant"] = normalized
+        else:
+            # Preserve raw diagnosable state and block silent overwrite.
+            state["assistant"] = copy.deepcopy(value.get("assistant"))
+            state["_assistant_invalid"] = {"errors": list(assistant_errors)}
+
     return state
 
 
@@ -641,3 +751,11 @@ def top_signals(quotes):
         key=lambda item: item["prob"],
         reverse=True,
     )[:5]
+
+
+def assistant_has_event(assistant, event_id):
+    """Check whether an assistant event id already exists (idempotent checks)."""
+    for event in (assistant or {}).get("events") or []:
+        if isinstance(event, dict) and event.get("event_id") == event_id:
+            return True
+    return False

@@ -90,6 +90,7 @@ from stock_papi.integrations.line.flex import (
     build_welcome_flex,
 )
 from stock_papi.integrations.line.notifications import run_alert_checks
+from stock_papi.services.trade_plan_checks import run_trade_plan_checks as _run_trade_plan_checks
 from stock_papi.integrations.line.webhook import register_line_routes
 from stock_papi.integrations.line.handlers import (
     find_matching_alert as _line_find_matching_alert,
@@ -326,6 +327,11 @@ conversation_context_store = MemoryContextStore(ttl_seconds=1800)
 _conversation_provider_cache = {"model": None, "provider": None}
 prediction_capability = PredictionCapabilityState.from_environment()
 PREVIEW_CANDIDATE_PREFIX = prediction_capability.preview_candidate_prefix or ""
+try:
+    from stock_papi.config.capabilities import trading_beta_users_from_environment as _beta_users
+    trading_beta_users = _beta_users()
+except Exception:
+    trading_beta_users = frozenset()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1094,6 +1100,15 @@ def _research_query_kind(question):
         "Serenity", "serenity", "Michael Sikand", "michaelsikand",
     )):
         return "opinions"
+    if any(term in question for term in (
+        "大咖", "人物", "持倉", "交易揭露", "揭露", "Pelosi", "pelosi",
+        "佩洛西", "Berkshire", "波克夏", "Buffett", "巴菲特", "13F", "眾議院",
+        "買什麼", "最近買",
+    )):
+        return "activities"
+    import re as _re_kind
+    if _re_kind.search(r"@[A-Za-z0-9_]{2,50}", question):
+        return "activities"
     if any(term in question for term in ("公告", "事件", "行事曆", "觀察日新增", "新增哪些")):
         return "events"
     if any(term in question for term in ("產業鏈", "供應鏈", "供應商", "客戶", "合作", "關係", "位置", "同業比較")):
@@ -1448,6 +1463,67 @@ def _research_catalog_answer(question, *, access, principal, entities, market_co
     if kind is None:
         return None
 
+    if kind == "activities":
+        try:
+            catalog = _load_public_opinions()
+        except Exception:
+            return ConversationAnswer("大咖動態資料暫時無法驗證；未把外部說法當成結論。")
+        if not isinstance(catalog, dict) or catalog.get("schema_version") != 2:
+            return ConversationAnswer("大咖動態資料暫時無法驗證；未把外部說法當成結論。")
+        import re as _re2
+        handles = _re2.findall(r"@([A-Za-z0-9_]{2,50})", question)
+        subjects = [s for s in catalog.get("subjects", []) if isinstance(s, dict) and s.get("subject_id")]
+        known_names = set()
+        for s in subjects:
+            known_names.add(str(s.get("subject_id") or "").lower())
+            known_names.add(str(s.get("subject_name") or "").lower())
+            for alias in s.get("aliases") or []:
+                known_names.add(str(alias).lower())
+        # Fuzzy person with no symbol and no known subject: single clarification, no consensus fallback.
+        if handles and entities == [] or (not entities and any(
+                term in question for term in ("最近買什麼", "買了什麼", "買什麼", "持倉"))):
+            lowered = question.lower()
+            if not any(name and name in lowered for name in known_names if name):
+                return ConversationAnswer(
+                    "請問你指的是哪一位已核對人物或機構？目前可查："
+                    + ("、".join(str(s.get("subject_name") or s.get("subject_id")) for s in subjects[:10]) or "尚無")
+                    + "。請提供完整名稱，我再查已核對動態；不會用全帳號彙整冒充答案。")
+        try:
+            from stock_papi.services.public_opinions import query_activities as _q
+            symbols = [str(e.get("symbol") or "").upper() for e in (entities or []) if e.get("symbol")]
+            rows = []
+            for symbol in symbols or [None]:
+                try:
+                    rows.extend(_q(catalog, subject_id=None,
+                                  market=market_context if market_context in {"TW", "US"} else None,
+                                  symbol=symbol, cutoff_at=utc_now(), window_days=90))
+                except (ValueError, TypeError):
+                    continue
+            seen, unique = set(), []
+            for item in rows:
+                aid = str(item.get("activity_id") or "")
+                if aid and aid not in seen:
+                    seen.add(aid)
+                    unique.append(item)
+            rows = unique[:5]
+        except Exception:
+            rows = []
+        if not rows:
+            return ConversationAnswer(
+                "【揭露事實】目前已核對範圍內未找到匹配的操作／持倉紀錄（未證實不等於沒有發生）。"
+                "已檢查既有五帳號、Pelosi 家庭（pending）與 Berkshire（source_only）範圍；"
+                "原始查詢入口：/perspectives。未將轉述者當成交易所有人。",
+                tools_used=("verified_public_activities",))
+        lines = ["【揭露事實｜公開操作紀錄】"]
+        for item in rows:
+            lines.append(
+                f"- {item.get('subject_id')}（{item.get('owner')}）{item.get('activity_type')} "
+                f"{item.get('market')} {item.get('symbol')} {item.get('action')}"
+                f"｜交易／基準 {item.get('transaction_date') or item.get('holdings_as_of') or '未提供'}"
+                f"｜揭露 {item.get('public_at')}｜{item.get('summary')}")
+        lines += ["", "轉述發布者與實際交易所有人已分開；期權不直接當成普通股買進。", "對應頁面：/perspectives"]
+        return ConversationAnswer("\n".join(lines), tools_used=("verified_public_activities",))
+
     if kind == "events":
         private = any(term in question for term in ("我的關注", "我的自選", "我的觀察", "我關注", "關注公司", "自選股"))
         if private and (access != "authenticated" or not isinstance(principal, str) or not principal.startswith("line:")):
@@ -1783,6 +1859,154 @@ def _asksorb_report_citation(*, market, report_type, source_date, applicable_dat
     }
 
 
+_TRADE_PLAN_BUILDER = None
+
+
+def set_trade_plan_builder_for_tests(builder):
+    global _TRADE_PLAN_BUILDER
+    _TRADE_PLAN_BUILDER = builder
+
+
+def _trade_plan_beta_allowed(principal):
+    try:
+        from stock_papi.config.capabilities import conditional_advice_allowed as _allowed
+    except Exception:
+        return False
+    try:
+        users = trading_beta_users if isinstance(trading_beta_users, (set, frozenset)) else frozenset()
+    except NameError:
+        users = frozenset()
+    if not isinstance(principal, str) or not principal.startswith("line:"):
+        return False
+    return bool(_allowed(principal, frozenset(users)))
+
+
+def _lookup_trade_plan(market, symbol):
+    builder = _TRADE_PLAN_BUILDER
+    if builder is not None and callable(builder):
+        try:
+            return builder(market, symbol, [])
+        except Exception:
+            return None
+    return None
+
+
+def _trade_plan_template(question, plan, activities):
+    from stock_papi.services.trade_plans import action_text as _text
+    action = str(plan.get("action") or "wait")
+    cond = plan.get("conditions") or {}
+    lines = [
+        "【ABSORB 規則建議｜日線規則試用版，尚未驗證獲利能力】",
+        f"建議：{_text(action)}（{action}）",
+        f"標的：{plan.get('market')} {plan.get('symbol')}｜政策版本 {plan.get('policy_version')}｜計畫 {plan.get('plan_id')}",
+        f"觸發價 {cond.get('trigger_price')}｜上限 {cond.get('entry_ceiling')}｜失效價 {cond.get('invalidation_price')}",
+        f"收盤 {cond.get('close')}｜MA20 {cond.get('ma20')}｜MA60 {cond.get('ma60')}｜量比 {cond.get('volume_ratio')}｜RSI {cond.get('rsi')}",
+        f"資料截至日 {plan.get('data_as_of')}｜適用時段 {plan.get('eligible_session')}｜到期 {plan.get('expires_session')}",
+        f"未持有：{plan.get('unheld_guidance')}",
+        f"已持有：{plan.get('held_guidance')}",
+        "依據：" + "；".join(plan.get("supporting_evidence") or []),
+        "反對證據：" + "；".join(plan.get("opposing_evidence") or []),
+        "限制：" + "；".join(plan.get("limitations") or []),
+        "收盤確認，盤中跳空風險未被消除；開盤跳空超過上限不得稱可原價成交。",
+    ]
+    if activities:
+        lines.append("")
+        lines.append("【揭露事實｜公開操作紀錄】")
+        for item in activities[:5]:
+            lines.append(
+                f"- {item.get('subject_id')} {item.get('activity_type')} {item.get('market')} {item.get('symbol')} "
+                f"{item.get('action')}｜交易／基準 {item.get('transaction_date') or item.get('holdings_as_of') or '未提供'}"
+                f"｜揭露 {item.get('public_at')}｜{item.get('summary')}")
+    else:
+        lines.append("")
+        lines.append("【揭露事實】目前已核對範圍內未找到匹配的操作／持倉紀錄（未證實不等於沒有發生）。")
+    lines += ["", "【當事人觀點】與上述揭露分開；觀點看多不等於已買入。", "對應頁面：/perspectives、/account/trading"]
+    return "\n".join(lines)
+
+
+def _trade_text_matches_plan(text, plan):
+    try:
+        cond = plan.get("conditions") or {}
+        expected_action = str(plan.get("action") or "")
+        if expected_action and expected_action not in str(text or ""):
+            return False
+        for key in ("trigger_price", "entry_ceiling", "invalidation_price"):
+            value = cond.get(key)
+            if value is None:
+                continue
+            if str(value) not in str(text or "") and format(float(value), ".2f") not in str(text or ""):
+                return False
+        if "上漲機率" in str(text or "") or "勝率" in str(text or ""):
+            return False
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _answer_trade_plan(*, question, principal, entities, market_context):
+    from stock_papi.services.public_opinions import query_activities as _query
+    # Person/holding/source section: never invent premise.
+    activities = []
+    try:
+        catalog = _load_public_opinions()
+    except Exception:
+        catalog = {}
+    symbols = [str(e.get("symbol") or "").upper() for e in (entities or []) if e.get("symbol")]
+    cutoff = utc_now()
+    if isinstance(catalog, dict) and catalog.get("schema_version") == 2:
+        for symbol in symbols or [None]:
+            try:
+                rows = _query(catalog, subject_id=None,
+                              market=market_context if market_context in {"TW", "US"} else None,
+                              symbol=symbol, cutoff_at=cutoff, window_days=90)
+            except (ValueError, TypeError):
+                rows = []
+            activities.extend(rows)
+    # Dedupe by activity_id preserving order.
+    seen, unique = set(), []
+    for item in activities:
+        aid = str(item.get("activity_id") or "")
+        if aid and aid not in seen:
+            seen.add(aid)
+            unique.append(item)
+    activities = unique
+    # Shared plan builder: same build/evaluate result as Web.
+    plan = None
+    for entity in entities or []:
+        market = str(entity.get("market") or "").upper()
+        symbol = str(entity.get("symbol") or "").upper()
+        if market == "US" and symbol:
+            plan = _lookup_trade_plan(market, symbol)
+            if plan is not None:
+                break
+    if plan is None:
+        # Beta user but no verifiable snapshot: explain missing piece, no new entry advice.
+        lines = ["【ABSORB 規則建議｜日線規則試用版，尚未驗證獲利能力】",
+                 "建議：暫停評估（insufficient）",
+                 "缺少可驗證的日線快照或交易日曆，無法產生新的可進場建議。",
+                 "【揭露事實】" + ("目前已核對範圍內未找到匹配紀錄。" if not activities else f"找到 {len(activities)} 筆已核對動態，詳見 /perspectives。"),
+                 "對應頁面：/perspectives、/account/trading"]
+        return ConversationAnswer("\n".join(lines))
+    template = _trade_plan_template(question, plan, activities)
+    # LLM only polishes wording; any action/price/win-rate divergence falls back to template.
+    if asksorb_model is None:
+        return ConversationAnswer(template)
+    try:
+        from absorb.conversation.policies import contains_prompt_injection as _contains
+        draft = asksorb_model.generate_content(
+            "你是 ASKsorb，只能整理下方模板的文字，不得新增 action、價格、勝率、期限或來源。"
+            f"問題：{question}\n模板：{template}",
+            request_options={"timeout": 8},
+            generation_config={"max_output_tokens": 512, "temperature": 0.1},
+        )
+        text = str(getattr(draft, "text", "") or "").strip()
+    except Exception:
+        return ConversationAnswer(template)
+    if not text or _contains(text) or not _trade_text_matches_plan(text, plan):
+        return ConversationAnswer(template)
+    return ConversationAnswer(text)
+
+
 def _asksorb_grounded_answer(question, evidence, *, data_as_of, tools_used, citations=()):
     if asksorb_model is None or contains_prompt_injection(evidence):
         return None
@@ -1845,6 +2069,17 @@ def _observation_conversation(
             "這項查詢需要先使用 LINE 登入；目前未讀取任何私人資料。"
         )
     research_kind = _research_query_kind(question)
+    try:
+        from absorb.conversation.policies import is_probability_request as _is_prob
+        from absorb.conversation.policies import is_trade_plan_request as _is_trade
+    except Exception:
+        _is_prob = lambda q: False
+        _is_trade = lambda q: False
+    if _is_prob(question):
+        return ConversationAnswer(
+            "AI 預測研究中。正式服務目前只呈現已驗證的市場實況，"
+            "不提供上漲機率、排名、強行動或績效背書。"
+        )
     if any(
         term in question
         for term in (
@@ -1852,10 +2087,11 @@ def _observation_conversation(
             "推薦", "可以買", "能買", "追高", "進場",
         )
     ) and research_kind != "opinions":
-        return ConversationAnswer(
-            "AI 預測研究中。正式服務目前只呈現已驗證的市場實況，"
-            "不提供操作判斷或研究結果。"
-        )
+        if not _is_trade(question):
+            return ConversationAnswer(
+                "AI 預測研究中。正式服務目前只呈現已驗證的市場實況，"
+                "不提供操作判斷或研究結果。"
+            )
 
     entities = resolve_entities(question, _conversation_search_stock)
     if not entities and page_context == "stock" and symbol_context:
@@ -1866,6 +2102,21 @@ def _observation_conversation(
             if market_context in (None, canonical_market):
                 entities = [{"market": canonical_market, "symbol": code, "name": name or code}]
 
+    try:
+        from absorb.conversation.policies import is_trade_plan_request as _is_trade2
+        from absorb.conversation.policies import mentions_person_or_holdings as _mentions
+    except Exception:
+        _is_trade2 = lambda q: False
+        _mentions = lambda q: False
+    if _is_trade2(question) or (_mentions(question) and entities):
+        if _trade_plan_beta_allowed(principal):
+            return _answer_trade_plan(question=question, principal=principal,
+                                      entities=entities, market_context=market_context)
+        if _is_trade2(question):
+            return ConversationAnswer(
+                "交易計畫為受邀試用功能，目前帳號尚未受邀；未讀取任何私人計畫或跟隨清單。"
+                "公開大咖動態仍可查看，對應頁面：/perspectives。"
+            )
     structured_answer = _research_catalog_answer(
         question, access=access, principal=principal, entities=entities,
         market_context=market_context,
@@ -2429,6 +2680,11 @@ def route_dependencies():
         "load_research_events": _load_research_events,
         "load_research_events_status": _load_research_events_status,
         "load_public_opinions": _load_public_opinions,
+        "trading_beta_users": trading_beta_users,
+        "trade_plan_builder": None,
+        "run_trade_plan_checks": _run_trade_plan_checks,
+        "trade_plan_context": lambda: {"enabled": False, "dry_run": True,
+            "reason": "trade-plan schedule/push awaits trial authorization; see Task9 release list"},
         "twstock_codes": taiwan_security_codes,
         "is_us_ticker": is_us_ticker,
         "find_industry_peers": lambda code: find_industry_peers(code),

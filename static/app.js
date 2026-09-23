@@ -805,3 +805,214 @@ initReturnCalculator();
 initConversations();
 initQuickAsk();
 initSidebar();
+
+function tradingUuid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  const s = [];
+  const hex = "0123456789abcdef";
+  for (let i = 0; i < 36; i++) {
+    if (i === 8 || i === 13 || i === 18 || i === 23) { s.push("-"); continue; }
+    s.push(hex[Math.floor(Math.random() * 16)]);
+  }
+  s[14] = "4";
+  return s.join("");
+}
+
+function tradingCsrf() {
+  const root = bySelector("[data-trading-root]");
+  return (root && root.dataset.csrf) || "";
+}
+
+async function tradingPost(body) {
+  const response = await fetch("/api/account/trading", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": tradingCsrf() },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  if (response.status === 409) {
+    const data = await response.json().catch(() => ({}));
+    if (data && data.error === "stale_plan") {
+      alert("計畫已更新，請重新確認最新計畫。");
+      await loadTradingState();
+      const preview = bySelector("[data-trade-plan]");
+      if (preview) await loadTradePlan(preview);
+    }
+    return null;
+  }
+  if (!response.ok) return null;
+  return response.json().catch(() => null);
+}
+
+async function loadTradingState() {
+  const root = bySelector("[data-trading-root]");
+  if (!root) return;
+  let data = null;
+  try {
+    const response = await fetch(root.dataset.stateEndpoint || "/api/account/trading", {
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin",
+    });
+    if (response.ok) data = await response.json();
+  } catch (err) { data = null; }
+  const assistant = (data && data.assistant) || null;
+  if (!assistant) return;
+  const pref = bySelector("[data-preference-form]");
+  if (pref && assistant.view_preference) {
+    const radio = pref.querySelector(`input[value="${assistant.view_preference}"]`);
+    if (radio) radio.checked = true;
+  }
+  const follows = bySelector("[data-follow-lists]");
+  if (follows) {
+    follows.replaceChildren();
+    const subs = assistant.followed_subject_ids || [];
+    const creators = assistant.followed_creator_ids || [];
+    if (!subs.length && !creators.length) {
+      follows.appendChild(emptyState("尚未追蹤任何對象。"));
+    } else {
+      subs.forEach((id) => follows.appendChild(element("div", "follow-row", `人物：${id}`)));
+      creators.forEach((id) => follows.appendChild(element("div", "follow-row", `帳號：${id}`)));
+    }
+  }
+  const plans = bySelector("[data-saved-plans]");
+  if (plans) {
+    plans.replaceChildren();
+    const saved = assistant.saved_plans || [];
+    if (!saved.length) {
+      plans.appendChild(emptyState("尚未儲存交易計畫。"));
+    } else {
+      saved.forEach((entry) => {
+        const plan = entry.plan || {};
+        const card = element("article", "trade-plan-card");
+        const title = element("h3", null, `${plan.market || ""} ${plan.symbol || ""} · ${plan.action || ""}`);
+        const meta = element("p", "muted small",
+          `計畫 ${entry.plan_id || plan.plan_id || ""}｜資料日 ${plan.data_as_of || ""}｜失效檢查 ${((plan.conditions || {}).invalidation_price ?? "")}`);
+        card.appendChild(title);
+        card.appendChild(meta);
+        plans.appendChild(card);
+      });
+    }
+  }
+  const events = bySelector("[data-events]");
+  if (events) {
+    events.replaceChildren();
+    const list = assistant.events || [];
+    if (!list.length) {
+      events.appendChild(emptyState("尚無變動。"));
+    } else {
+      list.slice(-10).reverse().forEach((ev) => {
+        events.appendChild(element("div", "event-row", `${ev.action || ""} · ${ev.created_at || ""}`));
+      });
+    }
+  }
+  const toggle = bySelector("[data-notify-toggle]");
+  if (toggle) toggle.checked = !!assistant.line_notifications_enabled;
+  const feedback = bySelector("[data-feedback-list]");
+  if (feedback) {
+    feedback.replaceChildren();
+    (assistant.feedback || []).slice(-5).reverse().forEach((item) => {
+      feedback.appendChild(element("div", "feedback-row", `${item.helpful || ""}：${item.text || ""}`));
+    });
+  }
+}
+
+async function loadTradePlan(container) {
+  const market = container.dataset.market;
+  const symbol = container.dataset.symbol;
+  const body = bySelector("[data-plan-body]", container);
+  if (!market || !symbol || !body) return;
+  body.replaceChildren(emptyState("載入中…"));
+  let plan = null;
+  try {
+    const response = await fetch(`/api/account/trade-plan/${encodeURIComponent(market)}/${encodeURIComponent(symbol)}`, {
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin",
+    });
+    if (response.status === 403) {
+      body.replaceChildren(emptyState("交易計畫尚未開放給此帳號。"));
+      return;
+    }
+    if (!response.ok) {
+      body.replaceChildren(emptyState("暫停評估：資料不足或來源尚未就緒。"));
+      return;
+    }
+    const data = await response.json();
+    plan = data && data.plan;
+  } catch (err) {
+    body.replaceChildren(emptyState("暫停評估：資料不足或來源尚未就緒。"));
+    return;
+  }
+  if (!plan) {
+    body.replaceChildren(emptyState("暫停評估：資料不足或來源尚未就緒。"));
+    return;
+  }
+  body.replaceChildren();
+  const actionNames = { wait: "等待條件確認", entry_review: "條件符合，可評估進場", avoid_chasing: "暫不追價", exit_review: "檢查退出條件", insufficient: "暫停評估" };
+  const cond = plan.conditions || {};
+  body.appendChild(element("h3", null, `${actionNames[plan.action] || plan.action}（${plan.action}）`));
+  body.appendChild(element("p", "muted small", `資料截至日 ${plan.data_as_of || ""}｜政策 ${plan.policy_version || ""}`));
+  body.appendChild(element("p", null, `觸發 ${cond.trigger_price ?? ""}｜上限 ${cond.entry_ceiling ?? ""}｜失效 ${cond.invalidation_price ?? ""}`));
+  const save = element("button", "button button-secondary", "儲存交易計畫");
+  save.type = "button";
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    const result = await tradingPost({
+      action: "save_plan", market: plan.market, symbol: plan.symbol,
+      expected_plan_id: plan.plan_id, evidence_ids: [], position_context: "unheld",
+      request_id: tradingUuid(),
+    });
+    if (result) await loadTradingState();
+    save.disabled = false;
+  });
+  body.appendChild(save);
+}
+
+function initTrading() {
+  const pref = bySelector("[data-preference-form]");
+  if (pref) {
+    pref.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const checked = pref.querySelector("input[name='view_preference']:checked");
+      if (!checked) return;
+      await tradingPost({ action: "set_preferences", view_preference: checked.value, request_id: tradingUuid() });
+      await loadTradingState();
+    });
+  }
+  document.querySelectorAll("[data-follow-subject-id],[data-follow-current]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.followSubjectId || btn.dataset.followCurrent;
+      if (!id) return;
+      btn.disabled = true;
+      await tradingPost({ action: "follow_subject", subject_id: id, request_id: tradingUuid() });
+      btn.disabled = false;
+    });
+  });
+  const notify = bySelector("[data-notify-form]");
+  if (notify) {
+    notify.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const toggle = bySelector("[data-notify-toggle]");
+      await tradingPost({ action: "set_notifications", enabled: !!(toggle && toggle.checked), request_id: tradingUuid() });
+      await loadTradingState();
+    });
+  }
+  const feedback = bySelector("[data-feedback-form]");
+  if (feedback) {
+    feedback.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(feedback);
+      await tradingPost({
+        action: "feedback", category: data.get("category") || "general",
+        helpful: data.get("helpful") || "helpful", text: data.get("text") || "",
+        page: window.location.pathname, plan_id: "", activity_id: "", request_id: tradingUuid(),
+      });
+      feedback.reset();
+      await loadTradingState();
+    });
+  }
+  const planContainer = bySelector("[data-trade-plan]");
+  if (planContainer) loadTradePlan(planContainer);
+  if (bySelector("[data-trading-root]")) loadTradingState();
+}
+
+initTrading();

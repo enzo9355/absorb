@@ -1,0 +1,1 @@
+status=200 final=http://127.0.0.1:8765/perspectives?tab=trades&activity_window=all

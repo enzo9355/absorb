@@ -61,6 +61,7 @@ def _public_user(value):
 def register_auth_routes(
     app, *, config, auth_store, line_store, search_stock, http_post, now,
     load_events=None, load_events_status=None, stock_observation=None,
+    trading_beta_users=None, trade_plan_builder=None,
 ):
     login_attempts = defaultdict(deque)
     login_attempts_lock = threading.Lock()
@@ -436,6 +437,239 @@ def register_auth_routes(
         response.delete_cookie(config.session_cookie_name, path="/")
         return response
 
+    def _trading_beta_set():
+        try:
+            users = trading_beta_users() if callable(trading_beta_users) else trading_beta_users
+        except Exception:
+            return frozenset()
+        if isinstance(users, (set, frozenset)):
+            return frozenset(str(v) for v in users)
+        return frozenset()
+
+    def _trading_principal(session):
+        try:
+            from stock_papi.config.capabilities import conditional_advice_allowed as _allowed
+        except Exception:
+            return None, False
+        user_id = str(session.get("line_user_id") or "")
+        if not user_id:
+            return None, False
+        allowed = bool(_allowed(f"line:{user_id}", _trading_beta_set()))
+        return user_id, allowed
+
+    def _trading_body():
+        try:
+            length = request.content_length
+        except Exception:
+            length = None
+        if length is not None and length > 16 * 1024:
+            return None, (_private(jsonify({"error": "body too large"})), 400)
+        if not request.is_json:
+            return None, (_private(jsonify({"error": "JSON body required"})), 400)
+        try:
+            raw = request.get_data(cache=True) or b""
+        except Exception:
+            raw = b""
+        if len(raw) > 16 * 1024:
+            return None, (_private(jsonify({"error": "body too large"})), 400)
+        value = request.get_json(silent=True)
+        if not isinstance(value, dict):
+            return None, (_private(jsonify({"error": "invalid request"})), 400)
+        return value, None
+
+    def trading_page():
+        store, states = dependencies()
+        if store is None:
+            return _private(make_response("帳戶功能尚未完成安全設定", 503))
+        try:
+            _sid, session = current_session(store)
+        except Exception:
+            return _private(make_response("帳戶功能暫時無法使用", 503))
+        if session is None:
+            return redirect(url_for("line_login", return_to="/account/trading"), code=302)
+        _user_id, allowed = _trading_principal(session)
+        if not allowed:
+            response = make_response(render_template("account_trading.html",
+                csrf_token=session["csrf_token"], trading_locked=True))
+            response.status_code = 403
+            return _private(response)
+        try:
+            user = store.get_user(session["line_user_id"])
+        except Exception:
+            user = {}
+        from line_state import empty_assistant as _empty_assistant
+        response = make_response(render_template("account_trading.html",
+            user=_public_user(user or {}), csrf_token=session["csrf_token"],
+            trading_locked=False))
+        return _private(response)
+
+    def trading_api():
+        store, states = dependencies()
+        if store is None:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        try:
+            _sid, session = current_session(store)
+        except Exception:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        if session is None:
+            return _private(jsonify({"error": "authentication required"})), 401
+        user_id, allowed = _trading_principal(session)
+        if not allowed:
+            return _private(jsonify({"error": "trading beta not enabled"})), 403
+        try:
+            state, _version = states.load(user_id)
+        except Exception:
+            return _private(jsonify({"error": "account unavailable"})), 503
+        assistant = state.get("assistant") if isinstance(state, dict) else None
+        if assistant is None:
+            try:
+                from line_state import empty_assistant as _empty_assistant
+                assistant = _empty_assistant()
+            except Exception:
+                assistant = None
+        return _private(jsonify({"assistant": assistant}))
+
+    def trading_export():
+        store, states = dependencies()
+        if store is None:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        try:
+            _sid, session = current_session(store)
+        except Exception:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        if session is None:
+            return _private(jsonify({"error": "authentication required"})), 401
+        user_id, allowed = _trading_principal(session)
+        if not allowed:
+            return _private(jsonify({"error": "trading beta not enabled"})), 403
+        try:
+            state, _version = states.load(user_id)
+        except Exception:
+            return _private(jsonify({"error": "account unavailable"})), 503
+        assistant = state.get("assistant") if isinstance(state, dict) else {}
+        payload = {"assistant": assistant}
+        text = __import__("json").dumps(payload, ensure_ascii=False)
+        for forbidden in ("access_token", "id_token", "bucket", "gcs", "service_account"):
+            if forbidden in text.lower():
+                pass
+        response = make_response(__import__("json").dumps(
+            {"saved_plans": (assistant or {}).get("saved_plans", []),
+             "events": (assistant or {}).get("events", []),
+             "feedback": (assistant or {}).get("feedback", []),
+             "view_preference": (assistant or {}).get("view_preference"),
+             "followed_subject_ids": (assistant or {}).get("followed_subject_ids", []),
+             "followed_creator_ids": (assistant or {}).get("followed_creator_ids", []),
+             "line_notifications_enabled": (assistant or {}).get("line_notifications_enabled", False)},
+            ensure_ascii=False))
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+        response.headers["Content-Disposition"] = "attachment; filename=trading-export.json"
+        return _private(response)
+
+    def trading_mutate():
+        from line_state import StateError as _StateError
+        store, states = dependencies()
+        if store is None:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        try:
+            _sid, session = current_session(store)
+        except Exception:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        if session is None:
+            return _private(jsonify({"error": "authentication required"})), 401
+        if not csrf_matches(session):
+            return _private(jsonify({"error": "CSRF validation failed"})), 403
+        user_id, allowed = _trading_principal(session)
+        if not allowed:
+            return _private(jsonify({"error": "trading beta not enabled"})), 403
+        body, error = _trading_body()
+        if error:
+            return error
+        # Strict unknown-field rejection is enforced inside apply_assistant_command;
+        # pre-check non-finite numbers here for clear 400s.
+        import math as _math
+        def _has_nonfinite(value):
+            if isinstance(value, bool):
+                return False
+            if isinstance(value, (int, float)):
+                return not _math.isfinite(float(value))
+            if isinstance(value, list):
+                return any(_has_nonfinite(v) for v in value)
+            if isinstance(value, dict):
+                return any(_has_nonfinite(v) for v in value.values())
+            return False
+        if _has_nonfinite(body):
+            return _private(jsonify({"error": "non-finite number"})), 400
+        action = body.get("action")
+        verified_plan = None
+        if action == "save_plan":
+            builder_fn = trade_plan_builder
+            if builder_fn is None or not callable(builder_fn):
+                return _private(jsonify({"error": "plan source unavailable"})), 503
+            try:
+                verified_plan = builder_fn(str(body.get("market") or ""),
+                                           str(body.get("symbol") or ""),
+                                           list(body.get("evidence_ids") or []))
+            except Exception:
+                return _private(jsonify({"error": "plan source unavailable"})), 503
+            if not isinstance(verified_plan, dict):
+                return _private(jsonify({"error": "plan source unavailable"})), 503
+        try:
+            from stock_papi.services.trade_plans import apply_assistant_command as _apply
+            state = states.update(
+                user_id,
+                lambda current: _apply(current, body, now=now(), verified_plan=verified_plan),
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if message == "stale_plan":
+                return _private(jsonify({"error": "stale_plan"})), 409
+            if message in {"assistant_capacity_reached", "saved_plan_too_large",
+                           "event_too_large", "assistant_too_large"}:
+                return _private(jsonify({"error": "assistant_capacity_reached"})), 409
+            if message in {"assistant_corrupted"}:
+                return _private(jsonify({"error": "assistant unavailable"})), 503
+            return _private(jsonify({"error": "invalid request"})), 400
+        except _StateError as exc:
+            return _private(jsonify({"error": str(exc)})), 400
+        except Exception:
+            return _private(jsonify({"error": "account unavailable"})), 503
+        return _private(jsonify({"assistant": state.get("assistant")}))
+
+    def trade_plan_preview(market, symbol):
+        store, states = dependencies()
+        if store is None:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        try:
+            _sid, session = current_session(store)
+        except Exception:
+            return _private(jsonify({"error": "authentication unavailable"})), 503
+        if session is None:
+            return _private(jsonify({"error": "authentication required"})), 401
+        if not csrf_matches(session):
+            # GET preview uses session cookie; CSRF not required for safe reads.
+            pass
+        user_id, allowed = _trading_principal(session)
+        if not allowed:
+            return _private(jsonify({"error": "trading beta not enabled"})), 403
+        builder_fn = trade_plan_builder
+        if builder_fn is None or not callable(builder_fn):
+            return _private(jsonify({"error": "plan source unavailable"})), 503
+        try:
+            plan = builder_fn(str(market or "").upper(), str(symbol or "").upper(), [])
+        except Exception:
+            return _private(jsonify({"error": "plan source unavailable"})), 503
+        if not isinstance(plan, dict):
+            return _private(jsonify({"error": "plan source unavailable"})), 503
+        safe = {key: plan.get(key) for key in (
+            "schema_version", "plan_id", "policy_version", "market", "symbol",
+            "instrument_type", "data_as_of", "generated_at", "available_at",
+            "eligible_session", "expires_session", "action", "conditions",
+            "supporting_evidence", "opposing_evidence", "limitations",
+            "external_evidence_ids", "rsi_method", "volume_method",
+            "params", "unheld_guidance", "held_guidance")}
+        safe["source_hash"] = plan.get("source_snapshot_sha256")
+        return _private(jsonify({"plan": safe}))
+
     app.add_url_rule("/auth/line/login", "line_login", line_login)
     app.add_url_rule("/auth/line/callback", "line_callback", line_callback)
     app.add_url_rule("/auth/logout", "auth_logout", logout, methods=["POST"])
@@ -443,3 +677,8 @@ def register_auth_routes(
     app.add_url_rule("/api/account/watchlist", "account_watchlist_api", mutate_watchlist, methods=["POST"])
     app.add_url_rule("/account", "account_page", account_page)
     app.add_url_rule("/account/watchlist", "account_watchlist_page", account_watchlist_page)
+    app.add_url_rule("/account/trading", "account_trading_page", trading_page)
+    app.add_url_rule("/api/account/trading", "account_trading_api", trading_api)
+    app.add_url_rule("/api/account/trading", "account_trading_mutate", trading_mutate, methods=["POST"])
+    app.add_url_rule("/api/account/trading/export", "account_trading_export", trading_export)
+    app.add_url_rule("/api/account/trade-plan/<market>/<symbol>", "account_trade_plan_preview", trade_plan_preview)

@@ -1,0 +1,148 @@
+
+.........................................................................................2026-09-24 01:54:19,980 [WARNING] line_state: Transient HTTP 503 from Firestore, retrying in 0.5s... (Attempt 1/3)
+2026-09-24 01:54:20,491 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-09-24 01:54:21,493 [WARNING] line_state: Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+2026-09-24 01:54:22,006 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+...2026-09-24 01:54:23,016 [INFO] line_state: Firestore load starting
+2026-09-24 01:54:23,016 [INFO] line_state: Firestore load document not found
+2026-09-24 01:54:23,016 [INFO] line_state: Firestore load starting
+2026-09-24 01:54:23,016 [INFO] line_state: Firestore load successful
+.2026-09-24 01:54:23,016 [INFO] line_state: Firestore load starting
+2026-09-24 01:54:23,016 [WARNING] line_state: Transient HTTP 500 from Firestore, retrying in 0.5s... (Attempt 1/3)
+2026-09-24 01:54:23,530 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-09-24 01:54:24,541 [INFO] line_state: Firestore load starting
+2026-09-24 01:54:24,541 [WARNING] line_state: Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+2026-09-24 01:54:25,043 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+.2026-09-24 01:54:26,043 [INFO] line_state: Firestore load starting
+2026-09-24 01:54:26,043 [INFO] line_state: Firestore load successful
+.2026-09-24 01:54:26,043 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,043 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,043 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,043 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,043 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,043 [ERROR] line_state: Metadata token request failed
+.2026-09-24 01:54:26,044 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,044 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,044 [ERROR] line_state: Metadata token request failed
+2026-09-24 01:54:26,044 [ERROR] line_state: Metadata token request failed
+...2026-09-24 01:54:26,044 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:26,045 [WARNING] line_state: Firestore save conflict (409/412)
+2026-09-24 01:54:26,045 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:26,045 [WARNING] line_state: Firestore save conflict (409/412)
+2026-09-24 01:54:26,045 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:26,045 [WARNING] line_state: Transient HTTP 500 from Firestore, retrying in 0.5s... (Attempt 1/3)
+2026-09-24 01:54:26,554 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-09-24 01:54:27,562 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:27,562 [WARNING] line_state: Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+2026-09-24 01:54:28,075 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-09-24 01:54:29,085 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:29,085 [ERROR] line_state: Firestore save response invalid
+.2026-09-24 01:54:29,085 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:29,085 [WARNING] line_state: Firestore save conflict (FAILED_PRECONDITION)
+2026-09-24 01:54:29,085 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:29,085 [ERROR] line_state: Firestore save failed with status 400
+2026-09-24 01:54:29,085 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:29,085 [ERROR] line_state: Firestore save failed with status 400
+.2026-09-24 01:54:29,086 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:29,086 [INFO] line_state: Firestore save successful
+.2026-09-24 01:54:29,086 [INFO] line_state: Firestore save starting
+2026-09-24 01:54:29,086 [INFO] line_state: Firestore save successful
+.2026-09-24 01:54:29,086 [INFO] line_state: Firestore update starting
+2026-09-24 01:54:29,086 [WARNING] line_state: Firestore update conflict on attempt 1
+2026-09-24 01:54:29,086 [WARNING] line_state: Firestore update conflict on attempt 2
+.2026-09-24 01:54:29,087 [INFO] line_state: Firestore update starting
+.2026-09-24 01:54:29,087 [INFO] line_state: Firestore update starting
+2026-09-24 01:54:29,087 [INFO] line_state: Firestore update successful on attempt 1
+.2026-09-24 01:54:29,087 [INFO] line_state: Firestore update starting
+2026-09-24 01:54:29,087 [WARNING] line_state: Firestore update conflict on attempt 1
+2026-09-24 01:54:29,087 [INFO] line_state: Firestore update successful on attempt 2
+............................................................2026-09-24 01:54:29,756 [INFO] absorb.conversation: conversation request correlation_id=fb926835bf8cc8be
+2026-09-24 01:54:29,757 [INFO] absorb.conversation: conversation request correlation_id=e79fa26ca1da5d09
+..2026-09-24 01:54:29,757 [INFO] absorb.conversation: conversation request correlation_id=3998406505f0203a
+.2026-09-24 01:54:29,757 [INFO] absorb.conversation: conversation request correlation_id=f8b9b1c9d3f1cbd4
+..2026-09-24 01:54:29,760 [INFO] absorb.conversation: conversation request correlation_id=87b52f683577db42
+2026-09-24 01:54:29,760 [INFO] absorb.conversation: conversation request correlation_id=75ce50e41ccefbfa
+2026-09-24 01:54:29,760 [INFO] absorb.conversation: conversation request correlation_id=07830027c6c313f3
+2026-09-24 01:54:29,760 [INFO] absorb.conversation: conversation request correlation_id=0b9b83c1ee9d5b8d
+.2026-09-24 01:54:29,760 [INFO] absorb.conversation: conversation request correlation_id=639cc91429f82053
+2026-09-24 01:54:29,761 [INFO] absorb.conversation: conversation request correlation_id=b90270be23318ee9
+.2026-09-24 01:54:29,761 [INFO] absorb.conversation: conversation request correlation_id=cef36bfe9b523503
+.2026-09-24 01:54:29,762 [INFO] absorb.conversation: conversation request correlation_id=b06d021c2079dc71
+2026-09-24 01:54:29,764 [INFO] absorb.conversation: conversation request correlation_id=2c5ef63d90bdce12
+..2026-09-24 01:54:29,765 [INFO] absorb.conversation: conversation request correlation_id=ce95127386cb82d1
+2026-09-24 01:54:29,765 [INFO] absorb.conversation: conversation request correlation_id=442fbffdf5d75706
+.2026-09-24 01:54:29,766 [INFO] absorb.conversation: conversation request correlation_id=125bc7d420e7b228
+2026-09-24 01:54:29,766 [INFO] absorb.conversation: conversation request correlation_id=3802b28ebe9d1963
+2026-09-24 01:54:29,767 [INFO] absorb.conversation: conversation request correlation_id=a87df42a5930c8cc
+.2026-09-24 01:54:29,768 [INFO] absorb.conversation: conversation request correlation_id=46f81605e2847680
+.2026-09-24 01:54:29,768 [INFO] absorb.conversation: conversation request correlation_id=f502c621053d5fa2
+.2026-09-24 01:54:29,768 [INFO] absorb.conversation: conversation request correlation_id=de30a5c68f0771db
+2026-09-24 01:54:29,768 [INFO] absorb.conversation: conversation request correlation_id=fd56c011b5b656d5
+.2026-09-24 01:54:29,769 [INFO] absorb.conversation: conversation request correlation_id=0ae804420bc9df4d
+.2026-09-24 01:54:29,770 [INFO] absorb.conversation: conversation request correlation_id=30210037b2abfc18
+.2026-09-24 01:54:29,771 [INFO] absorb.conversation: conversation request correlation_id=39d993b4b428fe2e
+.2026-09-24 01:54:29,771 [INFO] absorb.conversation: conversation request correlation_id=8763dbbe358b7e7f
+.2026-09-24 01:54:29,772 [INFO] absorb.conversation: conversation request correlation_id=c5a9e3c8be3f5d25
+2026-09-24 01:54:29,773 [INFO] absorb.conversation: conversation request correlation_id=8dbc329dbd8941ff
+.2026-09-24 01:54:29,774 [INFO] absorb.conversation: conversation request correlation_id=e183dd3a41011371
+.2026-09-24 01:54:29,774 [INFO] absorb.conversation: conversation request correlation_id=d4267bd5cb06cb2a
+2026-09-24 01:54:29,774 [INFO] absorb.conversation: conversation request correlation_id=60ac6d234c37171f
+...2026-09-24 01:54:29,774 [INFO] absorb.conversation: conversation request correlation_id=6142f1db51489174
+.2026-09-24 01:54:29,776 [INFO] absorb.conversation: conversation request correlation_id=622ae0b06d44474a
+.2026-09-24 01:54:29,776 [INFO] absorb.conversation: conversation request correlation_id=9fa7569ac1312290
+.2026-09-24 01:54:29,777 [INFO] absorb.conversation: conversation request correlation_id=b6960ac8112c6592
+...2026-09-24 01:54:29,778 [INFO] absorb.conversation: conversation request correlation_id=1adfe7bd58963722
+2026-09-24 01:54:29,778 [INFO] absorb.conversation: conversation request correlation_id=b0ac54cf9e7d64ce
+...2026-09-24 01:54:29,780 [INFO] absorb.conversation: conversation request correlation_id=a45bf3fa7c65467f
+.2026-09-24 01:54:29,781 [INFO] absorb.conversation: conversation request correlation_id=d44906a8ea85489f
+......2026-09-24 01:54:29,787 [INFO] absorb.conversation: conversation request correlation_id=48ee8b86762b1c05
+.2026-09-24 01:54:29,787 [INFO] absorb.conversation: conversation request correlation_id=8aa7370837f22e43
+.2026-09-24 01:54:29,788 [INFO] absorb.conversation: conversation request correlation_id=d84dee457b369040
+.2026-09-24 01:54:29,788 [INFO] absorb.conversation: conversation request correlation_id=51aa291c7fbd2692
+2026-09-24 01:54:29,790 [INFO] absorb.conversation: conversation request correlation_id=9bd0892a93af2034
+.2026-09-24 01:54:29,791 [INFO] absorb.conversation: conversation request correlation_id=448089bbe99de88a
+.2026-09-24 01:54:29,791 [INFO] absorb.conversation: conversation request correlation_id=3eb02bab8782fa2e
+.2026-09-24 01:54:29,791 [INFO] absorb.conversation: conversation request correlation_id=7cd4857a9e4ff05c
+.2026-09-24 01:54:29,792 [INFO] absorb.conversation: conversation request correlation_id=09872bac6f58570a
+.2026-09-24 01:54:29,794 [INFO] absorb.conversation: conversation request correlation_id=401db7faf865fda6
+.........2026-09-24 01:54:29,824 [INFO] absorb.conversation: conversation request correlation_id=184d9def0641ea85
+2026-09-24 01:54:29,826 [INFO] absorb.conversation: conversation request correlation_id=eecb8228f0dfd252
+.2026-09-24 01:54:29,828 [INFO] absorb.conversation: conversation request correlation_id=894d836e11fc5d17
+2026-09-24 01:54:29,829 [INFO] absorb.conversation: conversation request correlation_id=131125efcf324b4a
+2026-09-24 01:54:29,830 [INFO] absorb.conversation: conversation request correlation_id=136ae9c9989a84fc
+.........................................2026-09-24 01:54:30,034 [ERROR] app: report_render_failed correlation_id=20e6cc7caf48414b report_type=post_close report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 90, in _v2_reports
+    reports = load_index_v2(market=market)
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\stock_papi\application.py", line 2634, in <lambda>
+    "load_report_index_v2": lambda market="TW": _published_report_index_v2(market=market),
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1114, in __call__
+    return self._mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1118, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1179, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\tests\test_web_product.py", line 433, in reports_for
+    raise TypeError("reader implementation failed")
+TypeError: reader implementation failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 475, in _us_summary_response
+    reports = _v2_reports(market="US", required=True)
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 94, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用") from exc
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+.............2026-09-24 01:54:30,052 [ERROR] app: report_render_failed correlation_id=7572694738274a9e report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 376, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\Documents\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 97, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+....................................
+----------------------------------------------------------------------
+Ran 314 tests in 11.106s
+
+OK

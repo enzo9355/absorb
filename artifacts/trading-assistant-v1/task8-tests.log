@@ -1,0 +1,37 @@
+
+.........Transient HTTP 503 from Firestore, retrying in 0.5s... (Attempt 1/3)
+Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+....Transient HTTP 500 from Firestore, retrying in 0.5s... (Attempt 1/3)
+Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+..Metadata token request failed
+Metadata token request failed
+Metadata token request failed
+Metadata token request failed
+Metadata token request failed
+Metadata token request failed
+.Metadata token request failed
+Metadata token request failed
+Metadata token request failed
+Metadata token request failed
+...Firestore save conflict (409/412)
+Firestore save conflict (409/412)
+Transient HTTP 500 from Firestore, retrying in 0.5s... (Attempt 1/3)
+Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+Firestore save response invalid
+.Firestore save conflict (FAILED_PRECONDITION)
+Firestore save failed with status 400
+Firestore save failed with status 400
+...Firestore update conflict on attempt 1
+Firestore update conflict on attempt 2
+...Firestore update conflict on attempt 1
+.........................
+----------------------------------------------------------------------
+Ran 51 tests in 9.311s
+
+OK

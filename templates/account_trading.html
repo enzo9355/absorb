@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}我的交易｜ABSORB{% endblock %}
+{% block content %}
+<div class="page account-page trading-page" data-trading-root
+     data-state-endpoint="/api/account/trading"
+     data-preview-endpoint="/api/account/trade-plan"
+     data-export-endpoint="/api/account/trading/export"
+     data-csrf="{{ csrf_token }}">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">TRADING ASSISTANT · TRIAL</p>
+      <h1>我的交易</h1>
+      <p class="page-intro">日線規則試用版，尚未驗證獲利能力。偏好只改入口排列，不改原始事實與風險文案。</p>
+      <p class="muted small">私人資料經 no-store API 載入，不會出現在公共快取回應。</p>
+    </div>
+    <a class="button button-secondary" href="{{ url_for('account_watchlist_page') }}">舊自選清單</a>
+  </header>
+
+  <section class="panel" aria-label="資訊偏好">
+    <div class="section-heading"><div><p class="eyebrow">PREFERENCE</p><h2>資訊偏好</h2></div></div>
+    <form data-preference-form>
+      <label><input type="radio" name="view_preference" value="data"> 看數據</label>
+      <label><input type="radio" name="view_preference" value="people"> 看大咖</label>
+      <label><input type="radio" name="view_preference" value="combined" checked> 一起看</label>
+      <button class="button button-secondary" type="submit">儲存偏好</button>
+    </form>
+  </section>
+
+  <section class="panel" aria-label="追蹤人物">
+    <div class="section-heading"><div><p class="eyebrow">FOLLOWING</p><h2>追蹤人物</h2></div></div>
+    <div data-follow-lists><p class="empty-state">載入中…</p></div>
+    <p class="muted small">追蹤不等於自動開啟 LINE 通知。</p>
+  </section>
+
+  <section class="panel" aria-label="已存計畫">
+    <div class="section-heading"><div><p class="eyebrow">SAVED PLANS</p><h2>已存計畫</h2></div><a class="muted small" data-export-link href="/api/account/trading/export">下載我的紀錄 (JSON)</a></div>
+    <div data-saved-plans><p class="empty-state">載入中…</p></div>
+  </section>
+
+  <section class="panel" aria-label="後續觀察">
+    <div class="section-heading"><div><p class="eyebrow">FOLLOW-UP</p><h2>後續觀察（訊號後市場表現，非損益）</h2></div></div>
+    <p class="muted small">參考價取首次有效觸發後第一個完整交易時段的原始開盤價；第 5／20 個交易日收盤相對變化。缺開盤、停牌、缺棒顯示缺項，不用收盤假裝開盤成交。等待／到期／取消／失效計畫全部保留，並列總計畫、可評估、未成熟、缺資料數量。</p>
+    <div data-followup><p class="empty-state">載入中…</p></div>
+  </section>
+
+  <section class="panel" aria-label="變動提醒">
+    <div class="section-heading"><div><p class="eyebrow">EVENTS</p><h2>變動</h2></div></div>
+    <div data-events><p class="empty-state">載入中…</p></div>
+    <form data-notify-form><label><input type="checkbox" data-notify-toggle> 開啟 LINE 通知（自願）</label>
+    <button class="button button-secondary" type="submit">儲存通知設定</button></form>
+  </section>
+
+  <section class="panel" aria-label="回饋">
+    <div class="section-heading"><div><p class="eyebrow">FEEDBACK</p><h2>回饋</h2></div></div>
+    <form data-feedback-form>
+      <label>分類
+        <select name="category">
+          <option value="general">一般</option>
+          <option value="plan">交易計畫</option>
+          <option value="activity">大咖動態</option>
+          <option value="ui">介面</option>
+        </select>
+      </label>
+      <label>是否有幫助
+        <select name="helpful">
+          <option value="helpful">有幫助</option>
+          <option value="unhelpful">沒幫助</option>
+          <option value="data_issue">資料有問題</option>
+        </select>
+      </label>
+      <label>說明（500 字內）<textarea name="text" maxlength="500" rows="3" required></textarea></label>
+      <button class="button button-secondary" type="submit">提交回饋</button>
+    </form>
+    <div data-feedback-list></div>
+  </section>
+</div>
+{% endblock %}

@@ -55,6 +55,29 @@ def is_chase_question(question: str) -> bool:
     )
 
 
+def is_probability_request(question: str) -> bool:
+    return any(
+        term in question
+        for term in ("上漲機率", "機率幾成", "勝率", "績效", "排行榜", "跟誰最賺", "報酬率保證")
+    )
+
+
+def is_trade_plan_request(question: str) -> bool:
+    return any(
+        term in question
+        for term in ("可以買嗎", "能買嗎", "能不能買", "是否進場", "可否進場", "交易計畫",
+                     "進場條件", "失效", "退出條件", "檢查退出", "暫不追價", "等待條件")
+    )
+
+
+def mentions_person_or_holdings(question: str) -> bool:
+    lowered = question.lower()
+    return any(term in question or term in lowered for term in (
+        "pelosi", "佩洛西", "berkshire", "波克夏", "巴菲特", "buffett",
+        "交易揭露", "持倉", "13f", "眾議院", "house", "揭露", "大咖", "人物",
+    ))
+
+
 def requires_tool_data(question: str, *, has_context=False) -> bool:
     current_data_terms = (
         "今天", "明天", "昨天", "現在", "最近", "目前", "最新",

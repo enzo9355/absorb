@@ -8,7 +8,8 @@
       <h1>我的關注</h1>
       <p class="muted">這份清單直接讀寫 LINE Bot 既有的使用者狀態；每日摘要只讀取已發布觀察與事件。</p>
     </div>
-  </header>
+    <p><a class="button button-secondary" href="/account/trading">前往我的交易</a></p>
+</header>
 
   {% set summary = watchlist_summary if watchlist_summary is defined else {} %}
   <section class="panel watchlist-data-status" aria-labelledby="watchlist-data-status-title">

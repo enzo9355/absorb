@@ -642,3 +642,23 @@ def build_tutorial_flex():
         size="mega",
         eyebrow_text="ABSORB｜教學",
     )
+
+
+def build_trade_plan_push_flex(*, reason, data_as_of, status, plan_url, symbol=""):
+    """最小交易計畫推播：變更原因、資料日、計畫狀態、單一查看計畫 CTA。"""
+    title = f"{symbol} 交易計畫更新" if symbol else "交易計畫更新"
+    return pb.bubble(
+        title,
+        [
+            pb.eyebrow("TRADE PLAN"),
+            pb.headline(str(reason or "條件變動"), size="md"),
+            pb.kv_table([
+                ("計畫狀態", str(status or "")),
+                ("資料日", str(data_as_of or "")),
+            ]),
+            pb.disclaimer("日線規則試用版，尚未驗證獲利能力；收盤確認，盤中跳空風險未被消除。"),
+        ],
+        footer=pb.button_stack([pb.button("查看計畫", {"type": "uri", "uri": str(plan_url or "/account/trading")})]),
+        size="mega",
+        eyebrow_text="ABSORB｜交易助手",
+    )

@@ -1,0 +1,4 @@
+[21708:35180:0924/021908.797:INFO:components\enterprise\browser\controller\chrome_browser_cloud_management_controller.cc:241] No machine level policy manager exists.
+[21708:35180:0924/021908.954:WARNING:chrome\browser\extensions\external_registry_loader_win.cc:236] Error observing HKLM: 存取被拒。 (0x5)
+65939 bytes written to file C:\Users\enzo\AppData\Local\Temp\opencode\shots\subject_serenity_mobile.png
+[21708:35180:0924/021909.479:WARNING:chrome\browser\extensions\updater\extension_updater.cc:869] Skipping UpdateExtension due to browser shutdown

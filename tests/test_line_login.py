@@ -303,5 +303,120 @@ class LineLoginTests(unittest.TestCase):
         self.assertEqual(redact_secrets(f"loaded user {USER_ID}"), "loaded user U********")
 
 
+    def _register_trading(self, beta_users=None, builder=None):
+        from stock_papi.web.routes.auth import register_auth_routes as _reg
+        # Re-register trading routes on a fresh app with beta allowlist + fake builder.
+        from flask import Flask as _Flask
+        from pathlib import Path as _Path
+        app = _Flask(__name__, template_folder=str(_Path(__file__).parents[1] / "templates"))
+        app.config.update(TESTING=True)
+        if beta_users is None:
+            beta_users = frozenset({USER_ID})
+        _reg(app, config=self.config, auth_store=lambda: self.auth_store,
+             line_store=lambda: self.line_store, search_stock=lambda code: (code, "X"),
+             http_post=self.http.post, now=lambda: NOW,
+             trading_beta_users=beta_users, trade_plan_builder=builder)
+        return app.test_client()
+
+    def _login_client(self, client, sub=None):
+        if sub is not None:
+            self.http.claim_overrides["sub"] = sub
+        else:
+            self.http.claim_overrides.pop("sub", None)
+        resp = client.get("/auth/line/login", query_string={"return_to": "/"})
+        from urllib.parse import parse_qs as _pq, urlparse as _up
+        query = _pq(_up(resp.headers["Location"]).query)
+        self.http.nonce = query["nonce"][0]
+        out = client.get("/auth/line/callback", query_string={
+            "code": "authorization-code", "state": query["state"][0]})
+        self.assertEqual(out.status_code, 302)
+        # Extract session cookie + csrf for API calls.
+        session = next(iter(self.auth_store.sessions.values()))
+        return session
+
+    def test_two_sessions_are_isolated(self):
+        beta = frozenset({USER_ID, "U" + "b" * 32})
+        client_a = self._register_trading(beta_users=beta)
+        client_b = self._register_trading(beta_users=beta)
+        # Two separate browsers log in as different users.
+        self._login_client(client_a, sub=USER_ID)
+        self._login_client(client_b, sub="U" + "b" * 32)
+        # Each client reads its own assistant; B cannot see A's follows.
+        import re as _re
+        # Grab CSRF from store (last session is B's; find A's by user).
+        sessions_by_user = {}
+        for sid, sess in self.auth_store.sessions.items():
+            sessions_by_user[sess["line_user_id"]] = sess
+        csrf_a = sessions_by_user[USER_ID]["csrf_token"]
+        # A follows someone via direct POST with its cookies (client_a jar holds A's session).
+        resp = client_a.post("/api/account/trading", json={
+            "action": "follow_subject", "subject_id": "alpha-subject",
+            "request_id": "00000000-0000-4000-8000-000000000021"},
+            headers={"X-CSRF-Token": csrf_a})
+        self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
+        # B reads its own state: must not contain A's follow.
+        csrf_b = sessions_by_user["U" + "b" * 32]["csrf_token"]
+        # client_b jar holds B's session (last login overwrote? separate jars, so ok).
+        resp_b = client_b.get("/api/account/trading")
+        self.assertEqual(resp_b.status_code, 200)
+        assistant_b = resp_b.get_json()["assistant"]
+        self.assertNotIn("alpha-subject", assistant_b.get("followed_subject_ids", []))
+
+    def test_trading_requires_beta_and_csrf(self):
+        client = self._register_trading(beta_users=frozenset())
+        self._login_client(client, sub=USER_ID)
+        session = next(iter(self.auth_store.sessions.values()))
+        # Non-beta -> 403 even with valid CSRF.
+        resp = client.post("/api/account/trading", json={
+            "action": "set_preferences", "view_preference": "data",
+            "request_id": "00000000-0000-4000-8000-000000000031"},
+            headers={"X-CSRF-Token": session["csrf_token"]})
+        self.assertEqual(resp.status_code, 403)
+        # Beta but wrong CSRF -> 403.
+        client2 = self._register_trading(beta_users=frozenset({USER_ID}))
+        self._login_client(client2, sub=USER_ID)
+        resp2 = client2.post("/api/account/trading", json={
+            "action": "set_preferences", "view_preference": "data",
+            "request_id": "00000000-0000-4000-8000-000000000032"},
+            headers={"X-CSRF-Token": "wrong"})
+        self.assertEqual(resp2.status_code, 403)
+
+    def test_save_plan_rejects_forged_ids_and_stale_plan(self):
+        import hashlib as _hl
+        from datetime import datetime as _dt, timezone as _tz
+        from stock_papi.services import trade_plans as _tp
+        import tests.test_trade_plans as _tpt
+        snap, cal = _tpt._snapshot()
+        plan = _tp.build_trade_plan(snap, expected_session=snap["as_of"],
+            generated_at=_dt(2026, 9, 3, 1, 0, tzinfo=_tz.utc), calendar=cal)
+        def _builder(market, symbol, evidence):
+            return plan
+        client = self._register_trading(beta_users=frozenset({USER_ID}), builder=_builder)
+        self._login_client(client, sub=USER_ID)
+        session = next(iter(self.auth_store.sessions.values()))
+        headers = {"X-CSRF-Token": session["csrf_token"]}
+        # Forged user_id field is rejected as unknown field (400), not honored.
+        resp = client.post("/api/account/trading", json={
+            "action": "save_plan", "market": "US", "symbol": "INTC",
+            "expected_plan_id": plan["plan_id"], "evidence_ids": [],
+            "position_context": "unheld", "request_id": "00000000-0000-4000-8000-000000000041",
+            "line_user_id": "U" + "e" * 32},
+            headers=headers)
+        self.assertEqual(resp.status_code, 400)
+        # Stale plan id -> 409.
+        resp = client.post("/api/account/trading", json={
+            "action": "save_plan", "market": "US", "symbol": "INTC",
+            "expected_plan_id": "tp_stale00000000000000000000000000", "evidence_ids": [],
+            "position_context": "unheld", "request_id": "00000000-0000-4000-8000-000000000042"},
+            headers=headers)
+        self.assertEqual(resp.status_code, 409)
+        # Oversize body -> 400.
+        big = "x" * (17 * 1024)
+        resp = client.post("/api/account/trading",
+            data='{"action":"feedback","category":"general","helpful":"helpful","text":"' + big + '"}',
+            content_type="application/json", headers=headers)
+        self.assertIn(resp.status_code, (400, 413))
+
+
 if __name__ == "__main__":
     unittest.main()

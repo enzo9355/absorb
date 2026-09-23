@@ -1,0 +1,4 @@
+[14828:30412:0924/021912.465:INFO:components\enterprise\browser\controller\chrome_browser_cloud_management_controller.cc:241] No machine level policy manager exists.
+[14828:30412:0924/021912.626:WARNING:chrome\browser\extensions\external_registry_loader_win.cc:236] Error observing HKLM: 存取被拒。 (0x5)
+104218 bytes written to file C:\Users\enzo\AppData\Local\Temp\opencode\shots\trading_beta_desktop.png
+[14828:30412:0924/021913.287:WARNING:chrome\browser\extensions\updater\extension_updater.cc:869] Skipping UpdateExtension due to browser shutdown

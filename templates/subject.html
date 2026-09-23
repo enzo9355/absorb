@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{% if subject %}{{ subject.subject_name }}｜大咖動態{% else %}來源不可用｜ABSORB{% endif %}{% endblock %}
+{% block content %}
+<div class="page research-page">
+  <header class="page-header">
+    <div>{% if subject %}<p class="eyebrow">SUBJECT</p><h1>{{ subject.subject_name }}</h1><p class="page-intro">身分：{{ subject.subject_kind }} · {{ subject.identity_status }}；別名：{{ subject.aliases|join('、') if subject.aliases else '無' }}</p><p class="muted small">身分來源：{% if subject.identity_source_url %}<a class="source-link" href="{{ subject.identity_source_url }}" target="_blank" rel="noopener noreferrer">{{ subject.identity_source_url }}</a>{% else %}未提供{% endif %}</p>{% else %}<p class="eyebrow">UNAVAILABLE</p><h1>人物資料暫時無法驗證</h1>{% endif %}</div>
+    <a class="button button-secondary" href="{{ url_for('perspectives_page') }}">回到大咖動態</a>
+    {% if subject %}<button type="button" data-follow-current="{{ subject.subject_id }}" aria-pressed="false">追蹤此對象</button>{% endif %}
+  </header>
+  {% if catalog_status == 'unavailable' %}<div class="error-banner" role="status">public opinions catalog unavailable</div>{% endif %}
+  {% if subject and subject.identity_status != 'verified' %}<div class="error-banner" role="status">此人物身分尚未核對；相關交易追蹤未開放。</div>{% endif %}
+  <section class="panel activity-list" aria-label="時間線">
+    <div class="section-heading"><div><p class="eyebrow">TIMELINE</p><h2>時間線</h2></div></div>
+    {% for item in activities %}
+    <article class="activity-card" data-activity-id="{{ item.activity_id }}">
+      <div><p class="eyebrow">{{ item.type_label }}</p><h2>{{ item.market }} · {{ item.symbol }} · {{ item.action }}</h2><p>{{ item.summary }}</p><small class="muted small">{{ item.activity_id }}</small></div>
+      <dl><div><dt>交易／基準日</dt><dd>{{ item.transaction_label }}</dd></div><div><dt>揭露日</dt><dd>{{ item.public_label }}</dd></div><div><dt>最近核對</dt><dd>{{ item.reviewed_label }}</dd></div></dl>
+      {% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">查看原始來源</a>{% endif %}
+    </article>
+    {% else %}<p class="empty-state">目前已核對範圍內未找到此對象的動態。</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}

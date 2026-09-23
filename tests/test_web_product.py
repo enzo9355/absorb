@@ -84,7 +84,7 @@ class WebProductTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("觀點追蹤", html)
+        self.assertIn("大咖動態", html)
         self.assertIn("Coverage", html)
         self.assertIn("perspectives/stocks", stock_template)
         self.assertIn("研究線索", relationships_template)
@@ -1877,6 +1877,30 @@ class WebProductTests(unittest.TestCase):
         self.assertIn("function measureChartHeight", js)
         self.assertIn("Math.min(460", js)
         self.assertIn("ResizeObserver", js)
+
+
+    def test_trading_templates_keep_plan_card_privacy_and_links(self):
+        trading = Path("templates/account_trading.html").read_text(encoding="utf-8")
+        stock_template = Path("templates/stock_detail.html").read_text(encoding="utf-8")
+        css = Path(stock_app.app.static_folder, "app.css").read_text(encoding="utf-8")
+        # Visible conclusion, dates, invalidation, Chinese actions, no-store loading.
+        for marker in ("我的交易", "資訊偏好", "追蹤人物", "已存計畫", "變動", "回饋",
+                       "no-store", "data-trading-root", "data-preference-form"):
+            self.assertIn(marker, trading)
+        for marker in ("條件式交易計畫", "data-trade-plan", "資料截至日", "失效"):
+            self.assertIn(marker, stock_template)
+        # Action Chinese mapping lives in trade plan service + JS.
+        for marker in ("等待條件確認", "條件符合，可評估進場", "暫不追價", "檢查退出條件", "暫停評估"):
+            self.assertTrue(marker in trading or marker in stock_template
+                            or "actionNames" in Path("static/app.js").read_text(encoding="utf-8"))
+        # Long URLs break, external links are safe, buttons meet touch target.
+        self.assertIn("overflow-wrap:anywhere", css)
+        self.assertIn('rel="noopener noreferrer"', trading + stock_template)
+        self.assertIn("min-height:44px", css)
+        # Public cache responses carry no private names/plans: templates fetch via API.
+        self.assertNotIn("display_name", trading)
+        self.assertIn("/api/account/trading", trading)
+        self.assertIn("/api/account/trade-plan", trading + stock_template)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,24 @@ def _boolean(name, default, warnings):
     return default
 
 
+def conditional_advice_allowed(principal: str, allowed_users: frozenset[str]) -> bool:
+    """受邀使用者可用條件式建議（日線規則試用版）。研究／預測旗標不受影響。"""
+    if not isinstance(principal, str) or not isinstance(allowed_users, (set, frozenset)):
+        return False
+    if not principal.startswith("line:"):
+        return False
+    user_id = principal[5:]
+    if re.fullmatch(r"U[0-9A-Za-z]{16,64}", user_id or "") is None:
+        return False
+    return user_id in allowed_users
+
+
+def trading_beta_users_from_environment() -> frozenset[str]:
+    raw = os.getenv("ABSORB_TRADING_BETA_USERS", "")
+    users = {item.strip() for item in raw.split(",") if item.strip()}
+    return frozenset(users)
+
+
 @dataclass(frozen=True)
 class PredictionCapabilityState:
     mode: str

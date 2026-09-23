@@ -1,0 +1,40 @@
+ M .dockerignore
+ M .gcloudignore
+ M .gitignore
+ M DESIGN.md
+ M Dockerfile
+ M absorb/conversation/policies.py
+ M absorb/conversation/web.py
+ M assets/rich-menu.png
+ M assets/rich-menu.svg
+ M docs/line-to-web-map.md
+ M reporting/charts.py
+ M reporting/regression_adapter.py
+ M requirements.txt
+ M scripts/apply_rich_menu.py
+ M scripts/generate_sample_daily_report.py
+ M static/app.css
+ M static/app.js
+ M static/manifest.webmanifest
+ M stock_papi/application.py
+ M stock_papi/integrations/line/flex.py
+ M stock_papi/integrations/line/presentation.py
+ M stock_papi/integrations/line/webhook.py
+ M stock_papi/services/dashboard.py
+ M stock_papi/services/market.py
+ M stock_papi/services/papi.py
+ M stock_papi/shared/formatting.py
+ M stock_papi/web/app_factory.py
+ M stock_papi/web/routes/market.py
+ M stock_papi/web/routes/reports.py
+ M stock_papi/web/routes/system.py
+ M templates/base.html
+ M templates/dashboard.html
+ M templates/stock_detail.html
+ M tests/test_absorb_line_presentation.py
+ M tests/test_route_inventory.py
+ M tests/test_web_product.py
+?? artifacts/
+?? docs/superpowers/plans/2026-09-24-trading-assistant-v1.md
+?? static/samples/
+?? stock_papi/integrations/line/press_block.py

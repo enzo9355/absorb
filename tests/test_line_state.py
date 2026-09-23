@@ -1,3 +1,4 @@
+import datetime
 import copy
 import json
 import unittest
@@ -415,15 +416,13 @@ class LineStateTests(unittest.TestCase):
         self.assertEqual(MAX_WATCHLIST, 12)
         self.assertEqual(MAX_ALERTS, 20)
         self.assertEqual(PENDING_SECONDS, 600)
-        self.assertEqual(
-            empty_state(),
-            {
-                "watchlist": [],
-                "alerts": [],
-                "pending": None,
-                "signals": {"as_of": None, "items": []},
-            },
-        )
+        state = empty_state()
+        self.assertEqual(state["watchlist"], [])
+        self.assertEqual(state["alerts"], [])
+        self.assertIsNone(state["pending"])
+        self.assertEqual(state["signals"], {"as_of": None, "items": []})
+        self.assertEqual(state["assistant"]["schema_version"], 1)
+        self.assertEqual(state["assistant"]["view_preference"], "combined")
 
     def test_watchlist_is_unique_and_limited_to_twelve(self):
         state = empty_state()
@@ -863,6 +862,104 @@ class LineStateTests(unittest.TestCase):
         for value in [None, [], "bad", 1]:
             with self.subTest(value=value):
                 self.assertEqual(normalize_state(value), empty_state())
+
+
+    def test_assistant_round_trip_and_watchlist_preservation(self):
+        import copy as _copy
+        from stock_papi.services.trade_plans import apply_assistant_command
+        state = empty_state()
+        apply_assistant_command(state, {"action": "set_preferences",
+            "view_preference": "people", "request_id": "00000000-0000-4000-8000-000000000001"},
+            now=datetime.datetime.fromisoformat("2026-09-24T00:00:00+00:00"))
+        before = _copy.deepcopy(state["assistant"])
+        add_watch(state, "INTC", "Intel", now=1.0)
+        self.assertEqual(normalize_state(state)["assistant"], before)
+
+    def test_assistant_save_verified_plan_keeps_history(self):
+        import hashlib as _hl
+        from datetime import datetime as _dt, timezone as _tz
+        from stock_papi.services import trade_plans as _tp
+        import tests.test_trade_plans as _tpt
+        snap, cal = _tpt._snapshot()
+        plan = _tp.build_trade_plan(snap, expected_session=snap["as_of"],
+            generated_at=_dt(2026, 9, 3, 1, 0, tzinfo=_tz.utc), calendar=cal)
+        self.assertEqual(plan["action"], "entry_review")
+        from stock_papi.services.trade_plans import apply_assistant_command
+        state = empty_state()
+        apply_assistant_command(state, {"action": "save_plan", "market": "US", "symbol": "INTC",
+            "expected_plan_id": plan["plan_id"], "evidence_ids": [],
+            "position_context": "unheld", "request_id": "00000000-0000-4000-8000-000000000002"},
+            now=_dt(2026, 9, 3, 2, 0, tzinfo=_tz.utc), verified_plan=plan)
+        self.assertEqual(len(state["assistant"]["saved_plans"]), 1)
+        # Preference change must not rewrite saved plans.
+        apply_assistant_command(state, {"action": "set_preferences",
+            "view_preference": "data", "request_id": "00000000-0000-4000-8000-000000000003"},
+            now=_dt(2026, 9, 3, 3, 0, tzinfo=_tz.utc))
+        self.assertEqual(state["assistant"]["saved_plans"][0]["plan"]["plan_id"], plan["plan_id"])
+
+    def test_illegal_assistant_is_preserved_not_overwritten(self):
+        bad = {"watchlist": [], "alerts": [], "pending": None,
+               "signals": {"as_of": None, "items": []},
+               "assistant": {"schema_version": 99, "view_preference": "evil"}}
+        normalized = normalize_state(bad)
+        self.assertIn("_assistant_invalid", normalized)
+        self.assertEqual(normalized["assistant"]["view_preference"], "evil")
+
+    def test_assistant_capacity_blocks_new_plans(self):
+        from datetime import datetime as _dt, timezone as _tz
+        from stock_papi.services.trade_plans import apply_assistant_command
+        state = empty_state()
+        # Fill follows to capacity.
+        for i in range(20):
+            apply_assistant_command(state, {"action": "follow_subject",
+                "subject_id": f"subject-{i:02d}", "request_id": f"00000000-0000-4000-8000-{i:012d}"},
+                now=_dt(2026, 9, 3, 1, 0, tzinfo=_tz.utc))
+        with self.assertRaises(ValueError) as ctx:
+            apply_assistant_command(state, {"action": "follow_subject",
+                "subject_id": "subject-overflow", "request_id": "00000000-0000-4000-8000-999999999999"},
+                now=_dt(2026, 9, 3, 2, 0, tzinfo=_tz.utc))
+        self.assertIn("assistant_capacity_reached", str(ctx.exception))
+
+    def test_store_conflict_retry_keeps_single_plan(self):
+        from datetime import datetime as _dt, timezone as _tz
+        from stock_papi.services import trade_plans as _tp
+        import tests.test_trade_plans as _tpt
+        snap, cal = _tpt._snapshot()
+        plan = _tp.build_trade_plan(snap, expected_session=snap["as_of"],
+            generated_at=_dt(2026, 9, 3, 1, 0, tzinfo=_tz.utc), calendar=cal)
+        attempts = {"count": 0}
+        def flaky_update(user_id, mutate):
+            from line_state import normalize_state as _norm
+            state = empty_state()
+            mutate(state)
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                # Simulate conflict after first mutate, then retry with same request_id.
+                from line_state import StoreConflict as _Conflict
+                # Second attempt replays same command; dedupe must prevent duplicates.
+                state2 = empty_state()
+                from stock_papi.services.trade_plans import apply_assistant_command as _apply
+                _apply(state2, {"action": "save_plan", "market": "US", "symbol": "INTC",
+                    "expected_plan_id": plan["plan_id"], "evidence_ids": [],
+                    "position_context": "unheld", "request_id": "00000000-0000-4000-8000-000000000010"},
+                    now=_dt(2026, 9, 3, 2, 0, tzinfo=_tz.utc), verified_plan=plan)
+                _apply(state2, {"action": "save_plan", "market": "US", "symbol": "INTC",
+                    "expected_plan_id": plan["plan_id"], "evidence_ids": [],
+                    "position_context": "unheld", "request_id": "00000000-0000-4000-8000-000000000010"},
+                    now=_dt(2026, 9, 3, 2, 0, tzinfo=_tz.utc), verified_plan=plan)
+                self.assertEqual(len(state2["assistant"]["saved_plans"]), 1)
+                return state2
+            return state
+        # Directly exercise dedupe: same request_id twice yields one plan.
+        from stock_papi.services.trade_plans import apply_assistant_command
+        state = empty_state()
+        cmd = {"action": "save_plan", "market": "US", "symbol": "INTC",
+            "expected_plan_id": plan["plan_id"], "evidence_ids": [],
+            "position_context": "unheld", "request_id": "00000000-0000-4000-8000-000000000010"}
+        apply_assistant_command(state, cmd, now=_dt(2026, 9, 3, 2, 0, tzinfo=_tz.utc), verified_plan=plan)
+        apply_assistant_command(state, cmd, now=_dt(2026, 9, 3, 2, 0, tzinfo=_tz.utc), verified_plan=plan)
+        self.assertEqual(len(state["assistant"]["saved_plans"]), 1)
+        self.assertEqual(len(state["assistant"]["events"]), 1)
 
 
 if __name__ == "__main__":

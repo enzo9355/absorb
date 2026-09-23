@@ -1,0 +1,11 @@
+{"ok": true, "added": 0, "duplicate": 0, "pending": 1, "rejected": 0}
+{"ok": true, "added": 2, "duplicate": 0, "pending": 0, "rejected": 0}
+
+......................................................................{"ok": false, "error": "output_must_differ_from_input"}
+.{"ok": false, "error": "output_already_exists"}
+.{"ok": false, "error": "input_invalid_json"}
+..
+----------------------------------------------------------------------
+Ran 74 tests in 0.832s
+
+OK

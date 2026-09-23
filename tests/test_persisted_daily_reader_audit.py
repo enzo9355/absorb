@@ -148,7 +148,8 @@ READER_CONTRACTS = {
     ("stock_papi/services/observation_view.py", "build_stock_observation"): "feature-ready-history",
     ("stock_papi/services/stock_analysis.py", "snapshot_dataframe"): "feature-ready-history",
 }
-NON_PERSISTED_BUILDERS = {("scripts/generate_sample_daily_report.py", "build_documents")}
+NON_PERSISTED_BUILDERS = {("scripts/generate_sample_daily_report.py", "build_documents"),
+                           ("stock_papi/services/trade_plans.py", "_validate_plan_daily_rows")}
 
 
 class PersistedDailyReaderAuditTests(unittest.TestCase):

@@ -57,7 +57,14 @@
     </section>
   </header>
 
-  <nav class="page-jump-nav glass-panel" aria-label="個股觀察導覽">
+  <section class="panel trade-plan-panel" aria-label="條件式交易計畫" data-trade-plan
+           data-market="{{ market }}" data-symbol="{{ d.code }}">
+      <div class="section-heading"><div><p class="eyebrow">TRADE PLAN · TRIAL</p><h2>條件式交易計畫</h2></div></div>
+      <p class="muted small">日線規則試用版，尚未驗證獲利能力。私人計畫經 no-store API 載入；資料截至日、觸發價、上限、失效價載入後顯示。</p>
+      <div data-plan-body><p class="empty-state">載入中…</p></div>
+    </section>
+
+    <nav class="page-jump-nav glass-panel" aria-label="個股觀察導覽">
     <a href="#summary">總覽</a><a href="#chart">價格</a><a href="#chips">籌碼</a><a href="#technicals">技術</a><a href="#risk">風險</a>{% if peers or related_relationships or related_events or related_opinions %}<a href="#research">研究</a>{% endif %}
   </nav>
 

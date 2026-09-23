@@ -1,6 +1,7 @@
 """Public opinion catalog helpers."""
 
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timezone
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from stock_papi.integrations.market_data.tw_security_master import is_taiwan_symbol
@@ -201,6 +202,8 @@ def _build_v2_catalog(catalog, candles_by_symbol):
     )
     outcome_errors.extend(association_errors)
     _mark_current_effective(opinions)
+    subjects_rows, subject_map, subject_errors = _validate_subjects(catalog.get("subjects") or [])
+    activities, activity_errors = _validate_activities(catalog.get("activities") or [], subject_map)
     return {
         "schema_version": 2,
         "catalog_id": catalog.get("catalog_id") or "public-opinions",
@@ -210,6 +213,11 @@ def _build_v2_catalog(catalog, candles_by_symbol):
         "opinions": opinions,
         "outcomes": outcomes,
         "outcome_errors": outcome_errors,
+        "activity_schema_version": catalog.get("activity_schema_version") or 1,
+        "subjects": subjects_rows,
+        "subject_errors": subject_errors,
+        "activities": activities,
+        "activity_errors": activity_errors,
     }
 
 
@@ -847,3 +855,482 @@ def _max_drawdown(prices):
         peak = max(peak, price)
         drawdown = min(drawdown, (price / peak) - 1)
     return round(drawdown, 6)
+
+
+_ACTIVITY_TYPES = {"trade_disclosure", "holding_snapshot", "self_reported_trade"}
+_SUBJECT_KINDS = {"person", "household", "institution"}
+_ACTIVITY_OWNERS = {"self", "spouse", "joint", "dependent", "unknown"}
+_ACTIVITY_INSTRUMENTS = {"common_stock", "option", "other", "unknown"}
+_ACTIVITY_ACTIONS = {"purchase", "sale", "exchange", "exercise", "holding", "other"}
+_ACTIVITY_SOURCE_KINDS = {"house_ptr", "sec_13f", "x_post", "youtube_video", "official_site", "article", "video"}
+_ACTIVITY_HOSTS = {
+    "house_ptr": {"ethics.house.gov", "disclosure.house.gov", "clerk.house.gov", "financialdisclosure.house.gov"},
+    "sec_13f": {"sec.gov", "www.sec.gov", "efts.sec.gov"},
+    "x_post": {"x.com", "twitter.com"},
+    "youtube_video": {"www.youtube.com", "youtube.com", "youtu.be"},
+    "official_site": {"unusualwhales.com", "sikandmedia.com", "www.sikandmedia.com"},
+    "article": {"reuters.com", "www.reuters.com", "bloomberg.com", "www.bloomberg.com",
+                "cnbc.com", "www.cnbc.com", "ethics.house.gov", "sec.gov", "www.sec.gov"},
+    "video": {"www.youtube.com", "youtube.com", "youtu.be"},
+}
+_ACTIVITY_RIGHTS = {"approved", "source_only", "pending"}
+_ACTIVITY_REVIEW = {"confirmed", "pending_review", "rejected"}
+_ACTIVITY_SOURCE_STATUS = {"available", "unavailable"}
+_HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
+_CURRENCY = re.compile(r"^[A-Z]{3}$")
+
+
+def _activity_identity_allowed(url):
+    try:
+        parsed = urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        return False
+    allowed = set()
+    for hosts in _ACTIVITY_HOSTS.values():
+        allowed.update(hosts)
+    return parsed.hostname.lower() in allowed
+
+
+def _activity_source_allowed(url, source_kind):
+    try:
+        parsed = urlsplit(str(url or ""))
+    except ValueError:
+        return None
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        return None
+    hosts = _ACTIVITY_HOSTS.get(source_kind)
+    if hosts is None:
+        return None
+    if parsed.hostname.lower() not in hosts:
+        return None
+    if source_kind == "x_post":
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) != 3 or parts[1] != "status" or not parts[2].isdigit():
+            return None
+    return True
+
+
+def _public_upper_bound(public_at, precision):
+    try:
+        text = str(public_at or "").strip()
+        if not text:
+            return None
+        if precision == "timestamp":
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                return None
+            return parsed.astimezone(timezone.utc)
+        if precision == "date":
+            date_part = text[:10]
+            try:
+                day = date.fromisoformat(date_part)
+            except ValueError:
+                return None
+            try:
+                full = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                tzinfo = full.tzinfo if full.tzinfo is not None else timezone.utc
+            except ValueError:
+                tzinfo = timezone.utc
+            eod = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=tzinfo)
+            return eod.astimezone(timezone.utc)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return None
+
+
+def _finite_number(value):
+    if isinstance(value, bool):
+        return None
+    if not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    import math
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def _validate_subjects(subjects):
+    rows = []
+    mapping = {}
+    errors = []
+    seen = set()
+    if subjects is None:
+        return rows, mapping, errors
+    if not isinstance(subjects, list):
+        return ([{"raw_subjects": subjects, "validation_errors": ["subjects_not_list"],
+                  "is_verified": False}],
+                {}, [{"validation_errors": ["subjects_not_list"]}])
+    for index, raw in enumerate(subjects or []):
+        if not isinstance(raw, dict):
+            rows.append({"raw": raw, "validation_errors": ["not_mapping"], "is_verified": False})
+            errors.append({"index": index, "validation_errors": ["not_mapping"]})
+            continue
+        item = dict(raw)
+        row_errors = []
+        subject_id = str(item.get("subject_id") or "").strip()
+        if not subject_id:
+            row_errors.append("missing_subject_id")
+        elif subject_id in seen:
+            row_errors.append("duplicate_subject_id")
+        seen.add(subject_id)
+        if item.get("subject_kind") not in _SUBJECT_KINDS:
+            row_errors.append("invalid_subject_kind")
+        if not str(item.get("subject_name") or "").strip():
+            row_errors.append("missing_subject_name")
+        aliases = item.get("aliases")
+        if aliases is None:
+            item["aliases"] = []
+        elif isinstance(aliases, list) and all(isinstance(v, str) for v in aliases):
+            item["aliases"] = [v.strip() for v in aliases if v.strip()][:20]
+        else:
+            row_errors.append("invalid_aliases")
+        if not _activity_identity_allowed(item.get("identity_source_url")):
+            row_errors.append("invalid_identity_source_url")
+        if item.get("identity_status") != "verified":
+            row_errors.append("subject_identity_unverified")
+        item["subject_id"] = subject_id
+        item["validation_errors"] = row_errors
+        item["is_verified"] = not row_errors
+        rows.append(item)
+        if subject_id and subject_id not in mapping:
+            mapping[subject_id] = item
+        if row_errors:
+            errors.append({"index": index, "subject_id": subject_id, "validation_errors": row_errors})
+    return rows, mapping, errors
+
+
+def validate_activity(row, subjects):
+    """回傳原始欄位、validation_errors、is_confirmed、available_at。"""
+    item = dict(row or {}) if isinstance(row, dict) else {}
+    errors = []
+    if not isinstance(row, dict):
+        return {"raw": row, "validation_errors": ["not_mapping"], "is_confirmed": False, "available_at": None}
+    subjects = subjects if isinstance(subjects, dict) else {}
+
+    activity_id = str(item.get("activity_id") or "").strip()
+    if not activity_id:
+        errors.append("missing_activity_id")
+    elif len(activity_id) > 200:
+        errors.append("invalid_activity_id")
+    else:
+        item["activity_id"] = activity_id
+
+    if item.get("activity_type") not in _ACTIVITY_TYPES:
+        errors.append("invalid_activity_type")
+
+    subject_id = str(item.get("subject_id") or "").strip()
+    subject = subjects.get(subject_id)
+    if not subject_id or subject is None:
+        errors.append("unknown_subject")
+    elif not subject.get("is_verified"):
+        errors.append("subject_identity_unverified")
+    else:
+        item["subject_id"] = subject_id
+
+    owner = str(item.get("owner") or "").strip()
+    if owner not in _ACTIVITY_OWNERS:
+        errors.append("invalid_owner")
+    else:
+        item["owner"] = owner
+        owner_name = str(item.get("owner_name") or "").strip()
+        if owner in {"self", "spouse", "joint", "dependent"} and not owner_name:
+            errors.append("missing_owner_name")
+        if len(owner_name) > 200:
+            errors.append("invalid_owner_name")
+
+    publisher = str(item.get("publisher_creator_id") or "").strip()
+    item["publisher_creator_id"] = publisher
+
+    market = str(item.get("market") or "").strip().upper()
+    symbol = str(item.get("symbol") or "").strip().upper()
+    security_name = str(item.get("security_name") or "").strip()
+    item["market"] = market
+    item["symbol"] = symbol
+    if market or symbol:
+        if market not in {"TW", "US"}:
+            errors.append("unknown_market")
+        elif symbol and not _security_known(market, symbol):
+            errors.append("unknown_security")
+        elif not symbol and security_name:
+            errors.append("unknown_security")
+        elif not symbol and not security_name:
+            errors.append("missing_security_or_company")
+    elif security_name:
+        errors.append("unknown_security")
+    else:
+        errors.append("missing_security_or_company")
+
+    if item.get("instrument_type") not in _ACTIVITY_INSTRUMENTS:
+        errors.append("invalid_instrument_type")
+    if item.get("action") not in _ACTIVITY_ACTIONS:
+        errors.append("invalid_action")
+
+    activity_type = item.get("activity_type")
+    transaction_raw = item.get("transaction_date")
+    holdings_raw = item.get("holdings_as_of")
+    transaction_date = None
+    holdings_as_of = None
+    if isinstance(transaction_raw, str) and transaction_raw.strip():
+        try:
+            transaction_date = date.fromisoformat(transaction_raw.strip()[:10])
+            if transaction_raw.strip()[:10] != transaction_date.isoformat():
+                raise ValueError("bad date")
+        except ValueError:
+            errors.append("invalid_transaction_date")
+            transaction_date = None
+    elif transaction_raw not in (None, ""):
+        errors.append("invalid_transaction_date")
+    if isinstance(holdings_raw, str) and holdings_raw.strip():
+        try:
+            holdings_as_of = date.fromisoformat(holdings_raw.strip()[:10])
+            if holdings_raw.strip()[:10] != holdings_as_of.isoformat():
+                raise ValueError("bad date")
+        except ValueError:
+            errors.append("invalid_holdings_as_of")
+            holdings_as_of = None
+    elif holdings_raw not in (None, ""):
+        errors.append("invalid_holdings_as_of")
+
+    if activity_type == "holding_snapshot":
+        if holdings_as_of is None:
+            errors.append("missing_holdings_as_of")
+        if transaction_raw not in (None, ""):
+            errors.append("transaction_date_for_holding")
+        if item.get("action") not in {"holding", "other"}:
+            errors.append("invalid_action_for_holding")
+    elif activity_type in {"trade_disclosure", "self_reported_trade"}:
+        if holdings_raw not in (None, ""):
+            errors.append("holdings_as_of_for_trade")
+
+    option_type = str(item.get("option_type") or "").strip().lower()
+    strike_raw = item.get("strike")
+    expiry_raw = item.get("expiry")
+    if item.get("instrument_type") == "common_stock":
+        if option_type or strike_raw not in (None, "") or (isinstance(expiry_raw, str) and expiry_raw.strip()):
+            errors.append("option_fields_for_equity")
+    elif item.get("instrument_type") == "option":
+        if option_type and option_type not in {"call", "put"}:
+            errors.append("invalid_option_type")
+        if strike_raw not in (None, ""):
+            if _finite_number(strike_raw) is None or float(strike_raw) <= 0:
+                errors.append("invalid_strike")
+        if isinstance(expiry_raw, str) and expiry_raw.strip():
+            try:
+                parsed_expiry = date.fromisoformat(expiry_raw.strip()[:10])
+                if expiry_raw.strip()[:10] != parsed_expiry.isoformat():
+                    raise ValueError("bad")
+            except ValueError:
+                errors.append("invalid_expiry")
+        elif expiry_raw not in (None, ""):
+            errors.append("invalid_expiry")
+
+    public_at = str(item.get("public_at") or "").strip()
+    precision = str(item.get("public_time_precision") or "").strip()
+    if precision not in {"timestamp", "date"}:
+        errors.append("invalid_public_time_precision")
+    public_upper = _public_upper_bound(public_at, precision) if precision in {"timestamp", "date"} else None
+    if public_upper is None:
+        errors.append("invalid_public_at")
+
+    first_seen = None
+    reviewed = None
+    try:
+        first_seen = datetime.fromisoformat(str(item.get("first_seen_at") or "").replace("Z", "+00:00"))
+        if first_seen.tzinfo is None or first_seen.utcoffset() is None:
+            raise ValueError("naive")
+        first_seen = first_seen.astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        errors.append("first_seen_at_timezone")
+    try:
+        reviewed = datetime.fromisoformat(str(item.get("reviewed_at") or "").replace("Z", "+00:00"))
+        if reviewed.tzinfo is None or reviewed.utcoffset() is None:
+            raise ValueError("naive")
+        reviewed = reviewed.astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        errors.append("reviewed_at_timezone")
+
+    available = None
+    if public_upper is not None and first_seen is not None and reviewed is not None:
+        available = max(public_upper, first_seen, reviewed)
+        item["available_at"] = available.isoformat().replace("+00:00", "Z")
+        item["public_at_upper_bound"] = public_upper.isoformat().replace("+00:00", "Z")
+    else:
+        item["available_at"] = None
+        errors.append("missing_available_time")
+
+    if public_upper is not None:
+        public_day = public_upper.date()
+        if transaction_date is not None and transaction_date > public_day:
+            errors.append("transaction_after_public")
+        if holdings_as_of is not None and holdings_as_of > public_day:
+            errors.append("holdings_after_public")
+
+    amount_min_raw = item.get("amount_min")
+    amount_max_raw = item.get("amount_max")
+    currency = str(item.get("currency") or "").strip().upper()
+    has_amount = amount_min_raw not in (None, "") or amount_max_raw not in (None, "")
+    amount_min = _finite_number(amount_min_raw) if has_amount and amount_min_raw not in (None, "") else None
+    amount_max = _finite_number(amount_max_raw) if has_amount and amount_max_raw not in (None, "") else None
+    if has_amount:
+        if amount_min_raw not in (None, "") and (amount_min is None or amount_min < 0):
+            errors.append("invalid_amount_min")
+        if amount_max_raw not in (None, "") and (amount_max is None or amount_max < 0):
+            errors.append("invalid_amount_max")
+        if not _CURRENCY.match(currency):
+            errors.append("invalid_currency")
+        if amount_min is not None and amount_max is not None and amount_min > amount_max:
+            errors.append("invalid_amount_range")
+    elif currency:
+        if not _CURRENCY.match(currency):
+            errors.append("invalid_currency")
+
+    quantity_raw = item.get("quantity")
+    if quantity_raw not in (None, ""):
+        quantity = _finite_number(quantity_raw)
+        if quantity is None or quantity <= 0:
+            errors.append("invalid_quantity")
+    reported_raw = item.get("reported_value")
+    if reported_raw not in (None, ""):
+        if _finite_number(reported_raw) is None:
+            errors.append("invalid_reported_value")
+
+    source_kind = str(item.get("source_kind") or "").strip()
+    if source_kind not in _ACTIVITY_SOURCE_KINDS:
+        errors.append("invalid_source_kind")
+    else:
+        item["source_kind"] = source_kind
+        if not _activity_source_allowed(item.get("source_url"), source_kind):
+            errors.append("invalid_source_url")
+    if not str(item.get("source_document_id") or "").strip():
+        errors.append("missing_source_document_id")
+    if not str(item.get("source_locator") or "").strip():
+        errors.append("missing_source_locator")
+    if not _HEX64.match(str(item.get("source_sha256") or "").strip()):
+        errors.append("invalid_source_hash")
+    if not str(item.get("reviewer") or "").strip():
+        errors.append("missing_reviewer")
+    if item.get("rights_status") not in _ACTIVITY_RIGHTS:
+        errors.append("invalid_rights_status")
+    elif item.get("rights_status") != "approved":
+        errors.append("rights_not_approved")
+    if item.get("review_status") not in _ACTIVITY_REVIEW:
+        errors.append("invalid_review_status")
+    elif item.get("review_status") != "confirmed":
+        errors.append("not_reviewed")
+    if item.get("source_status") not in _ACTIVITY_SOURCE_STATUS:
+        errors.append("invalid_source_status")
+    elif item.get("source_status") != "available":
+        errors.append("source_unavailable")
+
+    if not str(item.get("summary") or "").strip():
+        errors.append("missing_summary")
+    if not isinstance(item.get("limitations"), str) or not item.get("limitations").strip():
+        errors.append("missing_limitations")
+
+    item["validation_errors"] = errors
+    item["is_confirmed"] = not errors
+    return item
+
+
+def _validate_activities(rows, subject_map):
+    validated = []
+    errors = []
+    seen_ids = set()
+    if rows is None:
+        return validated, errors
+    if not isinstance(rows, list):
+        return ([{"raw": rows, "validation_errors": ["activities_not_list"],
+                  "is_confirmed": False, "available_at": None}],
+                [{"validation_errors": ["activities_not_list"]}])
+    for index, raw in enumerate(rows or []):
+        if not isinstance(raw, dict):
+            validated.append({"raw": raw, "validation_errors": ["not_mapping"],
+                              "is_confirmed": False, "available_at": None})
+            errors.append({"index": index, "validation_errors": ["not_mapping"]})
+            continue
+        item = validate_activity(raw, subject_map)
+        activity_id = str(item.get("activity_id") or "")
+        if activity_id:
+            if activity_id in seen_ids:
+                item["validation_errors"] = list(item.get("validation_errors") or []) + ["duplicate_activity_id"]
+                item["is_confirmed"] = False
+            else:
+                seen_ids.add(activity_id)
+        if item.get("validation_errors"):
+            errors.append({"index": index, "activity_id": item.get("activity_id"),
+                           "validation_errors": list(item["validation_errors"])})
+        validated.append(item)
+    return validated, errors
+
+
+def query_activities(catalog, *, subject_id, market, symbol, cutoff_at, window_days):
+    """只回傳截止當時已可用的核對活動，依公開時間倒序。"""
+    if not isinstance(catalog, dict):
+        raise ValueError("catalog must be a mapping")
+    if not isinstance(cutoff_at, datetime) or cutoff_at.tzinfo is None or cutoff_at.utcoffset() is None:
+        raise ValueError("cutoff_at must be timezone-aware")
+    if window_days is not None and (not isinstance(window_days, int) or isinstance(window_days, bool) or window_days < 0):
+        raise ValueError("invalid window_days")
+    cutoff_utc = cutoff_at.astimezone(timezone.utc)
+    market_filter = str(market).strip().upper() if market not in (None, "") else None
+    symbol_filter = str(symbol).strip().upper() if symbol not in (None, "") else None
+    subject_filter = str(subject_id).strip() if subject_id not in (None, "") else None
+
+    candidates = []
+    for item in catalog.get("activities") or []:
+        if not isinstance(item, dict) or not item.get("is_confirmed"):
+            continue
+        available = _parse_datetime(item.get("available_at"))
+        if available is None:
+            continue
+        available_utc = available.astimezone(timezone.utc)
+        if available_utc > cutoff_utc:
+            continue
+        public_upper = _public_upper_bound(item.get("public_at"), item.get("public_time_precision"))
+        if public_upper is None:
+            continue
+        if subject_filter is not None and str(item.get("subject_id") or "").strip() != subject_filter:
+            continue
+        if market_filter is not None and str(item.get("market") or "").strip().upper() != market_filter:
+            continue
+        if symbol_filter is not None and str(item.get("symbol") or "").strip().upper() != symbol_filter:
+            continue
+        if window_days is not None:
+            from datetime import timedelta as _td
+            window_start = cutoff_utc - _td(days=window_days)
+            if public_upper < window_start or public_upper > cutoff_utc:
+                continue
+        candidates.append((public_upper, str(item.get("activity_id") or ""), item))
+
+    blocked = set()
+    for item in catalog.get("activities") or []:
+        if not isinstance(item, dict) or not item.get("is_confirmed"):
+            continue
+        available = _parse_datetime(item.get("available_at"))
+        if available is None or available.astimezone(timezone.utc) > cutoff_utc:
+            continue
+        for key in ("supersedes_id", "withdraws_id"):
+            target = str(item.get(key) or "").strip()
+            if target:
+                blocked.add(target)
+
+    deduped = {}
+    for public_upper, activity_id, item in candidates:
+        if activity_id in blocked:
+            continue
+        if activity_id and activity_id not in deduped:
+            deduped[activity_id] = (public_upper, item)
+        elif not activity_id:
+            deduped.setdefault(id(item), (public_upper, item))
+
+    ordered = sorted(deduped.values(), key=lambda pair: (pair[0].timestamp(), str(pair[1].get("activity_id") or "")), reverse=True)
+    # Reverse secondary ordering: public desc, id asc. Python stable sort in two passes.
+    ordered = sorted(deduped.values(), key=lambda pair: str(pair[1].get("activity_id") or ""))
+    ordered = sorted(ordered, key=lambda pair: pair[0].timestamp(), reverse=True)
+    return [item for _, item in ordered]

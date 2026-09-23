@@ -1,0 +1,37 @@
+ .dockerignore                                |    1 +
+ .gcloudignore                                |    1 +
+ .gitignore                                   |    1 +
+ DESIGN.md                                    |   10 +-
+ Dockerfile                                   |    2 +-
+ absorb/conversation/policies.py              |    2 +
+ absorb/conversation/web.py                   |    4 +-
+ assets/rich-menu.png                         |  Bin 174519 -> 118514 bytes
+ assets/rich-menu.svg                         |   94 +--
+ docs/line-to-web-map.md                      |   14 +-
+ reporting/charts.py                          |   62 +-
+ reporting/regression_adapter.py              |   29 +-
+ requirements.txt                             |   14 +-
+ scripts/apply_rich_menu.py                   |   95 ++-
+ scripts/generate_sample_daily_report.py      |    7 +
+ static/app.css                               |   15 +
+ static/app.js                                |   93 ++-
+ static/manifest.webmanifest                  |    2 +-
+ stock_papi/application.py                    |   16 +-
+ stock_papi/integrations/line/flex.py         | 1104 ++++++++++----------------
+ stock_papi/integrations/line/presentation.py |  198 ++---
+ stock_papi/integrations/line/webhook.py      |    6 +
+ stock_papi/services/dashboard.py             |   10 +-
+ stock_papi/services/market.py                |   18 +-
+ stock_papi/services/papi.py                  |   59 +-
+ stock_papi/shared/formatting.py              |   47 +-
+ stock_papi/web/app_factory.py                |    2 +
+ stock_papi/web/routes/market.py              |    2 +-
+ stock_papi/web/routes/reports.py             |    3 +
+ stock_papi/web/routes/system.py              |   22 +
+ templates/base.html                          |    7 +-
+ templates/dashboard.html                     |    4 +-
+ templates/stock_detail.html                  |   72 +-
+ tests/test_absorb_line_presentation.py       |   32 +-
+ tests/test_route_inventory.py                |    1 +
+ tests/test_web_product.py                    |    2 +-
+ 36 files changed, 1043 insertions(+), 1008 deletions(-)

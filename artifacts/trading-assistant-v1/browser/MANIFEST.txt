@@ -1,0 +1,13 @@
+perspectives_desktop status=200 shot=ok
+perspectives_mobile status=200 shot=ok
+perspectives_trades status=200 shot=ok
+subject_serenity_desktop status=200 shot=ok
+subject_serenity_mobile status=200 shot=ok
+stock_3006 status=200 shot=ok
+subject_404 status=404 shot=ok
+trading_beta_desktop status=200 shot=ok
+trading_beta_mobile status=200 shot=ok
+trading_nonbeta status=403 shot=ok
+stock_intc_anon_desktop status=200 shot=ok
+stock_intc_anon_mobile status=200 shot=ok
+stock_intc_beta status=200 shot=ok

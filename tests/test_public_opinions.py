@@ -1,7 +1,9 @@
+import hashlib
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from stock_papi.services import public_opinions
+from stock_papi.services.public_opinions import query_activities, validate_activity
 
 
 class PublicOpinionsTests(unittest.TestCase):
@@ -989,6 +991,254 @@ class PublicOpinionsTests(unittest.TestCase):
                 },
                 {},
             )
+
+
+class PublicActivityContractTests(unittest.TestCase):
+    def _subject(self, **overrides):
+        row = {
+            "subject_id": "test-household",
+            "subject_kind": "household",
+            "subject_name": "Test Household",
+            "aliases": ["Test Family"],
+            "identity_source_url": "https://ethics.house.gov/test-identity",
+            "identity_status": "verified",
+        }
+        row.update(overrides)
+        return row
+
+    def _subjects_map(self, subjects=None):
+        if subjects is None:
+            subjects = [self._subject()]
+        validated = {}
+        for row in subjects:
+            sid = str(row.get("subject_id") or "").strip()
+            errors = []
+            if not sid:
+                errors.append("missing_subject_id")
+            if row.get("subject_kind") not in {"person", "household", "institution"}:
+                errors.append("invalid_subject_kind")
+            if not str(row.get("subject_name") or "").strip():
+                errors.append("missing_subject_name")
+            if row.get("identity_status") != "verified":
+                errors.append("subject_identity_unverified")
+            validated[sid] = dict(row, validation_errors=errors, is_verified=not errors)
+        return validated
+
+    def activity(self, **overrides):
+        import hashlib as _hl
+        evidence_hash = _hl.sha256(b"test-evidence").hexdigest()
+        row = {
+            "activity_id": "test-act-001",
+            "activity_type": "trade_disclosure",
+            "publisher_creator_id": "",
+            "subject_id": "test-household",
+            "owner": "spouse",
+            "owner_name": "Spouse A",
+            "market": "US",
+            "symbol": "INTC",
+            "instrument_type": "common_stock",
+            "security_name": "Intel",
+            "security_identifier": "CUSIP-458140100",
+            "action": "purchase",
+            "transaction_date": "2026-08-28",
+            "holdings_as_of": "",
+            "public_at": "2026-09-01T20:00:00Z",
+            "public_time_precision": "timestamp",
+            "first_seen_at": "2026-09-02T01:00:00Z",
+            "reviewed_at": "2026-09-02T03:00:00Z",
+            "amount_min": 1001,
+            "amount_max": 15000,
+            "currency": "USD",
+            "quantity": None,
+            "quantity_unit": "",
+            "reported_value": None,
+            "option_type": "",
+            "strike": None,
+            "expiry": "",
+            "source_kind": "house_ptr",
+            "source_url": "https://ethics.house.gov/test-001",
+            "source_document_id": "test-001",
+            "source_locator": "page:1,row:1",
+            "source_sha256": evidence_hash,
+            "reviewer": "test-reviewer",
+            "rights_status": "approved",
+            "review_status": "confirmed",
+            "source_status": "available",
+            "supersedes_id": "",
+            "withdraws_id": "",
+            "summary": "Test disclosure summary",
+            "limitations": "Test limitations",
+        }
+        row.update(overrides)
+        return row
+
+    def activity_catalog(self, rows, subjects=None):
+        subjects_rows = subjects if subjects is not None else [self._subject()]
+        return public_opinions.build_catalog({
+            "schema_version": 2,
+            "catalog_version": "test-v2-activities",
+            "creators": [],
+            "coverage": [],
+            "opinions": [],
+            "outcomes": [],
+            "activity_schema_version": 1,
+            "subjects": subjects_rows,
+            "activities": rows,
+        })
+
+    def test_activity_is_not_known_before_review(self):
+        row = self.activity(public_at="2026-09-01T20:00:00Z",
+                            first_seen_at="2026-09-02T01:00:00Z",
+                            reviewed_at="2026-09-02T03:00:00Z")
+        catalog = self.activity_catalog([row])
+        result = query_activities(catalog, subject_id=None, market="US",
+                                  symbol="INTC", cutoff_at=datetime.fromisoformat(
+                                      "2026-09-02T02:00:00+00:00"), window_days=28)
+        self.assertEqual(result, [])
+
+    def test_same_document_two_rows_are_both_kept(self):
+        first = self.activity(activity_id="test-act-001", source_locator="page:1,row:1")
+        second = self.activity(activity_id="test-act-002", source_locator="page:1,row:2")
+        catalog = self.activity_catalog([first, second])
+        self.assertTrue(catalog["activities"][0]["is_confirmed"])
+        self.assertTrue(catalog["activities"][1]["is_confirmed"])
+        result = query_activities(catalog, subject_id=None, market="US", symbol="INTC",
+                                  cutoff_at=datetime.fromisoformat("2026-09-03T00:00:00+00:00"),
+                                  window_days=28)
+        self.assertEqual([item["activity_id"] for item in result], ["test-act-001", "test-act-002"])
+
+    def test_duplicate_row_is_single_count(self):
+        first = self.activity(activity_id="test-act-dup", source_locator="page:1,row:1")
+        second = self.activity(activity_id="test-act-dup", source_locator="page:1,row:1")
+        catalog = self.activity_catalog([first, second])
+        self.assertTrue(catalog["activities"][0]["is_confirmed"])
+        self.assertFalse(catalog["activities"][1]["is_confirmed"])
+        self.assertIn("duplicate_activity_id", catalog["activities"][1]["validation_errors"])
+        result = query_activities(catalog, subject_id=None, market="US", symbol="INTC",
+                                  cutoff_at=datetime.fromisoformat("2026-09-03T00:00:00+00:00"),
+                                  window_days=28)
+        self.assertEqual(len(result), 1)
+
+    def test_owner_spouse_is_preserved(self):
+        validated = validate_activity(self.activity(), self._subjects_map())
+        self.assertTrue(validated["is_confirmed"])
+        self.assertEqual(validated["owner"], "spouse")
+        self.assertEqual(validated["subject_id"], "test-household")
+
+    def test_holding_snapshot_has_no_transaction_date(self):
+        row = self.activity(activity_id="test-13f-001", activity_type="holding_snapshot",
+                            action="holding", transaction_date="", holdings_as_of="2026-06-30",
+                            instrument_type="common_stock", source_kind="sec_13f",
+                            source_url="https://www.sec.gov/test-13f",
+                            source_document_id="test-13f", source_locator="table:1,row:1")
+        validated = validate_activity(row, self._subjects_map())
+        self.assertTrue(validated["is_confirmed"], validated.get("validation_errors"))
+
+    def test_option_is_not_equity_buy(self):
+        row = self.activity(activity_id="test-opt-001", instrument_type="option",
+                            option_type="call", strike=20.0, expiry="2027-01-15",
+                            action="purchase")
+        validated = validate_activity(row, self._subjects_map())
+        self.assertTrue(validated["is_confirmed"], validated.get("validation_errors"))
+        self.assertEqual(validated["instrument_type"], "option")
+        self.assertNotEqual(validated["instrument_type"], "common_stock")
+
+    def test_future_revision_applies_only_after_available(self):
+        original = self.activity(activity_id="test-rev-001", source_locator="page:1,row:1",
+                                 public_at="2026-09-01T20:00:00Z",
+                                 first_seen_at="2026-09-02T01:00:00Z",
+                                 reviewed_at="2026-09-02T03:00:00Z")
+        revision = self.activity(activity_id="test-rev-002", source_locator="page:1,row:1-rev2",
+                                 public_at="2026-09-05T20:00:00Z",
+                                 first_seen_at="2026-09-06T01:00:00Z",
+                                 reviewed_at="2026-09-06T03:00:00Z",
+                                 supersedes_id="test-rev-001")
+        catalog = self.activity_catalog([original, revision])
+        before = query_activities(catalog, subject_id=None, market="US", symbol="INTC",
+                                  cutoff_at=datetime.fromisoformat("2026-09-03T00:00:00+00:00"),
+                                  window_days=90)
+        self.assertEqual([item["activity_id"] for item in before], ["test-rev-001"])
+        after = query_activities(catalog, subject_id=None, market="US", symbol="INTC",
+                                 cutoff_at=datetime.fromisoformat("2026-09-07T00:00:00+00:00"),
+                                 window_days=90)
+        self.assertEqual([item["activity_id"] for item in after], ["test-rev-002"])
+
+    def test_unknown_security_and_evil_url_are_rejected(self):
+        import hashlib as _hl2
+        evil_hash = _hl2.sha256(b"evil").hexdigest()
+        row = self.activity(activity_id="test-evil-001", market="US", symbol="ZZZZZZZZ",
+                            source_url="https://evil.example.com/steal",
+                            source_kind="house_ptr", source_sha256=evil_hash)
+        validated = validate_activity(row, self._subjects_map())
+        self.assertFalse(validated["is_confirmed"])
+        self.assertTrue(any(key in validated["validation_errors"]
+                            for key in ("unknown_security", "invalid_source_url")))
+        catalog = self.activity_catalog([row])
+        result = query_activities(catalog, subject_id=None, market="US", symbol="ZZZZZZZZ",
+                                  cutoff_at=datetime.fromisoformat("2026-09-03T00:00:00+00:00"),
+                                  window_days=28)
+        self.assertEqual(result, [])
+
+    def test_old_catalog_without_activities_keeps_opinions(self):
+        catalog = {
+            "schema_version": 2,
+            "catalog_version": "legacy-no-activities",
+            "creators": [{"id": "michael-sikand", "name": "Michael Sikand",
+                          "platform": "X", "handle": "michaelsikand",
+                          "identity_status": "verified", "source_status": "partial"}],
+            "coverage": [],
+            "opinions": [{
+                "id": "op-1", "opinion_id": "op-1", "creator_id": "michael-sikand",
+                "origin_group_id": "op-1", "source_url": "https://x.com/michaelsikand/status/900",
+                "source_kind": "x_post", "source_platform": "x",
+                "acquisition_method": "manual_permalink_check",
+                "market": "US", "symbol": "NVDA",
+                "published_at": "2026-09-16T14:30:00-04:00",
+                "first_seen_at": "2026-09-17T02:30:00+08:00",
+                "reviewed_at": "2026-09-17T10:00:00+08:00",
+                "review_status": "confirmed", "source_status": "available",
+                "content_type": "original_opinion", "stance": "bullish",
+                "recommendation_kind": "explicit", "direction": "buy", "text": "good",
+            }],
+            "outcomes": [],
+        }
+        result = public_opinions.build_catalog(catalog)
+        self.assertTrue(result["opinions"][0]["is_confirmed"])
+        self.assertEqual(result.get("activities"), [])
+        self.assertEqual(result.get("activity_errors"), [])
+
+    def test_operations_do_not_change_consensus_denominator(self):
+        from stock_papi.services import opinion_consensus
+        opinion = {
+            "id": "op-1", "opinion_id": "op-1", "creator_id": "michael-sikand",
+            "origin_group_id": "op-1", "source_url": "https://x.com/michaelsikand/status/901",
+            "source_kind": "x_post", "source_platform": "x",
+            "acquisition_method": "manual_permalink_check",
+            "market": "US", "symbol": "INTC",
+            "published_at": "2026-09-01T14:30:00-04:00",
+            "first_seen_at": "2026-09-02T01:00:00Z",
+            "reviewed_at": "2026-09-02T03:00:00Z",
+            "review_status": "confirmed", "source_status": "available",
+            "content_type": "original_opinion", "stance": "bullish",
+            "recommendation_kind": "explicit", "direction": "buy",
+            "horizon": "short", "text": "buy INTC",
+        }
+        base = {"schema_version": 2, "catalog_version": "test-consensus",
+                "creators": [{"id": "michael-sikand", "name": "M",
+                              "platform": "X", "handle": "michaelsikand",
+                              "identity_status": "verified", "source_status": "partial"}],
+                "coverage": [], "opinions": [opinion], "outcomes": []}
+        without = public_opinions.build_catalog(dict(base))
+        with_activities = public_opinions.build_catalog(dict(base, subjects=[self._subject()],
+                                                             activities=[self.activity()],
+                                                             activity_schema_version=1))
+        cutoff = datetime.fromisoformat("2026-09-10T00:00:00+00:00")
+        left = opinion_consensus.build_consensus(without, market="US", symbol="INTC",
+                                                 window_days=28, cutoff_at=cutoff)
+        right = opinion_consensus.build_consensus(with_activities, market="US", symbol="INTC",
+                                                  window_days=28, cutoff_at=cutoff)
+        self.assertEqual(left["counts_by_horizon"], right["counts_by_horizon"])
+
 
 
 if __name__ == "__main__":

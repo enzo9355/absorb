@@ -16,6 +16,7 @@ def register_market_routes(
     prediction_snapshot,
     load_report_index_v2,
     load_relationships=None, load_events=None, load_opinions=None,
+    trading_beta_users=None, trade_plan_builder=None,
 ):
     def dashboard_api():
         snapshot = dashboard_snapshot()

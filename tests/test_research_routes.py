@@ -299,5 +299,111 @@ class ResearchRouteTests(unittest.TestCase):
         self.assertIn("KOL supply-chain claim", html)
 
 
+    def _activity_catalog_with(self, activities, subjects=None):
+        from stock_papi.services import public_opinions as _po
+        if subjects is None:
+            subjects = [{
+                "subject_id": "test-household",
+                "subject_kind": "household",
+                "subject_name": "Test Household",
+                "aliases": [],
+                "identity_source_url": "https://ethics.house.gov/test",
+                "identity_status": "verified",
+            }]
+        base = self._opinion_catalog()
+        validated_subjects, subject_map, _serr = _po._validate_subjects(subjects)
+        validated_activities, _aerr = _po._validate_activities(activities, subject_map)
+        base["subjects"] = validated_subjects
+        base["activity_schema_version"] = 1
+        base["activities"] = validated_activities
+        self.opinion_catalog = base
+        return base
+
+    def _route_activity(self, activity_id="route-act-001", locator="page:1,row:1", **overrides):
+        import hashlib as _hl
+        row = {
+            "activity_id": activity_id,
+            "activity_type": "trade_disclosure",
+            "publisher_creator_id": "alpha",
+            "subject_id": "test-household",
+            "owner": "spouse",
+            "owner_name": "Spouse A",
+            "market": "US",
+            "symbol": "INTC",
+            "instrument_type": "common_stock",
+            "security_name": "Intel",
+            "security_identifier": "",
+            "action": "purchase",
+            "transaction_date": "2026-08-28",
+            "holdings_as_of": "",
+            "public_at": "2026-09-01T20:00:00Z",
+            "public_time_precision": "timestamp",
+            "first_seen_at": "2026-09-02T01:00:00Z",
+            "reviewed_at": "2026-09-02T03:00:00Z",
+            "amount_min": 1001,
+            "amount_max": 15000,
+            "currency": "USD",
+            "quantity": None,
+            "quantity_unit": "",
+            "reported_value": None,
+            "option_type": "",
+            "strike": None,
+            "expiry": "",
+            "source_kind": "house_ptr",
+            "source_url": "https://ethics.house.gov/route-001",
+            "source_document_id": "route-001",
+            "source_locator": locator,
+            "source_sha256": _hl.sha256(b"route-evidence").hexdigest(),
+            "reviewer": "route-reviewer",
+            "rights_status": "approved",
+            "review_status": "confirmed",
+            "source_status": "available",
+            "supersedes_id": "",
+            "withdraws_id": "",
+            "summary": "Route test disclosure",
+            "limitations": "Route test limitations",
+        }
+        row.update(overrides)
+        return row
+
+    def test_unreviewed_and_future_activities_are_hidden(self):
+        pending = self._route_activity("route-pending", "page:1,row:9", review_status="pending_review")
+        future = self._route_activity("route-future", "page:1,row:8", public_at="2099-01-01T00:00:00Z",
+                                      first_seen_at="2099-01-02T00:00:00Z", reviewed_at="2099-01-03T00:00:00Z")
+        visible = self._route_activity("route-visible", "page:1,row:1")
+        self._activity_catalog_with([pending, future, visible])
+        response = self.client.get("/perspectives?tab=trades&activity_window=all&cutoff_at=2026-09-10T00:00:00Z")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("route-visible", html)
+        self.assertNotIn("route-pending", html)
+        self.assertNotIn("route-future", html)
+
+    def test_same_document_two_activities_both_shown(self):
+        first = self._route_activity("route-both-001", "page:2,row:1")
+        second = self._route_activity("route-both-002", "page:2,row:2")
+        self._activity_catalog_with([first, second])
+        response = self.client.get("/perspectives?tab=trades&activity_window=all&cutoff_at=2026-09-10T00:00:00Z")
+        html = response.get_data(as_text=True)
+        self.assertIn("route-both-001", html)
+        self.assertIn("route-both-002", html)
+
+    def test_disclosure_without_trade_date_shows_only_public_date(self):
+        row = self._route_activity("route-nodate", "page:3,row:1", transaction_date="")
+        self._activity_catalog_with([row])
+        response = self.client.get("/perspectives?tab=trades&activity_window=all&cutoff_at=2026-09-10T00:00:00Z")
+        html = response.get_data(as_text=True)
+        self.assertIn("交易日未提供", html)
+        self.assertIn("2026-09-01", html)
+
+    def test_unknown_subject_returns_404(self):
+        self._activity_catalog_with([self._route_activity()])
+        response = self.client.get("/perspectives/subjects/unknown-subject")
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get("/perspectives/subjects/test-household")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Test Household", response.get_data(as_text=True))
+
+
 if __name__ == "__main__":
     unittest.main()

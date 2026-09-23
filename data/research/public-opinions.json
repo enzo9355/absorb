@@ -415,5 +415,82 @@
       "raw_payload_sha256": "c7bbb70c992f0ce772f1a2321032bc2b1baa54dc6a4bc3c52d79a62b87833721"
     }
   ],
-  "outcomes": []
+  "outcomes": [],
+  "activity_schema_version": 1,
+  "subjects": [
+    {
+      "subject_id": "serenity-author",
+      "subject_kind": "person",
+      "subject_name": "Serenity",
+      "aliases": [
+        "aleabitoreddit"
+      ],
+      "identity_source_url": "https://x.com/aleabitoreddit",
+      "identity_status": "verified"
+    },
+    {
+      "subject_id": "pelosi-household",
+      "subject_kind": "household",
+      "subject_name": "Pelosi Family",
+      "aliases": [
+        "Pelosi"
+      ],
+      "identity_source_url": "https://ethics.house.gov",
+      "identity_status": "pending"
+    },
+    {
+      "subject_id": "berkshire-hathaway",
+      "subject_kind": "institution",
+      "subject_name": "Berkshire Hathaway",
+      "aliases": [
+        "Berkshire"
+      ],
+      "identity_source_url": "https://www.sec.gov",
+      "identity_status": "verified"
+    }
+  ],
+  "activities": [
+    {
+      "activity_id": "serenity-tw-3006-self-001",
+      "activity_type": "self_reported_trade",
+      "publisher_creator_id": "candidate_serenity",
+      "subject_id": "serenity-author",
+      "owner": "self",
+      "owner_name": "Serenity",
+      "market": "TW",
+      "symbol": "3006",
+      "instrument_type": "common_stock",
+      "security_name": "晶豪科",
+      "security_identifier": "",
+      "action": "holding",
+      "transaction_date": "",
+      "holdings_as_of": "",
+      "public_at": "2026-09-14T08:15:51Z",
+      "public_time_precision": "timestamp",
+      "first_seen_at": "2026-09-17T06:49:06.897623Z",
+      "reviewed_at": "2026-09-18T01:07:19+08:00",
+      "amount_min": null,
+      "amount_max": null,
+      "currency": "",
+      "quantity": null,
+      "quantity_unit": "",
+      "reported_value": null,
+      "option_type": "",
+      "strike": null,
+      "expiry": "",
+      "source_kind": "x_post",
+      "source_url": "https://x.com/aleabitoreddit/status/2099411795131924487",
+      "source_document_id": "x-2099411795131924487",
+      "source_locator": "oembed:row:1",
+      "source_sha256": "3701118d1a34d7e7e4cbf61f695bcb66cd7e241474d75dcb9d5c511b53b01c65",
+      "reviewer": "user-approved-review",
+      "rights_status": "approved",
+      "review_status": "confirmed",
+      "source_status": "available",
+      "supersedes_id": "",
+      "withdraws_id": "",
+      "summary": "作者看好晶豪科高密度 NOR 與 SLC NAND 漲價受益並揭露持倉；未揭露交易日、數量與成本。",
+      "limitations": "原文僅自述持倉，未揭露交易日、數量、成本與完整策略；不推定買入時點與報酬，不作進場觸發。"
+    }
+  ]
 }

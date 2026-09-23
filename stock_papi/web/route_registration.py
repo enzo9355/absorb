@@ -90,6 +90,8 @@ def register_routes(app, dependencies):
         load_events=dependencies.get("load_research_events"),
         load_events_status=dependencies.get("load_research_events_status"),
         stock_observation=dependencies.get("stock_observation"),
+        trading_beta_users=dependencies.get("trading_beta_users"),
+        trade_plan_builder=dependencies.get("trade_plan_builder"),
     )
     register_conversation_routes(
         app,
@@ -111,4 +113,6 @@ def register_routes(app, dependencies):
         get_broadcast_insight=dependencies["get_broadcast_insight"],
         refresh_sector_signals=dependencies["refresh_sector_signals"],
         run_alert_checks=dependencies["run_alert_checks"],
+        run_trade_plan_checks=dependencies.get("run_trade_plan_checks"),
+        trade_plan_context=dependencies.get("trade_plan_context"),
     )
