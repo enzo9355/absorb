@@ -80,7 +80,7 @@ class USPresentationRegressionTests(unittest.TestCase):
         self.assertEqual(view[0]["relative_return_5d_pct"], 2.5)
         self.assertEqual(view[0]["coverage"], 0.95)
         # Ensure template doesn't use rotation/status
-        tmpl = Path("templates/us_industries.html").read_text(encoding="utf-8")
+        tmpl = Path("templates/industries.html").read_text(encoding="utf-8")
         self.assertNotIn("item.rotation", tmpl)
         self.assertNotIn("item.status", tmpl)
         self.assertIn("relative_return_5d_pct", tmpl)

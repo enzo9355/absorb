@@ -2975,6 +2975,9 @@ body[data-theme="press-block"] .forecast-panel .insight-heading {
 body[data-theme="press-block"] .forecast-panel .insight-heading h3 {
   color:var(--pb-on-ink);
 }
+body[data-theme="press-block"] .forecast-panel.is-empty .insight-heading h3 {
+  color:var(--absorb-ink);
+}
 
 /* 美股三頁共用同一套紙面元件；方向色由 data-market="US" 在 tokens.css 反轉。 */
 body[data-theme="press-block"] .market-summary-page > .panel > h2,

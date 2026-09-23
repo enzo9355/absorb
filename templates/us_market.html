@@ -1,45 +1,29 @@
-{% extends "base.html" %}
+{% extends "market.html" %}
+{% set market_code = 'US' %}
+{% set observation = {'market_observation': summary.get('market_observation', {}).get('data', {}) if summary.get('market_observation', {}).get('status') == 'available' else {}, 'market_index': {}, 'data_quality': {}, 'observation_as_of': summary.source_market_date} %}
 {% block title %}美股市場實況｜ABSORB{% endblock %}
-{% block content %}
-{% set market_labels = {"advancing_count": "上漲家數", "declining_count": "下跌家數", "unchanged_count": "平盤家數", "ma20_breadth_pct": "站上 MA20 比例", "ma60_breadth_pct": "站上 MA60 比例", "new_high_20d_count": "20 日新高家數", "new_low_20d_count": "20 日新低家數", "realized_volatility_20d_pct": "20 日已實現波動率", "return_1d_pct": "單日報酬", "return_5d_pct": "5 日報酬", "return_20d_pct": "20 日報酬", "return_60d_pct": "60 日報酬", "median_volume_ratio": "中位量比", "risk_state": "風險狀態"} %}
-{% set risk_labels = {"normal": "一般", "cautious": "謹慎", "elevated": "升高", "defensive": "防守"} %}
-<div class="page market-summary-page">
-  <header class="page-header"><div><h1>美股市場實況</h1><p class="page-intro">資料日 {{ summary.source_market_date }}；以下只呈現已驗證正式報告中的市場欄位。</p></div></header>
-  <section class="panel" aria-labelledby="us-market-data-title">
-    <h2 id="us-market-data-title">市場觀察</h2>
-    {% if summary.market_observation.status == 'available' %}
-      <dl class="summary-facts">
-        {% for key, value in summary.market_observation.data.items() if value is not mapping and value is not sequence or value is string %}
-          {% set label = market_labels.get(key, key) %}
-          {% if value is none or (value is string and value|lower in ['none','null','']) %}
-            <div><dt>{{ label }}</dt><dd><span class="value-unavailable">尚未驗證</span></dd></div>
-          {% elif key == 'risk_state' %}
-            <div><dt>{{ label }}</dt><dd>{{ risk_labels.get(value, value) }}</dd></div>
-          {% elif key.endswith('_pct') %}
-            {% if 'return' in key %}
-              <div><dt>{{ label }}</dt><dd>{{ '%+.2f%%'|format(value) }}</dd></div>
-            {% else %}
-              <div><dt>{{ label }}</dt><dd>{{ '%.1f%%'|format(value) }}</dd></div>
-            {% endif %}
-          {% elif key == 'median_volume_ratio' %}
-            <div><dt>{{ label }}</dt><dd>{{ '%.2f'|format(value) }}</dd></div>
-          {% else %}
-            <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
-          {% endif %}
-        {% else %}
-          <div class="empty-state">市場觀察欄位暫時無法顯示。</div>
-        {% endfor %}
-      </dl>
-    {% else %}
-      <p class="empty-state">{{ summary.market_observation.reason }}</p>
-    {% endif %}
+{% block head %}{% if index_predictions %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>{% endif %}{% endblock %}
+{% block market_heading %}
+  <header class="page-header"><div><p class="eyebrow">MARKET ACTUALS</p><h1>美股市場實況</h1><p class="page-intro">已發生的市場廣度、報酬與波動為主；模型估計單獨成區，不與已發生的資料混在一起。</p></div></header>
+  {% include "partials/us_freshness.html" %}
+{% endblock %}
+{% block market_charts %}
+  {% import "partials/us_index.html" as us_index with context %}
+  <section class="panel market-trend-panel" aria-labelledby="us-index-title"><div class="section-heading"><div><h2 id="us-index-title">美股主要指數走勢</h2><p>實際價格與模型估計分開標示</p></div><span class="muted small">資料日 {{ summary.source_market_date }}</span></div>{{ us_index.chart() }}</section>
+  {{ us_index.forecast() }}
+{% endblock %}
+{% block market_extra %}
+  <section class="panel" aria-labelledby="us-market-extra-title">
+    <h2 id="us-market-extra-title">美股補充指標</h2>
+    {% set data = summary.get('market_observation', {}).get('data', {}) %}
+    <dl class="summary-facts">
+      <div><dt>站上 MA60 比例</dt><dd>{% if data.get('ma60_breadth_pct') is number %}{{ '%.1f%%'|format(data.ma60_breadth_pct) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</dd></div>
+      <div><dt>規則式風險狀態</dt><dd>{{ {'normal':'一般','cautious':'謹慎','elevated':'升高','defensive':'防守'}.get(data.get('risk_state'), '尚未驗證') }}</dd></div>
+    </dl>
   </section>
-  {# ORDER 6：這一段本來就有反對證據（美股是全站唯一一開始就做對的地方）。
-     補上界線說明，與台股的「這不代表什麼」一致。 #}
   <section class="panel" aria-labelledby="us-market-evidence-title">
     <h2 id="us-market-evidence-title">支持與反對證據</h2>
     <div class="market-summary-grid"><div><h3>支持證據</h3><ul class="summary-list">{% for item in summary.executive_summary.supporting_evidence %}<li>{{ item }}</li>{% else %}<li class="empty-state">沒有可顯示的支持證據。</li>{% endfor %}</ul></div><div><h3>反對證據</h3><ul class="summary-list">{% for item in summary.executive_summary.opposing_evidence %}<li>{{ item }}</li>{% else %}<li class="empty-state">沒有可顯示的反對證據。</li>{% endfor %}</ul></div></div>
     <p class="chart-caveat"><strong>這不代表什麼：</strong>兩邊都是規則式擷取的已發生資料，不是加權後的判斷。支持證據多於反對證據不代表結論更可靠。</p>
   </section>
-</div>
 {% endblock %}

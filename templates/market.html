@@ -31,13 +31,14 @@
    視覺化的區塊在 JS 跑完後被換回術語卡 —— 同一份資料在同一頁上有兩種
    長相，而且後到的那一種比較差。資料是伺服器端算好的，這裡不需要再水合；
    data-dashboard-endpoint 保留，因為錯誤橫幅仍然要在 API 不可用時出現。 #}
-<div class="page dashboard-page market-page" data-dashboard-endpoint="/api/dashboard">
-  <header class="page-header"><div><p class="eyebrow">MARKET ACTUALS</p><h1>市場實況</h1><p class="page-intro">已發生的市場廣度、報酬與波動為主；模型估計單獨成區，不與已發生的資料混在一起。</p></div></header>
+<div class="page dashboard-page market-page" {% if market_code|default('TW') == 'TW' %}data-dashboard-endpoint="/api/dashboard"{% endif %}>
+  {% block market_heading scoped %}<header class="page-header"><div><p class="eyebrow">MARKET ACTUALS</p><h1>市場實況</h1><p class="page-intro">已發生的市場廣度、報酬與波動為主；模型估計單獨成區，不與已發生的資料混在一起。</p></div></header>{% endblock %}
   <div class="error-banner" data-dashboard-error hidden>市場觀察資料暫時無法取得。</div>
 
   {# ORDER 4（§5.5）：市場頁以指數走勢與市場廣度為主，不把所有數字做成
      同權重卡片。原本三張等大的 pulse-card 讓「上漲／下跌」與「20 日波動」
      看起來一樣重要，讀者無從判斷該先看哪一個。 #}
+  {% block market_charts scoped %}
   <section class="panel market-trend-panel" aria-labelledby="market-trend-title">
     <div class="section-heading"><div><h2 id="market-trend-title">{{ market_index.get('name', '加權指數') }}走勢</h2><p>K 線為實際收盤走勢，折線為 20 日均價；{% if prediction %}虛線為模型估計，與已發生的資料分開標示。{% else %}兩者皆不填色。{% endif %}</p></div><span class="muted small">資料日 {{ market_index.get('as_of', as_of) }}</span></div>
     {% if market_index.get('price') is not none %}
@@ -86,6 +87,8 @@
     {% endif %}
     <p class="forecast-research-link">想知道這個模型過去表現如何？完整的模型驗證資料在<a href="{{ url_for('reports_page') }}">每日報告</a>的研究版裡，找「模型驗證」那一章。</p>
   </section>
+
+  {% endblock %}
 
   {# ORDER 8（§5.5 / §18）：數字先變成形狀，再回到數字。
      原本這一段是三張等大的純數字卡，讀者要自己在腦中把 1200 / 700 換算成
@@ -178,6 +181,7 @@
     </div>
   </details>
 
+  {% block market_extra scoped %}{% endblock %}
   {% if market_index.get('candles') %}<script id="market-index-chart-data" type="application/json">{{ ({"candles": market_index.get('candles'), "ma20": market_index.get('ma20', []), "prediction": prediction.line, "band": prediction.get("band")} if prediction else {"candles": market_index.get('candles'), "ma20": market_index.get('ma20', [])})|tojson }}</script>{% endif %}
 </div>
 {% endblock %}

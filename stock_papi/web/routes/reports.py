@@ -486,7 +486,7 @@ def register_report_routes(
                 "summary": summary,
                 "market": "US",
             }
-            if template_name == "us_dashboard.html" and load_prediction_snapshot:
+            if template_name in ("us_dashboard.html", "us_market.html") and load_prediction_snapshot:
                 predictions = []
                 try:
                     product = load_prediction_snapshot("US")
@@ -503,7 +503,7 @@ def register_report_routes(
                 except Exception:
                     predictions = []
                 context["index_predictions"] = predictions
-            if template_name == "us_dashboard.html" and load_data_freshness:
+            if load_data_freshness:
                 try:
                     context["data_freshness"] = {
                         "US": load_data_freshness("US", reports=reports)

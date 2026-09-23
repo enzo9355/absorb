@@ -7,7 +7,20 @@
 {% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness_status, '暫時無法取得') %}
 {% set freshness_chip = {'current':'is-available','updating':'is-partial','stale':'is-stale','unavailable':'is-unavailable'}.get(freshness_status, 'is-unavailable') %}
 {% set exec = summary.executive_summary if summary is mapping else {} %}
-<div class="page market-summary-page" data-freshness-status="{{ freshness_status }}">
+{% set market_code = 'US' %}
+{% set market = summary.get('market_observation', {}).get('data', {}) if summary.get('market_observation', {}).get('status') == 'available' else {} %}
+{% set industries = summary.get('industries', {}).get('data', {}).get('ranking', []) if summary.get('industries', {}).get('status') == 'available' else [] %}
+{% set readings = {} %}
+{% set risk_label = {'normal':'一般','cautious':'謹慎','elevated':'升高','defensive':'防守'}.get(market.get('risk_state')) %}
+{% set advancing = market.get('advancing_count') %}
+{% set declining = market.get('declining_count') %}
+{% set unchanged = market.get('unchanged_count') %}
+{% set total_count = advancing + declining + unchanged if advancing is not none and declining is not none and unchanged is not none else none %}
+{% set advancing_pct = advancing / total_count * 100 if total_count else none %}
+{% set declining_pct = declining / total_count * 100 if total_count else none %}
+{% import "partials/dashboard_actuals.html" as actuals with context %}
+{% import "partials/us_index.html" as us_index with context %}
+<div class="page dashboard-page research-dashboard" data-freshness-status="{{ freshness_status }}">
 
   {# ORDER 6（A-1 / A-2，台股版的同一組缺陷）：美股頁原本的順序是
      標題 → 資料狀態 → 指數與五日情境 → 一句話結論 → 關鍵事件 → 驗證狀態。
@@ -30,40 +43,25 @@
     </dl>
   </section>
 
-  {# 第 2 段：為什麼會這樣（ORDER 8 起提前一段）。指數走勢是已發生的事實。 #}
   <section class="research-command" aria-labelledby="us-index-title">
-    <div class="section-heading">
-      <div><p class="eyebrow">US MARKET INDEXES</p><h2 id="us-index-title">為什麼會這樣</h2><p>主要指數的實際走勢</p></div>
-      <span class="muted small">資料日 {{ summary.source_market_date or '待更新' }}</span>
+    <div class="section-heading"><div><h2 id="us-index-title">為什麼會這樣</h2><p>指數走勢、市場廣度、成交動能與波動</p></div><span class="muted small">資料日 {{ summary.source_market_date or '待更新' }}</span></div>
+    <div class="command-grid">
+      {{ actuals.metrics() }}
+      <section class="evidence-canvas market-index-canvas" aria-label="美股主要指數">
+        <div class="evidence-canvas-head"><div><span>US MARKET INDEXES</span><h3>主要指數走勢</h3></div><span>指數點數</span></div>
+        {{ us_index.chart() }}
+      </section>
+      <div class="command-insights">
+        {{ us_index.forecast() }}
+        {{ actuals.breadth() }}
+        {{ actuals.risk() }}
+      </div>
     </div>
-    {% if index_predictions %}
-    <div class="segmented us-index-tabs" aria-label="選擇美股指數">{% for item in index_predictions %}<button type="button" data-us-index-tab="{{ item.symbol }}" aria-pressed="{{ 'true' if loop.first else 'false' }}" class="{{ 'active' if loop.first else '' }}">{{ item.name }}</button>{% endfor %}</div>
-    <div class="us-index-layout">
-      <div id="us-index-chart" class="market-index-chart" role="img" aria-label="美股主要指數實際 K 線與五日預測終點"></div>
-      <div class="us-index-actual-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><strong>{{ '{:,.2f}'.format(item.current_price) }}</strong><small>最新收盤</small></article>{% endfor %}</div>
+    <div class="command-lower">
+      <section class="sector-flow" aria-labelledby="us-sector-title"><div class="insight-heading"><h3 id="us-sector-title">產業相對強度</h3><a href="{{ url_for('us_industries_page') }}">查看產業觀察</a></div>
+        <div class="sector-flow-list">{% for item in industries[:5] %}{% set value = item.get('relative_return_5d_pct') %}<div class="sector-flow-row"><span>{{ item.get('name') or item.get('industry') or '未命名' }}</span>{% if value is number %}<progress class="{{ 'negative' if value < 0 else 'positive' }}" value="{{ value|abs }}" max="5">{{ value|abs }}</progress><strong class="{{ 'positive' if value > 0 else 'negative' if value < 0 else '' }}">{{ '%+.2f%%'|format(value) }}</strong>{% else %}<span>尚未驗證</span>{% endif %}</div>{% else %}<p class="empty-state">產業相對強度資料不足。</p>{% endfor %}</div>
+      </section>
     </div>
-    <dl class="chart-legend">
-      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>已發生：收盤高於開盤</dd></div>
-      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>已發生：收盤低於開盤</dd></div>
-      <div><dt><span class="legend-swatch legend-forecast" aria-hidden="true"></span>五日情境</dt><dd><strong>模型估計</strong>：虛線，非已發生資料</dd></div>
-      <div><dt>單位</dt><dd>指數點數</dd></div>
-    </dl>
-    <script id="us-index-chart-data" type="application/json">{{ index_predictions|tojson }}</script>
-    <p class="chart-caveat"><strong>這不代表什麼：</strong>實線是已經發生的指數 K 線；虛線只連接目前收盤與第 5 交易日估計，不代表中間每日路徑，也不是買賣指令。</p>
-    {% else %}<p class="empty-state">本交易日的已驗證指數資料尚未發布。</p>{% endif %}
-  </section>
-
-  {# ORDER 6（§7-3，台股個股頁的同一組缺陷）：五日情境原本與最新收盤
-     並排在同一張卡裡，讀者沒有線索分辨哪個是已發生、哪個是估計。
-     抽成獨立區塊，標題直接說明它是估計。 #}
-  <section class="panel forecast-section" id="us-forecast" aria-labelledby="us-forecast-title">
-    <div class="section-heading">
-      <div><p class="eyebrow">MODEL ESTIMATE</p><h2 id="us-forecast-title">五日模型情境</h2><p>以下數字全部是模型估計，不是已經發生的資料</p></div>
-    </div>
-    {% if index_predictions %}
-    <div class="us-index-forecast-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><dl><div><dt>{{ item.probability_label }}</dt><dd>{{ '%.1f%%'|format(item.probability_pct) }}</dd></div><div><dt>第 5 個交易日預測價</dt><dd>{{ '{:,.2f}'.format(item.predicted_price) }}</dd></div><div><dt>預估漲跌幅</dt><dd class="{{ 'positive' if item.predicted_change_pct > 0 else 'negative' if item.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(item.predicted_change_pct) }}</dd></div><div><dt>目標交易日</dt><dd>{{ item.target_session }}</dd></div></dl><small>{% if item.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if item.status == 'current' else '前次預測｜資料日 ' ~ item.as_of }}{% endif %}</small></article>{% endfor %}</div>
-    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。</p>
-    {% else %}<p class="empty-state">本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。</p>{% endif %}
   </section>
 
   {# ORDER 8（委託人裁示，與台股同一條規則）：「最新更新」離開頭版。
@@ -95,7 +93,7 @@
     <summary><span>資料品質與限制</span><span class="data-limits-hint">市場資料驗證、模型 Gate 狀態</span></summary>
     <div class="data-limits-body">
       {% set gate_labels = {"ranking": "模型排名", "calibration": "模型校準", "quality": "品質 Gate", "transaction_value": "交易價值驗證", "promotion": "模型 Promotion"} %}
-      {% set market_section = summary.get('market') if summary is mapping else none %}
+      {% set market_section = summary.get('market_observation') if summary is mapping else none %}
       {% set industries_section = summary.get('industries') if summary is mapping else none %}
       {% set market_verified = (market_section is mapping and market_section.get('status') == 'available' and industries_section is mapping and industries_section.get('status') == 'available') %}
       <div class="validation-sections">

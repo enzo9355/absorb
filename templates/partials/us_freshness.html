@@ -1,0 +1,7 @@
+{% set freshness = (data_freshness|default({}, true)).get('US', {}) %}
+{% set status = freshness.get('status', 'unavailable') %}
+<section class="freshness-status" data-freshness-status="{{ status }}" aria-label="資料日期與狀態">
+  <p>資料狀態：{{ {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(status, '暫時無法取得') }}</p>
+  <dl><div><dt>來源交易日</dt><dd>{{ summary.source_market_date or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div></dl>
+  {% if status == 'stale' %}<p class="freshness-warning">目前沒有涵蓋最新交易日的已驗證資料；以下數字為最近一次報告，不代表今日即時行情。</p>{% endif %}
+</section>

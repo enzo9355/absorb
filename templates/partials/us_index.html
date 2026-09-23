@@ -1,0 +1,26 @@
+{% macro chart() -%}
+    {% if index_predictions %}
+    <div class="segmented us-index-tabs" aria-label="選擇美股指數">{% for item in index_predictions %}<button type="button" data-us-index-tab="{{ item.symbol }}" aria-pressed="{{ 'true' if loop.first else 'false' }}" class="{{ 'active' if loop.first else '' }}">{{ item.name }}</button>{% endfor %}</div>
+    <div class="us-index-actual-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><strong>{{ '{:,.2f}'.format(item.current_price) }}</strong><small>最新收盤</small></article>{% endfor %}</div>
+    <div id="us-index-chart" class="market-index-chart" role="img" aria-label="美股主要指數實際 K 線與五日預測終點"></div>
+    <dl class="chart-legend">
+      <div><dt><span class="legend-swatch legend-up" aria-hidden="true"></span>上漲 K 棒</dt><dd>已發生：收盤高於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-down" aria-hidden="true"></span>下跌 K 棒</dt><dd>已發生：收盤低於開盤</dd></div>
+      <div><dt><span class="legend-swatch legend-forecast" aria-hidden="true"></span>五日情境</dt><dd><strong>模型估計</strong>：虛線，非已發生資料</dd></div>
+      <div><dt>單位</dt><dd>指數點數</dd></div>
+    </dl>
+    <script id="us-index-chart-data" type="application/json">{{ index_predictions|tojson }}</script>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>實線是已經發生的指數 K 線；虛線只連接目前收盤與第 5 交易日估計，不代表中間每日路徑，也不是買賣指令。</p>
+    {% else %}<p class="empty-state">本交易日的已驗證指數資料尚未發布。</p>{% endif %}
+{%- endmacro %}
+{% macro forecast() -%}
+  <section class="forecast-panel{{ '' if index_predictions else ' is-empty' }}" id="us-forecast" aria-labelledby="us-forecast-title">
+    <div class="insight-heading">
+      <div><p class="eyebrow">MODEL ESTIMATE</p><h3 id="us-forecast-title">五日模型情境</h3><p>以下數字全部是模型估計，不是已經發生的資料</p></div>
+    </div>
+    {% if index_predictions %}
+    <div class="us-index-forecast-list">{% for item in index_predictions %}<article data-us-index-panel="{{ item.symbol }}"{% if not loop.first %} hidden{% endif %}><span>{{ item.name }}</span><dl><div><dt>{{ item.probability_label }}</dt><dd>{{ '%.1f%%'|format(item.probability_pct) }}</dd></div><div><dt>第 5 個交易日預測價</dt><dd>{{ '{:,.2f}'.format(item.predicted_price) }}</dd></div><div><dt>預估漲跌幅</dt><dd class="{{ 'positive' if item.predicted_change_pct > 0 else 'negative' if item.predicted_change_pct < 0 else '' }}">{{ '%+.2f%%'|format(item.predicted_change_pct) }}</dd></div><div><dt>目標交易日</dt><dd>{{ item.target_session }}</dd></div></dl><small>{% if item.validation_mode == 'research' %}研究推估｜未經回測校準{% else %}{{ '正式預測' if item.status == 'current' else '前次預測｜資料日 ' ~ item.as_of }}{% endif %}</small></article>{% endfor %}</div>
+    <p class="chart-caveat"><strong>這不代表什麼：</strong>機率與預測價是模型輸出，不是承諾，也不是買賣指令。</p>
+    {% else %}<p class="empty-state">本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。</p>{% endif %}
+  </section>
+{%- endmacro %}

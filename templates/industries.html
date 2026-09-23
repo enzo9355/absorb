@@ -10,8 +10,8 @@
    組內維持後端既有排名。門檻沿用原本模板裡的 ±2%，未變更語意。 #}
 {% set groups = namespace(hot=[], steady=[], cold=[], unknown=[]) %}
 {% for item in items %}
-  {% set value = item.relative_return_5d_pct %}
-  {% if value is none %}{% set groups.unknown = groups.unknown + [item] %}
+  {% set value = item.get('relative_return_5d_pct') %}
+  {% if value is not number %}{% set groups.unknown = groups.unknown + [item] %}
   {% elif value >= 2 %}{% set groups.hot = groups.hot + [item] %}
   {% elif value <= -2 %}{% set groups.cold = groups.cold + [item] %}
   {% else %}{% set groups.steady = groups.steady + [item] %}
@@ -19,23 +19,23 @@
 {% endfor %}
 
 {% macro industry_row(item) -%}
-{% set value = item.relative_return_5d_pct %}
+{% set value = item.get('relative_return_5d_pct') %}
 <details class="industry-disclosure" data-industry-disclosure>
   <summary>
-    <span><strong>{{ item.name }}</strong><small>依據：近 5 日相對大盤報酬 · 資料日 {{ as_of }}</small></span>
-    {% if value is not none %}<span class="industry-disclosure-return">{{ '%+.2f%%'|format(value) }}</span>{% else %}<span class="industry-disclosure-return"><span class="value-unavailable">尚未驗證</span></span>{% endif %}
+    <span><strong>{{ item.get('name') or item.get('industry') or '未命名' }}</strong><small>依據：近 5 日相對大盤報酬 · 資料日 {{ as_of }}</small></span>
+    {% if value is number %}<span class="industry-disclosure-return">{{ '%+.2f%%'|format(value) }}</span>{% else %}<span class="industry-disclosure-return"><span class="value-unavailable">尚未驗證</span></span>{% endif %}
   </summary>
   <div class="industry-disclosure-body">
-    <p class="industry-coverage">可用 {{ item.available_count }}／{{ item.component_count }} 檔 · 覆蓋 {% if item.coverage is not none %}{{ '%.1f%%'|format(item.coverage * 100) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</p>
+    <p class="industry-coverage">可用 {{ item.get('available_count') if item.get('available_count') is number else '尚未驗證' }}／{{ item.get('component_count') if item.get('component_count') is number else '尚未驗證' }} 檔 · 覆蓋 {% if item.get('coverage') is number %}{{ '%.1f%%'|format(item.coverage * 100) }}{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</p>
     <dl class="industry-metric-grid">
-      <div><dt>上漲家數的比例</dt>{% if item.advancing_ratio_pct is not none %}<dd>{{ '%.1f%%'|format(item.advancing_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
-      <div><dt>股價在近一個月平均價之上的比例<a class="term-tag" href="/learn#term-breadth">MA20</a></dt>{% if item.ma20_breadth_pct is not none %}<dd>{{ '%.1f%%'|format(item.ma20_breadth_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
-      <div><dt>成交量相對平常的倍數（中位數）<a class="term-tag" href="/learn#term-volume-ratio">量比</a></dt>{% if item.median_volume_ratio is not none %}<dd>{{ '%.2f'|format(item.median_volume_ratio) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
-      <div><dt>法人買賣超的中位數<a class="term-tag" href="/learn#term-institution-flow">法人淨流</a></dt>{% if item.median_institution_net_ratio_pct is not none %}<dd>{{ '%+.2f%%'|format(item.median_institution_net_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>上漲家數的比例</dt>{% if item.get('advancing_ratio_pct') is number %}<dd>{{ '%.1f%%'|format(item.advancing_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>股價在近一個月平均價之上的比例<a class="term-tag" href="/learn#term-breadth">MA20</a></dt>{% if item.get('ma20_breadth_pct') is number %}<dd>{{ '%.1f%%'|format(item.ma20_breadth_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      <div><dt>成交量相對平常的倍數（中位數）<a class="term-tag" href="/learn#term-volume-ratio">量比</a></dt>{% if item.get('median_volume_ratio') is number %}<dd>{{ '%.2f'|format(item.median_volume_ratio) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>
+      {% if market_code|default('TW') == 'TW' %}<div><dt>法人買賣超的中位數<a class="term-tag" href="/learn#term-institution-flow">法人淨流</a></dt>{% if item.get('median_institution_net_ratio_pct') is number %}<dd>{{ '%+.2f%%'|format(item.median_institution_net_ratio_pct) }}</dd>{% else %}<dd><span class="value-unavailable">尚未驗證</span></dd>{% endif %}</div>{% endif %}
     </dl>
-    <div class="industry-attention-heading"><div><h3>關注公司</h3><p>{{ 'AI 五日模型排序' if item.ranking_basis == 'verified_ai_forecast' else '實際動能排序' }}</p></div><span>最多 5 檔</span></div>
+    {% if market_code|default('TW') == 'TW' or item.get('attention_companies') %}<div class="industry-attention-heading"><div><h3>關注公司</h3><p>{{ 'AI 五日模型排序' if item.get('ranking_basis') == 'verified_ai_forecast' else '實際動能排序' }}</p></div><span>最多 5 檔</span></div>
     <div class="industry-company-grid">
-      {% for company in item.attention_companies or [] %}
+      {% for company in item.get('attention_companies') or [] %}
       <a class="industry-company" href="{{ url_for('stock_page', code=company.symbol) }}">
         <span><strong>{{ company.name }} · {{ company.symbol }}</strong><small>{{ '股價在近一個月平均價之上' if company.above_ma20 else '股價在近一個月平均價之下' }} · 成交量 {% if company.volume_ratio is not none %}{{ '%.2f'|format(company.volume_ratio) }} 倍{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}</small></span>
         {% if company.probability_up_pct is defined and company.target_price is defined %}
@@ -47,7 +47,7 @@
       {% else %}
       <p class="empty-state">本次發布沒有足夠資料形成關注名單。</p>
       {% endfor %}
-    </div>
+    </div>{% else %}<p class="empty-state">本次已驗證報告沒有產業關注公司清單。</p>{% endif %}
   </div>
 </details>
 {%- endmacro %}
@@ -62,9 +62,9 @@
 {%- endmacro %}
 
 <div class="page industries-page">
-  <header class="page-header"><div><p class="eyebrow">INDUSTRY ACTUALS</p><h1>產業觀察</h1><p class="page-intro">先依相對大盤的強弱分組，再顯示組內排名。展開才會看到成分股與明細。</p></div></header>
+  {% block industries_heading %}<header class="page-header"><div><p class="eyebrow">INDUSTRY ACTUALS</p><h1>產業觀察</h1><p class="page-intro">先依相對大盤的強弱分組，再顯示組內排名。展開才會看到成分股與明細。</p></div></header>{% endblock %}
   <section class="panel industry-observation-panel" aria-labelledby="industry-title">
-    <div class="section-heading"><div><h2 id="industry-title">產業強弱與關注清單</h2><p>分組門檻：近 5 日相對大盤報酬 +2% 以上為值得注意，−2% 以下為轉弱，之間為相對穩定</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
+    <div class="section-heading"><div><h2 id="industry-title">{{ '產業強弱與資料覆蓋' if market_code|default('TW') == 'US' else '產業強弱與關注清單' }}</h2><p>分組門檻：近 5 日相對大盤報酬 +2% 以上為值得注意，−2% 以下為轉弱，之間為相對穩定</p></div><span class="muted small">資料日 {{ as_of }}</span></div>
     {% if items %}
     {{ industry_group('hot', '值得注意', '近 5 日明顯強於大盤', groups.hot) }}
     {{ industry_group('steady', '相對穩定', '近 5 日與大盤差距在 2% 以內', groups.steady) }}
@@ -75,5 +75,6 @@
     <div class="empty-state">產業觀察資料不足。</div>
     {% endif %}
   </section>
+  {% block industries_extra %}{% endblock %}
 </div>
 {% endblock %}
