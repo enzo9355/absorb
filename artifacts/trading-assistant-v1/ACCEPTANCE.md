@@ -1,7 +1,7 @@
 # 交易助手 v1 驗收（執行期產物）
 
-日期：2026-09-24（Asia/Taipei）。狀態：**LOCAL_VERIFIED（本機產品＋瀏覽器通過；殘留見下）**。
-非 `BETA_READY`（候選版未建、真實推播未驗），更非生產切流。部署前須另行授權（見 RELEASE-CHECKLIST）。
+日期：2026-09-24（Asia/Taipei）。狀態：**LOCAL_VERIFIED＋候選版已建（0% 流量）**。
+非 `BETA_READY`（beta 名單、真實推播未驗），更非生產切流。部署前須另行授權（見 RELEASE-CHECKLIST；A 已執行，B／C／D 待授權）。
 
 ## 基線異動說明
 
@@ -107,7 +107,9 @@ console（`*.console.log`）。網路以狀態檔＋server 存取紀錄為證（
 
 ## 發布清單（不公開完整 ID）
 
-- HEAD：`5986074`（執行期最新；基線 `b56e9f1` 見任務 0 證據）
+- HEAD：`ffda040`（已 push `origin/codex/tw-premarket-verified-overlay`；基線 `b56e9f1` 見任務 0 證據）
+- 候選版：`line-stock-bot-00283-zif`（tag `trading-ffda040`，0% 流量；正式 `00281-qeq` 100% 未動；
+  read-back 見 `CANDIDATE-READBACK.md`，含 health／TW＋US 讀取／401＋no-store／GCS generation）
 - catalog_version：`public-opinions-v2-c2-2026-09-18-x-review`
 - catalog SHA-256（前 16）：`78828183410b33cf`（完整見候選版本 read-back）
 - `ABSORB_TRADING_BETA_USERS`：預設空（關閉）；候選／試用配置須經授權後另行設定，不寫入 repo

@@ -3,10 +3,11 @@
 ## 0. 狀態
 
 - 本機：`LOCAL_VERIFIED`（產品＋本機瀏覽器通過；殘留見 ACCEPTANCE）。非 `BETA_READY`，更非生產切流。
-- HEAD（待 push 審查）：`codex/tw-premarket-verified-overlay`，見 push 後的遠端 SHA。
-- 預設 `ABSORB_TRADING_BETA_USERS` 為空＝關閉；排程未更動。
+- 候選版：**已建**（授權 A，2026-09-24）：revision `line-stock-bot-00283-zif`，
+  tag `trading-ffda040`，0% 流量；read-back 見 `CANDIDATE-READBACK.md`。
+  正式流量仍為 `00281-qeq` 100%，未動。
 
-## 1. 候選版（需授權 A：建候選）
+## 1. 候選版（~~需授權 A：建候選~~ 已執行，見 CANDIDATE-READBACK.md）
 
 按 `docs/deployment_guide.md` 既有流程，保留現行 secrets 對應，另加
 `--no-traffic` 建立零流量候選（以下 `<...>` 部署時填入，不寫入本文件）：
