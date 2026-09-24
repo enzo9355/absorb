@@ -1,5 +1,7 @@
 # 候選版 read-back（授權 A 執行結果）
 
+## 第一版（旧 wiring，plan 預覽 503；已取代，保留紀錄）
+
 - 建候選命令：`gcloud run deploy line-stock-bot --source . --region asia-east1
   --project line-stock-bot-498908 --no-traffic --tag trading-ffda040`
   （未帶 env/secret flags＝保留現行對應；`.gcloudignore` 排除 `.venv` 等；
@@ -18,3 +20,16 @@
 - catalog：`public-opinions-v2-c2-2026-09-18-x-review`（SHA 前 16 `78828183410b33cf`，與本機一致；候選頁已見種子）
 
 下一步需授權 B（beta 名單＋兩個測試帳號）才可繼續；C（排程）、D（切流）亦未授權。
+
+## 第二版（當前；含 verified builder wiring）
+
+- 建候選命令：同 §1，`--tag trading-09fc8e1`，來源＝乾淨 worktree `@09fc8e1`
+  （主工作樹另有他人未提交的 5 檔變更，未納入；見部署紀錄）。
+- 候選 revision：`line-stock-bot-00284-hif`，Ready True，tag `trading-09fc8e1`
+- 候選 URL：`https://trading-09fc8e1---line-stock-bot-3visrvv4yq-de.a.run.app`
+- 流量：`line-stock-bot-00281-qeq` 100%（未動）；`00284-hif` 0%
+- 候選版讀回：
+  - `/health` 200；`/perspectives` 200（種子＋Pelosi pending 皆在）
+  - `/stock/2330` 200；`/stock/INTC` 200
+  - 未登入 `/api/account/trade-plan/US/INTC` 401（路由存在；登入後驗證待單人登入步驟）
+- GCS 指標：沿用前次唯讀值（US `1790098161355678`／TW `1790171279181920`）；本次僅建 container revision，未寫資料。

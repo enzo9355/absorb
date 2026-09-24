@@ -100,8 +100,8 @@ console（`*.console.log`）。網路以狀態檔＋server 存取紀錄為證（
   2. 加入名單後：同上 200、私人殼無他人資料、`GET /api/account/trade-plan/US/INTC` 回真實計畫
   3. 移除名單：恢復 403（退出即停新建議，歷史可讀）
   4. 回饋／匯出僅本人（匯出不含憑證）
-- 生產 wiring 缺口已補（見下）；補完後**候選版須重建**（另行授權，當前 `00283-zif`
-  的 plan 預覽仍為 503）。
+- 生產 wiring 缺口已補（見下）；候選版已重建為 `00284-hif`（零流量，部署源為乾淨
+  worktree `@09fc8e1`；主工作樹他人未提交的 5 檔變更未納入）。
 
 ## 生產快照轉接（2026-09-24 補）
 
@@ -129,8 +129,8 @@ console（`*.console.log`）。網路以狀態檔＋server 存取紀錄為證（
 ## 發布清單（不公開完整 ID）
 
 - HEAD：`ffda040`（已 push `origin/codex/tw-premarket-verified-overlay`；基線 `b56e9f1` 見任務 0 證據）
-- 候選版：`line-stock-bot-00283-zif`（tag `trading-ffda040`，0% 流量；正式 `00281-qeq` 100% 未動；
-  read-back 見 `CANDIDATE-READBACK.md`，含 health／TW＋US 讀取／401＋no-store／GCS generation）
+- 候選版：`line-stock-bot-00284-hif`（tag `trading-09fc8e1`，0% 流量；正式 `00281-qeq` 100% 未動；
+  read-back 見 `CANDIDATE-READBACK.md`，含 health／TW＋US 讀取／401／plan 路由存在；GCS generation）
 - catalog_version：`public-opinions-v2-c2-2026-09-18-x-review`
 - catalog SHA-256（前 16）：`78828183410b33cf`（完整見候選版本 read-back）
 - `ABSORB_TRADING_BETA_USERS`：預設空（關閉）；候選／試用配置須經授權後另行設定，不寫入 repo
