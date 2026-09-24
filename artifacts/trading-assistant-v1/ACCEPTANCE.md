@@ -145,3 +145,18 @@ console（`*.console.log`）。網路以狀態檔＋server 存取紀錄為證（
 
 未授權存取／CSRF／跨帳號／秘密外洩、伪造來源、期權當股票、前視、未知 rights、
 無法保存／去重、通知重送不受控、基線不符、缺發布授權 — 均按 §14.3 停止相關操作。
+
+## 登入事件（2026-09-24）：候選版 OAuth 回调落到正式站
+
+- 現象：使用者在候選版按 LINE 登入，結果頁為我方 400「LINE Login 驗證失敗」。
+- 日誌證據：`line-stock-bot-1067991373149.asia-east1.run.app/auth/line/callback?... 400`
+ （07:09:55Z）— callback 發生在正式網域，非候選網域。
+- 根因：`line_login` 固定送 `config.redirect_uri`（正式網域），LINE  console 也只註冊了
+  正式 callback；候選域設的 oauth cookie 送不到正式域 → state 比對失敗。
+  正式 revision（舊碼、無交易路由）亦無法完成本次驗證。
+- 修復（分支已推，未部署）：`login_callback_hosts` 伺服器 allowlist（預設空＝行為不變）；
+  允許時 login／callback／token 三處釘選同一 request-host URI，中途換 host 即 400；
+  測試 3 項（allowlist 生效／預設不變／中途換 host 擋下）。
+- 待使用者：(1) 批准重建零流量候選（新 tag）；(2) 在 LINE Developers Console 的
+  Login channel 加 `https://trading-<新tag>---line-stock-bot-3visrvv4yq-de.a.run.app/auth/line/callback`；
+  (3) 重試登入。另需 `ABSORB_LOGIN_CALLBACK_HOSTS` 帶該 host（部署時以 env 注入，不進 repo）。

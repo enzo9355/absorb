@@ -418,5 +418,63 @@ class LineLoginTests(unittest.TestCase):
         self.assertIn(resp.status_code, (400, 413))
 
 
+    def _register_with_hosts(self, hosts):
+        from flask import Flask as _Flask
+        from pathlib import Path as _Path
+        app = _Flask(__name__, template_folder=str(_Path(__file__).parents[1] / "templates"))
+        app.config.update(TESTING=True)
+        register_auth_routes(
+            app, config=self.config, auth_store=lambda: self.auth_store,
+            line_store=lambda: self.line_store, search_stock=lambda code: (code, "X"),
+            http_post=self.http.post, now=lambda: NOW,
+            login_callback_hosts=hosts)
+        return app.test_client()
+
+    def test_allowlisted_host_uses_request_host_callback(self):
+        client = self._register_with_hosts(frozenset({"localhost"}))
+        response = client.get("/auth/line/login", query_string={"return_to": "/"})
+        self.assertEqual(response.status_code, 302)
+        location = response.headers["Location"]
+        self.assertIn("redirect_uri=http%3A%2F%2Flocalhost%2Fauth%2Fline%2Fcallback", location)
+        from urllib.parse import parse_qs as _pq, urlparse as _up
+        query = _pq(_up(location).query)
+        self.http.nonce = query["nonce"][0]
+        done = client.get("/auth/line/callback", query_string={
+            "code": "authorization-code", "state": query["state"][0]})
+        self.assertEqual(done.status_code, 302)
+
+    def test_default_host_keeps_configured_callback(self):
+        client = self._register_with_hosts(None)
+        response = client.get("/auth/line/login", query_string={"return_to": "/"})
+        self.assertEqual(response.status_code, 302)
+        from urllib.parse import quote as _quote
+        self.assertIn("redirect_uri=" + _quote(self.config.redirect_uri, safe=""), response.headers["Location"])
+
+    def test_mid_flow_host_switch_fails_closed(self):
+        from stock_papi.services.auth import LineLoginConfig as _Config
+        other = _Config(channel_id="1234567890", channel_secret="channel-secret",
+                        redirect_uri="http://127.0.0.1/auth/line/callback",
+                        session_secret="s" * 32, cookie_secure=False)
+        holder = {"hosts": None}
+        from flask import Flask as _Flask
+        from pathlib import Path as _Path
+        app = _Flask(__name__, template_folder=str(_Path(__file__).parents[1] / "templates"))
+        app.config.update(TESTING=True)
+        register_auth_routes(
+            app, config=other, auth_store=lambda: self.auth_store,
+            line_store=lambda: self.line_store, search_stock=lambda code: (code, "X"),
+            http_post=self.http.post, now=lambda: NOW,
+            login_callback_hosts=lambda: holder["hosts"])
+        client = app.test_client()
+        started = client.get("/auth/line/login", query_string={"return_to": "/"})
+        from urllib.parse import parse_qs as _pq, urlparse as _up
+        query = _pq(_up(started.headers["Location"]).query)
+        self.http.nonce = query["nonce"][0]
+        holder["hosts"] = frozenset({"localhost"})
+        failed = client.get("/auth/line/callback", query_string={
+            "code": "authorization-code", "state": query["state"][0]})
+        self.assertEqual(failed.status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()

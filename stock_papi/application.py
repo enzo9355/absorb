@@ -332,6 +332,13 @@ try:
     trading_beta_users = _beta_users()
 except Exception:
     trading_beta_users = frozenset()
+try:
+    import os as _os
+    login_callback_hosts = frozenset(
+        item.strip().lower() for item in _os.getenv("ABSORB_LOGIN_CALLBACK_HOSTS", "").split(",")
+        if item.strip())
+except Exception:
+    login_callback_hosts = frozenset()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -2719,6 +2726,7 @@ def route_dependencies():
         "load_public_opinions": _load_public_opinions,
         "trading_beta_users": trading_beta_users,
         "trade_plan_builder": build_verified_us_trade_plan,
+        "login_callback_hosts": login_callback_hosts,
         "run_trade_plan_checks": _run_trade_plan_checks,
         "trade_plan_context": lambda: {"enabled": False, "dry_run": True,
             "reason": "trade-plan schedule/push awaits trial authorization; see Task9 release list"},

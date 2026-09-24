@@ -92,6 +92,7 @@ def register_routes(app, dependencies):
         stock_observation=dependencies.get("stock_observation"),
         trading_beta_users=dependencies.get("trading_beta_users"),
         trade_plan_builder=dependencies.get("trade_plan_builder"),
+        login_callback_hosts=dependencies.get("login_callback_hosts"),
     )
     register_conversation_routes(
         app,

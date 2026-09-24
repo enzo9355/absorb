@@ -62,6 +62,7 @@ def register_auth_routes(
     app, *, config, auth_store, line_store, search_stock, http_post, now,
     load_events=None, load_events_status=None, stock_observation=None,
     trading_beta_users=None, trade_plan_builder=None,
+    login_callback_hosts=None,
 ):
     login_attempts = defaultdict(deque)
     login_attempts_lock = threading.Lock()
@@ -176,6 +177,36 @@ def register_auth_routes(
                 "all": [],
             }
 
+    def _callback_hosts():
+        try:
+            hosts = login_callback_hosts() if callable(login_callback_hosts) else login_callback_hosts
+        except Exception:
+            return frozenset()
+        if isinstance(hosts, (set, frozenset)):
+            return frozenset(str(item).strip().lower() for item in hosts if str(item).strip())
+        return frozenset()
+
+    def _callback_redirect_uri():
+        """redirect_uri for this request's host if allowlisted, else configured.
+
+        Default (empty allowlist) preserves existing behavior exactly. The
+        allowlist is server-side config, never user input; callback and token
+        exchange both pin the stored value, so a mid-flow host switch fails
+        closed with the same 400.
+        """
+        try:
+            host = (urlsplit(request.host_url).hostname or "").lower()
+        except Exception:
+            return config.redirect_uri
+        if host and host in _callback_hosts():
+            forwarded = (request.headers.get("X-Forwarded-Proto", "") or "").lower().split(",")[0].strip()
+            secure = bool(request.is_secure or forwarded == "https"
+                          or host in {"localhost", "127.0.0.1"})
+            if secure:
+                scheme = "https" if host not in {"localhost", "127.0.0.1"} else request.scheme
+                return f"{scheme}://{host}/auth/line/callback"
+        return config.redirect_uri
+
     def line_login():
         store, _states = dependencies()
         if store is None:
@@ -189,12 +220,13 @@ def register_auth_routes(
         nonce = secrets.token_urlsafe(32)
         verifier, challenge = create_pkce_pair()
         return_to = safe_return_path(request.args.get("return_to", "/"))
+        redirect_uri = _callback_redirect_uri()
         try:
             store.create_oauth_attempt(state, {
                 "nonce": nonce,
                 "code_verifier": verifier,
                 "return_to": return_to,
-                "redirect_uri": config.redirect_uri,
+                "redirect_uri": redirect_uri,
                 "expires_at": timestamp + datetime.timedelta(seconds=config.oauth_ttl_seconds),
                 "consumed_at": None,
             })
@@ -203,7 +235,7 @@ def register_auth_routes(
         location = AUTHORIZE_URL + "?" + urlencode({
             "response_type": "code",
             "client_id": config.channel_id,
-            "redirect_uri": config.redirect_uri,
+            "redirect_uri": redirect_uri,
             "state": state,
             "scope": "openid profile",
             "nonce": nonce,
@@ -246,7 +278,7 @@ def register_auth_routes(
             attempt = store.consume_oauth_attempt(state, now())
         except Exception:
             return _private(make_response("LINE Login 暫時無法使用", 503))
-        if not isinstance(attempt, dict) or attempt.get("redirect_uri") != config.redirect_uri:
+        if not isinstance(attempt, dict) or attempt.get("redirect_uri") != _callback_redirect_uri():
             return _private(make_response("LINE Login 驗證失敗", 400))
         try:
             token_response = http_post(TOKEN_URL, data={
