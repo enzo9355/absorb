@@ -418,13 +418,13 @@ class LineLoginTests(unittest.TestCase):
         self.assertIn(resp.status_code, (400, 413))
 
 
-    def _register_with_hosts(self, hosts):
+    def _register_with_hosts(self, hosts, config=None):
         from flask import Flask as _Flask
         from pathlib import Path as _Path
         app = _Flask(__name__, template_folder=str(_Path(__file__).parents[1] / "templates"))
         app.config.update(TESTING=True)
         register_auth_routes(
-            app, config=self.config, auth_store=lambda: self.auth_store,
+            app, config=config or self.config, auth_store=lambda: self.auth_store,
             line_store=lambda: self.line_store, search_stock=lambda code: (code, "X"),
             http_post=self.http.post, now=lambda: NOW,
             login_callback_hosts=hosts)
@@ -449,6 +449,30 @@ class LineLoginTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         from urllib.parse import quote as _quote
         self.assertIn("redirect_uri=" + _quote(self.config.redirect_uri, safe=""), response.headers["Location"])
+
+    def test_allowlisted_host_uses_same_redirect_uri_for_token_exchange(self):
+        from stock_papi.services.auth import LineLoginConfig as _Config
+        config = _Config(
+            channel_id="1234567890",
+            channel_secret="channel-secret",
+            redirect_uri="https://prod.example/auth/line/callback",
+            session_secret="s" * 32,
+            cookie_secure=True,
+        )
+        client = self._register_with_hosts(frozenset({"candidate.example"}), config)
+        started = client.get("/auth/line/login", base_url="https://candidate.example")
+        query = parse_qs(urlparse(started.headers["Location"]).query)
+        self.http.nonce = query["nonce"][0]
+
+        callback = client.get("/auth/line/callback", query_string={
+            "code": "authorization-code", "state": query["state"][0]},
+            base_url="https://candidate.example")
+
+        self.assertEqual(callback.status_code, 302)
+        self.assertEqual(
+            self.http.calls[0][1]["redirect_uri"],
+            "https://candidate.example/auth/line/callback",
+        )
 
     def test_mid_flow_host_switch_fails_closed(self):
         from stock_papi.services.auth import LineLoginConfig as _Config

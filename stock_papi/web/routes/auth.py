@@ -285,7 +285,7 @@ def register_auth_routes(
             token_response = http_post(TOKEN_URL, data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": config.redirect_uri,
+                "redirect_uri": attempt["redirect_uri"],
                 "client_id": config.channel_id,
                 "client_secret": config.channel_secret,
                 "code_verifier": attempt["code_verifier"],
