@@ -2,6 +2,7 @@
 
 import datetime
 import hmac
+import logging
 import re
 import secrets
 import threading
@@ -289,6 +290,9 @@ def register_auth_routes(
                 "client_secret": config.channel_secret,
                 "code_verifier": attempt["code_verifier"],
             }, timeout=5)
+            # Diagnosis-only: status code without bodies, params, or secrets.
+            logging.getLogger("auth").warning(
+                "line_token_status=%s", getattr(token_response, "status_code", "unknown"))
             if token_response.status_code != 200:
                 return _private(make_response("LINE Login 暫時無法完成", 503))
             id_token = _safe_json(token_response).get("id_token")
@@ -299,6 +303,8 @@ def register_auth_routes(
                 "client_id": config.channel_id,
                 "nonce": attempt["nonce"],
             }, timeout=5)
+            logging.getLogger("auth").warning(
+                "line_verify_status=%s", getattr(verify_response, "status_code", "unknown"))
             if verify_response.status_code != 200:
                 return _private(make_response("LINE Login 身分驗證失敗", 400))
             profile = verify_line_claims(
