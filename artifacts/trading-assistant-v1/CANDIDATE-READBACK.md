@@ -33,3 +33,20 @@
   - `/stock/2330` 200；`/stock/INTC` 200
   - 未登入 `/api/account/trade-plan/US/INTC` 401（路由存在；登入後驗證待單人登入步驟）
 - GCS 指標：沿用前次唯讀值（US `1790098161355678`／TW `1790171279181920`）；本次僅建 container revision，未寫資料。
+
+## 第三版（當前；allowlist callback 修復）
+
+- 建候選命令：同 §1，`--tag trading-35898b1`，外加
+  `--update-env-vars ABSORB_LOGIN_CALLBACK_HOSTS=trading-35898b1---line-stock-bot-3visrvv4yq-de.a.run.app`
+  （其餘 env／secrets 原樣保留；beta 名單仍空）。
+- 部署源為乾淨 worktree `@35898b1`；主工作樹他人未提交變更未納入。
+- 候選 revision：`line-stock-bot-00285-goc`，Ready，tag `trading-35898b1`
+- 候選 URL：`https://trading-35898b1---line-stock-bot-3visrvv4yq-de.a.run.app`
+- 流量：`line-stock-bot-00281-qeq` 100%（未動）；`00285-goc` 0%
+- 候選版讀回：
+  - `/health` 200；`/perspectives` 200（種子在）；`/stock/2330`、`/stock/INTC` 200（沿用前版方法）
+  - `/auth/line/login` 302，其 authorize `redirect_uri` 已為候選 host
+    （allowlist wiring 線上生效；正式站預設行為不變）
+- 待使用者：在 LINE Developers Console 的 Login channel 加
+  `https://trading-35898b1---line-stock-bot-3visrvv4yq-de.a.run.app/auth/line/callback`，
+  然後重按登入（單人驗證步驟見 ACCEPTANCE）。
