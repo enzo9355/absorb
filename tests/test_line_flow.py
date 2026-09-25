@@ -1491,6 +1491,116 @@ class ScheduledAlertRouteTests(unittest.TestCase):
         self.assertEqual(checker.call_args.kwargs["allowed_users"], context["allowed_users"])
         self.assertFalse(checker.call_args.kwargs["dry_run"])
 
+        checker.return_value = {"scanned_plans": 1, "new_events": 0, "failures": 1}
+        failed = app.test_client().post(
+            "/tasks/check-trade-plans", headers={"Authorization": "Bearer secret"},
+        )
+        self.assertEqual(failed.status_code, 500)
+        self.assertIn("failures=1", failed.get_data(as_text=True))
+
+    def test_trade_plan_push_uri_uses_candidate_https_origin(self):
+        from flask import Flask
+        from stock_papi.integrations.line.webhook import register_line_routes
+
+        app = Flask(__name__)
+        user_id = "U" + "a" * 32
+        messages = []
+
+        def checker(_store, _loader, **kwargs):
+            kwargs["push_fn"](
+                user_id,
+                {"event_id": "event-1", "event_type": "invalidated",
+                 "new_status": "invalidated", "reasons": ["條件失效"]},
+                {"symbol": "INTC", "data_as_of": "2026-09-23"},
+            )
+            return {"scanned_plans": 1, "new_events": 1, "failures": 0}
+
+        context = {
+            "enabled": True, "dry_run": False, "allowed_users": frozenset({user_id}),
+            "load_snapshot": lambda *_args: None, "now": "2026-09-24T14:00:00Z",
+            "calendar": {"sessions": ["2026-09-23"]}, "expected_session": "2026-09-23",
+            "push_fn": lambda _uid, contents, _key: messages.append(contents),
+        }
+        register_line_routes(
+            app, handler=Mock(), get_line_bot_api=lambda: None,
+            get_line_store=lambda: object(), get_broadcast_token=lambda: "",
+            get_alert_task_token=lambda: "secret", analyze=lambda _code: None,
+            get_broadcast_insight=lambda *_args: "", refresh_sector_signals=lambda *_args: {},
+            run_alert_checks=Mock(), run_trade_plan_checks=checker,
+            trade_plan_context=lambda: context,
+        )
+
+        def capture_delivery(_store, _user_id, _event_id, _plan, *, build_flex, **_kwargs):
+            messages.append(build_flex(
+                reason="條件失效", data_as_of="2026-09-23", status="invalidated",
+                plan_url="/account/trading", symbol="INTC"))
+
+        with patch("stock_papi.integrations.line.notifications.deliver_trade_plan_event",
+                   side_effect=capture_delivery):
+            response = app.test_client().post(
+                "/tasks/check-trade-plans",
+                headers={"Authorization": "Bearer secret"},
+                base_url="https://trading-candidate.example",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        message = next(item for item in messages if isinstance(item, dict))
+        uris = []
+
+        def collect(value):
+            if isinstance(value, dict):
+                if value.get("type") == "uri":
+                    uris.append(value.get("uri"))
+                for child in value.values():
+                    collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+
+        collect(message)
+        self.assertIn("https://trading-candidate.example/account/trading", uris)
+
+    def test_retryable_line_push_failure_marks_trade_plan_task_failed(self):
+        from flask import Flask
+        from stock_papi.integrations.line.webhook import register_line_routes
+
+        app = Flask(__name__)
+        user_id = "U" + "a" * 32
+
+        def checker(_store, _loader, **kwargs):
+            try:
+                kwargs["push_fn"](
+                    user_id, {"event_id": "event-1", "reasons": ["條件失效"]},
+                    {"symbol": "INTC", "data_as_of": "2026-09-23"})
+            except Exception:
+                return {"scanned_plans": 1, "new_events": 1, "failures": 1}
+            return {"scanned_plans": 1, "new_events": 1, "failures": 0}
+
+        context = {
+            "enabled": True, "dry_run": False, "allowed_users": frozenset({user_id}),
+            "load_snapshot": lambda *_args: None, "now": "2026-09-24T14:00:00Z",
+            "calendar": {"sessions": ["2026-09-23"]}, "expected_session": "2026-09-23",
+            "push_fn": Mock(),
+        }
+        register_line_routes(
+            app, handler=Mock(), get_line_bot_api=lambda: None,
+            get_line_store=lambda: object(), get_broadcast_token=lambda: "",
+            get_alert_task_token=lambda: "secret", analyze=lambda _code: None,
+            get_broadcast_insight=lambda *_args: "", refresh_sector_signals=lambda *_args: {},
+            run_alert_checks=Mock(), run_trade_plan_checks=checker,
+            trade_plan_context=lambda: context,
+        )
+
+        with patch("stock_papi.integrations.line.notifications.deliver_trade_plan_event",
+                   return_value="failed"):
+            response = app.test_client().post(
+                "/tasks/check-trade-plans",
+                headers={"Authorization": "Bearer secret"},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("failures=1", response.get_data(as_text=True))
+
 
 class TradePlanTaskRuntimeContextTests(unittest.TestCase):
     def test_empty_beta_allowlist_keeps_trade_plan_checks_disabled(self):

@@ -233,7 +233,8 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
             continue
 
         # Normal mode: single store.update per user (CAS retry dedupes).
-        def _mutate(current, _saved=saved, _uid=user_id):
+        pending_pushes = {}
+        def _mutate(current, _saved=saved):
             current_assistant = current.get("assistant") if isinstance(current, dict) else None
             if not isinstance(current_assistant, dict):
                 return
@@ -249,6 +250,14 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
                 plan_id = str(entry.get("plan_id") or plan.get("plan_id") or "")
                 if not plan_id or _is_cancelled(current_assistant, plan_id):
                     continue
+                if callable(push_fn):
+                    for existing in current_assistant.get("events") or []:
+                        if not isinstance(existing, dict) or existing.get("plan_id") != plan_id:
+                            continue
+                        delivery = existing.get("delivery") or {}
+                        status = str(delivery.get("status") or existing.get("delivery_status") or "")
+                        if status in {"pending", "failed"} and existing.get("event_id"):
+                            pending_pushes[existing["event_id"]] = (dict(existing), dict(plan))
                 # Per-session catch-up: evaluate each new session in order.
                 start_from = str(plan.get("data_as_of") or "")
                 targets = _sessions_between(calendar, start_from, expected) or [expected]
@@ -303,6 +312,8 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
                     record.setdefault("created_at", now_dt.isoformat().replace("+00:00", "Z"))
                     if _has_event_id(current_assistant, record.get("event_id")):
                         continue
+                    if callable(push_fn):
+                        record.setdefault("delivery", {"status": "pending"})
                     if len(current_assistant.get("events") or []) >= 200:
                         summary["failures"] += 1
                         continue
@@ -310,13 +321,35 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
                     summary["new_events"] += 1
                     summary["scanned_plans"] += 1
                     if callable(push_fn):
-                        try:
-                            push_fn(_uid, dict(record), dict(plan))
-                        except Exception:
-                            summary["failures"] += 1
+                        pending_pushes[record["event_id"]] = (dict(record), dict(plan))
 
         try:
             store.update(user_id, _mutate)
         except Exception:
             summary["failures"] += 1
+            continue
+        if callable(push_fn) and pending_pushes:
+            try:
+                persisted, _version = store.load(user_id)
+                assistant = persisted.get("assistant") if isinstance(persisted, dict) else None
+                persisted_events = assistant.get("events") if isinstance(assistant, dict) else []
+                persisted_by_id = {
+                    event.get("event_id"): event for event in persisted_events
+                    if isinstance(event, dict) and event.get("event_id")
+                }
+            except Exception:
+                summary["failures"] += 1
+                continue
+            for event_id, (record, plan) in pending_pushes.items():
+                persisted_event = persisted_by_id.get(event_id)
+                if persisted_event is None:
+                    continue
+                delivery = persisted_event.get("delivery") or {}
+                status = str(delivery.get("status") or persisted_event.get("delivery_status") or "")
+                if status not in {"pending", "failed"}:
+                    continue
+                try:
+                    push_fn(user_id, record, plan)
+                except Exception:
+                    summary["failures"] += 1
     return summary

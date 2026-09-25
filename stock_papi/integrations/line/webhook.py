@@ -35,12 +35,25 @@ def register_line_routes(
 
         def trade_push(user_id, record, plan):
             from stock_papi.integrations.line.notifications import deliver_trade_plan_event
-            deliver_trade_plan_event(
+
+            build_flex = context.get("build_flex")
+            if not callable(build_flex):
+                def build_flex(**kwargs):
+                    from stock_papi.integrations.line.flex import build_trade_plan_push_flex
+                    kwargs["plan_url"] = (
+                        request.host_url.replace("http://", "https://").rstrip("/")
+                        + "/account/trading"
+                    )
+                    return build_trade_plan_push_flex(**kwargs)
+
+            status = deliver_trade_plan_event(
                 store, user_id, record.get("event_id"), plan,
                 allowed_users=context.get("allowed_users") or frozenset(),
                 push_fn=context.get("push_fn") or (lambda uid, contents, key: push(uid, contents)),
-                build_flex=context.get("build_flex"),
+                build_flex=build_flex,
             )
+            if status == "failed":
+                raise RuntimeError("交易計畫推播被 LINE 拒絕")
 
         return checker(
             store, context.get("load_snapshot"),
@@ -176,7 +189,7 @@ def register_line_routes(
             f"scanned_plans={summary.get('scanned_plans', 0)} "
             f"new_events={summary.get('new_events', 0)} "
             f"failures={summary.get('failures', 0)}",
-            200,
+            500 if summary.get("failures", 0) else 200,
         )
 
     app.add_url_rule(

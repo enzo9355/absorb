@@ -1,4 +1,5 @@
 import hashlib
+import copy
 import unittest
 from datetime import datetime, timezone
 
@@ -128,6 +129,139 @@ class TradePlanChecksTests(unittest.TestCase):
                   if e.get("event_type") == "invalidated"]
         self.assertLessEqual(len(events), 1)
         self.assertEqual(out["new_events"], 0 if events else out["new_events"])
+
+    def test_push_runs_only_after_event_is_persisted(self):
+        class CopyOnUpdateStore(FakeStore):
+            def load(self, user_id):
+                return copy.deepcopy(self.users[user_id]), "v1"
+
+            def iter_users(self):
+                for user_id, state in self.users.items():
+                    yield user_id, copy.deepcopy(state), "v1"
+
+            def update(self, user_id, mutate):
+                working = copy.deepcopy(self.users[user_id])
+                mutate(working)
+                self.users[user_id] = working
+                return working
+
+        plan, snap, cal = _plan_and_calendar()
+        store = CopyOnUpdateStore()
+        state = empty_state()
+        trade_plans.apply_assistant_command(
+            state, {"action": "save_plan", "market": plan["market"],
+                    "symbol": plan["symbol"], "expected_plan_id": plan["plan_id"],
+                    "evidence_ids": [], "position_context": "unheld",
+                    "request_id": "00000000-0000-4000-8000-000000000102"},
+            now=datetime(2026, 9, 3, 2, 0, tzinfo=timezone.utc), verified_plan=plan)
+        store.add_user(USER_A, state)
+        sessions = cal["sessions"]
+        next_session = sessions[sessions.index(snap["as_of"]) + 1]
+        invalid = dict(snap)
+        invalid["daily"] = [dict(row) for row in snap["daily"]]
+        row = dict(invalid["daily"][-1])
+        row["date"] = next_session
+        row["close"] = plan["conditions"]["invalidation_price"] - 1.0
+        row["open"] = row["close"] - 0.1
+        row["high"] = row["close"] + 0.2
+        row["low"] = row["close"] - 0.4
+        invalid["daily"] = invalid["daily"][1:] + [row]
+        invalid["as_of"] = next_session
+        invalid["source_snapshot_sha256"] = hashlib.sha256(b"persist-before-push").hexdigest()
+        snapshots = {snap["as_of"]: snap, next_session: invalid}
+        observed = []
+
+        def _push(user_id, event, _plan):
+            persisted, _ = store.load(user_id)
+            event_ids = {item.get("event_id") for item in persisted["assistant"]["events"]}
+            observed.append(event["event_id"] in event_ids)
+
+        result = run_trade_plan_checks(
+            store, lambda _market, _symbol, session=None: snapshots.get(session),
+            now=datetime(2026, 9, 4, 1, 0, tzinfo=timezone.utc), calendar=cal,
+            expected_session=next_session, allowed_users=frozenset({USER_A}),
+            push_fn=_push, dry_run=False)
+
+        self.assertEqual(result["new_events"], 1)
+        self.assertEqual(observed, [True])
+
+    def test_push_is_not_attempted_when_event_update_fails(self):
+        class FailingCopyStore(FakeStore):
+            def load(self, user_id):
+                return copy.deepcopy(self.users[user_id]), "v1"
+
+            def iter_users(self):
+                for user_id, state in self.users.items():
+                    yield user_id, copy.deepcopy(state), "v1"
+
+            def update(self, user_id, mutate):
+                working = copy.deepcopy(self.users[user_id])
+                mutate(working)
+                raise RuntimeError("store unavailable")
+
+        plan, snap, cal = _plan_and_calendar()
+        store = FailingCopyStore()
+        state = empty_state()
+        trade_plans.apply_assistant_command(
+            state, {"action": "save_plan", "market": plan["market"],
+                    "symbol": plan["symbol"], "expected_plan_id": plan["plan_id"],
+                    "evidence_ids": [], "position_context": "unheld",
+                    "request_id": "00000000-0000-4000-8000-000000000103"},
+            now=datetime(2026, 9, 3, 2, 0, tzinfo=timezone.utc), verified_plan=plan)
+        store.add_user(USER_A, state)
+        sessions = cal["sessions"]
+        next_session = sessions[sessions.index(snap["as_of"]) + 1]
+        invalid = dict(snap)
+        invalid["daily"] = [dict(row) for row in snap["daily"]]
+        row = dict(invalid["daily"][-1])
+        row["date"] = next_session
+        row["close"] = plan["conditions"]["invalidation_price"] - 1.0
+        row["open"] = row["close"] - 0.1
+        row["high"] = row["close"] + 0.2
+        row["low"] = row["close"] - 0.4
+        invalid["daily"] = invalid["daily"][1:] + [row]
+        invalid["as_of"] = next_session
+        invalid["source_snapshot_sha256"] = hashlib.sha256(b"failed-before-push").hexdigest()
+        snapshots = {snap["as_of"]: snap, next_session: invalid}
+        pushed = []
+
+        result = run_trade_plan_checks(
+            store, lambda _market, _symbol, session=None: snapshots.get(session),
+            now=datetime(2026, 9, 4, 1, 0, tzinfo=timezone.utc), calendar=cal,
+            expected_session=next_session, allowed_users=frozenset({USER_A}),
+            push_fn=lambda *_args: pushed.append(True), dry_run=False)
+
+        self.assertEqual(result["failures"], 1)
+        self.assertEqual(pushed, [])
+
+    def test_pending_push_survives_temporary_post_commit_read_failure(self):
+        plan, snap, cal = _plan_and_calendar()
+        store, _saved_plan, event, _beta = self._delivery_store_with_event(enabled=True)
+        event["delivery"] = {"status": "pending"}
+        real_load = store.load
+        failed = [False]
+
+        def _load_once(user_id):
+            if not failed[0]:
+                failed[0] = True
+                raise RuntimeError("temporary read failure")
+            return real_load(user_id)
+
+        store.load = _load_once
+        pushed = []
+        check = lambda: run_trade_plan_checks(
+            store, lambda _market, _symbol, session=None: snap if session == snap["as_of"] else None,
+            now=datetime(2026, 9, 4, 1, 0, tzinfo=timezone.utc), calendar=cal,
+            expected_session=snap["as_of"], allowed_users=frozenset({USER_A}),
+            push_fn=lambda _uid, record, _plan: pushed.append(record["event_id"]),
+            dry_run=False)
+
+        first = check()
+        second = check()
+
+        self.assertEqual(first["failures"], 1)
+        self.assertEqual(second["failures"], 0)
+        self.assertEqual(pushed, [event["event_id"]])
 
     def test_source_revision_expiry_halt_and_full_events_fail_visible(self):
         sessions = plan_fixtures._sessions(count=90)
