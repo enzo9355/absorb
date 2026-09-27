@@ -14,6 +14,7 @@ from flask import (
 )
 
 from line_state import StateError, add_watch, remove_watch
+from stock_papi.config.capabilities import trading_push_enabled_from_environment
 from stock_papi.services.auth import (
     create_pkce_pair,
     safe_return_path,
@@ -528,7 +529,8 @@ def register_auth_routes(
         _user_id, allowed = _trading_principal(session)
         if not allowed:
             response = make_response(render_template("account_trading.html",
-                csrf_token=session["csrf_token"], trading_locked=True))
+                csrf_token=session["csrf_token"], trading_locked=True,
+                trading_push_enabled=trading_push_enabled_from_environment()))
             response.status_code = 403
             return _private(response)
         try:
@@ -538,7 +540,8 @@ def register_auth_routes(
         from line_state import empty_assistant as _empty_assistant
         response = make_response(render_template("account_trading.html",
             user=_public_user(user or {}), csrf_token=session["csrf_token"],
-            trading_locked=False))
+            trading_locked=False,
+            trading_push_enabled=trading_push_enabled_from_environment()))
         return _private(response)
 
     def trading_api():
@@ -638,6 +641,9 @@ def register_auth_routes(
         if _has_nonfinite(body):
             return _private(jsonify({"error": "non-finite number"})), 400
         action = body.get("action")
+        if (action == "set_notifications" and body.get("enabled") is True
+                and not trading_push_enabled_from_environment()):
+            return _private(jsonify({"error": "trading push disabled"})), 403
         verified_plan = None
         if action == "save_plan":
             builder_fn = trade_plan_builder

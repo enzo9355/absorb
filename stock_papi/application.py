@@ -755,6 +755,7 @@ def build_verified_us_trade_plan(market, symbol, evidence_ids):
 
 
 def _trade_plan_check_context():
+    from stock_papi.config.capabilities import trading_push_enabled_from_environment
     allowed_users = frozenset(trading_beta_users)
     if not allowed_users:
         return {"enabled": False, "dry_run": True, "allowed_users": allowed_users}
@@ -801,6 +802,7 @@ def _trade_plan_check_context():
 
     return {
         "enabled": True, "dry_run": False, "allowed_users": allowed_users,
+        "push_enabled": trading_push_enabled_from_environment(),
         "load_snapshot": load_snapshot, "now": utc_now(), "calendar": calendar,
         "expected_session": expected_date.isoformat(),
     }

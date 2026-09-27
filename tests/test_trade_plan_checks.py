@@ -89,6 +89,17 @@ class TradePlanChecksTests(unittest.TestCase):
             allowed_users=frozenset({USER_A}), dry_run=False)
         self.assertEqual(second["new_events"], 0)
 
+    def test_public_access_scans_saved_plans_without_push(self):
+        plan, snap, cal = _plan_and_calendar()
+        store = self._store_with_plan(plan)
+        summary = run_trade_plan_checks(
+            store, lambda _market, _symbol, _session: snap,
+            now=datetime(2026, 9, 3, 3, 0, tzinfo=timezone.utc),
+            calendar=cal, expected_session=snap["as_of"],
+            allowed_users=frozenset({"*"}), push_fn=None, dry_run=True)
+        self.assertEqual(summary["scanned_users"], 1)
+        self.assertEqual(summary["scanned_plans"], 1)
+
     def test_two_workers_do_not_duplicate(self):
         plan, snap, cal = _plan_and_calendar()
         store = self._store_with_plan(plan)

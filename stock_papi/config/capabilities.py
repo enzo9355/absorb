@@ -33,13 +33,20 @@ def conditional_advice_allowed(principal: str, allowed_users: frozenset[str]) ->
     user_id = principal[5:]
     if re.fullmatch(r"U[0-9A-Za-z]{16,64}", user_id or "") is None:
         return False
-    return user_id in allowed_users
+    return user_id in allowed_users or "*" in allowed_users
 
 
 def trading_beta_users_from_environment() -> frozenset[str]:
     raw = os.getenv("ABSORB_TRADING_BETA_USERS", "")
     users = {item.strip() for item in raw.split(",") if item.strip()}
+    users.discard("*")
+    if os.getenv("ABSORB_TRADING_PUBLIC_ENABLED", "").strip().lower() in _TRUE_VALUES:
+        users.add("*")
     return frozenset(users)
+
+
+def trading_push_enabled_from_environment() -> bool:
+    return os.getenv("ABSORB_TRADING_PUSH_ENABLED", "").strip().lower() in _TRUE_VALUES
 
 
 @dataclass(frozen=True)

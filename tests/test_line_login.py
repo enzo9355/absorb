@@ -381,6 +381,21 @@ class LineLoginTests(unittest.TestCase):
             headers={"X-CSRF-Token": "wrong"})
         self.assertEqual(resp2.status_code, 403)
 
+    def test_public_trading_allows_login_but_rejects_push_opt_in(self):
+        client = self._register_trading(beta_users=frozenset({"*"}))
+        self._login_client(client, sub=USER_ID)
+        session = next(iter(self.auth_store.sessions.values()))
+        page = client.get("/account/trading")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("LINE 推播目前停用".encode(), page.data)
+        self.assertNotIn(b"data-notify-form", page.data)
+        self.assertEqual(client.get("/api/account/trading").status_code, 200)
+        response = client.post("/api/account/trading", json={
+            "action": "set_notifications", "enabled": True,
+            "request_id": "00000000-0000-4000-8000-000000000033"},
+            headers={"X-CSRF-Token": session["csrf_token"]})
+        self.assertEqual(response.status_code, 403)
+
     def test_save_plan_rejects_forged_ids_and_stale_plan(self):
         import hashlib as _hl
         from datetime import datetime as _dt, timezone as _tz

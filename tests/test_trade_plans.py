@@ -4,7 +4,10 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from stock_papi.config.capabilities import PredictionCapabilityState, conditional_advice_allowed
+from stock_papi.config.capabilities import (
+    PredictionCapabilityState, conditional_advice_allowed,
+    trading_beta_users_from_environment, trading_push_enabled_from_environment,
+)
 from stock_papi.services import trade_plans
 
 
@@ -254,6 +257,18 @@ class TradePlanRuleTests(unittest.TestCase):
         self.assertFalse(conditional_advice_allowed("line:U" + "b" * 32, frozenset()))
         self.assertFalse(conditional_advice_allowed("line:U" + "b" * 32, frozenset({"U" + "c" * 32})))
         self.assertFalse(conditional_advice_allowed("web:abc", frozenset({"abc"})))
+        self.assertTrue(conditional_advice_allowed("line:U" + "b" * 32, frozenset({"*"})))
+        self.assertFalse(conditional_advice_allowed("public:test", frozenset({"*"})))
+
+    def test_public_access_requires_explicit_environment_switch(self):
+        with patch.dict(os.environ, {"ABSORB_TRADING_PUBLIC_ENABLED": "false",
+                                     "ABSORB_TRADING_BETA_USERS": "*"}):
+            self.assertEqual(trading_beta_users_from_environment(), frozenset())
+        with patch.dict(os.environ, {"ABSORB_TRADING_PUBLIC_ENABLED": "true",
+                                     "ABSORB_TRADING_BETA_USERS": ""}):
+            self.assertEqual(trading_beta_users_from_environment(), frozenset({"*"}))
+        with patch.dict(os.environ, {"ABSORB_TRADING_PUSH_ENABLED": "false"}):
+            self.assertFalse(trading_push_enabled_from_environment())
 
 
 if __name__ == "__main__":

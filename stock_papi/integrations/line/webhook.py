@@ -60,7 +60,8 @@ def register_line_routes(
             now=context.get("now"), calendar=context.get("calendar"),
             expected_session=context.get("expected_session"),
             allowed_users=context.get("allowed_users") or frozenset(),
-            push_fn=trade_push, dry_run=bool(context.get("dry_run", False)),
+            push_fn=trade_push if context.get("push_enabled", False) else None,
+            dry_run=bool(context.get("dry_run", False)),
         )
 
     def broadcast_weekly():

@@ -1498,6 +1498,26 @@ class ScheduledAlertRouteTests(unittest.TestCase):
         self.assertEqual(failed.status_code, 500)
         self.assertIn("failures=1", failed.get_data(as_text=True))
 
+    def test_trade_plan_task_can_record_events_without_push(self):
+        from flask import Flask
+        from stock_papi.integrations.line.webhook import register_line_routes
+
+        app = Flask(__name__)
+        checker = Mock(return_value={"scanned_plans": 1, "new_events": 1, "failures": 0})
+        register_line_routes(
+            app, handler=Mock(), get_line_bot_api=lambda: None,
+            get_line_store=lambda: object(), get_broadcast_token=lambda: "",
+            get_alert_task_token=lambda: "secret", analyze=lambda _code: None,
+            get_broadcast_insight=lambda *_args: "", refresh_sector_signals=lambda *_args: {},
+            run_alert_checks=Mock(), run_trade_plan_checks=checker,
+            trade_plan_context={"enabled": True, "dry_run": False,
+                                "allowed_users": frozenset({"*"}), "push_enabled": False},
+        )
+        response = app.test_client().post(
+            "/tasks/check-trade-plans", headers={"Authorization": "Bearer secret"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(checker.call_args.kwargs["push_fn"])
+
     def test_trade_plan_push_uri_uses_candidate_https_origin(self):
         from flask import Flask
         from stock_papi.integrations.line.webhook import register_line_routes
@@ -1517,6 +1537,7 @@ class ScheduledAlertRouteTests(unittest.TestCase):
 
         context = {
             "enabled": True, "dry_run": False, "allowed_users": frozenset({user_id}),
+            "push_enabled": True,
             "load_snapshot": lambda *_args: None, "now": "2026-09-24T14:00:00Z",
             "calendar": {"sessions": ["2026-09-23"]}, "expected_session": "2026-09-23",
             "push_fn": lambda _uid, contents, _key: messages.append(contents),
@@ -1578,6 +1599,7 @@ class ScheduledAlertRouteTests(unittest.TestCase):
 
         context = {
             "enabled": True, "dry_run": False, "allowed_users": frozenset({user_id}),
+            "push_enabled": True,
             "load_snapshot": lambda *_args: None, "now": "2026-09-24T14:00:00Z",
             "calendar": {"sessions": ["2026-09-23"]}, "expected_session": "2026-09-23",
             "push_fn": Mock(),

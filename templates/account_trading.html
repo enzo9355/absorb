@@ -46,8 +46,12 @@
   <section class="panel" aria-label="變動提醒">
     <div class="section-heading"><div><p class="eyebrow">EVENTS</p><h2>變動</h2></div></div>
     <div data-events><p class="empty-state">載入中…</p></div>
+    {% if trading_push_enabled %}
     <form data-notify-form><label><input type="checkbox" data-notify-toggle> 開啟 LINE 通知（自願）</label>
     <button class="button button-secondary" type="submit">儲存通知設定</button></form>
+    {% else %}
+    <p class="muted small">交易助手 LINE 推播目前停用；條件變動只記錄在這裡。</p>
+    {% endif %}
   </section>
 
   <section class="panel" aria-label="回饋">

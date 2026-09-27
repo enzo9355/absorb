@@ -167,6 +167,7 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
                           expected_session, allowed_users,
                           push_fn=None, dry_run=True):
     """每個 plan／snapshot 最多處理一次，回掃描／變更／失敗計數。"""
+    from stock_papi.config.capabilities import conditional_advice_allowed
     from stock_papi.services.trade_plans import evaluate_trade_plan as _evaluate
     now_dt = _aware(now)
     expected = _parse_session(expected_session)
@@ -186,7 +187,7 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
     except Exception:
         users = []
     for user_id, state, _version in users:
-        if user_id not in allowed:
+        if not conditional_advice_allowed(f"line:{user_id}", allowed):
             continue
         summary["scanned_users"] += 1
         assistant = state.get("assistant") if isinstance(state, dict) else None
