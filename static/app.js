@@ -893,6 +893,40 @@ async function loadTradingState() {
           `計畫 ${entry.plan_id || plan.plan_id || ""}｜資料日 ${plan.data_as_of || ""}｜失效檢查 ${((plan.conditions || {}).invalidation_price ?? "")}`);
         card.appendChild(title);
         card.appendChild(meta);
+        const planId = entry.plan_id || plan.plan_id;
+        const cancelled = (assistant.events || []).some((ev) =>
+          (ev.action === "cancel_plan" && (ev.detail || {}).plan_id === planId) ||
+          (ev.event_type === "cancelled" && ev.plan_id === planId));
+        if (cancelled) {
+          card.appendChild(element("p", "muted small", "已取消追蹤；原始計畫與紀錄保留。"));
+        } else {
+          const label = element("label", null, "自行標記持有狀態（不代表成交）：");
+          const position = element("select");
+          [["unheld", "未持有"], ["held", "已持有"]].forEach(([value, text]) => {
+            const option = element("option", null, text);
+            option.value = value;
+            position.appendChild(option);
+          });
+          position.value = entry.position_context || "unheld";
+          position.addEventListener("change", async () => {
+            position.disabled = true;
+            const result = await tradingPost({action: "set_position_context", plan_id: planId,
+              position_context: position.value, request_id: tradingUuid()});
+            if (result) await loadTradingState();
+            else position.value = entry.position_context || "unheld";
+            position.disabled = false;
+          });
+          label.appendChild(position);
+          card.appendChild(label);
+          const cancel = element("button", "button button-secondary", "取消追蹤此計畫");
+          cancel.type = "button";
+          cancel.addEventListener("click", async () => {
+            cancel.disabled = true;
+            if (await tradingPost({action: "cancel_plan", plan_id: planId, request_id: tradingUuid()})) await loadTradingState();
+            cancel.disabled = false;
+          });
+          card.appendChild(cancel);
+        }
         plans.appendChild(card);
       });
     }
@@ -905,7 +939,7 @@ async function loadTradingState() {
       events.appendChild(emptyState("尚無變動。"));
     } else {
       list.slice(-10).reverse().forEach((ev) => {
-        events.appendChild(element("div", "event-row", `${ev.action || ""} · ${ev.created_at || ""}`));
+        events.appendChild(element("div", "event-row", `${ev.action || ev.event_type || ""} · ${ev.created_at || ""}`));
       });
     }
   }
