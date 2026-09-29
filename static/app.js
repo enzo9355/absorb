@@ -856,7 +856,11 @@ async function loadTradingState() {
     if (response.ok) data = await response.json();
   } catch (err) { data = null; }
   const assistant = (data && data.assistant) || null;
-  if (!assistant) return;
+  if (!assistant) {
+    root.querySelectorAll("[data-follow-lists], [data-saved-plans], [data-followup], [data-events]")
+      .forEach((section) => section.replaceChildren(emptyState("資料暫時無法載入，請重新整理。")));
+    return;
+  }
   const pref = bySelector("[data-preference-form]");
   if (pref && assistant.view_preference) {
     const radio = pref.querySelector(`input[value="${assistant.view_preference}"]`);
@@ -902,6 +906,31 @@ async function loadTradingState() {
     } else {
       list.slice(-10).reverse().forEach((ev) => {
         events.appendChild(element("div", "event-row", `${ev.action || ""} · ${ev.created_at || ""}`));
+      });
+    }
+  }
+  const followup = bySelector("[data-followup]");
+  if (followup) {
+    followup.replaceChildren();
+    const report = data.followup;
+    if (!report) {
+      followup.appendChild(emptyState("後續資料暫時無法評估。"));
+    } else {
+      const counts = report.counts;
+      followup.appendChild(element("p", "muted small",
+        `總計畫 ${counts.total}｜可評估 ${counts.ready}｜未成熟 ${counts.watching}｜缺資料 ${counts.unavailable}｜未觸發 ${counts.not_triggered}`));
+      const labels = {ready: "可評估", watching: "觀察中", unavailable: "缺資料", not_triggered: "尚未有效觸發"};
+      const planStates = {watching: "等待", triggered: "已觸發", expired: "到期", invalidated: "失效", completed: "觀察完成"};
+      (report.plans || []).forEach((row) => {
+        const card = element("article", "trade-plan-card");
+        card.appendChild(element("h3", null, `${row.symbol || ""} · ${labels[row.status]}${row.cancelled ? "（已取消，保留紀錄）" : ""}`));
+        card.appendChild(element("p", "muted small", `計畫狀態：${planStates[row.plan_status] || "等待"}`));
+        if (row.reference_open != null) card.appendChild(element("p", "muted small", `參考日 ${row.reference_session}｜原始開盤價 ${row.reference_open}`));
+        [5, 20].forEach((day) => {
+          const leg = row[`day${day}`];
+          if (leg) card.appendChild(element("p", null, `第 ${day} 交易日：${leg.state === "ready" ? `${(leg.change * 100).toFixed(2)}%` : leg.state === "watching" ? "觀察中" : "缺資料"}`));
+        });
+        followup.appendChild(card);
       });
     }
   }

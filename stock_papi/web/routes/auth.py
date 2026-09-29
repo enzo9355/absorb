@@ -63,7 +63,7 @@ def _public_user(value):
 def register_auth_routes(
     app, *, config, auth_store, line_store, search_stock, http_post, now,
     load_events=None, load_events_status=None, stock_observation=None,
-    trading_beta_users=None, trade_plan_builder=None,
+    trading_beta_users=None, trade_plan_builder=None, trading_followup=None,
     login_callback_hosts=None,
 ):
     login_attempts = defaultdict(deque)
@@ -568,7 +568,11 @@ def register_auth_routes(
                 assistant = _empty_assistant()
             except Exception:
                 assistant = None
-        return _private(jsonify({"assistant": assistant}))
+        try:
+            followup = trading_followup(assistant) if callable(trading_followup) else None
+        except Exception:
+            followup = None
+        return _private(jsonify({"assistant": assistant, "followup": followup}))
 
     def trading_export():
         store, states = dependencies()

@@ -132,6 +132,8 @@ def compute_followup(saved_entry, calendar, daily_by_session):
         return {"status": "unavailable", "reason": "reference_not_in_calendar"}
     ref_row = (daily_by_session or {}).get(reference) or {}
     ref_open = ref_row.get("open")
+    if str(ref_row.get("status") or "regular").lower() not in {"regular", "ok", ""}:
+        return {"status": "unavailable", "reason": "reference_halted", "reference_session": reference}
     if not isinstance(ref_open, (int, float)) or isinstance(ref_open, bool) or not (ref_open > 0):
         return {"status": "unavailable", "reason": "reference_open_missing",
                 "reference_session": reference}
@@ -139,7 +141,7 @@ def compute_followup(saved_entry, calendar, daily_by_session):
     if not _math.isfinite(float(ref_open)):
         return {"status": "unavailable", "reason": "reference_open_missing",
                 "reference_session": reference}
-    # Consistent corporate-action basis required; caller passes adjusted series.
+    # Caller supplies one verified price basis; never substitute close for open.
     # If any required session is missing/halted, that leg is unavailable (no close-as-open).
     def _leg(offset):
         idx = ref_idx + offset
@@ -161,6 +163,39 @@ def compute_followup(saved_entry, calendar, daily_by_session):
     return {"status": status, "reference_session": reference, "reference_open": float(ref_open),
             "day5": day5, "day20": day20,
             "note": "訊號後市場表現，非交易損益；名人報酬、跟單報酬、策略淨報酬一律不稱。"}
+
+
+def build_followup_report(assistant, calendar, load_snapshot, expected_session):
+    """Read-only follow-up of every saved plan, including untriggered/terminal plans."""
+    counts = dict(total=0, ready=0, watching=0, unavailable=0, not_triggered=0)
+    rows = []
+    for entry in (assistant or {}).get("saved_plans") or []:
+        plan = entry.get("plan") or {}
+        plan_id = entry.get("plan_id") or plan.get("plan_id")
+        events = _plan_events(assistant, plan_id)
+        triggers = [_aware(ev.get("created_at")) for ev in events if ev.get("event_type") == "triggered"]
+        triggers = [value for value in triggers if value is not None]
+        if plan.get("action") == "entry_review":
+            triggers.append(_aware(entry.get("saved_at")))
+        triggers = [value for value in triggers if value is not None]
+        row = {"plan_id": plan_id, "symbol": plan.get("symbol"),
+               "cancelled": _is_cancelled(assistant, plan_id),
+               "plan_status": next((ev["new_status"] for ev in reversed(events) if ev.get("new_status")),
+                                   "triggered" if triggers else "watching")}
+        if not triggers:
+            row.update(status="not_triggered")
+        else:
+            triggered_entry = dict(entry, saved_at=min(triggers).isoformat())
+            snapshot = _load_for_session(load_snapshot, plan.get("market"), plan.get("symbol"), expected_session)
+            if not isinstance(snapshot, dict) or snapshot.get("corporate_action_status") != "ok":
+                row.update(status="unavailable", reason="verified_history_unavailable")
+            else:
+                daily = {bar["date"]: bar for bar in snapshot.get("daily") or []}
+                row.update(compute_followup(triggered_entry, calendar, daily))
+        counts["total"] += 1
+        counts[row["status"]] += 1
+        rows.append(row)
+    return {"counts": counts, "plans": rows}
 
 
 def run_trade_plan_checks(store, load_snapshot, *, now, calendar,

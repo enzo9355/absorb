@@ -100,6 +100,7 @@ def discover_persisted_daily_readers(repository_root):
 
 
 READER_CONTRACTS = {
+    ("stock_papi/services/trade_plan_checks.py", "build_followup_report"): "canonical-OHLCV",
     ("local_quant.py", "_validated_artifact"): "latest-only",
     ("reporting/industry_analytics.py", "_stock_return"): "canonical-OHLCV",
     ("reporting/industry_analytics.py", "_foreign_net_5"): "canonical-OHLCV",

@@ -57,6 +57,34 @@ def _plan_and_calendar(sessions=None):
 
 
 class TradePlanChecksTests(unittest.TestCase):
+    def test_followup_report_retains_all_plans_and_uses_first_trigger(self):
+        from stock_papi.services.trade_plan_checks import build_followup_report
+        sessions = plan_fixtures._sessions(count=120)
+        plan, _, _ = _plan_and_calendar(sessions=sessions[:70])
+        waiting = copy.deepcopy(plan)
+        waiting.update(plan_id="waiting", action="wait")
+        saved = {"plan": waiting, "plan_id": "waiting", "saved_at": "2026-09-03T02:00:00Z"}
+        assistant = {"saved_plans": [saved], "events": []}
+        daily = [{"date": day, "open": 100.0, "close": 110.0} for day in sessions]
+        loader = lambda market, symbol, session: {"daily": daily, "corporate_action_status": "ok"}
+        report = build_followup_report(assistant, {"sessions": sessions}, loader, sessions[-1])
+        self.assertEqual(report["counts"], {"total": 1, "ready": 0, "watching": 0, "unavailable": 0, "not_triggered": 1})
+        assistant["events"] = [{"plan_id": "waiting", "event_type": "triggered", "created_at": sessions[80] + "T22:00:00Z"},
+                               {"plan_id": "waiting", "event_type": "triggered", "created_at": sessions[85] + "T22:00:00Z"},
+                               {"action": "cancel_plan", "detail": {"plan_id": "waiting"}}]
+        report = build_followup_report(assistant, {"sessions": sessions}, loader, sessions[-1])
+        row = report["plans"][0]
+        self.assertEqual(row["reference_session"], sessions[81])
+        self.assertTrue(row["cancelled"])
+        self.assertAlmostEqual(row["day20"]["change"], 0.1)
+        self.assertEqual(report["counts"]["ready"], 1)
+        daily[81].pop("open")
+        report = build_followup_report(assistant, {"sessions": sessions}, loader, sessions[-1])
+        self.assertEqual(report["counts"]["unavailable"], 1)
+        daily[81].update(open=100.0, status="halted")
+        report = build_followup_report(assistant, {"sessions": sessions}, loader, sessions[-1])
+        self.assertEqual(report["counts"]["unavailable"], 1)
+
     def _store_with_plan(self, plan, user_id=USER_A):
         store = FakeStore()
         state = empty_state()

@@ -303,7 +303,7 @@ class LineLoginTests(unittest.TestCase):
         self.assertEqual(redact_secrets(f"loaded user {USER_ID}"), "loaded user U********")
 
 
-    def _register_trading(self, beta_users=None, builder=None):
+    def _register_trading(self, beta_users=None, builder=None, followup=None):
         from stock_papi.web.routes.auth import register_auth_routes as _reg
         # Re-register trading routes on a fresh app with beta allowlist + fake builder.
         from flask import Flask as _Flask
@@ -315,7 +315,8 @@ class LineLoginTests(unittest.TestCase):
         _reg(app, config=self.config, auth_store=lambda: self.auth_store,
              line_store=lambda: self.line_store, search_stock=lambda code: (code, "X"),
              http_post=self.http.post, now=lambda: NOW,
-             trading_beta_users=beta_users, trade_plan_builder=builder)
+             trading_beta_users=beta_users, trade_plan_builder=builder,
+             trading_followup=followup)
         return app.test_client()
 
     def _login_client(self, client, sub=None):
@@ -395,6 +396,25 @@ class LineLoginTests(unittest.TestCase):
             "request_id": "00000000-0000-4000-8000-000000000033"},
             headers={"X-CSRF-Token": session["csrf_token"]})
         self.assertEqual(response.status_code, 403)
+
+    def test_private_trading_includes_followup_and_fails_closed(self):
+        seen = []
+        report = {"counts": {"total": 0}, "plans": []}
+        client = self._register_trading(followup=lambda assistant: (seen.append(assistant) or report))
+        self.assertEqual(client.get("/api/account/trading").status_code, 401)
+        self.assertEqual(seen, [])
+        self._login_client(client, sub=USER_ID)
+        response = client.get("/api/account/trading")
+        self.assertEqual(response.get_json()["followup"], report)
+        self.assertEqual(len(seen), 1)
+        self.assertIn("no-store", response.headers["Cache-Control"])
+        def unavailable(assistant):
+            raise ValueError("source unavailable")
+        other = self._register_trading(followup=unavailable)
+        self._login_client(other, sub=USER_ID)
+        response = other.get("/api/account/trading")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.get_json()["followup"])
 
     def test_save_plan_rejects_forged_ids_and_stale_plan(self):
         import hashlib as _hl

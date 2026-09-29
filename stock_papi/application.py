@@ -808,6 +808,13 @@ def _trade_plan_check_context():
     }
 
 
+def build_trading_followup(assistant):
+    from stock_papi.services.trade_plan_checks import build_followup_report
+    context = _trade_plan_check_context() if assistant.get("saved_plans") else {}
+    return build_followup_report(assistant, context.get("calendar"),
+                                 context.get("load_snapshot"), context.get("expected_session"))
+
+
 def fetch_market_insights(today=None):
     return load_market_insights(
         today=today,
@@ -2819,6 +2826,7 @@ def route_dependencies():
         "load_public_opinions": _load_public_opinions,
         "trading_beta_users": trading_beta_users,
         "trade_plan_builder": build_verified_us_trade_plan,
+        "trading_followup": build_trading_followup,
         "login_callback_hosts": login_callback_hosts,
         "run_trade_plan_checks": _run_trade_plan_checks,
         "trade_plan_context": _trade_plan_check_context,
