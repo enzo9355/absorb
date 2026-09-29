@@ -3,36 +3,88 @@
 {% block content %}
 {% set freshness = (data_freshness|default({}, true)).get('US', {}) %}
 {% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness.get('status'), '暫時無法取得') %}
-<div class="page market-summary-page">
-  <header class="page-header"><div><h1>美股產業觀察</h1><p class="page-intro">資料日 {{ summary.source_market_date }}；排名與觀察均來自已驗證的美股正式報告。</p></div></header>
+<div class="page dashboard-page research-dashboard market-summary-page">
+  <header class="research-summary market-summary-header">
+    <div class="research-copy">
+      <p class="research-status"><span aria-hidden="true"></span>美股產業觀察</p>
+      <h1>美股產業觀察</h1>
+      <p class="research-headline research-limit">資料日 {{ summary.source_market_date }}；排名與觀察均來自已驗證的美股正式報告。</p>
+    </div>
+    <dl class="research-evidence summary-dates" aria-label="資料日期">
+      <div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or summary.source_market_date or '尚無已驗證日期' }}</dd></div>
+      <div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div>
+    </dl>
+  </header>
   <section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-labelledby="us-industries-freshness-title">
-    <div><h2 id="us-industries-freshness-title">已驗證資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
+    <div><h2 id="us-industries-freshness-title">資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
     <dl><div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or summary.source_market_date or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div></dl>
+    {% if freshness.get('status') == 'updating' %}<p class="freshness-warning">新交易日報告驗證中；以下為最近一次已驗證報告，不代表今日即時行情。</p>{% endif %}
     {% if freshness.get('status') == 'stale' %}<p class="freshness-warning">目前沒有涵蓋最新交易日的已驗證資料；以下數字為最近一次報告，不代表今日即時行情。</p>{% endif %}
   </section>
   <section class="panel" aria-labelledby="us-industries-title">
-    <h2 id="us-industries-title">產業資料</h2>
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">US INDUSTRY RANKING</p>
+        <h2 id="us-industries-title">產業資料</h2>
+      </div>
+      <span class="muted small">已驗證排名清單</span>
+    </div>
     {% if summary.industries.status == 'available' %}
-      <div class="summary-table-wrap"><table><thead><tr><th scope="col">排名</th><th scope="col">產業</th><th scope="col">5 日相對大盤</th><th scope="col">資料覆蓋率</th><th scope="col">有效樣本 / 成分數</th></tr></thead><tbody>
-      {% for item in summary.industries.data.ranking|default([]) %}
-        <tr>
-          <td>{{ item.rank|default(loop.index) }}</td>
-          <td>{{ item.name|default(item.industry|default('未命名')) }}</td>
-          <td>{% if item.relative_return_5d_pct is not none and item.relative_return_5d_pct is not string %}{{ '%+.2f%%'|format(item.relative_return_5d_pct) }}{% else %}尚無已驗證資料{% endif %}</td>
-          <td>{% if item.coverage is not none and item.coverage is not string %}{{ '%.0f%%'|format(item.coverage * 100) }}{% else %}尚無已驗證資料{% endif %}</td>
-          <td>{{ item.available_count|default('—') }} / {{ item.component_count|default('—') }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="5">本次報告沒有可顯示的產業排名。</td></tr>
-      {% endfor %}
-      </tbody></table></div>
+      <div class="summary-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">排名</th>
+              <th scope="col">產業</th>
+              <th scope="col">5 日相對大盤</th>
+              <th scope="col">資料覆蓋率</th>
+              <th scope="col">有效樣本 / 成分數</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for item in summary.industries.data.ranking|default([]) %}
+            <tr>
+              <td><span class="rank-pill">{{ '%02d'|format(item.rank|default(loop.index)) }}</span></td>
+              <td><strong>{{ item.name|default(item.industry|default('未命名')) }}</strong></td>
+              <td>{% if item.relative_return_5d_pct is not none and item.relative_return_5d_pct is not string %}<span class="return-pill {{ 'up' if item.relative_return_5d_pct > 0 else 'down' if item.relative_return_5d_pct < 0 else '' }}">{{ '%+.2f%%'|format(item.relative_return_5d_pct) }}</span>{% else %}尚無已驗證資料{% endif %}</td>
+              <td>{% if item.coverage is not none and item.coverage is not string %}{{ '%.0f%%'|format(item.coverage * 100) }}{% else %}尚無已驗證資料{% endif %}</td>
+              <td>{{ item.available_count|default('—') }} / {{ item.component_count|default('—') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5">本次報告沒有可顯示的產業排名。</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p class="empty-state">{{ summary.industries.reason or '產業觀察資料暫時無法顯示。' }}</p>
     {% endif %}
   </section>
   <section class="panel" aria-labelledby="us-securities-title">
-    <h2 id="us-securities-title">個股與 ETF</h2>
-    {% if summary.securities.status == 'available' %}<p class="page-intro">已驗證事件 {{ summary.securities.data.stock_events|default([])|length }} 筆；ETF 觀察 {{ summary.securities.data.etf_observations|default([])|length }} 筆。</p>{% else %}<p class="empty-state">{{ summary.securities.reason or '個股與 ETF 資料暫時無法顯示。' }}</p>{% endif %}
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">US SECURITIES &amp; ETF</p>
+        <h2 id="us-securities-title">個股與 ETF</h2>
+      </div>
+      <a class="button button-secondary" href="/us/stocks">前往美股個股與 ETF →</a>
+    </div>
+    {% if summary.securities.status == 'available' %}
+      <div class="securities-summary-cards">
+        <article class="securities-stat-card">
+          <span>已驗證事件</span>
+          <strong>{{ summary.securities.data.stock_events|default([])|length }}</strong>
+          <small>筆事件記錄</small>
+        </article>
+        <article class="securities-stat-card">
+          <span>ETF 觀察</span>
+          <strong>{{ summary.securities.data.etf_observations|default([])|length }}</strong>
+          <small>檔重點標的</small>
+        </article>
+      </div>
+      <p class="page-intro" style="margin-top:14px">已驗證事件 {{ summary.securities.data.stock_events|default([])|length }} 筆；ETF 觀察 {{ summary.securities.data.etf_observations|default([])|length }} 筆。點選右上角按鈕即可進入完整個股與 ETF 頁面瀏覽。</p>
+    {% else %}
+      <p class="empty-state">{{ summary.securities.reason or '個股與 ETF 資料暫時無法顯示。' }}</p>
+    {% endif %}
   </section>
 </div>
 {% endblock %}

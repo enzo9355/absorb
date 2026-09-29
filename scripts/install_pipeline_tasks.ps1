@@ -18,7 +18,9 @@ function Get-AbsorbPipelineTaskDefinitions {
     @{ Name='ABSORB-FullBacktest'; Job='FullBacktest'; Time='22:30'; ExecutionTimeLimit=(New-TimeSpan -Minutes 225); Enabled=$false },
     @{ Name='ABSORB-US-Daily'; Job='US-Daily'; Time='05:30'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },
     # Yahoo can finalize daily Close fields near New York midnight; cover both EDT and EST.
-    @{ Name='ABSORB-US-PostClose'; Job='US-PostClose'; Time='09:00'; RepetitionInterval='PT20M'; RepetitionDuration='PT5H00M'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },
+    # 2026-09-22/23 gaps: thin names (e.g. CIG-C) still unsettled at 02:00 NY,
+    # so the retry window must reach well past NY midnight (09:00 -> 21:00 +08).
+    @{ Name='ABSORB-US-PostClose'; Job='US-PostClose'; Time='09:00'; RepetitionInterval='PT20M'; RepetitionDuration='PT12H00M'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },
     @{ Name='ABSORB-US-PreMarket'; Job='US-PreMarket'; Time='20:30'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },
     @{ Name='ABSORB-WeeklyModel'; Job='WeeklyModel'; Time='18:00'; Days=$WeeklyDay; ExecutionTimeLimit=$DefaultExecutionTimeLimit },
     @{ Name='ABSORB-ReportUploadRecovery'; Job='ReportUploadRecovery'; Time='09:35'; ExecutionTimeLimit=$DefaultExecutionTimeLimit }

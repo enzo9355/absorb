@@ -120,6 +120,8 @@ class TaiwanSecurityMasterTests(unittest.TestCase):
         data = {
             "as_of": "2026-08-26",
             "name": "易通展",
+            "price": 100.0,
+            "trend": "多頭",
             "prob": 50,
             "bt": {},
             "foreign_flow": {},

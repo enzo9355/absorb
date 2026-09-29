@@ -1,0 +1,38 @@
+{% set intel_status = intel_snapshot.get("status", "unavailable") %}
+{% set intel_release = intel_snapshot.get("release", {}) %}
+<section class="panel" id="intel" aria-labelledby="stock-intel-title" data-intel-status="{{ intel_status }}">
+  <div class="section-heading">
+    <div><p class="eyebrow">SEC OWNERSHIP DISCLOSURES</p><h2 id="stock-intel-title">持有人交易揭露</h2></div>
+    <span class="muted small">{{ {"available":"已核對", "partial":"部分核對", "stale":"資料已過期", "unavailable":"暫不可用"}.get(intel_status, "暫不可用") }}</span>
+  </div>
+  {% if intel_release.get("decision_cutoff_at") %}<p class="muted small">資訊時點 {{ intel_release.decision_cutoff_at }} · release {{ intel_release.release_id }}</p>{% endif %}
+  {% if intel_status == "unavailable" %}
+    <p class="empty-state">目前沒有可安全呈現的持有人申報摘要。</p>
+  {% else %}
+    {% set summary_slots = (intel_snapshot.get("summary") or {}).get("slots", {}) %}
+    <div class="stock-research-list" aria-label="持有人申報摘要">
+      {% for key in ("purchase_activity", "sale_activity", "purchase_cluster", "price_context") %}
+        {% set slot = summary_slots.get(key) %}
+        {% if slot and slot.get("text") %}<article><p>{{ slot.text }}</p></article>{% endif %}
+      {% endfor %}
+    </div>
+    {% if intel_snapshot.get("events") %}
+      <h3>已核對申報列</h3>
+      <ol class="stock-research-list">
+        {% for event in intel_snapshot.events %}
+          <li>
+            <strong>{{ event.get("transaction_classification", "其他申報") }} · {{ event.get("security_title", "證券名稱未提供") }}</strong>
+            <span>{{ event.get("event_date", "交易日期未提供") }} · {{ event.get("shares", "股數未提供") }} 股</span>
+            <small>{% if event.get("price_status") == "value" and event.get("price_per_share") is not none %}申報每股價格 {{ event.price_per_share }} {{ event.get("price_currency", "") }}{% else %}申報價格未提供或仍待核對{% endif %}</small>
+            {% if event.get("source_url") %}<a class="source-link" href="{{ event.source_url }}" target="_blank" rel="noopener noreferrer">SEC 原始申報</a>{% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+      {% set page = intel_snapshot.get("event_page", {}) %}
+      {% if page.get("page", 1) < page.get("page_count", 1) and intel_release.get("release_id") and intel_instrument_id %}
+        <a class="button button-secondary" href="{{ url_for('stock_page', code=d.code, intel_release_id=intel_release.release_id, intel_page=page.page + 1) }}">下一頁申報</a>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+  <p class="muted small">本區只整理已公開申報與已核對價格；申報資料不等於實際持倉或交易動機，也不代表投資建議或因果關係。</p>
+</section>

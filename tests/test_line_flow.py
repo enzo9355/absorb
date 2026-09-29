@@ -1457,6 +1457,89 @@ class ScheduledAlertRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertNotIn(b"secret-value", response.data)
 
+    def test_trade_plan_task_runs_without_repeating_legacy_alerts(self):
+        from flask import Flask
+        from stock_papi.integrations.line.webhook import register_line_routes
+
+        app = Flask(__name__)
+        store = object()
+        legacy_alerts = Mock()
+        checker = Mock(return_value={"scanned_plans": 1, "new_events": 1, "failures": 0})
+        context = {
+            "enabled": True, "dry_run": False, "allowed_users": frozenset({"U" + "a" * 32}),
+            "load_snapshot": lambda *_args: None, "now": "2026-09-24T14:00:00Z",
+            "calendar": {"sessions": ["2026-09-23"]}, "expected_session": "2026-09-23",
+        }
+        register_line_routes(
+            app, handler=Mock(), get_line_bot_api=lambda: None,
+            get_line_store=lambda: store, get_broadcast_token=lambda: "",
+            get_alert_task_token=lambda: "secret", analyze=lambda _code: None,
+            get_broadcast_insight=lambda *_args: "", refresh_sector_signals=lambda *_args: {},
+            run_alert_checks=legacy_alerts, run_trade_plan_checks=checker,
+            trade_plan_context=lambda: context,
+        )
+
+        response = app.test_client().post(
+            "/tasks/check-trade-plans", headers={"Authorization": "Bearer secret"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("scanned_plans=1", response.get_data(as_text=True))
+        legacy_alerts.assert_not_called()
+        self.assertEqual(checker.call_args.args[:2], (store, context["load_snapshot"]))
+        self.assertEqual(checker.call_args.kwargs["expected_session"], "2026-09-23")
+        self.assertEqual(checker.call_args.kwargs["allowed_users"], context["allowed_users"])
+        self.assertFalse(checker.call_args.kwargs["dry_run"])
+
+
+class TradePlanTaskRuntimeContextTests(unittest.TestCase):
+    def test_empty_beta_allowlist_keeps_trade_plan_checks_disabled(self):
+        with patch.object(stock_app, "trading_beta_users", frozenset()), \
+             patch.object(stock_app, "_published_quant_manifest") as manifest:
+            context = stock_app.route_dependencies()["trade_plan_context"]()
+
+        self.assertFalse(context["enabled"])
+        self.assertTrue(context["dry_run"])
+        manifest.assert_not_called()
+
+    def test_beta_context_uses_only_the_latest_verified_session(self):
+        from datetime import date, datetime, timedelta, timezone
+
+        user_id = "U" + "a" * 32
+        as_of = "2026-09-23"
+        daily = [
+            {"Date": (date(2026, 7, 1) + timedelta(days=index)).isoformat(),
+             "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.0,
+             "Volume": 1000}
+            for index in range(61)
+        ]
+        artifact = {
+            "market": "US", "observation_kind": "regular_price", "symbol": "INTC",
+            "as_of": as_of, "daily": daily,
+        }
+        with patch.object(stock_app, "trading_beta_users", frozenset({user_id})), \
+             patch.object(stock_app, "_published_quant_manifest", return_value={
+                 "schema_version": 4, "observation_as_of": as_of,
+             }), \
+             patch.object(stock_app, "utc_now", return_value=datetime(
+                 2026, 9, 24, 14, 0, tzinfo=timezone.utc)), \
+             patch("stock_papi.integrations.market_data.us_calendar.get_us_calendar_documents",
+                   return_value=[{"year": 2026, "closed_dates": []}]), \
+             patch("stock_papi.repositories.quant_snapshots.fetch_quant_snapshot_with_digest",
+                   return_value=(artifact, "a" * 64)) as fetch:
+            context = stock_app.route_dependencies()["trade_plan_context"]()
+            snapshot = context["load_snapshot"]("US", "INTC", as_of)
+            missing = context["load_snapshot"]("US", "INTC", "2026-09-22")
+
+        self.assertTrue(context["enabled"])
+        self.assertFalse(context["dry_run"])
+        self.assertEqual(context["allowed_users"], frozenset({user_id}))
+        self.assertEqual(context["expected_session"], as_of)
+        self.assertEqual(snapshot["source_snapshot_sha256"], "a" * 64)
+        self.assertEqual(snapshot["as_of"], as_of)
+        self.assertIsNone(missing)
+        fetch.assert_called_once()
+
 
 class AnalyzeDateTests(unittest.TestCase):
     def test_do_analyze_returns_last_market_date_as_iso(self):

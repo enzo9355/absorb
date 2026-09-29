@@ -1,10 +1,14 @@
 """Market-facing Flask route registration."""
 
-from flask import abort, jsonify, make_response, redirect, render_template, url_for
+import re
+
+from flask import abort, jsonify, make_response, redirect, render_template, request, url_for
 
 from stock_papi.shared.formatting import safe_float as _safe_float
 from stock_papi.services.model_evidence import sanitize_recommendation
 from stock_papi.services.prediction_view import prediction_for
+from stock_papi.services.us_presentation import latest_post_close_item
+from stock_papi.web.routes.intel import sanitize_public_event, sanitize_public_summary
 
 
 def register_market_routes(
@@ -17,6 +21,8 @@ def register_market_routes(
     load_report_index_v2,
     load_relationships=None, load_events=None, load_opinions=None,
     trading_beta_users=None, trade_plan_builder=None,
+    load_intel_snapshot=None, intel_enabled=False,
+    resolve_intel_stock_instrument=None,
 ):
     def dashboard_api():
         snapshot = dashboard_snapshot()
@@ -149,14 +155,7 @@ def register_market_routes(
                 reports = load_report_index_v2(market="US")
             except Exception:
                 reports = None
-            report = next(
-                (
-                    item
-                    for item in reports or []
-                    if isinstance(item, dict) and item.get("report_type") == "post_close"
-                ),
-                None,
-            )
+            report = latest_post_close_item(reports or [])
             source_market_date = (
                 report.get("source_market_date") if isinstance(report, dict) else None
             )
@@ -229,12 +228,60 @@ def register_market_routes(
                 ]
             except Exception:
                 related_opinions = []
+        intel_snapshot = None
+        intel_instrument_id = None
+        if (
+            intel_enabled is True
+            and market == "US"
+            and callable(load_intel_snapshot)
+            and callable(resolve_intel_stock_instrument)
+        ):
+            try:
+                intel_instrument_id = resolve_intel_stock_instrument(data, code)
+            except Exception:
+                intel_instrument_id = None
+            pinned_release = request.args.get("intel_release_id")
+            page_text = request.args.get("intel_page", "1")
+            if pinned_release is not None and re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", pinned_release
+            ) is None:
+                abort(400)
+            if not isinstance(page_text, str) or re.fullmatch(r"[1-9][0-9]{0,3}", page_text) is None:
+                abort(400)
+            if intel_instrument_id:
+                try:
+                    intel_snapshot = load_intel_snapshot(
+                        intel_instrument_id,
+                        release_id=pinned_release,
+                        page=int(page_text),
+                    )
+                except Exception:
+                    intel_snapshot = {"status": "unavailable", "reason_codes": ["source_unavailable"]}
+                if isinstance(intel_snapshot, dict):
+                    intel_snapshot = dict(intel_snapshot)
+                    rows = intel_snapshot.get("events")
+                    if isinstance(rows, list):
+                        intel_snapshot["events"] = [
+                            sanitize_public_event(row) for row in rows if isinstance(row, dict)
+                        ]
+                    release = intel_snapshot.get("release")
+                    summary = sanitize_public_summary(
+                        intel_snapshot.get("summary"), intel_instrument_id,
+                        release.get("decision_cutoff_at") if isinstance(release, dict) else None,
+                    )
+                    if intel_snapshot.get("status") in {"available", "partial", "stale"} and summary is None:
+                        intel_snapshot.update(
+                            status="unavailable", reason_codes=["schema_error"], events=[]
+                        )
+                    intel_snapshot["summary"] = summary
         return render_template(
             "stock_detail.html", d={**data, "market": market, "prediction": prediction}, peers=peers,
             peer_category=peer_group["category"],
             related_relationships=related_relationships,
             related_events=related_events,
             related_opinions=related_opinions,
+            intel_snapshot=intel_snapshot,
+            intel_instrument_id=intel_instrument_id,
         ) if data else "查無資料"
 
     def us_stocks_page():

@@ -46,7 +46,7 @@ class VisualAuthStore:
             SESSION_ID: {
                 "line_user_id": USER_ID,
                 "csrf_token": "visual-qa-csrf-token-that-is-long-enough",
-                "expires_at": NOW + datetime.timedelta(days=1),
+                "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365),
             }
         }
         self.users = {

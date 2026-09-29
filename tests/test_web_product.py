@@ -84,7 +84,7 @@ class WebProductTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("大咖動態", html)
+        self.assertIn("觀點與揭露", html)
         self.assertIn("Coverage", html)
         self.assertIn("perspectives/stocks", stock_template)
         self.assertIn("研究線索", relationships_template)
@@ -875,7 +875,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('data-brand-wordmark', html)
         self.assertIn('aria-label="回到 ABSORB 主畫面"', html)
         self.assertNotIn('class="brand-mark"', html)
-        self.assertIn("今天市場", html)
+        self.assertIn("今日市場", html)
         self.assertIn("使用 LINE 登入", html)
         self.assertIn("已驗證市場觀察", html)
         self.assertIn('data-market-switch', html)
@@ -893,7 +893,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn(".evidence-canvas{", css)
         self.assertIn("background:var(--command-accent-surface)", css)
         self.assertIn(".brand-wordmark:hover{", css)
-        self.assertIn("rotate(-1.5deg)", css)
+        self.assertIn("letter-spacing:.16em", css)
         self.assertIn("@view-transition{navigation:auto}", css)
         self.assertIn("button,input,select,textarea{font:inherit}", css)
         self.assertIn(".button{display:inline-flex", css)
@@ -1235,7 +1235,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('href="/ask"', primary_nav)
         self.assertIn('<span class="nav-label">ASKsorb</span>', primary_nav)
         self.assertIn('href="/learn"', primary_nav)
-        self.assertIn('<span class="nav-label">學習</span>', primary_nav)
+        self.assertIn('<span class="nav-label">指標辭典</span>', primary_nav)
         self.assertNotIn('class="dashboard-destinations"', html)
 
     @patch.object(stock_app, "_published_dashboard_snapshot")
@@ -1305,7 +1305,7 @@ class WebProductTests(unittest.TestCase):
     def test_navigation_has_route_active_state_and_no_primary_hash_links(self, _load):
         client = stock_app.app.test_client()
         for path, label in (
-            ("/dashboard", "今天市場"),
+            ("/dashboard", "今日市場"),
             ("/market", "市場實況"),
             ("/industries", "產業觀察"),
             ("/stocks", "個股與 ETF"),
@@ -1784,7 +1784,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('href="/auth/line/login?return_to=/dashboard"', html)
         self.assertIn(".topbar-account", css)
 
-    def test_web_shell_serves_marker_script_wordmark_across_devices(self):
+    def test_web_shell_serves_luxury_serif_wordmark_across_devices(self):
         client = stock_app.app.test_client()
         page = client.get("/dashboard")
         response = client.get("/static/fonts/absorb-wordmark.woff2")
@@ -1804,7 +1804,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('url("fonts/absorb-wordmark.woff2") format("woff2")', css)
         self.assertIn("font-style:normal", css)
         self.assertIn(
-            'font-family:"ABSORB Wordmark","Permanent Marker","Segoe Print",cursive',
+            'font-family:"ABSORB Wordmark","Playfair Display","Didot","Bodoni MT","Cinzel","Baskerville","Times New Roman",serif',
             css,
         )
 

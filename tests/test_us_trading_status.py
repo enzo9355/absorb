@@ -142,6 +142,21 @@ class TestUSTradingStatus(unittest.TestCase):
         self.assertEqual(result["AAPL"]["raw_fields"]["reason_code"], "T1")
         self.assertEqual(result["AAPL"]["raw_fields"]["halt_time"], "09:30:00")
 
+    def test_halt_row_with_non_listable_symbol_is_skipped_not_failed(self):
+        xml = """<rss><channel>
+          <item><description><![CDATA[
+          <table><tr><td>VACI=</td><td>Test Symbol</td><td>NASDAQ</td><td>T1</td>
+          <td>08/19/2026</td><td>09:30:00</td></tr></table>
+          ]]></description></item>
+          <item><description><![CDATA[
+          <table><tr><td>AAPL</td><td>Apple Inc.</td><td>NASDAQ</td><td>T1</td>
+          <td>08/19/2026</td><td>09:30:00</td></tr></table>
+          ]]></description></item>
+        </channel></rss>"""
+        result = fetch_nasdaq_trade_halts(self.target_date, mock_xml=xml)
+        self.assertIn("AAPL", result)
+        self.assertNotIn("VACI=", result)
+
     def test_fractional_second_status_time_is_supported(self):
         self.assertTrue(
             is_halt_effective_for_target_session(

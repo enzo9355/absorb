@@ -460,13 +460,15 @@ class TestUSAdversarialFailures(unittest.TestCase):
             self.assertEqual(res.error_type, "USRateLimitError")
 
         # 4. USSchemaError -> OP_FAIL
-        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")):
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USSchemaError("missing cols")), \
+             patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=USSchemaError("nasdaq failed")):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USSchemaError")
 
         # 5. USIntegrityError -> OP_FAIL
-        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")):
+        with patch("stock_papi.batch.us_official_post_close_cli.fetch_us_stock_history", side_effect=USIntegrityError("High < Open")), \
+             patch("stock_papi.batch.us_official_post_close_cli.fetch_nasdaq_historical_chart", side_effect=USIntegrityError("nasdaq failed")):
             res = _fetch_and_classify_symbol(self.root, "TEST", self.target_date)
             self.assertEqual(res.kind, "OP_FAIL")
             self.assertEqual(res.error_type, "USIntegrityError")

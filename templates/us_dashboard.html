@@ -4,20 +4,22 @@
 {% block content %}
 {% set freshness = (data_freshness|default({}, true)).get('US', {}) %}
 {% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness.get('status'), '暫時無法取得') %}
-<div class="page market-summary-page">
-  <header class="page-header market-summary-header">
-    <div>
+<div class="page dashboard-page research-dashboard market-summary-page">
+  <header class="research-summary market-summary-header">
+    <div class="research-copy">
+      <p class="research-status"><span aria-hidden="true"></span>美股市場研究摘要</p>
       <h1>美股市場研究摘要</h1>
-      <p class="page-intro">僅依已驗證的美股正式報告整理；不推定台股資料，也不補造即時數字。</p>
+      <p class="research-headline research-limit">僅依已驗證的美股正式報告整理；不推定台股資料，也不補造即時數字。</p>
     </div>
-    <dl class="summary-dates" aria-label="資料日期">
+    <dl class="research-evidence summary-dates" aria-label="資料日期">
       <div><dt>來源交易日</dt><dd>{{ summary.source_market_date }}</dd></div>
       <div><dt>適用交易日</dt><dd>{{ summary.applicable_trading_date }}</dd></div>
     </dl>
   </header>
   <section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-labelledby="us-freshness-title">
-    <div><h2 id="us-freshness-title">已驗證資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
+    <div><h2 id="us-freshness-title">資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
     <dl><div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or '尚無已驗證日期' }}</dd></div></dl>
+    {% if freshness.get('status') == 'updating' %}<p class="freshness-warning">新交易日報告驗證中；以下為最近一次已驗證報告，不代表今日即時行情。</p>{% endif %}
     {% if freshness.get('status') == 'stale' %}<p class="freshness-warning">目前沒有涵蓋最新交易日的已驗證資料；以下數字為最近一次報告，不代表今日即時行情。</p>{% endif %}
   </section>
   <section class="panel us-index-workspace" aria-labelledby="us-index-title">
@@ -30,7 +32,7 @@
     </div>
     <script id="us-index-chart-data" type="application/json">{{ index_predictions|tojson }}</script>
     <p class="muted small">實線為已發布的指數日 K 線；虛線只連接目前收盤與第 5 交易日估計，不代表中間每日路徑，也不是買賣指令。頁面每 30 秒檢查已發布資料；不是盤中即時行情。</p>
-    {% else %}<p class="empty-state">本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。</p>{% endif %}
+    {% else %}<p class="empty-state">資料日 {{ summary.source_market_date }} 的本交易日預測尚未發布；未通過正式驗證時不顯示機率或預測價。可至 /health/data 查看 US 來源／適用交易日與預測 as_of 是否對齊。</p>{% endif %}
   </section>
   <section class="panel summary-conclusion" aria-labelledby="summary-conclusion-title">
     <p class="market-action-state"><span>規則式市場行動</span><strong>{{ summary.executive_summary.market_state }}</strong></p>

@@ -36,6 +36,7 @@ from stock_papi.settings import (
     FINMIND_USER,
     GCP_PROJECT_ID,
     GEMINI_API_KEY,
+    INTEL_INFORMATION_ENABLED,
     LINE_CHANNEL_ACCESS_TOKEN,
     LINE_CHANNEL_SECRET,
     LINE_STATE_READ_BUDGET_SECONDS,
@@ -163,6 +164,7 @@ from stock_papi.repositories.prediction_snapshots import (
     PREDICTION_CACHE as _PREDICTION_CACHE,
     load_prediction_snapshot,
 )
+from stock_papi.repositories.intel_snapshots import load_intel_snapshot as _read_intel_snapshot
 from stock_papi.repositories.report_store import (
     load_report_index,
     load_report_metadata,
@@ -505,6 +507,42 @@ def _gcs_get_allowed_object(object_name, max_bytes, allowed_prefix):
     )
 
 
+def _gcs_get_intel_object(object_name, max_bytes):
+    if not INTEL_INFORMATION_ENABLED:
+        return None
+    return _gcs_get_allowed_object(object_name, max_bytes, "intel/v1/")
+
+
+def _published_intel_policy():
+    content = _gcs_get_intel_object("intel/v1/rights/current.json", 128 * 1024)
+    if not content:
+        return None
+    try:
+        policy = json.loads(content.decode("utf-8"))
+    except (UnicodeError, ValueError):
+        return None
+    return policy if isinstance(policy, dict) else None
+
+
+def _published_intel_snapshot(instrument_id, release_id=None, page=1):
+    if not INTEL_INFORMATION_ENABLED:
+        return {"status": "unavailable", "reason_codes": ["feature_disabled"]}
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    return _read_intel_snapshot(
+        instrument_id, release_id, now, _gcs_get_intel_object,
+        policy=_published_intel_policy(), page=page,
+    )
+
+
+def _resolve_intel_stock_instrument(data, _code):
+    if not isinstance(data, dict) or data.get("intel_mapping_status") != "resolved":
+        return None
+    instrument_id = data.get("intel_instrument_id")
+    return instrument_id if isinstance(instrument_id, str) and re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", instrument_id
+    ) else None
+
+
 def _gcs_get_object(object_name, max_bytes):
     """只允許讀取既有 quant/v1 私有物件。"""
     return _gcs_get_allowed_object(object_name, max_bytes, "quant/v1/")
@@ -563,14 +601,12 @@ def _published_us_securities_observation():
     from reporting.exceptions import ReportWebError
     from reporting.professional_binding import validate_professional_report_binding
     from reporting.professional_schema import ProfessionalPostCloseReport
+    from stock_papi.services.us_presentation import latest_post_close_item
 
     reports = _published_report_index_v2(market="US")
     if not isinstance(reports, list):
         raise ReportWebError("美股報告索引暫時無法使用")
-    item = next(
-        (value for value in reports if value.get("report_type") == "post_close"),
-        None,
-    )
+    item = latest_post_close_item(reports)
     if item is None:
         raise ReportWebError("美股盤後報告暫時無法使用")
     metadata = load_report_metadata(
@@ -716,6 +752,58 @@ def build_verified_us_trade_plan(market, symbol, evidence_ids):
         raise
     except (TypeError, ValueError) as exc:
         raise PlanUnavailable("plan_unavailable") from exc
+
+
+def _trade_plan_check_context():
+    allowed_users = frozenset(trading_beta_users)
+    if not allowed_users:
+        return {"enabled": False, "dry_run": True, "allowed_users": allowed_users}
+
+    from stock_papi.integrations.market_data.us_calendar import get_us_calendar_documents
+    from stock_papi.repositories.quant_snapshots import fetch_quant_snapshot_with_digest
+    from stock_papi.services.trade_plan_market import snapshot_from_artifact, us_sessions_from_documents
+
+    manifest = _published_quant_manifest("US") or {}
+    expected_session = manifest.get("market_as_of") or manifest.get("observation_as_of")
+    try:
+        expected_date = datetime.date.fromisoformat(str(expected_session))
+    except (TypeError, ValueError):
+        return {"enabled": False, "dry_run": True, "allowed_users": allowed_users}
+
+    calendar = {"sessions": us_sessions_from_documents(
+        get_us_calendar_documents(), start="2024-01-01", end=expected_date.isoformat()
+    )}
+    if expected_date.isoformat() not in calendar["sessions"]:
+        return {"enabled": False, "dry_run": True, "allowed_users": allowed_users}
+
+    snapshots = {}
+
+    def load_snapshot(market, symbol, session):
+        if str(market or "").upper() != "US" or str(session or "") != expected_date.isoformat():
+            return None
+        symbol = str(symbol or "").strip().upper()
+        if symbol not in snapshots:
+            loaded = fetch_quant_snapshot_with_digest(
+                "US", symbol, today=expected_date,
+                is_us_ticker_fn=is_us_ticker,
+                load_manifest=_published_quant_manifest,
+                load_object=_gcs_get_object,
+            )
+            if not loaded:
+                snapshots[symbol] = None
+            else:
+                document, digest = loaded
+                snapshots[symbol] = (
+                    snapshot_from_artifact(document, digest)
+                    if document.get("as_of") == expected_date.isoformat() else None
+                )
+        return snapshots[symbol]
+
+    return {
+        "enabled": True, "dry_run": False, "allowed_users": allowed_users,
+        "load_snapshot": load_snapshot, "now": utc_now(), "calendar": calendar,
+        "expected_session": expected_date.isoformat(),
+    }
 
 
 def fetch_market_insights(today=None):
@@ -2715,6 +2803,9 @@ def route_dependencies():
         "prediction_snapshot": lambda market: _published_prediction_snapshot(market),
         "us_securities_observation": lambda: _published_us_securities_observation(),
         "prediction_capability": prediction_capability,
+        "intel_information_enabled": INTEL_INFORMATION_ENABLED,
+        "load_intel_snapshot": _published_intel_snapshot,
+        "resolve_intel_stock_instrument": _resolve_intel_stock_instrument,
         "cached_opportunities": lambda: cached_opportunities(),
         "build_market_heatmap": build_market_heatmap,
         "dashboard_top_picks": dashboard_top_picks,
@@ -2728,8 +2819,7 @@ def route_dependencies():
         "trade_plan_builder": build_verified_us_trade_plan,
         "login_callback_hosts": login_callback_hosts,
         "run_trade_plan_checks": _run_trade_plan_checks,
-        "trade_plan_context": lambda: {"enabled": False, "dry_run": True,
-            "reason": "trade-plan schedule/push awaits trial authorization; see Task9 release list"},
+        "trade_plan_context": _trade_plan_check_context,
         "twstock_codes": taiwan_security_codes,
         "is_us_ticker": is_us_ticker,
         "find_industry_peers": lambda code: find_industry_peers(code),

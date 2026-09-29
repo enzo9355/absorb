@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}大咖動態｜ABSORB{% endblock %}
+{% block title %}觀點與揭露｜ABSORB{% endblock %}
 {% block content %}
 <div class="page research-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">PUBLIC FIGURES</p>
-      <h1>大咖動態</h1>
+      <p class="eyebrow">PERSPECTIVES & DISCLOSURES</p>
+      <h1>觀點與揭露</h1>
       <p class="page-intro">公開觀點與操作分開標示；揭露晚於交易，只使用截止前已公開、已核對的資料。這不是買賣指令。</p>
       {% if query.query_string %}<p class="muted small">目前查詢：{{ query.query_string }}</p>{% endif %}
       <p class="muted small">最近核對時間：{{ catalog_version if catalog_version is defined else '' }}；來源涵蓋以 coverage 為準，不承諾即時更新。</p>
@@ -91,9 +91,11 @@
         {% if item.amount_min or item.amount_max %}<div><dt>金額區間</dt><dd>{{ item.amount_min or '未揭露' }}–{{ item.amount_max or '未揭露' }} {{ item.currency }}</dd></div>{% endif %}
       </dl>
       <p class="muted small">限制：{{ item.limitations }}{% if item.supersedes_id %}；修訂 {{ item.supersedes_id }}{% endif %}{% if item.withdraws_id %}；撤回 {{ item.withdraws_id }}{% endif %}</p>
-      {% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">查看原始來源</a>{% endif %}
-      <button type="button" data-follow-subject-id="{{ item.subject_id }}" aria-pressed="false">追蹤此對象</button>
-      {% if item.market and item.symbol %}<a class="source-link" href="{{ url_for('stock_perspectives_page', market=item.market, symbol=item.symbol) }}">查看個股</a>{% else %}<span class="muted small">個股連結未提供（未知代碼）</span>{% endif %}
+      <div class="activity-actions">
+        {% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">查看原始來源</a>{% endif %}
+        <button type="button" data-follow-subject-id="{{ item.subject_id }}" aria-pressed="false">追蹤此對象</button>
+        {% if item.market and item.symbol %}<a class="source-link" href="{{ url_for('stock_perspectives_page', market=item.market, symbol=item.symbol) }}">查看個股</a>{% else %}<span class="muted small">個股連結未提供（未知代碼）</span>{% endif %}
+      </div>
     </article>
     {% else %}<p class="empty-state">目前已核對範圍內未找到符合的動態。</p>{% endfor %}
   </section>

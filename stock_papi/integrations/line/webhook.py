@@ -15,6 +15,41 @@ def register_line_routes(
     observe=None, observation_mode=False,
     run_trade_plan_checks=None, trade_plan_context=None,
 ):
+    def push(user_id, contents):
+        if get_line_bot_api() is None:
+            raise RuntimeError("LINE 尚未設定")
+        messages = contents if isinstance(contents, list) else [contents]
+        messages = [
+            FlexSendMessage(alt_text="股票提醒已觸發", contents=message)
+            for message in messages
+        ]
+        get_line_bot_api().push_message(
+            user_id, messages[0] if len(messages) == 1 else messages
+        )
+
+    def execute_trade_plan_checks(store):
+        checker = run_trade_plan_checks
+        context = trade_plan_context() if callable(trade_plan_context) else trade_plan_context
+        if not callable(checker) or not isinstance(context, dict) or not context.get("enabled", True):
+            return None
+
+        def trade_push(user_id, record, plan):
+            from stock_papi.integrations.line.notifications import deliver_trade_plan_event
+            deliver_trade_plan_event(
+                store, user_id, record.get("event_id"), plan,
+                allowed_users=context.get("allowed_users") or frozenset(),
+                push_fn=context.get("push_fn") or (lambda uid, contents, key: push(uid, contents)),
+                build_flex=context.get("build_flex"),
+            )
+
+        return checker(
+            store, context.get("load_snapshot"),
+            now=context.get("now"), calendar=context.get("calendar"),
+            expected_session=context.get("expected_session"),
+            allowed_users=context.get("allowed_users") or frozenset(),
+            push_fn=trade_push, dry_run=bool(context.get("dry_run", False)),
+        )
+
     def broadcast_weekly():
         if get_line_bot_api() is None:
             return "LINE 尚未設定", 503
@@ -100,18 +135,6 @@ def register_line_routes(
         if store is None:
             return "關注功能尚未設定", 503
 
-        def push(user_id, contents):
-            if get_line_bot_api() is None:
-                raise RuntimeError("LINE 尚未設定")
-            messages = contents if isinstance(contents, list) else [contents]
-            messages = [
-                FlexSendMessage(alt_text="股票提醒已觸發", contents=message)
-                for message in messages
-            ]
-            get_line_bot_api().push_message(
-                user_id, messages[0] if len(messages) == 1 else messages
-            )
-
         try:
             run_alert_checks(
                 store,
@@ -126,23 +149,35 @@ def register_line_routes(
         # Trade-plan checks share the authorized entry; old alerts are unaffected.
         # New results never reuse last_triggered_date=today dedupe.
         try:
-            checker = run_trade_plan_checks
-            context = trade_plan_context() if callable(trade_plan_context) else trade_plan_context
-            if callable(checker) and isinstance(context, dict) and context.get("enabled", True):
-                def _trade_push(user_id, record, plan):
-                    from stock_papi.integrations.line.notifications import deliver_trade_plan_event as _deliver
-                    _deliver(store, user_id, record.get("event_id"), plan,
-                             allowed_users=context.get("allowed_users") or frozenset(),
-                             push_fn=context.get("push_fn") or (lambda uid, contents, key: push(uid, contents)),
-                             build_flex=context.get("build_flex"))
-                checker(store, context.get("load_snapshot"),
-                        now=context.get("now"), calendar=context.get("calendar"),
-                        expected_session=context.get("expected_session"),
-                        allowed_users=context.get("allowed_users") or frozenset(),
-                        push_fn=_trade_push, dry_run=bool(context.get("dry_run", False)))
+            execute_trade_plan_checks(store)
         except Exception:
             pass
         return "提醒排程執行完成", 200
+
+    def check_trade_plans_task():
+        token = get_alert_task_token()
+        if not token:
+            return "交易計畫排程尚未設定", 503
+        if not hmac.compare_digest(
+            request.headers.get("Authorization", ""), f"Bearer {token}"
+        ):
+            return "身份驗證失敗", 403
+        store = get_line_store()
+        if store is None:
+            return "關注功能尚未設定", 503
+        try:
+            summary = execute_trade_plan_checks(store)
+        except Exception:
+            return "交易計畫排程執行失敗", 500
+        if summary is None:
+            return "交易計畫試用排程尚未啟用", 503
+        return (
+            "交易計畫排程執行完成："
+            f"scanned_plans={summary.get('scanned_plans', 0)} "
+            f"new_events={summary.get('new_events', 0)} "
+            f"failures={summary.get('failures', 0)}",
+            200,
+        )
 
     app.add_url_rule(
         "/broadcast_weekly", "broadcast_weekly", broadcast_weekly, methods=["GET"]
@@ -156,4 +191,8 @@ def register_line_routes(
     )
     app.add_url_rule(
         "/tasks/check-alerts", "check_alerts_task", check_alerts_task, methods=["POST"]
+    )
+    app.add_url_rule(
+        "/tasks/check-trade-plans", "check_trade_plans_task",
+        check_trade_plans_task, methods=["POST"],
     )

@@ -18,16 +18,18 @@
     <div class="relationship-stages">
       {% for stage in catalog.stages or [] %}<div class="relationship-stage"><h2>{{ stage.name }}</h2>{% for node in stage.nodes or [] %}<a href="{{ url_for('industry_relationships_page', focus=node.symbol) if node.symbol else '#' }}"><strong>{{ node.name }}</strong>{% if node.symbol %}<small>{{ node.symbol }} · 設為研究中心</small>{% endif %}</a>{% endfor %}</div>{% endfor %}
     </div>
-    <div class="relationship-list">
-      <div class="section-heading"><div><p class="eyebrow">REVIEWED EDGES</p><h2>已確認關係</h2></div><span class="muted small">{{ relationships|length }} 條紀錄</span></div>
-      {% for item in relationships %}<article class="relationship-card"><div class="relationship-card-head"><strong>{{ item['from']['name'] }} → {{ item['to']['name'] }}</strong><span>{{ item.type }}</span></div><p>{{ item.product_scope }}</p><small>審核日 {{ item.reviewed_at or '未提供' }}{% if item.status %} · {{ item.status }}{% endif %}</small><details><summary>查看證據與操作</summary><p>{{ item.description or '未提供額外描述。' }}</p>{% if item.source %}<dl><div><dt>來源</dt><dd>{{ item.source.title or '未提供標題' }} · {{ item.source.publisher or '未提供發布者' }}</dd></div><div><dt>發布</dt><dd>{{ item.source.published_at or '未提供' }}</dd></div><div><dt>定位</dt><dd>{{ item.source.locator or '未提供' }}</dd></div></dl>{% endif %}</details><div class="relationship-actions"><a class="source-link" href="{{ url_for('stock_page', code=item['from']['symbol']) }}">查看 {{ item['from']['symbol'] }}</a><a class="source-link" href="{{ url_for('stock_compare_page') }}?symbols={{ item['from']['symbol'] }},{{ item['to']['symbol'] }}">加入比較</a>{% if item.source and item.source.url %}<a class="source-link" href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</div></article>{% else %}<p class="empty-state">目前沒有通過審核的關係資料。</p>{% endfor %}
+    <div class="relationship-feed">
+      <div class="relationship-list">
+        <div class="section-heading"><div><p class="eyebrow">REVIEWED EDGES</p><h2>已確認關係</h2></div><span class="muted small">{{ relationships|length }} 條紀錄</span></div>
+        {% for item in relationships %}<article class="relationship-card"><div class="relationship-card-head"><strong>{{ item['from']['name'] }} → {{ item['to']['name'] }}</strong><span>{{ item.type }}</span></div><p>{{ item.product_scope }}</p><small>審核日 {{ item.reviewed_at or '未提供' }}{% if item.status %} · {{ item.status }}{% endif %}</small><details><summary>查看證據與操作</summary><p>{{ item.description or '未提供額外描述。' }}</p>{% if item.source %}<dl><div><dt>來源</dt><dd>{{ item.source.title or '未提供標題' }} · {{ item.source.publisher or '未提供發布者' }}</dd></div><div><dt>發布</dt><dd>{{ item.source.published_at or '未提供' }}</dd></div><div><dt>定位</dt><dd>{{ item.source.locator or '未提供' }}</dd></div></dl>{% endif %}</details><div class="relationship-actions"><a class="source-link" href="{{ url_for('stock_page', code=item['from']['symbol']) }}">查看 {{ item['from']['symbol'] }}</a><a class="source-link" href="{{ url_for('stock_compare_page') }}?symbols={{ item['from']['symbol'] }},{{ item['to']['symbol'] }}">加入比較</a>{% if item.source and item.source.url %}<a class="source-link" href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</div></article>{% else %}<p class="empty-state">目前沒有通過審核的關係資料。</p>{% endfor %}
+      </div>
+      {% if research_leads %}
+      <div class="relationship-list research-lead-list" aria-label="研究線索">
+        <div class="section-heading"><div><p class="eyebrow">RESEARCH LEADS</p><h2>研究線索</h2></div><span class="muted small">不列入已確認關係</span></div>
+        {% for lead in research_leads %}<article class="relationship-card"><div class="relationship-card-head"><strong>{{ lead.title or lead.symbol }}</strong><span>{{ lead.status or 'pending' }}</span></div><p>{{ lead.summary or '公開說法仍待官方或文件來源確認。' }}</p><small>{{ lead.market or '' }} {{ lead.symbol or '' }}</small>{% if lead.source_url %}<a class="source-link" href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">研究線索來源</a>{% endif %}</article>{% endfor %}
+      </div>
+      {% endif %}
     </div>
-    {% if research_leads %}
-    <div class="relationship-list research-lead-list" aria-label="研究線索">
-      <div class="section-heading"><div><p class="eyebrow">RESEARCH LEADS</p><h2>研究線索</h2></div><span class="muted small">不列入已確認關係</span></div>
-      {% for lead in research_leads %}<article class="relationship-card"><div class="relationship-card-head"><strong>{{ lead.title or lead.symbol }}</strong><span>{{ lead.status or 'pending' }}</span></div><p>{{ lead.summary or '公開說法仍待官方或文件來源確認。' }}</p><small>{{ lead.market or '' }} {{ lead.symbol or '' }}</small>{% if lead.source_url %}<a class="source-link" href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">研究線索來源</a>{% endif %}</article>{% endfor %}
-    </div>
-    {% endif %}
   </section>
 </div>
 {% endblock %}

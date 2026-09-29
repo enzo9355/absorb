@@ -15,6 +15,7 @@ OPENALICE_API_URL = (os.getenv("OPENALICE_API_URL") or "").strip()
 OPENALICE_API_TOKEN = (os.getenv("OPENALICE_API_TOKEN") or "").strip()
 MARKETAUX_API_TOKEN = (os.getenv("MARKETAUX_API_TOKEN") or "").strip()
 QUANT_SNAPSHOT_BUCKET = (os.getenv("QUANT_SNAPSHOT_BUCKET") or "").strip()
+INTEL_INFORMATION_ENABLED = (os.getenv("ABSORB_INTEL_INFORMATION_ENABLED") or "").strip().lower() == "true"
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").strip()
 SUPABASE_KEY = (os.getenv("SUPABASE_KEY") or "").strip()
 

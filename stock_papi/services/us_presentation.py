@@ -156,3 +156,29 @@ def stock_display_name(name: str, symbol: str) -> str:
     if not n or n.upper() == s:
         return s
     return f"{n} · {s}"
+
+
+def latest_post_close_item(reports: Any) -> dict[str, Any] | None:
+    """Return the post_close entry with the newest session dates.
+
+    Report index order reflects publication recency (newest first), which a
+    late backfill can reorder away from session recency. Select by
+    (applicable_trading_date, source_market_date) so pages always render the
+    newest verified session, matching the freshness loader's max() semantics.
+    """
+    best: dict[str, Any] | None = None
+    best_key: tuple[str, str] | None = None
+    if not isinstance(reports, list):
+        return None
+    for item in reports:
+        if not isinstance(item, dict) or item.get("report_type") != "post_close":
+            continue
+        applicable = item.get("applicable_trading_date") or item.get("source_market_date")
+        source = item.get("source_market_date") or applicable
+        if not isinstance(applicable, str) or not isinstance(source, str):
+            continue
+        key = (applicable, source)
+        if best_key is None or key > best_key:
+            best_key = key
+            best = item
+    return best

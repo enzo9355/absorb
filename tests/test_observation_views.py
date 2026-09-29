@@ -1,3 +1,4 @@
+import datetime
 import json
 import unittest
 
@@ -6,12 +7,14 @@ from tests.report_fixtures import warmup_stock_document
 
 
 def snapshot():
+    base_date = datetime.date(2026, 7, 16) - datetime.timedelta(days=64)
     rows = []
     for index in range(65):
         close = 100 + index
+        row_date = (base_date + datetime.timedelta(days=index)).isoformat()
         rows.append(
             {
-                "Date": f"2026-05-{index + 1:02d}T00:00:00.000",
+                "Date": f"{row_date}T00:00:00.000",
                 "Open": close - 1,
                 "High": close + 2,
                 "Low": close - 2,
@@ -29,7 +32,6 @@ def snapshot():
                 "AI_P": 99,
             }
         )
-    rows[-1]["Date"] = "2026-07-16T00:00:00.000"
     return {
         "schema_version": 1,
         "market": "TW",

@@ -31,6 +31,7 @@ from stock_papi.services.report_view import (
     dedupe_reports_for_list,
 )
 from stock_papi.services.market_summary import build_market_summary_view
+from stock_papi.services.us_presentation import latest_post_close_item
 from stock_papi.services.prediction_view import prediction_for
 from reporting.config import MAX_CANONICAL_REPORT_BYTES
 from werkzeug.exceptions import HTTPException
@@ -473,10 +474,7 @@ def register_report_routes(
     def _us_summary_response(template_name):
         try:
             reports = _v2_reports(market="US", required=True)
-            item = next(
-                (value for value in reports if value.get("report_type") == "post_close"),
-                None,
-            )
+            item = latest_post_close_item(reports)
             if item is None:
                 raise ReportWebError("美股盤後報告暫時無法使用")
             metadata = load_metadata_v2(item, expected_market="US")
@@ -493,6 +491,7 @@ def register_report_routes(
             context = {
                 "summary": summary,
                 "market": "US",
+                "index_predictions": [],
             }
             if template_name == "us_dashboard.html" and load_prediction_snapshot:
                 predictions = []
@@ -508,6 +507,12 @@ def register_report_routes(
                         )
                         if value is not None:
                             predictions.append({**value, "symbol": symbol, "name": name})
+                    if not predictions:
+                        app.logger.info(
+                            "us_index_predictions_empty source_market_date=%s has_product=%s",
+                            summary.get("source_market_date"),
+                            product is not None,
+                        )
                 except Exception:
                     predictions = []
                 context["index_predictions"] = predictions

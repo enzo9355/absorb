@@ -19,6 +19,8 @@ EXPECTED_ROUTES = {
     ("/api/dashboard", "dashboard_api", frozenset({"GET"})),
     ("/api/market-insights", "market_insights_api", frozenset({"GET"})),
     ("/api/market-chart/<market>", "market_chart_refresh_api", frozenset({"GET"})),
+    ("/api/intel/stock/<instrument_id>/summary", "intel_stock_summary", frozenset({"GET"})),
+    ("/api/intel/stock/<instrument_id>/events", "intel_stock_events", frozenset({"GET"})),
     ("/broadcast_weekly", "broadcast_weekly", frozenset({"GET"})),
     ("/auth/line/callback", "line_callback", frozenset({"GET"})),
     ("/auth/line/login", "line_login", frozenset({"GET"})),
@@ -63,6 +65,7 @@ EXPECTED_ROUTES = {
     ("/us/market", "us_market_page", frozenset({"GET"})),
     ("/us/stocks", "us_stocks_page", frozenset({"GET"})),
     ("/tasks/check-alerts", "check_alerts_task", frozenset({"POST"})),
+    ("/tasks/check-trade-plans", "check_trade_plans_task", frozenset({"POST"})),
     ("/tasks/refresh-sector-signals", "refresh_sector_signals_task", frozenset({"POST"})),
     ("/watchlist", "watchlist_page", frozenset({"GET"})),
 }

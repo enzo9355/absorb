@@ -35,6 +35,24 @@ class USPresentationRegressionTests(unittest.TestCase):
         self.assertIn("法人淨流中位", html)
         self.assertNotIn("median_institution_net_ratio_pct", html)
 
+    def test_latest_post_close_item_prefers_newest_session_over_publish_order(self):
+        from stock_papi.services.us_presentation import latest_post_close_item
+
+        reports = [
+            {"report_type": "post_close", "source_market_date": "2026-09-22", "applicable_trading_date": "2026-09-23"},
+            {"report_type": "pre_market", "source_market_date": "2026-09-24", "applicable_trading_date": "2026-09-25"},
+            {"report_type": "post_close", "source_market_date": "2026-09-24", "applicable_trading_date": "2026-09-25"},
+            {"report_type": "post_close", "source_market_date": "2026-09-21", "applicable_trading_date": "2026-09-22"},
+        ]
+        item = latest_post_close_item(reports)
+        self.assertIsNotNone(item)
+        self.assertEqual(item["source_market_date"], "2026-09-24")
+        self.assertIsNone(latest_post_close_item([]))
+        self.assertIsNone(latest_post_close_item(None))
+        self.assertIsNone(latest_post_close_item([
+            {"report_type": "pre_market", "source_market_date": "2026-09-24", "applicable_trading_date": "2026-09-25"},
+        ]))
+
     def test_key_event_localizer_translates_machine_risk_state(self):
         from stock_papi.services.us_presentation import localize_us_key_event
 

@@ -65,7 +65,7 @@
     </section>
 
     <nav class="page-jump-nav glass-panel" aria-label="個股觀察導覽">
-    <a href="#summary">總覽</a><a href="#chart">價格</a><a href="#chips">籌碼</a><a href="#technicals">技術</a><a href="#risk">風險</a>{% if peers or related_relationships or related_events or related_opinions %}<a href="#research">研究</a>{% endif %}
+    <a href="#summary">總覽</a><a href="#chart">價格</a><a href="#chips">籌碼</a><a href="#technicals">技術</a><a href="#risk">風險</a>{% if intel_snapshot %}<a href="#intel">申報資料</a>{% endif %}{% if peers or related_relationships or related_events or related_opinions %}<a href="#research">研究</a>{% endif %}
   </nav>
 
   {% if peers or related_relationships or related_events or related_opinions %}
@@ -164,5 +164,6 @@
 
   <script id="stock-chart-data" type="application/json">{% if prediction %}{{ {"candles": candles, "ma20": ma20_line, "prediction": prediction.line}|tojson }}{% else %}{{ {"candles": candles, "ma20": ma20_line}|tojson }}{% endif %}</script>
   {% endif %}
+  {% if market == "US" and intel_snapshot %}{% include "partials/stock_intel.html" %}{% endif %}
 </div>
 {% endblock %}

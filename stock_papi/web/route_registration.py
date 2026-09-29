@@ -2,6 +2,7 @@
 
 from stock_papi.web.routes.dashboard import register_dashboard_page
 from stock_papi.web.routes.market import register_market_routes
+from stock_papi.web.routes.intel import register_intel_routes
 from stock_papi.web.routes.reports import register_report_routes
 from stock_papi.web.routes.research import register_research_routes
 from stock_papi.web.routes.system import (
@@ -68,6 +69,14 @@ def register_routes(app, dependencies):
         load_relationships=dependencies["load_research_relationships"],
         load_events=dependencies["load_research_events"],
         load_opinions=dependencies["load_public_opinions"],
+        load_intel_snapshot=dependencies.get("load_intel_snapshot"),
+        intel_enabled=dependencies.get("intel_information_enabled", False),
+        resolve_intel_stock_instrument=dependencies.get("resolve_intel_stock_instrument"),
+    )
+    register_intel_routes(
+        app,
+        load_snapshot=dependencies.get("load_intel_snapshot"),
+        enabled=dependencies.get("intel_information_enabled", False),
     )
     register_research_routes(
         app,

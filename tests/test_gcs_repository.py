@@ -57,6 +57,9 @@ class GcsRepositoryTests(unittest.TestCase):
             get_allowed_object("secret/object", 4, "secret/", **kwargs)
         )
         self.assertIsNone(
+            get_allowed_object("intel/v1/object", 4, "intel/v1/", **kwargs)
+        )
+        self.assertIsNone(
             get_allowed_object("quant/v1/object", 4, [], **kwargs)
         )
         self.assertIsNone(

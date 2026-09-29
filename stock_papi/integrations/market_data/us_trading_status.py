@@ -414,6 +414,12 @@ def fetch_nasdaq_trade_halts(
         parsed = _parse_halt_item(item, description)
         try:
             valid_sym = validate_us_ticker(parsed["symbol"])
+        except ValueError:
+            # Halt rows for non-listable/test symbols (e.g. 'VACI=') can never
+            # match universe symbols validated by the same pattern; skip the
+            # row instead of failing the whole authoritative source.
+            continue
+        try:
             market_name = parsed["market"]
             normalized_market = market_name.upper().strip()
             # Map known aliases and normalize; unsupported markets are skipped, not failed.

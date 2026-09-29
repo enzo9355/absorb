@@ -4,27 +4,64 @@
 {% set market_view = market_observation_view|default(summary.get('market_observation_view', []), true) %}
 {% set freshness = (data_freshness|default({}, true)).get('US', {}) %}
 {% set freshness_label = {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法取得'}.get(freshness.get('status'), '暫時無法取得') %}
-<div class="page market-summary-page">
-  <header class="page-header"><div><h1>美股市場實況</h1><p class="page-intro">資料日 {{ summary.source_market_date }}；以下只呈現已驗證正式報告中的市場欄位。</p></div></header>
+<div class="page dashboard-page research-dashboard market-summary-page">
+  <header class="research-summary market-summary-header">
+    <div class="research-copy">
+      <p class="research-status"><span aria-hidden="true"></span>美股市場實況</p>
+      <h1>美股市場實況</h1>
+      <p class="research-headline research-limit">資料日 {{ summary.source_market_date }}；以下只呈現已驗證正式報告中的市場欄位。</p>
+    </div>
+    <dl class="research-evidence summary-dates" aria-label="資料日期">
+      <div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or summary.source_market_date or '尚無已驗證日期' }}</dd></div>
+      <div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div>
+    </dl>
+  </header>
   <section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-labelledby="us-market-freshness-title">
-    <div><h2 id="us-market-freshness-title">已驗證資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
+    <div><h2 id="us-market-freshness-title">資料狀態</h2><p aria-live="polite">資料狀態：{{ freshness_label }}</p></div>
     <dl><div><dt>來源交易日</dt><dd>{{ freshness.get('source_market_date') or summary.source_market_date or '尚無已驗證日期' }}</dd></div><div><dt>適用交易日</dt><dd>{{ freshness.get('applicable_trading_date') or summary.applicable_trading_date or '尚無已驗證日期' }}</dd></div></dl>
+    {% if freshness.get('status') == 'updating' %}<p class="freshness-warning">新交易日報告驗證中；以下為最近一次已驗證報告，不代表今日即時行情。</p>{% endif %}
     {% if freshness.get('status') == 'stale' %}<p class="freshness-warning">目前沒有涵蓋最新交易日的已驗證資料；以下數字為最近一次報告，不代表今日即時行情。</p>{% endif %}
   </section>
   <p class="market-action-state"><span>規則式市場行動</span><strong>{{ summary.executive_summary.market_state }}</strong></p>
   <section class="panel" aria-labelledby="us-market-data-title">
-    <h2 id="us-market-data-title">市場觀察</h2>
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">MARKET OBSERVATION</p>
+        <h2 id="us-market-data-title">市場觀察</h2>
+      </div>
+      <span class="muted small">已驗證指標 {{ market_view|length }} 項</span>
+    </div>
     {% if market_view %}
       <dl class="summary-facts">
-        {% for row in market_view %}<div><dt>{{ row.label }}</dt><dd>{{ row.formatted }}</dd></div>{% endfor %}
+        {% for row in market_view %}
+        <div>
+          <dt>{{ row.label }}</dt>
+          <dd>{{ row.formatted }}</dd>
+        </div>
+        {% endfor %}
       </dl>
+      <p class="muted small" style="margin-top:16px">美股法人流尚未納入已驗證來源，長天期報酬僅在全樣本通過日期檢查時顯示；缺值代表該欄位本次未通過驗證，不以估計值補位。</p>
     {% else %}
       <p class="empty-state">{{ summary.market_observation.reason or '市場觀察欄位暫時無法顯示。' }}</p>
     {% endif %}
   </section>
   <section class="panel" aria-labelledby="us-market-evidence-title">
-    <h2 id="us-market-evidence-title">支持與反對證據</h2>
-    <div class="market-summary-grid"><div><h3>支持證據</h3><ul class="summary-list">{% for item in summary.executive_summary.supporting_evidence %}<li>{{ item }}</li>{% else %}<li class="empty-state">沒有可顯示的支持證據。</li>{% endfor %}</ul></div><div><h3>反對證據</h3><ul class="summary-list">{% for item in summary.executive_summary.opposing_evidence %}<li>{{ item }}</li>{% else %}<li class="empty-state">沒有可顯示的反對證據。</li>{% endfor %}</ul></div></div>
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">RULE-BASED EVIDENCE</p>
+        <h2 id="us-market-evidence-title">支持與反對證據</h2>
+      </div>
+    </div>
+    <div class="market-summary-grid">
+      <div class="evidence-col supporting-evidence-col">
+        <h3>支持證據</h3>
+        <ul class="summary-list">{% for item in summary.executive_summary.supporting_evidence %}<li><strong>{{ item }}</strong></li>{% else %}<li class="empty-state">沒有可顯示的支持證據。</li>{% endfor %}</ul>
+      </div>
+      <div class="evidence-col opposing-evidence-col">
+        <h3>反對證據</h3>
+        <ul class="summary-list">{% for item in summary.executive_summary.opposing_evidence %}<li><strong>{{ item }}</strong></li>{% else %}<li class="empty-state">沒有可顯示的反對證據。</li>{% endfor %}</ul>
+      </div>
+    </div>
   </section>
 </div>
 {% endblock %}

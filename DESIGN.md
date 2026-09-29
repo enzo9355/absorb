@@ -51,7 +51,7 @@ Logo 實測主要深藍為 `#122643`。CSS token：
 
 ## 6. Typography
 
-英文字優先使用系統已安裝的 `Avenir Next` 或 `Avenir`，繁體中文搭配 `Noto Sans TC`，再依序退回 `PingFang TC`、`Microsoft JhengHei` 與 `sans-serif`。不下載、內嵌或提交專有字型，也不建立外部 font request。草寫只用於導覽文字標誌，內容標題維持人文無襯線。
+英文字優先使用系統已安裝的 `Avenir Next` 或 `Avenir`，繁體中文搭配 `Noto Sans TC`，再依序退回 `PingFang TC`、`Microsoft JhengHei` 與 `sans-serif`。不下載、內嵌或提交專有字型，也不建立外部 font request。導覽文字標誌採用經典高對比英倫奢華襯線字體（Burberry 經典襯線風格），內容標題維持人文無襯線。
 
 ## 7. Numeric typography
 
