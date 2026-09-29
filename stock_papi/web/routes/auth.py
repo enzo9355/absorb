@@ -217,12 +217,18 @@ def register_auth_routes(
             response = _private(make_response("LINE Login 請求過於頻繁", 429))
             response.headers["Retry-After"] = "60"
             return response
+        return_to = safe_return_path(request.args.get("return_to", "/"))
+        redirect_uri = _callback_redirect_uri()
+        callback = urlsplit(redirect_uri)
+        if urlsplit(request.host_url).hostname != callback.hostname:
+            # Host-only OAuth cookies must be issued on the registered callback host.
+            return _private(redirect(
+                f"{callback.scheme}://{callback.netloc}/auth/line/login?"
+                + urlencode({"return_to": return_to}), code=302))
         timestamp = now()
         state = secrets.token_urlsafe(32)
         nonce = secrets.token_urlsafe(32)
         verifier, challenge = create_pkce_pair()
-        return_to = safe_return_path(request.args.get("return_to", "/"))
-        redirect_uri = _callback_redirect_uri()
         try:
             store.create_oauth_attempt(state, {
                 "nonce": nonce,

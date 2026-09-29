@@ -489,6 +489,15 @@ class LineLoginTests(unittest.TestCase):
         from urllib.parse import quote as _quote
         self.assertIn("redirect_uri=" + _quote(self.config.redirect_uri, safe=""), response.headers["Location"])
 
+    def test_other_service_alias_moves_to_callback_host_before_oauth_attempt(self):
+        client = self._register_with_hosts(None)
+        response = client.get("/auth/line/login", base_url="http://alias.example",
+                              query_string={"return_to": "/account/trading"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "http://localhost/auth/line/login?return_to=%2Faccount%2Ftrading")
+        self.assertNotIn("Set-Cookie", response.headers)
+        self.assertEqual(self.auth_store.attempts, {})
+
     def test_mid_flow_host_switch_fails_closed(self):
         from stock_papi.services.auth import LineLoginConfig as _Config
         other = _Config(channel_id="1234567890", channel_secret="channel-secret",
@@ -505,7 +514,7 @@ class LineLoginTests(unittest.TestCase):
             http_post=self.http.post, now=lambda: NOW,
             login_callback_hosts=lambda: holder["hosts"])
         client = app.test_client()
-        started = client.get("/auth/line/login", query_string={"return_to": "/"})
+        started = client.get("/auth/line/login", base_url="http://127.0.0.1", query_string={"return_to": "/"})
         from urllib.parse import parse_qs as _pq, urlparse as _up
         query = _pq(_up(started.headers["Location"]).query)
         self.http.nonce = query["nonce"][0]
