@@ -250,7 +250,8 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
                     continue
                 try:
                     out = _evaluate(plan, snapshot, expected_session=expected,
-                                    evaluated_at=now_dt, calendar=calendar)
+                                    evaluated_at=now_dt, calendar=calendar,
+                                    prior_events=_plan_events(assistant, plan_id))
                 except (ValueError, TypeError):
                     summary["failures"] += 1
                     continue
@@ -307,7 +308,8 @@ def run_trade_plan_checks(store, load_snapshot, *, now, calendar,
                         continue
                     try:
                         out = _evaluate(plan, snapshot, expected_session=session,
-                                        evaluated_at=now_dt, calendar=calendar)
+                                        evaluated_at=now_dt, calendar=calendar,
+                                        prior_events=_plan_events(current_assistant, plan_id))
                     except (ValueError, TypeError):
                         summary["failures"] += 1
                         continue

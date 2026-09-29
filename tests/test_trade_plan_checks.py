@@ -57,6 +57,55 @@ def _plan_and_calendar(sessions=None):
 
 
 class TradePlanChecksTests(unittest.TestCase):
+    def test_waiting_plan_triggered_later_can_invalidate_without_rewriting_original(self):
+        plan, snapshot, calendar = _plan_and_calendar()
+        plan["action"] = "wait"
+        store = self._store_with_plan(plan)
+        sessions = calendar["sessions"]
+        trigger_session = sessions[sessions.index(snapshot["as_of"]) + 1]
+        next_session = sessions[sessions.index(trigger_session) + 1]
+        store.users[USER_A]["assistant"]["events"].append({
+            "plan_id": plan["plan_id"], "event_type": "triggered", "new_status": "triggered",
+            "session": trigger_session, "created_at": trigger_session + "T22:00:00Z"})
+        valid = copy.deepcopy(snapshot)
+        valid.update(as_of=next_session)
+        valid["daily"] = valid["daily"][2:] + [dict(snapshot["daily"][-1], date=trigger_session),
+                                               dict(snapshot["daily"][-1], date=next_session)]
+        continued = trade_plans.evaluate_trade_plan(plan, valid, expected_session=next_session,
+                      evaluated_at=datetime(2026, 9, 10, 1, tzinfo=timezone.utc), calendar=calendar,
+                      prior_events=store.users[USER_A]["assistant"]["events"])
+        self.assertEqual(continued["status"], "triggered")
+        self.assertIsNone(continued["event"])
+        invalid = copy.deepcopy(snapshot)
+        row = dict(invalid["daily"][-1], date=next_session)
+        row.update(close=plan["conditions"]["invalidation_price"] - 1,
+                   open=plan["conditions"]["invalidation_price"] - 1.1,
+                   high=plan["conditions"]["invalidation_price"] - 0.5,
+                   low=plan["conditions"]["invalidation_price"] - 1.5)
+        invalid.update(as_of=next_session, source_snapshot_sha256=hashlib.sha256(b"later-invalidated").hexdigest())
+        invalid["daily"] = invalid["daily"][2:] + [dict(row, date=trigger_session), row]
+        load = lambda market, symbol, session: invalid if session == next_session else None
+        for _ in range(2):
+            run_trade_plan_checks(store, load, now=datetime(2026, 9, 10, 1, tzinfo=timezone.utc),
+                                  calendar=calendar, expected_session=next_session,
+                                  allowed_users=frozenset({USER_A}), dry_run=False)
+        assistant = store.users[USER_A]["assistant"]
+        self.assertEqual(len([ev for ev in assistant["events"] if ev.get("event_type") == "invalidated"]), 1)
+        self.assertEqual(assistant["saved_plans"][0]["plan"]["action"], "wait")
+
+    def test_waiting_plan_without_frozen_expiry_expires_from_verified_calendar(self):
+        plan, snapshot, calendar = _plan_and_calendar()
+        plan.update(action="wait", expires_session="")
+        sessions = calendar["sessions"]
+        start = sessions.index(snapshot["as_of"])
+        latest = copy.deepcopy(snapshot)
+        latest["daily"] = latest["daily"][6:] + [dict(snapshot["daily"][-1], date=day) for day in sessions[start + 1:start + 7]]
+        latest["as_of"] = sessions[start + 6]
+        result = trade_plans.evaluate_trade_plan(plan, latest, expected_session=latest["as_of"],
+                    evaluated_at=datetime(2026, 9, 15, 1, tzinfo=timezone.utc), calendar=calendar)
+        self.assertEqual(result["status"], "expired")
+        self.assertEqual(plan["expires_session"], "")
+
     def test_followup_report_retains_all_plans_and_uses_first_trigger(self):
         from stock_papi.services.trade_plan_checks import build_followup_report
         sessions = plan_fixtures._sessions(count=120)

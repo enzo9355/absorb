@@ -176,7 +176,7 @@ class TradePlanRuleTests(unittest.TestCase):
             generated_at=datetime(2026, 9, 3, 1, 0, tzinfo=timezone.utc),
             calendar=cal)
         self.assertEqual(plan["action"], "entry_review")
-        # Same snapshot re-eval: same event id.
+        # Already-triggered plans stay triggered without another trigger event.
         first = trade_plans.evaluate_trade_plan(
             plan, snap, expected_session=snap["as_of"],
             evaluated_at=datetime(2026, 9, 3, 2, 0, tzinfo=timezone.utc), calendar=cal)
@@ -184,7 +184,16 @@ class TradePlanRuleTests(unittest.TestCase):
             plan, snap, expected_session=snap["as_of"],
             evaluated_at=datetime(2026, 9, 3, 3, 0, tzinfo=timezone.utc), calendar=cal)
         self.assertEqual(first["status"], "triggered")
-        self.assertEqual(first["event"]["event_id"], second["event"]["event_id"])
+        self.assertIsNone(first["event"])
+        self.assertIsNone(second["event"])
+        waiting = dict(plan, action="wait")
+        first_trigger = trade_plans.evaluate_trade_plan(
+            waiting, snap, expected_session=snap["as_of"],
+            evaluated_at=datetime(2026, 9, 3, 2, 0, tzinfo=timezone.utc), calendar=cal)
+        replay = trade_plans.evaluate_trade_plan(
+            waiting, snap, expected_session=snap["as_of"],
+            evaluated_at=datetime(2026, 9, 3, 3, 0, tzinfo=timezone.utc), calendar=cal)
+        self.assertEqual(first_trigger["event"]["event_id"], replay["event"]["event_id"])
         # Invalidation: drop close below frozen invalidation.
         snap2 = dict(snap)
         snap2["daily"] = [dict(r) for r in snap["daily"]]

@@ -427,7 +427,7 @@ def build_trade_plan(snapshot, *, expected_session, generated_at, calendar, evid
     }
 
 
-def evaluate_trade_plan(plan, snapshot, *, expected_session, evaluated_at, calendar):
+def evaluate_trade_plan(plan, snapshot, *, expected_session, evaluated_at, calendar, prior_events=()):
     """回傳狀態、action、原因與可去重的 event；不覆寫 plan。"""
     plan = plan if isinstance(plan, dict) else {}
     snapshot = snapshot if isinstance(snapshot, dict) else {}
@@ -443,6 +443,14 @@ def evaluate_trade_plan(plan, snapshot, *, expected_session, evaluated_at, calen
     snapshot_hash = str(snapshot.get("source_snapshot_sha256") or "missing")
     base_action = str(plan.get("action") or ACTION_WAIT)
     was_entry = base_action == ACTION_ENTRY
+    history = [event for event in prior_events if isinstance(event, dict)
+               and event.get("plan_id") == plan_id and _parse_session(event.get("session"))
+               and expected and event["session"] <= expected]
+    trigger_sessions = [event["session"] for event in history if event.get("event_type") == "triggered"]
+    trigger_session = min(trigger_sessions) if trigger_sessions else str(plan.get("data_as_of") or "")
+    if trigger_sessions:
+        was_entry = True
+        base_action = ACTION_ENTRY
 
     def result(status, action, reasons, event_type=None, data_gap=False):
         event = None
@@ -453,6 +461,12 @@ def evaluate_trade_plan(plan, snapshot, *, expected_session, evaluated_at, calen
                 "event": event, "data_gap": data_gap,
                 "plan_id": plan_id, "expected_session": expected or "",
                 "evaluated_at": evaluated.isoformat().replace("+00:00", "Z") if evaluated else ""}
+
+    terminal = next((event.get("new_status") for event in reversed(history)
+                     if event.get("new_status") in {STATUS_EXPIRED, STATUS_INVALIDATED, STATUS_COMPLETED}), None)
+    if terminal:
+        return result(terminal, ACTION_EXIT if terminal == STATUS_INVALIDATED else ACTION_INSUFFICIENT,
+                      ["plan_terminal"])
 
     if evaluated is None or expected is None or calendar_error or expected not in (sessions or []):
         preserved = STATUS_TRIGGERED if was_entry else STATUS_WATCHING
@@ -472,13 +486,17 @@ def evaluate_trade_plan(plan, snapshot, *, expected_session, evaluated_at, calen
 
     # Expiry for never-triggered plans.
     expires_session = str(plan.get("expires_session") or "")
+    if not expires_session and plan.get("data_as_of") in sessions:
+        expiry_index = sessions.index(plan["data_as_of"]) + 5
+        if expiry_index < len(sessions):
+            expires_session = sessions[expiry_index]
     if not was_entry and expires_session and expected > expires_session:
         return result(STATUS_EXPIRED, ACTION_INSUFFICIENT, ["plan_expired"], event_type="expired")
 
     # Completion for initially-triggered plans after 20 sessions.
     if was_entry:
         try:
-            trigger_index = sessions.index(str(plan.get("data_as_of") or ""))
+            trigger_index = sessions.index(trigger_session)
             if end_index - trigger_index >= 20:
                 return result(STATUS_COMPLETED, base_action, ["observation_window_completed"], event_type="completed")
         except ValueError:
@@ -512,7 +530,8 @@ def evaluate_trade_plan(plan, snapshot, *, expected_session, evaluated_at, calen
     rsi_ok = rsi < 70.0
     ceiling_ok = close_now <= ceiling
     if trend_ok and breakout_ok and volume_ok and rsi_ok and ceiling_ok:
-        return result(STATUS_TRIGGERED, ACTION_ENTRY, ["conditions_met"], event_type="triggered")
+        return result(STATUS_TRIGGERED, ACTION_ENTRY, ["conditions_met"],
+                      event_type=None if was_entry else "triggered")
     if (not rsi_ok) or (not ceiling_ok):
         # Overheated/extended: watching unless originally triggered (stay triggered, no new event to avoid spam?).
         if was_entry:
