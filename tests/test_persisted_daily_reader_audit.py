@@ -150,7 +150,9 @@ READER_CONTRACTS = {
 }
 NON_PERSISTED_BUILDERS = {("scripts/generate_sample_daily_report.py", "build_documents"),
                            ("stock_papi/services/trade_plans.py", "_validate_plan_daily_rows"),
-                           ("stock_papi/services/trade_plan_market.py", "snapshot_from_artifact")}
+                           ("stock_papi/services/trade_plan_market.py", "snapshot_from_artifact"),
+                           # Validates caller-supplied dicts; no persisted I/O. See test_intel_features.
+                           ("stock_papi/intel/features.py", "_snapshot")}
 
 
 class PersistedDailyReaderAuditTests(unittest.TestCase):
