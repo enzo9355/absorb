@@ -90,4 +90,14 @@ python -m stock_papi.batch.opinion_review_cli publish --review data/research/x-r
 
 ## 尚未包含
 
-本階段未接入美股公司事件、完整機構持倉、法說／財報／除息專用日曆，也未安裝新的自動排程。批次程式及讀取狀態已可使用；下一次正式發布必須驗證實際來源版本、設定及 Cloud Run 流量，再做正式站瀏覽器驗收。不能把本機成功或這份公告快照當作持續更新或正式站完成證據。
+本階段未接入美股公司事件、完整機構持倉、法說／財報／除息專用日曆，也未安裝新的自動排程。批次程式及讀取狀態已可使用；這份公告快照不代表持續更新。
+
+## 正式發布驗收（2026-10-01 21:32，台北時間）
+
+- 發布前獨立確認原正式修訂 `line-stock-bot-00308-zen` 的來源 commit／tree 與本次基線相同；原主目錄未修改。
+- 以來源 commit `c4f95ed23bdcd4d5ad7627e3a92914269e9a892a`、tree `557a042259de261844fe0a6a3e1d50ddf65dc81a` 的 Git archive 建置，先建立無流量修訂 `line-stock-bot-00310-zab`。環境設定、Secret 綁定與服務身分均與原正式修訂一致，僅更新來源識別。
+- 候選驗收通過後切換流量；獨立讀回 `status.traffic` 確認新版取得 100%，容器健康且來源標籤一致。正式網址為 `https://line-stock-bot-3visrvv4yq-de.a.run.app`。
+- 正式站 25 項唯讀 HTTP 檢查全部通過；既有 `verify_cutover.ps1 -ObservationOnly` 在切換前後均為 `READY`，11／11 項通過。
+- 正式瀏覽器確認觀點 Serenity 篩選（2 筆觀點、1 筆動態）、240 筆公告／12 頁、第 2 頁與公司 3447 篩選（1 筆公告）；桌機與 390px 手機皆無橫向溢出。
+- 183 筆候選仍為待審，未發布候選原文；公告快照時間仍為 10/01 16:49，未宣稱新增自動更新。
+- 證據位於 `artifacts/perspectives-events-audit-20261001/release-production-acceptance.json`、`release-production-traffic.json`、`release-production-provenance.json`、`release-production-smoke.json`、`release-post-cutover.log` 與 `production-*.png`／DOM。此段為發布後紀錄，正式容器來源仍以上述 commit 為準。
