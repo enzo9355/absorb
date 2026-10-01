@@ -229,7 +229,7 @@ def _effective_date(event):
 
 def _as_date(value):
     if value is None:
-        return dt.date.today()
+        return dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date()
     if isinstance(value, dt.datetime):
         return value.date()
     if isinstance(value, dt.date):
@@ -258,11 +258,17 @@ def split_event_window(events, *, as_of=None, past_days=30, future_days=14):
     target = _as_date(as_of)
     lower = target - dt.timedelta(days=past_days)
     upper = target + dt.timedelta(days=future_days)
-    past, upcoming, undated = [], [], []
+    past, upcoming, undated, announcements = [], [], [], []
     for item in events:
         if not isinstance(item, dict):
             raise CompanyEventSchemaError("event item is invalid")
         event_date = _effective_date(item)
+        if item.get('symbol') and item.get('status') in {'confirmed', 'corrected', 'cancelled'}:
+            published = item.get('published_at')
+            if published:
+                published_date = dt.datetime.fromisoformat(published).astimezone(dt.timezone(dt.timedelta(hours=8))).date()
+                if lower <= published_date <= target:
+                    announcements.append(copy.deepcopy(item))
         if event_date is None:
             undated.append(copy.deepcopy(item))
         elif lower <= event_date <= target:
@@ -271,6 +277,7 @@ def split_event_window(events, *, as_of=None, past_days=30, future_days=14):
             upcoming.append(copy.deepcopy(item))
     past.sort(key=lambda item: item.get("effective_at") or "", reverse=True)
     upcoming.sort(key=lambda item: item.get("effective_at") or "")
+    announcements.sort(key=lambda item: dt.datetime.fromisoformat(item['published_at']), reverse=True)
     return {
         "as_of": target.isoformat(),
         "past_start": lower.isoformat(),
@@ -278,6 +285,7 @@ def split_event_window(events, *, as_of=None, past_days=30, future_days=14):
         "past": past,
         "upcoming": upcoming,
         "undated": undated,
+        "announcements": announcements,
     }
 
 

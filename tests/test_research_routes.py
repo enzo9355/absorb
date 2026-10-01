@@ -8,6 +8,68 @@ from stock_papi.web.routes.research import register_research_routes
 
 
 class ResearchRouteTests(unittest.TestCase):
+    def test_company_announcements_paginate_and_keep_filters(self):
+        app = Flask(__name__, template_folder=str(Path(__file__).parents[1] / 'templates'))
+        rows = [dict(id=f'announcement-{i}', symbol='2317', name='鴻海', event_type='重大訊息',
+                     title=f'公告-{i}', published_at='2026-09-16T09:00:00+08:00', status='confirmed',
+                     source='https://openapi.twse.com.tw/v1/opendata/t187ap04_L') for i in range(21)]
+        register_research_routes(app, load_relationships=lambda: {}, load_events=lambda: rows,
+                                 load_opinions=lambda: self.opinion_catalog, stock_observation=lambda symbol: {},
+                                 get_stock_name=lambda symbol: symbol, allowed_symbols=['2317'])
+        client = app.test_client()
+        html = client.get('/events?symbol=2317&as_of=2026-09-17').get_data(as_text=True)
+        self.assertIn('下一頁', html)
+        self.assertEqual(html.count('class="event-research-card"'), 20)
+        self.assertIn('symbol=2317', html)
+        second = client.get('/events?symbol=2317&as_of=2026-09-17&page=2')
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.get_data(as_text=True).count('class="event-research-card"'), 1)
+        self.assertEqual(client.get('/events?page=bad').status_code, 400)
+        self.assertEqual(client.get('/events?as_of=2026-09-17&page=3').status_code, 400)
+
+    def test_opinions_hide_pending_and_records_not_available_at_cutoff_on_all_pages(self):
+        pending = dict(self.opinion_catalog['opinions'][0], is_confirmed=False, text='PENDING PRIVATE TEXT')
+        future = dict(self.opinion_catalog['opinions'][0], reviewed_at='2099-01-01T00:00:00Z', text='FUTURE REVIEW TEXT')
+        self.opinion_catalog['opinions'].extend([pending, future])
+        for path in ('/perspectives', '/perspectives/alpha', '/perspectives/stocks/US/NVDA'):
+            html = self.client.get(path + '?cutoff_at=2026-09-17T08:00:00Z').get_data(as_text=True)
+            self.assertNotIn('PENDING PRIVATE TEXT', html)
+            self.assertNotIn('FUTURE REVIEW TEXT', html)
+
+    def test_opinion_window_and_subject_filter_apply_to_both_lists(self):
+        html = self.client.get('/perspectives?activity_window=7&cutoff_at=2026-10-01T00:00:00Z').get_data(as_text=True)
+        self.assertNotIn('TSM ADR view', html)
+        html = self.client.get('/perspectives?subject_id=unknown&cutoff_at=2026-09-17T08:00:00Z').get_data(as_text=True)
+        self.assertNotIn('TSM ADR view', html)
+        html = self.client.get('/perspectives/stocks/US/NVDA?subject_id=unknown&cutoff_at=2026-09-17T08:00:00Z').get_data(as_text=True)
+        self.assertNotIn('TSM ADR view', html)
+        self.assertIn('bullish 0', html)
+        for path in ('/perspectives', '/perspectives/alpha', '/perspectives/stocks/US/NVDA'):
+            self.assertEqual(self.client.get(path + '?activity_window=bad').status_code, 400)
+
+    def test_tabs_and_pagination_keep_filters_and_show_review_time(self):
+        from html.parser import HTMLParser
+        class Links(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.links = []
+            def handle_starttag(self, tag, attrs):
+                if tag == 'a': self.links.append(dict(attrs).get('href', ''))
+        self.opinion_catalog['opinions'] = [dict(self.opinion_catalog['opinions'][0], opinion_id=f'page-{i}') for i in range(21)]
+        html = self.client.get('/perspectives?creator_id=alpha&activity_window=28&cutoff_at=2026-09-17T08:00:00Z').get_data(as_text=True)
+        links = Links(); links.feed(html)
+        self.assertIn('下一頁', html)
+        self.assertIn('2026-09-16 18:10', html)
+        for href in links.links:
+            if 'tab=holdings' in href or 'page=2' in href:
+                self.assertIn('creator_id=alpha', href)
+                self.assertIn('cutoff_at=', href)
+        self.assertTrue(any('page=2' in href for href in links.links))
+
+    def test_opinions_tab_does_not_display_trades(self):
+        self._activity_catalog_with([self._route_activity()])
+        html = self.client.get('/perspectives?tab=opinions&cutoff_at=2026-09-17T08:00:00Z').get_data(as_text=True)
+        self.assertNotIn('Route test disclosure', html)
+
     def test_creator_shows_pending_free_ingestion_without_promoting_it(self):
         self.opinion_catalog["ingestion"] = {"alpha": {
             "count": 7, "fetched_at": "2026-09-17T06:00:00Z", "has_more": True,
@@ -18,6 +80,10 @@ class ResearchRouteTests(unittest.TestCase):
         self.assertIn("7 筆待審貼文", text)
         self.assertIn("尚未計入選股共識", text)
         self.assertIn("資料覆蓋不完整", text)
+        for path in ('/perspectives', '/perspectives/alpha'):
+            before_fetch = self.client.get(path + '?cutoff_at=2026-09-17T05:00:00Z').get_data(as_text=True)
+            self.assertNotIn('7 筆待審貼文', before_fetch)
+            self.assertNotIn('7 筆候選待審', before_fetch)
 
     def setUp(self):
         self.app = Flask(__name__, template_folder=str(Path(__file__).parents[1] / "templates"))
@@ -394,7 +460,7 @@ class ResearchRouteTests(unittest.TestCase):
         response = self.client.get("/perspectives?tab=trades&activity_window=all&cutoff_at=2026-09-10T00:00:00Z")
         html = response.get_data(as_text=True)
         self.assertIn("交易日未提供", html)
-        self.assertIn("2026-09-01", html)
+        self.assertIn("2026-09-02 04:00", html)  # Public time rendered in Taipei.
 
     def test_unknown_subject_returns_404(self):
         self._activity_catalog_with([self._route_activity()])

@@ -23,6 +23,7 @@ data/research/x-history/
 data/research/x-review-draft.json
 data/research/x-watch-status.json
 data/research/x-watch.lock
+artifacts/perspectives-events-audit-20261001/opinion-review*.json
 *.pdf
 !static/samples/
 !static/samples/stock-papi-tw-industry-daily-SAMPLE.pdf

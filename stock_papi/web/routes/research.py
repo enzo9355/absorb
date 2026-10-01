@@ -1,7 +1,7 @@
 """Public research surfaces backed by reviewed, versioned research catalogs."""
 
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 from flask import abort, jsonify, render_template, request
@@ -10,7 +10,7 @@ from stock_papi.integrations.market_data.tw_security_master import is_taiwan_sym
 from stock_papi.integrations.market_data.us_universe import validate_us_ticker
 from stock_papi.services.company_events import CompanyEventSchemaError, split_event_window
 from stock_papi.services.industry_relationships import relationship_is_current
-from stock_papi.services.opinion_consensus import build_consensus
+from stock_papi.services.opinion_consensus import build_consensus, query_opinions
 from stock_papi.services.public_opinions import query_activities
 
 
@@ -25,12 +25,35 @@ _ACTIVITY_TYPES = {"trade_disclosure", "holding_snapshot", "self_reported_trade"
 _ACTIVITY_LABELS = {"trade_disclosure": "官方交易揭露", "self_reported_trade": "當事人自述",
                     "holding_snapshot": "機構季底持倉", "original_opinion": "公開觀點"}
 _PAGE_SIZE = 20
+_LABELS = {'bullish': '看多', 'bearish': '看空', 'neutral': '中立', 'unclear': '未表態',
+           'original_opinion': '原創觀點', 'news_relay': '新聞轉述', 'flow_observation': '資金觀察',
+           'trade_disclosure': '交易揭露', 'verified': '已核對', 'pending': '待核對',
+           'pending_review': '待核對', 'legacy_unverified': '舊紀錄待核對', 'partial': '部分涵蓋',
+           'available': '可用', 'unavailable': '暫時無法驗證', 'person': '人物',
+           'household': '家庭', 'institution': '機構', 'purchase': '買入', 'sale': '賣出',
+           'holding': '持有', 'common_stock': '普通股', 'option': '選擇權', 'self': '本人',
+           'spouse': '配偶', 'joint': '共同持有', 'confirmed': '已確認', 'corrected': '已更正',
+           'cancelled': '已取消'}
+
+
+def _time_label(value):
+    if not value:
+        return '未提供'
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is None:
+            return str(value)
+        return parsed.astimezone(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M')
+    except ValueError:
+        return '未提供'
 
 
 def register_research_routes(
     app, *, load_relationships, load_events, load_opinions, load_events_status=None,
     stock_observation, get_stock_name, allowed_symbols,
 ):
+    app.jinja_env.filters['research_label'] = lambda value: _LABELS.get(value, value or '未提供')
+    app.jinja_env.filters['research_time'] = _time_label
     def add_graph(catalog):
         catalog = copy.deepcopy(catalog or {})
         stages = catalog.get("stages") or []
@@ -227,26 +250,46 @@ def register_research_routes(
             except Exception:
                 raw_events, event_status = [], "unavailable"
         source_events = raw_events if isinstance(raw_events, list) else []
-        events = source_events
+        source_links = [item for item in source_events if item.get('status') == 'source_snapshot']
+        if not source_links:
+            source_links = list({item['source']: {'source': item['source'],
+                                'name': item.get('source_publisher') or '官方來源'}
+                                for item in source_events if item.get('source')}.values())
+        events = [item for item in source_events if item.get('symbol') and item.get('status') != 'source_snapshot']
+        if not events and source_events and event_status == 'available':
+            event_status = 'not_covered'
         symbol = request.args.get("symbol", "").strip().upper()
         event_type = request.args.get("event_type", "").strip()
+        market = request.args.get('market', 'TW').strip().upper()
+        if market not in _MARKETS:
+            return _bad('market', 'invalid')
+        if symbol and not _security_known(market, symbol):
+            return _bad('symbol', 'unknown_security')
+        event_types = sorted({item.get('event_type') for item in events if item.get('event_type')})
+        events = [item for item in events if item.get('market', 'TW') == market]
         if symbol:
             events = [item for item in events if item.get("symbol") == symbol]
-            if not events and event_status == "available" and not any(item.get("symbol") for item in source_events if isinstance(item, dict)):
+            if not events and event_status in {'available', 'empty'}:
                 event_status = "not_covered"
+        if market == 'US':
+            event_status = 'not_covered'
         if event_type:
             events = [item for item in events if item.get("event_type") == event_type]
         try:
             window = split_event_window(events, as_of=request.args.get("as_of") or None)
         except CompanyEventSchemaError:
-            window = {
-                "as_of": request.args.get("as_of") or "",
-                "past_start": "",
-                "future_end": "",
-                "past": [],
-                "upcoming": [],
-                "undated": [],
-            }
+            return _bad('as_of', 'invalid')
+        page, error = _parse_page(request.args)
+        if error:
+            return error
+        announcements = window['announcements']
+        pages = max(1, (len(announcements) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+        if page > pages:
+            return _bad('page', 'out_of_range')
+        def event_page_url(number):
+            params = dict(request.args)
+            params.update(page=number, as_of=window['as_of'])
+            return '?' + urlencode(params)
         return render_template(
             "events.html",
             events=events,
@@ -257,6 +300,15 @@ def register_research_routes(
             selected_symbol=symbol,
             selected_event_type=event_type,
             event_status=event_status,
+            announcements=announcements[(page - 1) * _PAGE_SIZE:page * _PAGE_SIZE],
+            announcements_total=len(announcements),
+            event_page=page, event_pages=pages,
+            previous_url=event_page_url(page - 1) if page > 1 else None,
+            next_url=event_page_url(page + 1) if page < pages else None,
+            source_links=source_links,
+            checked_at=max((item.get('source_checked_at') or '' for item in source_events), default=''),
+            event_types=event_types,
+            selected_market=market,
         )
 
     def _bad(field, reason):
@@ -307,8 +359,13 @@ def register_research_routes(
         args, *, path_market=None, path_symbol=None,
         creator_ids=None, forced_creator_id=None,
     ):
+        _, error = _parse_activity_window(args)
+        if error:
+            return None, error
         market = (path_market if path_market is not None else args.get("market", "")).strip().upper()
         symbol = (path_symbol if path_symbol is not None else args.get("symbol", "")).strip().upper()
+        if symbol and not market and path_market is None:
+            market = 'TW' if is_taiwan_symbol(symbol) else 'US'
         if market and market not in _MARKETS:
             return None, _bad("market", "invalid")
         if (path_market is not None or symbol) and not market:
@@ -365,6 +422,11 @@ def register_research_routes(
                 coverage[row["creator_id"]] = row
         return coverage
 
+    def _available_ingestion(catalog, cutoff):
+        return {key: item for key, item in (catalog.get('ingestion') or {}).items()
+                if item.get('fetched_at') and _parse_cutoff(item['fetched_at'])
+                and _parse_cutoff(item['fetched_at']) <= cutoff}
+
     def _opinion_text(item):
         return item.get("summary") or item.get("text") or item.get("raw_text") or ""
 
@@ -407,14 +469,23 @@ def register_research_routes(
         return True
 
     def _consensus_catalog(catalog, query):
-        if not any(query.get(key) for key in ("creator_id", "stance", "content_type")):
+        subject_id = request.args.get('subject_id', '').strip()
+        if not subject_id and not any(query.get(key) for key in ("creator_id", "stance", "content_type")):
             return catalog
+        subject_creators = _subject_creator_ids(catalog, subject_id)
         filtered = copy.deepcopy(catalog)
         filtered["opinions"] = [
             item for item in list(catalog.get("opinions") or [])
             if isinstance(item, dict) and _query_matches_opinion(item, query)
+            and (not subject_id or item.get('creator_id') in subject_creators)
         ]
         return filtered
+
+    def _subject_creator_ids(catalog, subject_id):
+        subject = _subjects_by_id(catalog).get(subject_id, {})
+        return {creator['id'] for creator in catalog.get('creators', []) if isinstance(creator, dict)
+                and subject.get('is_verified') and creator.get('identity_status') == 'verified'
+                and creator.get('canonical_profile_url') == subject.get('identity_source_url')}
 
     def _filtered_opinions(catalog, query):
         creators_by_id = {
@@ -422,17 +493,18 @@ def register_research_routes(
             if isinstance(item, dict) and item.get("id")
         }
         rows = []
-        for item in list(catalog.get("opinions") or []):
-            if not isinstance(item, dict):
-                continue
-            if query.get("market") and item.get("market") != query["market"]:
-                continue
-            if query.get("symbol") and str(item.get("symbol") or "").upper() != query["symbol"]:
+        activity_window, error = _parse_activity_window(request.args)
+        if error:
+            return []
+        subject_id = request.args.get('subject_id', '').strip()
+        subject_creator_ids = _subject_creator_ids(catalog, subject_id)
+        for item in query_opinions(catalog, cutoff_at=query['cutoff_at_dt'], window_days=activity_window,
+                                   market=query.get('market'), symbol=query.get('symbol')):
+            if subject_id and item.get('creator_id') not in subject_creator_ids:
                 continue
             if not _query_matches_opinion(item, query):
                 continue
             rows.append(_display_opinion(item, creators_by_id))
-        rows.sort(key=lambda item: (str(item.get("published_at") or ""), str(item.get("opinion_id") or "")), reverse=True)
         return rows
 
     def _parse_activity_window(args):
@@ -490,6 +562,10 @@ def register_research_routes(
             rows = [r for r in rows if r.get("activity_type") in {"trade_disclosure", "self_reported_trade"}]
         elif tab == "holdings":
             rows = [r for r in rows if r.get("activity_type") == "holding_snapshot"]
+        elif tab == 'opinions':
+            rows = []
+        if query.get('creator_id'):
+            rows = [r for r in rows if r.get('publisher_creator_id') == query['creator_id']]
         return rows
 
     def _display_activity(item, subjects_by_id=None):
@@ -548,18 +624,31 @@ def register_research_routes(
             activities_all = [] if catalog_status != "available" else _query_activities_for_page(
                 catalog, query=query, activity_window=activity_window, tab=tab,
                 subject_id=subject_filter)
-        total_pages = max(1, (len(activities_all) + _PAGE_SIZE - 1) // _PAGE_SIZE)
-        if page > total_pages and activities_all:
+        opinions = opinions if tab in {'latest', 'opinions'} else []
+        total_pages = max(1, (max(len(activities_all), len(opinions)) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+        if page > total_pages:
             return _bad("page", "out_of_range")
         start = (page - 1) * _PAGE_SIZE
         activities = [_display_activity(item, subjects_by_id) for item in activities_all[start:start + _PAGE_SIZE]]
         subjects = [item for item in list(catalog.get("subjects") or []) if isinstance(item, dict)] if catalog_status == "available" else []
+        def page_url(**changes):
+            params = {key: value for key, value in request.args.items() if key != 'page'}
+            params.setdefault('cutoff_at', query['cutoff_at'])
+            params.update(changes)
+            return '?' + urlencode(params)
+        reviewed = [_parse_cutoff(item.get('reviewed_at')) for item in list(catalog.get('opinions') or []) + list(catalog.get('activities') or [])
+                    if isinstance(item, dict) and item.get('is_confirmed') and item.get('reviewed_at')]
+        reviewed = [value for value in reviewed if value and value <= query['cutoff_at_dt']]
+        ingestion = _available_ingestion(catalog, query['cutoff_at_dt'])
+        fetched = [_parse_cutoff(item.get('fetched_at')) for item in ingestion.values() if item.get('fetched_at')]
+        fetched = [value for value in fetched if value and value <= query['cutoff_at_dt']]
         return render_template(
             "perspectives.html",
             catalog_status=catalog_status,
             creators=creators,
             coverage_by_creator=coverage,
-            opinions=opinions if tab in {"latest", "opinions"} else [],
+            opinions=opinions[start:start + _PAGE_SIZE],
+            opinions_total=len(opinions),
             activities=activities,
             activities_total=len(activities_all),
             subjects=subjects,
@@ -574,6 +663,14 @@ def register_research_routes(
             activity_page=page,
             activity_pages=total_pages,
             subject_filter=subject_filter or "",
+            tab_urls={name: page_url(tab=name) for name in _ACTIVITY_TABS},
+            previous_url=page_url(page=page - 1) if page > 1 else None,
+            next_url=page_url(page=page + 1) if page < total_pages else None,
+            reviewed_at=max(reviewed).isoformat() if reviewed else None,
+            fetched_at=max(fetched).isoformat() if fetched else None,
+            published_at=catalog.get('published_at'),
+            pending_count=sum(item.get('count', 0) for item in ingestion.values()),
+            unreviewed_count=sum(not item.get('is_confirmed') for item in catalog.get('opinions', []) if isinstance(item, dict)),
         )
 
     def stock_perspectives_page(market, symbol):
@@ -605,12 +702,10 @@ def register_research_routes(
                 )
             except ValueError as exc:
                 return _bad("symbol", str(exc))
-            try:
-                raw_activities = query_activities(
-                    catalog, subject_id=None, market=query["market"], symbol=query["symbol"],
-                    cutoff_at=query["cutoff_at_dt"], window_days=None)
-            except ValueError:
-                raw_activities = []
+            activity_window, _ = _parse_activity_window(request.args)
+            raw_activities = _query_activities_for_page(
+                catalog, query=query, activity_window=activity_window, tab='latest',
+                subject_id=request.args.get('subject_id'))
             subjects_by_id = _subjects_by_id(catalog)
             activities = [_display_activity(item, subjects_by_id) for item in raw_activities]
         return render_template(
@@ -642,18 +737,17 @@ def register_research_routes(
         opinions = _filtered_opinions(catalog, query) if catalog_status == "available" else []
         related_activities = []
         if catalog_status == "available":
-            try:
-                raw_all = query_activities(catalog, subject_id=None, market=None, symbol=None,
-                                           cutoff_at=query["cutoff_at_dt"], window_days=None)
-            except ValueError:
-                raw_all = []
+            activity_window, _ = _parse_activity_window(request.args)
+            raw_all = _query_activities_for_page(
+                catalog, query=query, activity_window=activity_window, tab='latest',
+                subject_id=request.args.get('subject_id'))
             subjects_by_id = _subjects_by_id(catalog)
             related_activities = [_display_activity(item, subjects_by_id) for item in raw_all
                                   if str(item.get("publisher_creator_id") or "") == creator_id]
         return render_template(
             "creator.html",
             creator=creator,
-            ingestion=(catalog.get("ingestion") or {}).get(creator_id),
+            ingestion=_available_ingestion(catalog, query['cutoff_at_dt']).get(creator_id),
             coverage=coverage,
             catalog_status=catalog_status,
             opinions=opinions,

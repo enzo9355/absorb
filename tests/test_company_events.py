@@ -59,6 +59,13 @@ def _catalog(events):
 
 
 class CompanyEventTests(unittest.TestCase):
+    def test_announcements_without_effective_date_are_visible_without_inventing_dates(self):
+        row = _event('announcement', effective_at=None)
+        result = split_event_window([row], as_of='2026-09-17')
+        self.assertEqual([r['id'] for r in result.get('announcements', [])], ['announcement'])
+        self.assertEqual(result['upcoming'], [])
+        self.assertIsNone(row['effective_at'])
+
     def test_validation_deduplicates_same_source_and_preserves_correction(self):
         original = _event(source_id="mops-1")
         duplicate = copy.deepcopy(original)

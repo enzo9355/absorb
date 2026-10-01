@@ -1,6 +1,7 @@
 """Market-facing Flask route registration."""
 
 import re
+from datetime import datetime, timezone
 
 from flask import abort, jsonify, make_response, redirect, render_template, request, url_for
 
@@ -8,6 +9,7 @@ from stock_papi.shared.formatting import safe_float as _safe_float
 from stock_papi.services.model_evidence import sanitize_recommendation
 from stock_papi.services.prediction_view import prediction_for
 from stock_papi.services.us_presentation import latest_post_close_item
+from stock_papi.services.opinion_consensus import query_opinions
 from stock_papi.web.routes.intel import sanitize_public_event, sanitize_public_summary
 
 
@@ -222,10 +224,8 @@ def register_market_routes(
                 related_events = []
         if callable(load_opinions):
             try:
-                related_opinions = [
-                    item for item in (load_opinions() or {}).get("opinions", [])
-                    if item.get("symbol") == code
-                ]
+                related_opinions = query_opinions(load_opinions() or {},
+                    cutoff_at=datetime.now(timezone.utc), market=market, symbol=code)
             except Exception:
                 related_opinions = []
         intel_snapshot = None

@@ -2,120 +2,49 @@
 {% block title %}觀點與揭露｜ABSORB{% endblock %}
 {% block content %}
 <div class="page research-page">
-  <header class="page-header">
-    <div>
-      <p class="eyebrow">PERSPECTIVES & DISCLOSURES</p>
-      <h1>觀點與揭露</h1>
-      <p class="page-intro">公開觀點與操作分開標示；揭露晚於交易，只使用截止前已公開、已核對的資料。這不是買賣指令。</p>
-      {% if query.query_string %}<p class="muted small">目前查詢：{{ query.query_string }}</p>{% endif %}
-      <p class="muted small">最近核對時間：{{ catalog_version if catalog_version is defined else '' }}；來源涵蓋以 coverage 為準，不承諾即時更新。</p>
-    </div>
-  </header>
-
-  {% if catalog_status == 'unavailable' %}<div class="error-banner" role="status">public opinions catalog unavailable；資料暫時無法驗證。</div>{% elif catalog_status == 'empty' %}<div class="error-banner" role="status">public opinions catalog empty；目前沒有可核對紀錄。</div>{% elif catalog_status == 'stale' %}<div class="error-banner" role="status">public opinions catalog stale；以下為最後可用版本。</div>{% endif %}
-
+  <header class="page-header"><div><p class="eyebrow">PERSPECTIVES & DISCLOSURES</p><h1>觀點與揭露</h1><p class="page-intro">分開閱讀公開觀點、交易揭露與機構持倉。交易日、公開日與核對日各有意義，以下只列截止前已核對的內容。</p></div></header>
+  <section class="panel activity-card" aria-label="資料更新狀態">
+    <div class="section-heading"><h2>資料更新狀態</h2></div>
+    <dl><div><dt>最近核對時間</dt><dd>{{ reviewed_at|research_time }}（台北時間）</dd></div><div><dt>最近候選抓取</dt><dd>{{ fetched_at|research_time }}</dd></div><div><dt>資料發布時間</dt><dd>{{ published_at|research_time }}</dd></div></dl>
+    <p class="muted small">{{ pending_count }} 筆候選待審；{{ unreviewed_count }} 筆舊紀錄或未核對紀錄未列入清單。各來源涵蓋範圍見下方卡片；更新時間不代表涵蓋完整。</p>
+    {% if catalog_status == 'unavailable' %}<p class="error-banner" role="status">資料暫時無法驗證（unavailable），請稍後再試。</p>{% elif catalog_status == 'empty' %}<p class="empty-state">目前尚未建立可核對的公開紀錄。</p>{% endif %}
+  </section>
   <nav class="activity-tabs" aria-label="動態類型">
-    <a class="{{ 'active' if activity_tab == 'latest' else '' }}" href="?tab=latest&amp;activity_window={{ activity_window }}&amp;market={{ query.market }}&amp;symbol={{ query.symbol }}">最新動態</a>
-    <a class="{{ 'active' if activity_tab == 'trades' else '' }}" href="?tab=trades&amp;activity_window={{ activity_window }}&amp;market={{ query.market }}&amp;symbol={{ query.symbol }}">交易揭露</a>
-    <a class="{{ 'active' if activity_tab == 'holdings' else '' }}" href="?tab=holdings&amp;activity_window={{ activity_window }}&amp;market={{ query.market }}&amp;symbol={{ query.symbol }}">機構持倉</a>
-    <a class="{{ 'active' if activity_tab == 'opinions' else '' }}" href="?tab=opinions&amp;activity_window={{ activity_window }}&amp;market={{ query.market }}&amp;symbol={{ query.symbol }}">公開觀點</a>
+    {% for name, label in [('latest','最新動態'),('trades','交易揭露'),('holdings','機構持倉'),('opinions','公開觀點')] %}<a class="{{ 'active' if activity_tab == name else '' }}" href="{{ tab_urls[name] }}"{% if activity_tab == name %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
   </nav>
-
   <section class="panel event-filter-panel">
     <form method="get" class="research-filters perspective-toolbar">
-      <input type="hidden" name="tab" value="{{ activity_tab }}">
-      <label>人物
-        <select name="subject_id">
-          <option value="">全部人物</option>
-          {% for subject in subjects %}<option value="{{ subject.subject_id }}"{% if subject_filter == subject.subject_id %} selected{% endif %}>{{ subject.subject_name }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>市場
-        <select name="market">
-          <option value=""{% if not query.market %} selected{% endif %}>全部</option>
-          <option value="TW"{% if query.market == 'TW' %} selected{% endif %}>TW</option>
-          <option value="US"{% if query.market == 'US' %} selected{% endif %}>US</option>
-        </select>
-      </label>
-      <label>證券代碼<input name="symbol" value="{{ query.symbol or '' }}" placeholder="例如 2330 / INTC"></label>
-      <label>創作者<input name="creator_id" value="{{ query.creator_id or '' }}" list="creator-options" placeholder="creator_id"></label>
-      <datalist id="creator-options">{% for creator in creators %}<option value="{{ creator.id }}">{{ creator.name }}</option>{% endfor %}</datalist>
-      <label>近
-        <select name="activity_window">
-          <option value="all"{% if activity_window == 'all' %} selected{% endif %}>全部</option>
-          <option value="7"{% if activity_window == '7' or activity_window == 7 %} selected{% endif %}>近 7 日</option>
-          <option value="28"{% if activity_window == '28' or activity_window == 28 %} selected{% endif %}>近 28 日</option>
-          <option value="90"{% if activity_window == '90' or activity_window == 90 %} selected{% endif %}>近 90 日</option>
-        </select>
-      </label>
-      <label>窗口
-        <select name="window">
-          {% for window in [1,7,28] %}<option value="{{ window }}"{% if query.window == window %} selected{% endif %}>{{ window }} 日</option>{% endfor %}
-        </select>
-      </label>
-      <button class="button button-secondary" type="submit">套用篩選</button>
+      <input type="hidden" name="tab" value="{{ activity_tab }}"><input type="hidden" name="cutoff_at" value="{{ query.cutoff_at }}"><input type="hidden" name="view" value="{{ query.view }}">
+      <label>人物或機構<select name="subject_id"><option value="">全部對象</option>{% for subject in subjects %}<option value="{{ subject.subject_id }}"{% if subject_filter == subject.subject_id %} selected{% endif %}>{{ subject.subject_name }}</option>{% endfor %}</select></label>
+      <label>市場<select name="market"><option value=""{% if not query.market %} selected{% endif %}>全部市場</option><option value="TW"{% if query.market == 'TW' %} selected{% endif %}>台股</option><option value="US"{% if query.market == 'US' %} selected{% endif %}>美股</option></select></label>
+      <label>證券代碼<input name="symbol" value="{{ query.symbol or '' }}" placeholder="例如 2330 / INTC" maxlength="20"></label>
+      <label>發布者<select name="creator_id"><option value="">全部發布者</option>{% for creator in creators if creator.id %}<option value="{{ creator.id }}"{% if query.creator_id == creator.id %} selected{% endif %}>{{ creator.name }}</option>{% endfor %}</select></label>
+      <label>公開時間<select name="activity_window">{% for value, label in [('all','全部時間'),('7','近 7 日'),('28','近 28 日'),('90','近 90 日')] %}<option value="{{ value }}"{% if activity_window|string == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      {% if query.symbol %}<label>共識觀察窗口<select name="window">{% for value in [1,7,28] %}<option value="{{ value }}"{% if query.window == value %} selected{% endif %}>{{ value }} 日</option>{% endfor %}</select></label>{% endif %}
+      {% if query.stance %}<input type="hidden" name="stance" value="{{ query.stance }}">{% endif %}{% if query.content_type %}<input type="hidden" name="content_type" value="{{ query.content_type }}">{% endif %}
+      <button class="button button-secondary" type="submit">套用篩選</button><a class="button button-secondary" href="{{ url_for('perspectives_page') }}">清除篩選</a>
     </form>
-    <p class="muted small">market={{ query.market or 'ALL' }}{% if query.symbol %}&amp;symbol={{ query.symbol }}{% endif %}&amp;view={{ query.view }}；觀點 {{ opinions|length }} 筆，動態 {{ activities_total }} 筆。</p>
+    <p class="muted small">觀點 {{ opinions_total }} 筆 · 動態 {{ activities_total }} 筆 · 第 {{ activity_page }}／{{ activity_pages }} 頁。截止 {{ query.cutoff_at|research_time }}（台北時間）</p>
+    {% if query.query_string %}<details><summary>查詢條件</summary><p class="muted small">{{ query.query_string }}</p></details>{% endif %}
   </section>
-
+  {% if activity_tab != 'opinions' %}
+  <section class="panel activity-list" aria-label="已核對動態"><div class="section-heading"><h2>{{ '機構季底持倉' if activity_tab == 'holdings' else '已核對揭露與動態' }}</h2></div>
+    {% for item in activities %}<article class="activity-card" data-activity-id="{{ item.activity_id }}">
+      <div><p class="eyebrow">{{ item.type_label }} · {{ item.subject_name }}</p><h2>{{ item.market }} · {{ item.symbol }} · {{ item.action|research_label }}</h2><p>{{ item.summary }}</p></div>
+      <dl><div><dt>對象</dt><dd>{{ item.subject_name }}（{{ item.owner|research_label }}）</dd></div><div><dt>證券類型</dt><dd>{{ item.instrument_type|research_label }}</dd></div><div><dt>交易／基準日</dt><dd>{{ item.transaction_label }}{% if item.holdings_label %}／季底 {{ item.holdings_label }}{% endif %}</dd></div><div><dt>揭露日</dt><dd>{{ item.public_label|research_time }}</dd></div><div><dt>最近核對</dt><dd>{{ item.reviewed_label|research_time }}</dd></div>{% if item.amount_min is not none or item.amount_max is not none %}<div><dt>金額區間</dt><dd>{{ item.amount_min if item.amount_min is not none else '未揭露' }}–{{ item.amount_max if item.amount_max is not none else '未揭露' }} {{ item.currency }}</dd></div>{% endif %}</dl>
+      <p class="muted small">{{ item.limitations }}</p><div class="activity-actions">{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">查看原始來源</a>{% endif %}<button type="button" data-follow-subject-id="{{ item.subject_id }}" aria-pressed="false">追蹤此對象</button>{% if item.market and item.symbol %}<a class="source-link" href="{{ url_for('stock_perspectives_page', market=item.market, symbol=item.symbol) }}">查看個股</a>{% endif %}</div>
+      <details><summary>紀錄識別與修訂</summary><p class="muted small">{{ item.activity_id }}{% if item.supersedes_id %}；修訂 {{ item.supersedes_id }}{% endif %}{% if item.withdraws_id %}；撤回 {{ item.withdraws_id }}{% endif %}</p></details>
+    </article>{% else %}<p class="empty-state">{% if activity_tab == 'holdings' %}目前尚未收錄符合條件的已核對機構持倉；列有機構身分不代表已取得其申報。{% elif activity_tab == 'trades' %}目前尚未收錄符合條件的已核對交易揭露；不代表這些對象沒有交易。{% else %}目前已核對範圍內未找到符合的動態。{% endif %}</p>{% endfor %}
+  </section>{% endif %}
+  {% if activity_tab in ['latest','opinions'] %}
+  <section class="panel research-list timeline-list"><div class="section-heading"><h2>公開觀點</h2></div>
+    {% for item in opinions %}<article class="opinion-card"><div><p class="eyebrow">{{ item.market }} · {{ item.symbol }} · {{ item.stance|research_label }}</p><h2>{{ item.creator_name }} · {{ item.content_type|research_label }}</h2><p>{{ item.summary }}</p></div><dl><div><dt>公開時間</dt><dd>{{ item.published_at|research_time }}</dd></div><div><dt>核對時間</dt><dd>{{ item.reviewed_at|research_time }}</dd></div></dl>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>{% else %}<p class="empty-state">目前沒有符合篩選的已審核觀點</p>{% endfor %}
+  </section>{% endif %}
+  {% if previous_url or next_url %}<nav class="activity-tabs" aria-label="清單分頁">{% if previous_url %}<a href="{{ previous_url }}">上一頁</a>{% endif %}<span>第 {{ activity_page }}／{{ activity_pages }} 頁</span>{% if next_url %}<a href="{{ next_url }}">下一頁</a>{% endif %}</nav>{% endif %}
+  {% if consensus %}<section class="panel stock-consensus-panel"><div class="section-heading"><h2>{{ consensus.market }} · {{ consensus.symbol }} 帳號 × 立場</h2></div><p class="muted small">已核對來源的立場比較；來源不足時顯示資料不足。</p><a class="source-link" href="{{ url_for('stock_perspectives_page', market=query.market, symbol=query.symbol, window=query.window, cutoff_at=query.cutoff_at) }}">查看個股觀點與來源</a></section>{% endif %}
   <section class="panel creator-grid" aria-label="人物與機構">
-    {% for subject in subjects %}
-    <a class="creator-card" href="{{ url_for('subject_page', subject_id=subject.subject_id) }}">
-      <strong>{{ subject.subject_name }}</strong>
-      <span>{{ subject.subject_kind }} · {{ subject.identity_status }}</span>
-    </a>
-    {% else %}<p class="empty-state">目前沒有可核對的人物資料。</p>{% endfor %}
-    {% for creator in creators %}
-    {% set row = coverage_by_creator.get(creator.id) if coverage_by_creator else none %}
-    <a class="creator-card" href="{{ url_for('creator_page', creator_id=creator.id) }}">
-      <strong>{{ creator.name }}</strong>
-      <span>{{ creator.platform or '公開來源' }} · {{ creator.identity_status or creator.source_status or 'pending' }}</span>
-      <small>Coverage {{ row.status if row else 'pending' }}{% if row and row.reviewed_through %} · through {{ row.reviewed_through }}{% endif %}</small>
-    </a>
-    {% endfor %}
-  </section>
-
-  <section class="panel activity-list" aria-label="已核對動態">
-    <div class="section-heading"><div><p class="eyebrow">VERIFIED ACTIVITIES</p><h2>已核對動態（第 {{ activity_page }}／{{ activity_pages }} 頁）</h2></div></div>
-    {% for item in activities %}
-    <article class="activity-card" data-activity-id="{{ item.activity_id }}">
-      <div><p class="eyebrow">{{ item.type_label }} · {{ item.subject_name }}</p>
-      <h2>{{ item.market }} · {{ item.symbol }} · {{ item.action }}</h2>
-      <p>{{ item.summary }}</p><small class="muted small">{{ item.activity_id }}</small></div>
-      <dl>
-        <div><dt>人物</dt><dd>{{ item.subject_name }}（{{ item.owner }}）</dd></div>
-        <div><dt>行為</dt><dd>{{ item.type_label }}：{{ item.action }} {{ item.instrument_type }}</dd></div>
-        <div><dt>交易／基準日</dt><dd>{{ item.transaction_label }}{% if item.holdings_label %}／季底 {{ item.holdings_label }}{% endif %}</dd></div>
-        <div><dt>揭露日</dt><dd>{{ item.public_label }}</dd></div>
-        <div><dt>最近核對</dt><dd>{{ item.reviewed_label }}</dd></div>
-        {% if item.amount_min or item.amount_max %}<div><dt>金額區間</dt><dd>{{ item.amount_min or '未揭露' }}–{{ item.amount_max or '未揭露' }} {{ item.currency }}</dd></div>{% endif %}
-      </dl>
-      <p class="muted small">限制：{{ item.limitations }}{% if item.supersedes_id %}；修訂 {{ item.supersedes_id }}{% endif %}{% if item.withdraws_id %}；撤回 {{ item.withdraws_id }}{% endif %}</p>
-      <div class="activity-actions">
-        {% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">查看原始來源</a>{% endif %}
-        <button type="button" data-follow-subject-id="{{ item.subject_id }}" aria-pressed="false">追蹤此對象</button>
-        {% if item.market and item.symbol %}<a class="source-link" href="{{ url_for('stock_perspectives_page', market=item.market, symbol=item.symbol) }}">查看個股</a>{% else %}<span class="muted small">個股連結未提供（未知代碼）</span>{% endif %}
-      </div>
-    </article>
-    {% else %}<p class="empty-state">目前已核對範圍內未找到符合的動態。</p>{% endfor %}
-  </section>
-
-  {% if consensus %}
-  <section class="panel stock-consensus-panel">
-    <div class="section-heading"><div><p class="eyebrow">CONSENSUS</p><h2>{{ consensus.market }} · {{ consensus.symbol }} 帳號 × 立場</h2></div></div>
-    <p class="muted small">有效帳號少於 2 時比例維持 None，不產生勝率或投資建議。</p>
-  </section>
-  {% endif %}
-
-  <section class="panel research-list timeline-list">
-    <div class="section-heading"><div><p class="eyebrow">REVIEWED RECORDS</p><h2>公開觀點</h2></div></div>
-    {% for item in opinions %}
-    <article class="opinion-card">
-      <div><p class="eyebrow">{{ item.market }} · {{ item.symbol }} · {{ item.stance }}</p><h2>{{ item.creator_name }} · {{ item.content_type or 'opinion' }}</h2><p>{{ item.summary }}</p><small class="muted small">{{ item.activity_id }}</small></div>
-      <dl><div><dt>發布</dt><dd>{{ item.published_at }}</dd></div><div><dt>成效</dt><dd>{{ item.outcome_status or '不計算' }}</dd></div></dl>
-      {% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% else %}<span class="muted small">source pending</span>{% endif %}
-    </article>
-    {% else %}<p class="empty-state">目前沒有符合篩選的已審核觀點</p>{% endfor %}
+    {% for subject in subjects %}<a class="creator-card" href="{{ url_for('subject_page', subject_id=subject.subject_id) }}"><strong>{{ subject.subject_name }}</strong><span>{{ subject.subject_kind|research_label }} · {{ subject.identity_status|research_label }}</span><small>身分核對不代表交易或持倉資料完整</small></a>{% endfor %}
+    {% for creator in creators if creator.id %}{% set row = coverage_by_creator.get(creator.id) %}<a class="creator-card" href="{{ url_for('creator_page', creator_id=creator.id) }}"><strong>{{ creator.name }}</strong><span>{{ creator.platform or '公開來源' }} · {{ creator.identity_status|research_label }}</span><small>涵蓋：{{ (row.status if row else 'pending')|research_label }} · 核對至 {{ (row.reviewed_through if row else none)|research_time }}</small></a>{% endfor %}
   </section>
 </div>
 {% endblock %}

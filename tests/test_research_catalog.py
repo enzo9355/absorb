@@ -8,6 +8,31 @@ from stock_papi.services import research_catalog
 
 
 class ResearchCatalogTests(unittest.TestCase):
+    def test_public_ingestion_metadata_is_version_bound_and_sanitized(self):
+        document = {'schema_version': 2, 'catalog_version': 'test',
+                    'creators': [{'id': 'a', 'name': 'A', 'handle': 'alpha'}],
+                    'opinions': [], 'coverage': [], 'outcomes': []}
+        status = {'catalog_version': 'test', 'ingestion': {'a': {
+            'fetched_at': '2026-09-17T06:00:00Z', 'count': 7, 'raw_text': 'PRIVATE',
+        }}}
+        def read(name):
+            return document if name == 'public-opinions.json' else status if name == 'public-opinions-status.json' else None
+        with patch.object(research_catalog, '_read_json', side_effect=read):
+            result = research_catalog.load_opinions()
+            self.assertEqual(result['ingestion']['a']['count'], 7)
+            self.assertNotIn('PRIVATE', str(result))
+            status['catalog_version'] = 'old'
+            self.assertEqual(research_catalog.load_opinions()['ingestion'], {})
+
+    def test_event_source_failure_preserves_successful_rows_and_marks_status(self):
+        from tests.test_company_events import _catalog, _event
+        document = _catalog([_event()])
+        status = {'status': 'unavailable', 'checked_at': '2099-01-01T00:00:00+08:00'}
+        with patch.object(research_catalog, '_read_json', side_effect=lambda name: document if name == 'events.json' else status):
+            rows, state = research_catalog.load_events_with_status()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(state, 'source_error')
+
     def test_free_candidates_only_expose_ingestion_metadata(self):
         document = {"schema_version": 2, "catalog_version": "test",
                     "creators": [{"id": "a", "name": "A", "handle": "alpha"}],
@@ -27,8 +52,10 @@ class ResearchCatalogTests(unittest.TestCase):
 
     def test_events_are_loaded_only_from_allowed_https_hosts(self):
         events = research_catalog.load_events()
-        self.assertEqual(len(events), 2)
+        self.assertGreater(len(events), 0)
         self.assertTrue(all(item['source'].startswith('https://') for item in events))
+        from stock_papi.services.company_events import is_allowed_source_url
+        self.assertTrue(all(is_allowed_source_url(item['source']) for item in events))
 
     def test_opinion_creator_metadata_is_preserved_for_public_profile(self):
         creators = research_catalog.load_opinions()['creators']

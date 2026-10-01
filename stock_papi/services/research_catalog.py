@@ -3,7 +3,7 @@
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from stock_papi.services.company_events import (
     CompanyEventSchemaError,
     validate_event_catalog,
@@ -31,10 +31,20 @@ def load_events_with_status():
     if not isinstance(document, dict):
         return [], "unavailable"
     try:
-        events = validate_event_catalog(document)["events"]
+        catalog = validate_event_catalog(document)
+        events = catalog['events']
     except CompanyEventSchemaError:
         return [], "unavailable"
-    return events, ("available" if events else "empty")
+    status = _read_json('events-status.json')
+    updated = catalog.get('updated_at')
+    if isinstance(status, dict) and status.get('status') == 'unavailable' and _has_timezone(status.get('checked_at')):
+        if not updated or datetime.fromisoformat(status['checked_at']) >= datetime.fromisoformat(updated):
+            return events, 'source_error'
+    if events and not any(row.get('symbol') for row in events):
+        return events, 'not_covered'
+    if not updated or datetime.now(timezone.utc) - datetime.fromisoformat(updated) > timedelta(days=2):
+        return events, 'stale'
+    return events, ('available' if events else 'empty')
 
 
 def load_events():
@@ -54,8 +64,22 @@ def load_opinions():
         ):
             return empty
         catalog = build_catalog(document)
+        catalog['published_at'] = document.get('published_at') if _has_timezone(document.get('published_at')) else None
         catalog["ingestion"] = {}
+        public_status = _read_json('public-opinions-status.json')
+        public_metadata = document.get('ingestion') or {}
+        if isinstance(public_status, dict) and public_status.get('catalog_version') == catalog['catalog_version']:
+            public_metadata = public_status.get('ingestion') or {}
+        if not isinstance(public_metadata, dict):
+            public_metadata = {}
         for creator in catalog["creators"]:
+            public_meta = public_metadata.get(creator.get('id'))
+            if (isinstance(public_meta, dict) and _has_timezone(public_meta.get('fetched_at'))
+                    and type(public_meta.get('count')) is int and 0 <= public_meta['count'] <= 10000):
+                catalog['ingestion'][creator['id']] = {
+                    'fetched_at': public_meta['fetched_at'], 'count': public_meta['count'],
+                    'has_more': bool(public_meta.get('has_more')), 'provider': 'FxTwitter',
+                }
             handle = creator.get("handle", "")
             if not re.fullmatch(r"[A-Za-z0-9_]{1,15}", handle):
                 continue

@@ -85,7 +85,7 @@ class WebProductTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("觀點與揭露", html)
-        self.assertIn("Coverage", html)
+        self.assertIn("涵蓋", html)
         self.assertIn("perspectives/stocks", stock_template)
         self.assertIn("研究線索", relationships_template)
         self.assertIn(".stock-perspective-grid", css)

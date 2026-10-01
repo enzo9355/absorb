@@ -22,6 +22,25 @@ _COUNT_KEYS = (
 )
 
 
+def query_opinions(catalog, *, cutoff_at, window_days=None, market=None, symbol=None):
+    """Use the consensus availability rules for every public opinion surface."""
+    if cutoff_at.tzinfo is None or cutoff_at.utcoffset() is None:
+        raise ValueError('cutoff_at must be timezone-aware')
+    if window_days is not None and (type(window_days) is not int or window_days < 0):
+        raise ValueError('invalid window_days')
+    cutoff = cutoff_at.astimezone(timezone.utc)
+    start = cutoff - timedelta(days=window_days) if window_days is not None else datetime.min.replace(tzinfo=timezone.utc)
+    rows = [_row(item, cutoff, start) for item in catalog.get('opinions', []) if isinstance(item, dict)]
+    rows = [row for row in rows if row and row['cutoff_eligible']]
+    blocked = _blocked_ids(rows, cutoff)
+    return sorted([
+        row for row in rows if row['in_window']
+        and row.get('opinion_id') not in blocked and not row.get('withdraws_id')
+        and (not market or row.get('market') == market)
+        and (not symbol or row.get('symbol') == symbol)
+    ], key=_sort_key, reverse=True)
+
+
 def build_consensus(catalog, *, market, symbol, window_days, cutoff_at):
     _validate_inputs(catalog, market, symbol, window_days, cutoff_at)
     market = str(market).strip().upper()

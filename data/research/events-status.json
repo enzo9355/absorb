@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-10-01T16:49:41.596362+08:00",
+  "sources": {
+    "TWSE": {
+      "status": "available",
+      "rows": 157
+    },
+    "TPEx": {
+      "status": "available",
+      "rows": 83
+    }
+  },
+  "status": "available",
+  "published_at": "2026-10-01T16:49:41.596362+08:00"
+}
