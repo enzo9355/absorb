@@ -9,6 +9,7 @@ _ALLOWED_PREFIXES = {
     "dashboard/v1/",
     "predictions/v1/",
     "previews/",
+    "research/v1/public/",
 }
 
 

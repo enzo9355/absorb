@@ -16,6 +16,15 @@ ALLOWED_EVENT_HOSTS = frozenset({"openapi.twse.com.tw", "www.tpex.org.tw"})
 
 
 def _read_json(filename):
+    if filename in {'events.json', 'events-status.json', 'public-opinions-status.json'} and os.getenv('ABSORB_RESEARCH_REFRESH_ENABLED') == 'true':
+        from stock_papi.repositories.research_refresh import read_public_documents
+        documents = read_public_documents()
+        if filename in documents:
+            return documents[filename]
+    return _read_local_json(filename)
+
+
+def _read_local_json(filename):
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "research", filename)
     try:
         if os.path.getsize(path) > MAX_RESEARCH_BYTES:
