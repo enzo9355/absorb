@@ -2,9 +2,16 @@
 
 ## 範圍
 
-沿用官方公告批次、FxTwitter watcher、人工觀點審核與既有 GCS 讀取器。預定以獨立 Cloud Run Job `absorb-research-refresh` 每天台北時間 08:00 執行；Cloud Scheduler 同名工作以 OAuth 呼叫 Job。網站不執行抓取，也不需要每天重新部署。
+沿用官方公告批次、FxTwitter watcher、人工觀點審核與既有 GCS 讀取器。已啟用獨立 Cloud Run Job `absorb-research-refresh`，每天台北時間 08:00 執行；Cloud Scheduler 同名工作以 OAuth 呼叫 Job。網站不執行抓取，也不需要每天重新部署。
 
-目前本機真實來源試跑成功（240 筆公告、185 筆候選），相關 58 項測試通過。雲端專用服務帳號已建立但尚未授予研究目錄權限；自動核准審核擋下 IAM 授權，正等待使用者明確同意。Job、每日排程與網站讀取功能尚未啟用。
+2026-10-04 已完成雲端試跑及正式發布。使用者明確同意後，專用服務帳號取得僅限 `research/v1/` 的桶層級條件授權；Job、每日排程與網站讀取功能均已啟用。58 項相關測試重新通過；候選版與正式站各 25 項 HTTP 檢查通過，正式站既有 11 項 Observation 驗收均為 READY；桌面及 390px 瀏覽器檢查確認新時間、筆數與篩選可用。
+
+- 原始碼：`8d1f2109f136b3fd9b0cf0b4d105f0d867b53d29`；正式版 `line-stock-bot-00313-zij` 承接 100% 實際流量，回退版為 `line-stock-bot-00310-zab`。
+- 雲端直接執行 `absorb-research-refresh-kqdjd` 與 Scheduler 手動觸發 `absorb-research-refresh-8dngk` 均成功，三個來源均為 `ok`。
+- 公開快照 generation `1791054581888597`，SHA-256 `2996f88432f78648c4d13daa81174ecededbd95f7f076289dbf4aff89f0e4655`，與 Job 日誌及獨立下載比對一致。
+- 正式站核對時間為 2026-10-04 03:09；累積公告 346 筆，候選 183 筆，已核對觀點仍為 6 筆、動態 1 筆。
+- 下次自然執行為 2026-10-04 08:00。手動排程呼叫鏈路已驗證，首次自然觸發尚未到時，未宣稱自然執行已成功。
+- 本次證據另存 `artifacts/perspectives-events-audit-20261001/daily-*`；先前本機試跑及待授權紀錄保留為歷史證據。
 
 全套回歸執行 1,868 項，1 項跳過、2 項既有排程器失敗（abandoned mutex ownership、US PostClose PT5H／PT12H 契約差異），另 7 項 uploader preflight 因等待發布鎖超過 120 秒而逾時。零等待探針確認 `Global\ABSORB-Observation-Publication-Writer` 當時已被占用；指定專案 Python 的重跑未解除等待，已停止該組重跑。相關排程器／uploader 程式未修改，沒有宣稱全套通過。完整失敗名稱與日誌位於本次 artifacts。
 
@@ -13,7 +20,7 @@
 - 私有候選：`research/v1/private/latest/<handle>.json`，另存 SHA-256 命名快照。
 - 公開快照：`research/v1/public/latest.json`，只含公告、公告更新狀態及版本綁定的觀點抓取數量／時間。整份快照以 GCS generation 條件寫入、讀回比對；並行衝突拒絕覆蓋。
 - 網站環境 `ABSORB_RESEARCH_REFRESH_ENABLED=true` 時讀公開快照，快取 60 秒。儲存讀取失敗時保留程序中前次成功資料；冷啟動時保留部署快照並標示更新失敗。前次核對時間仍保留，不假裝最新。
-- 網站服務身分維持唯讀。獨立 Job 身分預定僅可讀寫 `research/v1/`，無市場產品寫入權限，也不配置 LINE 或付費 X API 金鑰。
+- 網站服務身分維持唯讀。獨立 Job 身分僅可讀寫 `research/v1/`，另可呼叫自身 Job；無市場產品寫入權限，也不配置 LINE 或付費 X API 金鑰。
 
 ## 試跑與驗收
 
