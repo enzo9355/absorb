@@ -10,6 +10,7 @@ from stock_papi.batch import company_events_cli, x_watch_cli
 from stock_papi.batch.opinion_review_cli import prepare
 from stock_papi.batch.x_opinions_cli import _write_json
 from stock_papi.repositories.research_refresh import PUBLIC_OBJECT, SnapshotStore, validate_bundle
+from stock_papi.repositories.reviewed_opinions import REVIEWED_OBJECT, validate_catalog
 from stock_papi.services.research_catalog import _read_local_json
 
 
@@ -51,7 +52,8 @@ def run_once(store):
                 candidate = _encode(json.loads(path.read_text(encoding='utf-8')))
                 _archive(store, f'research/v1/private/snapshots/{handle}/', candidate)
                 store.write(f'research/v1/private/latest/{handle}.json', candidate, generation=private_generations[handle])
-        catalog = _read_local_json('public-opinions.json')
+        reviewed_raw, _ = store.read(REVIEWED_OBJECT)
+        catalog = validate_catalog(json.loads(reviewed_raw)) if reviewed_raw else _read_local_json('public-opinions.json')
         review = prepare(catalog, '', paths)
         # No candidate summaries or classifications enter the public bundle.
         old_meta = docs['public-opinions-status.json']

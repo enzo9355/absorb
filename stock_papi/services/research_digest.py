@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta, timezone
 
+from stock_papi.integrations.market_data.tw_security_master import is_taiwan_symbol
+from stock_papi.integrations.market_data.us_universe import validate_us_ticker
 from stock_papi.services.event_context import annotate_events
 from stock_papi.services.opinion_consensus import query_opinions
 
@@ -16,11 +18,24 @@ def _stamp(value):
         return None
 
 
+def _watch_identity(row):
+    symbol = str(row.get('code') or '').upper()
+    market = row.get('market')
+    if market in {'TW', 'US'}:
+        return market, symbol
+    if is_taiwan_symbol(symbol):
+        return 'TW', symbol
+    try:
+        return 'US', validate_us_ticker(symbol)
+    except ValueError:
+        return None, symbol
+
+
 def build_daily_digest(watchlist, events, catalog, *, now, event_status='available'):
     if now.tzinfo is None:
         raise ValueError('digest cutoff must include timezone')
     start = now.astimezone(TAIPEI).replace(hour=0, minute=0, second=0, microsecond=0)
-    watched = {(str(row.get('market') or 'TW'), str(row.get('code') or '').upper())
+    watched = {_watch_identity(row)
                for row in watchlist if isinstance(row, dict) and row.get('code')}
     announcements = []
     for row in annotate_events(events):
@@ -39,5 +54,5 @@ def build_daily_digest(watchlist, events, catalog, *, now, event_status='availab
     opinions.sort(key=lambda row: _stamp(row['reviewed_at']), reverse=True)
     return {'date': start.date().isoformat(), 'announcements': announcements,
             'opinions': opinions, 'event_status': event_status,
-            'opinion_status': 'available' if catalog and catalog.get('catalog_version') else 'unavailable',
+            'opinion_status': (catalog.get('reviewed_refresh_status') or 'available') if catalog and catalog.get('catalog_version') else 'unavailable',
             'watched_count': len(watched)}

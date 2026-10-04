@@ -54,5 +54,8 @@ Interfaces: read_reviewed_catalog() -> validated catalog or None; publish_review
 
 ## Execution ledger
 - Setup: isolated managed worktree; baseline 14 focused tests PASS. Production 00313-zij at 100%, source 8d1f210.
-- Ruling: separate reviewed-opinions object avoids the currently deployed daily job overwriting operator publication; no need to redeploy ingestion for these three features.
+- Ruling: separate reviewed-opinions object prevents daily ingestion from overwriting operator publication. Review found metadata must also use the current reviewed catalog version; update the existing Job to the website's verified image digest without changing IAM or schedules.
 - Ruling: local operator workbench provides the requested review UI while retaining production read-only privileges and requiring no new admin identity configuration.
+- Tasks 1-2: complete in ec7fc37; initial digest/event/account/LINE tests 56 PASS.
+- Task 3: four independent review findings fixed (source-error visibility, metadata version/pending count, atomic operator checkpoint, private workspace containment). Additional persisted US identity regression fixed using existing symbol validators.
+- Full suite before final fixes: 1,880 tests, 3 failures, 2 skipped. Baseline independently reproduces mutex abandonment and US retry-duration mismatch; installer transient Running/Ready race passes isolated on baseline. No scheduler implementation changes.

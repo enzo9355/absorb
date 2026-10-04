@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>觀點審核｜ABSORB</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#192b40;background:#f3f5f7}body{max-width:1000px;margin:0 auto;padding:24px}h1{font-size:28px}article{background:white;border:1px solid #dce2e8;border-radius:12px;padding:24px;margin:20px 0}p{line-height:1.7;overflow-wrap:anywhere}.original{white-space:pre-wrap;background:#f3f5f7;padding:16px;border-radius:6px}form{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:grid;gap:6px;font-size:14px}input,select,textarea,button{font:inherit;padding:10px;border:1px solid #b5c3ce;border-radius:6px;box-sizing:border-box;width:100%}textarea{min-height:110px}.wide{grid-column:1/-1}button{cursor:pointer;background:#173959;color:white}button.secondary{background:white;color:#173959}a{color:#164f7e}small{color:#536476}@media(max-width:600px){body{padding:14px}article{padding:16px}form{grid-template-columns:1fr}.wide{grid-column:1}}
+</style></head><body>
+<header><p>ABSORB · 本機管理工具</p><h1>觀點審核與發布</h1><p>逐筆核對原文、公司、立場與時間。只有按下「核對並發布」的摘要會進入正式網站。略過只在本次工作階段隱藏，不刪除候選。</p><p>本批 {{ rows|length }} 筆 · 已處理 {{ completed|length }} 筆</p></header>
+{% for row in rows %}{% set i = loop.index0 %}{% if i not in completed %}
+<article id="candidate-{{ i }}"><h2>{{ creators.get(row.creator_id, row.creator_id) }}</h2><p><small>公開 {{ row.published_at }} · 首次取得 {{ row.first_seen_at }}</small></p>
+<p class="original">{{ row.text }}</p><p><a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">核對原始貼文</a></p>
+<form method="post" action="/review"><input type="hidden" name="csrf_token" value="{{ token }}"><input type="hidden" name="index" value="{{ i }}">
+<label class="wide">核對後摘要<textarea name="summary" maxlength="1000" required placeholder="以自己的文字摘要，保留條件與限制"></textarea></label>
+<label>市場<select name="market" required><option value="">請確認</option><option value="TW">台股</option><option value="US">美股</option></select></label>
+<label>證券代碼<input name="symbol" maxlength="20" required placeholder="例如 2330 或 NVDA"></label>
+<label>內容類型<select name="content_type" required><option value="">請確認</option><option value="original_opinion">原創觀點</option><option value="news_relay">新聞轉述</option><option value="flow_observation">資金觀察</option><option value="trade_disclosure">交易揭露</option></select></label>
+<label>立場<select name="stance" required><option value="">請確認</option><option value="bullish">看多</option><option value="bearish">看空</option><option value="neutral">中立</option><option value="unclear">未表態</option></select></label>
+<label>原文建議性質<select name="recommendation_kind" required><option value="">請確認</option><option value="mention">提及，未建議交易</option><option value="conditional">有條件的主張</option><option value="explicit">明確交易主張</option></select></label>
+<label>核對者<input name="reviewer" maxlength="100" required></label>
+<label class="wide">摘要與引用依據<input name="rights_note" maxlength="500" required placeholder="例如：人工摘要並連結原文，未轉載全文"></label>
+<button type="submit" name="decision" value="confirmed">核對並發布到正式網站</button>
+<button class="secondary" type="submit" name="decision" value="skip" formnovalidate>略過，維持待審</button>
+</form></article>{% endif %}{% endfor %}
+</body></html>

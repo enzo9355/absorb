@@ -110,6 +110,22 @@ class WatchlistEventsRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertNotIn('台泥', response.get_data(as_text=True))
 
+    def test_two_users_never_share_watchlist_response(self):
+        from unittest.mock import patch
+        other_user = 'U' + 'b' * 32
+        self.auth_store.sessions['session-2'] = dict(self.auth_store.sessions['session-1'], line_user_id=other_user)
+        def load(_store, user_id):
+            return {'watchlist': [{'code': '2330', 'name': 'PRIVATE-ALPHA'}] if user_id == USER_ID
+                    else [{'code': '1101', 'name': 'PRIVATE-BRAVO'}], 'alerts': []}, None
+        with patch.object(_LineStore, 'load', load):
+            first = self.client.get('/account/watchlist').get_data(as_text=True)
+            self.client.set_cookie('stock_papi_session', sign_opaque_token('session-2', 's' * 32))
+            second = self.client.get('/account/watchlist').get_data(as_text=True)
+        self.assertIn('PRIVATE-ALPHA', first)
+        self.assertNotIn('PRIVATE-BRAVO', first)
+        self.assertIn('PRIVATE-BRAVO', second)
+        self.assertNotIn('PRIVATE-ALPHA', second)
+
 
 if __name__ == "__main__":
     unittest.main()

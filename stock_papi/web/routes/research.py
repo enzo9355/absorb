@@ -677,6 +677,7 @@ def register_research_routes(
             reviewed_at=max(reviewed).isoformat() if reviewed else None,
             fetched_at=max(fetched).isoformat() if fetched else None,
             published_at=catalog.get('published_at'),
+            reviewed_refresh_status=catalog.get('reviewed_refresh_status'),
             pending_count=sum(item.get('count', 0) for item in ingestion.values()),
             unreviewed_count=sum(not item.get('is_confirmed') for item in catalog.get('opinions', []) if isinstance(item, dict)),
         )

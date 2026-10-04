@@ -2,6 +2,9 @@
 .gitignore
 .gcloudignore
 .codex/
+.research-review/
+.deployment-evidence/
+.superpowers/
 .pytest_cache/
 AGENTS.md
 tmp/

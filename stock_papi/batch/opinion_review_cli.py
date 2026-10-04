@@ -37,12 +37,17 @@ def prepare(catalog, digest, paths):
         fetched = datetime.fromisoformat(str(meta.get('fetched_at', '')).replace('Z', '+00:00'))
         if fetched.tzinfo is None:
             raise ValueError('candidate fetch time requires timezone')
+        matched = [creator for creator in creators.values() if creator.get('handle') == meta.get('username')]
+        if len(matched) != 1:
+            raise ValueError('candidate account is not uniquely known')
+        creator_id = matched[0]['id']
+        pending_ids = {row.get('opinion_id') for row in rows if isinstance(row, dict) and row.get('opinion_id') not in known}
+        ingestion[creator_id] = {'fetched_at': meta['fetched_at'], 'count': len(pending_ids),
+                                'has_more': bool(meta.get('has_more')), 'provider': 'FxTwitter'}
         for row in rows:
             creator = creators.get(row.get('creator_id')) if isinstance(row, dict) else None
             if not creator or creator.get('handle') != meta.get('username') or row.get('review_status') != 'pending_review':
                 raise ValueError('candidate creator or review state mismatch')
-            ingestion[creator['id']] = {'fetched_at': meta['fetched_at'], 'count': len(rows),
-                                        'has_more': bool(meta.get('has_more')), 'provider': 'FxTwitter'}
             if not row.get('opinion_id') or row['opinion_id'] in known:
                 continue
             known.add(row['opinion_id'])

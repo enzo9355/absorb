@@ -31,3 +31,6 @@ artifacts/perspectives-events-audit-20261001/opinion-review*.json
 *.pdf.tmp
 *.ttf
 *.ttc
+.research-review/
+.deployment-evidence/
+.superpowers/

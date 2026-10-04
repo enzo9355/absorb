@@ -38,3 +38,13 @@ class DailyDigestTests(unittest.TestCase):
         digest = self.digest([{'code': '2330'}], [], event_status='source_error')
         self.assertEqual(digest['event_status'], 'source_error')
         self.assertEqual(digest['opinion_status'], 'unavailable')
+
+    def test_persisted_us_watchlist_without_market_keeps_us_identity(self):
+        from line_state import normalize_state
+        catalog = test_research_routes.ResearchRouteTests()._opinion_catalog()
+        row = dict(catalog['opinions'][0], market='US', symbol='NVDA', reviewed_at='2026-09-18T00:30:00+08:00')
+        catalog['opinions'] = [row]
+        state = normalize_state({'watchlist': [{'code': 'NVDA', 'name': 'NVIDIA', 'market': 'US', 'added_at': 1}]})
+        self.assertNotIn('market', state['watchlist'][0])
+        digest = self.digest(state['watchlist'], [], catalog)
+        self.assertEqual([r['symbol'] for r in digest['opinions']], ['NVDA'])

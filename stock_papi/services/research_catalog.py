@@ -16,6 +16,15 @@ ALLOWED_EVENT_HOSTS = frozenset({"openapi.twse.com.tw", "www.tpex.org.tw"})
 
 
 def _read_json(filename):
+    if filename == 'public-opinions.json' and os.getenv('ABSORB_RESEARCH_REFRESH_ENABLED') == 'true':
+        from stock_papi.repositories.reviewed_opinions import read_reviewed_catalog
+        reviewed = read_reviewed_catalog()
+        if reviewed is not None:
+            return reviewed
+        local = _read_local_json(filename)
+        if isinstance(local, dict):
+            local['reviewed_refresh_status'] = 'deployment_snapshot'
+        return local
     if filename in {'events.json', 'events-status.json', 'public-opinions-status.json'} and os.getenv('ABSORB_RESEARCH_REFRESH_ENABLED') == 'true':
         from stock_papi.repositories.research_refresh import read_public_documents
         documents = read_public_documents()
@@ -73,6 +82,7 @@ def load_opinions():
         ):
             return empty
         catalog = build_catalog(document)
+        catalog['reviewed_refresh_status'] = document.get('reviewed_refresh_status')
         catalog['published_at'] = document.get('published_at') if _has_timezone(document.get('published_at')) else None
         catalog["ingestion"] = {}
         public_status = _read_json('public-opinions-status.json')
