@@ -12,6 +12,7 @@ from stock_papi.services.company_events import CompanyEventSchemaError, split_ev
 from stock_papi.services.industry_relationships import relationship_is_current
 from stock_papi.services.opinion_consensus import build_consensus, query_opinions
 from stock_papi.services.public_opinions import query_activities
+from stock_papi.services.event_context import annotate_events
 
 
 _MARKETS = {"TW", "US"}
@@ -255,11 +256,15 @@ def register_research_routes(
             source_links = list({item['source']: {'source': item['source'],
                                 'name': item.get('source_publisher') or '官方來源'}
                                 for item in source_events if item.get('source')}.values())
-        events = [item for item in source_events if item.get('symbol') and item.get('status') != 'source_snapshot']
+        events = annotate_events([item for item in source_events if item.get('symbol') and item.get('status') != 'source_snapshot'])
         if not events and source_events and event_status == 'available':
             event_status = 'not_covered'
         symbol = request.args.get("symbol", "").strip().upper()
         event_type = request.args.get("event_type", "").strip()
+        category = request.args.get('category', '').strip()
+        categories = sorted({item['category'] for item in events})
+        if category and category not in categories:
+            return _bad('category', 'invalid')
         market = request.args.get('market', 'TW').strip().upper()
         if market not in _MARKETS:
             return _bad('market', 'invalid')
@@ -275,6 +280,8 @@ def register_research_routes(
             event_status = 'not_covered'
         if event_type:
             events = [item for item in events if item.get("event_type") == event_type]
+        if category:
+            events = [item for item in events if item['category'] == category]
         try:
             window = split_event_window(events, as_of=request.args.get("as_of") or None)
         except CompanyEventSchemaError:
@@ -309,6 +316,7 @@ def register_research_routes(
             checked_at=max((item.get('source_checked_at') or '' for item in source_events), default=''),
             event_types=event_types,
             selected_market=market,
+            categories=categories, selected_category=category,
         )
 
     def _bad(field, reason):

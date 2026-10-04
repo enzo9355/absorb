@@ -23,6 +23,7 @@ from stock_papi.services.auth import (
     verify_opaque_token,
 )
 from stock_papi.services.company_events import build_watchlist_summary
+from stock_papi.services.research_digest import build_daily_digest
 
 
 AUTHORIZE_URL = "https://access.line.me/oauth2/v2.1/authorize"
@@ -64,7 +65,7 @@ def register_auth_routes(
     app, *, config, auth_store, line_store, search_stock, http_post, now,
     load_events=None, load_events_status=None, stock_observation=None,
     trading_beta_users=None, trade_plan_builder=None, trading_followup=None,
-    login_callback_hosts=None,
+    login_callback_hosts=None, load_opinions=None,
 ):
     login_attempts = defaultdict(deque)
     login_attempts_lock = threading.Lock()
@@ -415,6 +416,16 @@ def register_auth_routes(
         }
         if template == "account_watchlist.html":
             context["watchlist_summary"] = private_watchlist_summary(state)
+            try:
+                events, event_status = load_events_status() if callable(load_events_status) else (load_events() if callable(load_events) else [], 'available')
+            except Exception:
+                events, event_status = [], 'unavailable'
+            try:
+                opinions = load_opinions() if callable(load_opinions) else {}
+            except Exception:
+                opinions = {}
+            context['daily_digest'] = build_daily_digest(state.get('watchlist', []), events,
+                opinions, now=now(), event_status=event_status)
         response = make_response(render_template(template, **context))
         return _private(response)
 

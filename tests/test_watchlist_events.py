@@ -100,6 +100,16 @@ class WatchlistEventsRouteTests(unittest.TestCase):
         self.assertIn("法說會日期公告", html)
         self.assertIn("台泥", html)
 
+    def test_daily_digest_is_private_and_requires_login(self):
+        response = self.client.get('/account/watchlist')
+        self.assertIn('每日變動摘要', response.get_data(as_text=True))
+        self.assertIn('no-store', response.headers['Cache-Control'])
+        self.assertIn('Cookie', response.headers['Vary'])
+        self.client.delete_cookie('stock_papi_session')
+        response = self.client.get('/account/watchlist')
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn('台泥', response.get_data(as_text=True))
+
 
 if __name__ == "__main__":
     unittest.main()

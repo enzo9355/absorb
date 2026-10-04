@@ -1,0 +1,12 @@
+{% if event.correction_notice %}
+  {% if event.correction_original %}
+  <details class="event-correction">
+    <summary>更正前後對照</summary>
+    <p class="muted small">依明示日期與同公司主旨，或已核對修訂關聯連結。僅比較已收錄摘要，完整更正請查官方原文。</p>
+    <h3>原公告 · {{ event.correction_original.published_at|research_time }}</h3>
+    <p>{{ event.correction_original.title }}</p><p>{{ event.correction_original.summary }}</p>
+    <h3>本次更正</h3><p>{{ event.summary }}</p>
+    <a class="source-link" href="{{ event.correction_original.source }}" target="_blank" rel="noopener noreferrer">原公告來源</a>
+  </details>
+  {% else %}<p class="muted small">這是更正公告；目前尚無足夠資料唯一對應原公告，未推測更正關係。</p>{% endif %}
+{% endif %}

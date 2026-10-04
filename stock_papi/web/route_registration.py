@@ -103,6 +103,7 @@ def register_routes(app, dependencies):
         trade_plan_builder=dependencies.get("trade_plan_builder"),
         trading_followup=dependencies.get("trading_followup"),
         login_callback_hosts=dependencies.get("login_callback_hosts"),
+        load_opinions=dependencies.get("load_public_opinions"),
     )
     register_conversation_routes(
         app,

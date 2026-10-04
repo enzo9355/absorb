@@ -23,6 +23,18 @@
     {% if summary.status == 'unavailable' %}<p class="empty-state">{{ summary.reason or '暫時無法取得事件摘要。' }}</p>{% endif %}
   </section>
 
+  {% if daily_digest is defined %}
+  <section class="panel research-list" aria-labelledby="daily-digest-title">
+    <div class="section-heading"><div><h2 id="daily-digest-title">每日變動摘要</h2><p>{{ daily_digest.date }}（台北時間）· 只包含你的關注公司。公告依發布日、觀點依核對日整理。</p></div></div>
+    {% if daily_digest.event_status not in ['available', 'empty'] %}<p class="error-banner">公告來源尚未完整更新；以下可能只有部分資料。</p>{% endif %}
+    {% if daily_digest.opinion_status != 'available' %}<p class="muted">觀點資料目前無法取得。</p>{% endif %}
+    <p>{{ daily_digest.announcements|length }} 則當日公告 · {{ daily_digest.opinions|length }} 則當日核對觀點</p>
+    {% for event in daily_digest.announcements %}<article class="watchlist-summary-row"><div><h3>{{ event.name }} · {{ event.symbol }}</h3><p>{{ event.title }}</p><p class="muted small">{{ event.category }}{% if event.correction_notice %} · 更正公告{% endif %} · 公告 {{ event.published_at }}</p></div><a class="source-link" href="{{ event.source }}" target="_blank" rel="noopener noreferrer">官方來源</a></article>{% endfor %}
+    {% for opinion in daily_digest.opinions %}<article class="watchlist-summary-row"><div><h3>{{ opinion.market }} · {{ opinion.symbol }}</h3><p>{{ opinion.summary or opinion.text }}</p><p class="muted small">公開 {{ opinion.published_at }} · 核對 {{ opinion.reviewed_at }}</p></div><a class="source-link" href="{{ opinion.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a></article>{% endfor %}
+    {% if not daily_digest.announcements and not daily_digest.opinions %}<p class="empty-state">{% if not daily_digest.watched_count %}加入關注公司後，可在這裡查看每日變動。{% else %}目前收錄且已核對的資料中，沒有這些公司的當日新增內容；不代表完整市場沒有消息。{% endif %}</p>{% endif %}
+  </section>
+  {% endif %}
+
   <section class="panel watchlist-summary-section" aria-labelledby="watchlist-changes-title">
     <div class="section-heading"><div><h2 id="watchlist-changes-title">有新變化的公司</h2><p>只列已發布觀察或觀察日當天事件，不把缺值當成零。</p></div></div>
     {% for row in summary.changed or [] %}
