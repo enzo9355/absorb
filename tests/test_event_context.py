@@ -3,6 +3,18 @@ import unittest
 
 
 class EventContextTests(unittest.TestCase):
+    def test_incident_and_rename_titles_do_not_follow_incidental_asset_words(self):
+        from stock_papi.services.event_context import annotate_events
+        cases = [
+            ('公告本公司投資興建個案「聯上澐朗」工地火災事件說明。', '營運與風險'),
+            ('公告本公司名稱由「世紀離岸風電設備股份有限公司」更名為「世紀能源設備股份有限公司」', '人事與治理'),
+            ('公告本公司取得設備', '投資與資產'),
+            ('公告本公司辦理減資換股作業計畫經主管機關核准', '財務與股利'),
+        ]
+        for title, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(annotate_events([{'title': title}])[0]['category'], expected)
+
     def rows(self):
         original = dict(id='old', source_id='old', market='TW', symbol='2330',
                         title='公告本公司取得設備', summary='金額為100萬元',
