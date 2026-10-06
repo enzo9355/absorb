@@ -29,28 +29,28 @@
 ### Task 1: Private daily digest
 Files: services/research_digest.py, web/routes/auth.py, web/route_registration.py, templates/account_watchlist.html, tests/test_research_digest.py.
 Interface: build_daily_digest(watchlist, events, catalog, *, now, event_status) -> dict with date, announcements, opinions, statuses.
-- [ ] Write and run tests for same-day announcements without effective dates, newly reviewed old opinions, future exclusion, TW/US identity and empty watchlist.
-- [ ] Implement service, account integration, escaped source-linked cards and no-store route behavior.
-- [ ] Run digest/account/research tests; expect PASS; commit.
+- [x] Write and run tests for same-day announcements without effective dates, newly reviewed old opinions, future exclusion, TW/US identity and empty watchlist.
+- [x] Implement service, account integration, escaped source-linked cards and no-store route behavior.
+- [x] Run digest/account/research tests; expect PASS; commit.
 
 ### Task 2: Announcement classification and correction comparison
 Files: services/event_context.py, web/routes/research.py, templates/events.html, tests/test_event_context.py.
 Interface: annotate_events(events) -> detached rows with category, correction_notice, correction_original, correction_changes.
-- [ ] Write and run tests: unique explicit ROC-date/title match, ambiguous match left unlinked, cross-market/company isolation, source rows unchanged.
-- [ ] Add derived filters and escaped original/current comparison, retaining existing event_type filtering.
-- [ ] Run event/service/route tests; expect PASS; commit.
+- [x] Write and run tests: unique explicit ROC-date/title match, ambiguous match left unlinked, cross-market/company isolation, source rows unchanged.
+- [x] Add derived filters and escaped original/current comparison, retaining existing event_type filtering.
+- [x] Run event/service/route tests; expect PASS; commit.
 
 ### Task 3: Review workbench and guarded publication
 Files: repositories/reviewed_opinions.py, batch/research_review_cli.py, services/research_catalog.py, templates/research_review.html, tests/test_research_review.py.
 Interfaces: read_reviewed_catalog() -> validated catalog or None; publish_review(store, base, generation, review) -> receipt; create_review_app(catalog, candidates, save_review, token) -> loopback operator Flask app.
-- [ ] Write failing tests for pending rejection, generation conflict, public raw-text stripping, reader fallback, host/origin/CSRF rejection and explicit review export.
-- [ ] Implement separate public reviewed object, immutable archive and readback, preparation from private cloud candidates, loopback review form and exclusive output.
-- [ ] Run review/catalog/refresh tests; expect PASS; commit.
+- [x] Write failing tests for pending rejection, generation conflict, public raw-text stripping, reader fallback, host/origin/CSRF rejection and explicit review export.
+- [x] Implement separate public reviewed object, immutable archive and readback, preparation from private cloud candidates, loopback review form and exclusive output.
+- [x] Run review/catalog/refresh tests; expect PASS; commit.
 
 ### Task 4: Acceptance and production publication
-- [ ] Run whole suite once, record pre-existing failures separately, fix new regressions. Review entire diff with fresh reviewer.
-- [ ] Capture LKG, commit and push feature branch, deploy candidate without traffic, smoke and verify.
-- [ ] Apply production traffic only after checks, recheck provenance and browser desktop/mobile, record evidence and limitations.
+- [x] Run whole suite once, record pre-existing failures separately, fix new regressions. Review entire diff with fresh reviewer.
+- [x] Capture LKG, commit and push feature branch, deploy candidate without traffic, smoke and verify.
+- [x] Apply production traffic only after checks, recheck provenance and browser desktop/mobile, record evidence and limitations.
 
 ## Execution ledger
 - Setup: isolated managed worktree; baseline 14 focused tests PASS. Production 00313-zij at 100%, source 8d1f210.
@@ -59,3 +59,7 @@ Interfaces: read_reviewed_catalog() -> validated catalog or None; publish_review
 - Tasks 1-2: complete in ec7fc37; initial digest/event/account/LINE tests 56 PASS.
 - Task 3: four independent review findings fixed (source-error visibility, metadata version/pending count, atomic operator checkpoint, private workspace containment). Additional persisted US identity regression fixed using existing symbol validators.
 - Full suite before final fixes: 1,880 tests, 3 failures, 2 skipped. Baseline independently reproduces mutex abandonment and US retry-duration mismatch; installer transient Running/Ready race passes isolated on baseline. No scheduler implementation changes.
+
+- Final release 2026-10-06: source 90535c1, revision line-stock-bot-00318-bud at 100%; independent verifier 11/11 READY. Final focused tests 84 PASS; copy rendering 7 PASS plus three status cases. Full suite 1,885 with two baseline scheduler failures and two skips.
+- Browser acceptance: public desktop/mobile and existing signed-in empty watchlist verified; no real user watchlists changed. Status copy distinguishes deployment snapshot from fetch failure.
+- Daily Job uses final image sha256:16a7e6bebb5ce0c74f3b9dceca3f4ee043cd3a7ac6f5d22fed47835606c6f9cd. Manual llj4n and natural 2026-10-06 08:00 execution 8q26x succeeded; latest 468 announcements and 178 pending candidates. No new opinions auto-approved.
