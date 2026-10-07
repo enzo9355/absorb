@@ -314,6 +314,7 @@ class ReportWebTests(unittest.TestCase):
 
         self.assertEqual(observation["stock_events"][0]["symbol"], "AAPL")
         self.assertEqual(observation["etf_observations"][0]["symbol"], "SPY")
+        self.assertEqual(observation["observation_as_of"], professional.identity.source_market_date.isoformat())
 
     def test_explicit_item_market_mismatch_is_rejected_by_index_validator(self):
         temporary, objects, _metadata = self._objects()

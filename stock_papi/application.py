@@ -646,6 +646,7 @@ def _published_us_securities_observation():
     return {
         "stock_events": list(data.get("stock_events") or []),
         "etf_observations": list(data.get("etf_observations") or []),
+        "observation_as_of": report.identity.source_market_date.isoformat(),
     }
 
 
@@ -2191,6 +2192,28 @@ def _asksorb_grounded_answer(question, evidence, *, data_as_of, tools_used, cita
     )
 
 
+def _observation_date_answer(question, *, market, data_as_of, tools_used, citations, subject=None):
+    if not any(term in question for term in ("資料日", "資料截至", "過期", "最新資料", "更新時間")):
+        return None
+    from stock_papi.web.routes.system import create_data_freshness_loader
+
+    freshness = create_data_freshness_loader(
+        load_dashboard_snapshot=_published_dashboard_snapshot,
+        load_report_index_v2=_published_report_index_v2,
+    )(market, observation_as_of=data_as_of)
+    status = freshness["status"]
+    label = {"current": "資料最新", "updating": "更新中", "stale": "資料過期",
+             "unavailable": "暫時無法核對新鮮度"}[status]
+    date = freshness.get("source_market_date")
+    return ConversationAnswer(
+        f"{subject or ('美股' if market == 'US' else '台股')}最近一次已驗證資料日：{date or '未提供'}。"
+        f"資料狀態：{label}。資料日依市場交易日曆核對，不代表今日即時行情。",
+        data_as_of=date, data_quality="available" if status == "current" else "unavailable" if status == "unavailable" else "stale",
+        stale=status in {"stale", "updating"},
+        tools_used=tools_used + ("verified_data_freshness",), citations=tuple(citations),
+    )
+
+
 def _observation_conversation(
     *, question, access, market_context="TW", page_context="home",
     symbol_context=None, principal=None,
@@ -2235,7 +2258,10 @@ def _observation_conversation(
             )
 
     entities = resolve_entities(question, _conversation_search_stock)
-    if not entities and page_context == "stock" and symbol_context:
+    explicit_us_market = not entities and any(term in question for term in ("美股", "美國股市"))
+    if explicit_us_market:
+        market_context = "US"
+    if not entities and not explicit_us_market and page_context == "stock" and symbol_context:
         code, name = _conversation_search_stock(symbol_context.strip())
         if code:
             code = str(code).upper()
@@ -2265,6 +2291,13 @@ def _observation_conversation(
     if structured_answer is not None:
         return structured_answer
 
+    # Market aliases are not stock snapshots. Explicit market questions also
+    # override the page's market rather than inheriting a stock-page context.
+    if any(entity["symbol"] == "TAIEX" for entity in entities):
+        entities = [entity for entity in entities if entity["symbol"] != "TAIEX"]
+        if not entities:
+            market_context = "TW"
+
     if entities:
         observations = []
         for entity in entities:
@@ -2277,6 +2310,7 @@ def _observation_conversation(
         if not observations:
             return ConversationAnswer("已驗證的個股觀察資料暫時無法取得。")
         data = observations[0]
+        stock_as_of = data.get("observation_as_of") or data.get("as_of")
         stock_citations = []
         symbol_text = re.fullmatch(r"[A-Z0-9.-]{1,16}", str(data.get("code") or ""))
         if symbol_text:
@@ -2284,14 +2318,21 @@ def _observation_conversation(
                 {
                     "label": f"{data.get('name') or data.get('code')}（{data.get('code')}）個股觀察",
                     "url": f"/stock/{data.get('code')}",
-                    "date": data.get("as_of"),
-                    "chapters": ["價格與均線", "籌碼觀察", "風險事件"],
+                    "date": stock_as_of,
+                    "chapters": ["官方交易狀態"] if data.get("observation_kind") != "regular_price" else ["價格與均線", "籌碼觀察", "風險事件"],
                 }
             )
+        date_answer = _observation_date_answer(
+            question, market=data.get("market"), data_as_of=stock_as_of,
+            tools_used=("verified_observation_snapshot",), citations=stock_citations,
+            subject=f"{data.get('name') or data.get('code')}（{data.get('code')}）",
+        )
+        if date_answer is not None:
+            return date_answer
         generated = _asksorb_grounded_answer(
             question,
             {"stocks": observations},
-            data_as_of=data.get("as_of"),
+            data_as_of=stock_as_of,
             tools_used=("verified_observation_snapshot",),
             citations=stock_citations,
         )
@@ -2311,12 +2352,12 @@ def _observation_conversation(
             f"RSI {_observation_number(data.get('rsi'), 1)}，"
             f"量比 {_observation_number(data.get('volume_ratio'))}。"
             f"已觸發事件：{events}。\n\n"
-            f"資料截至：{data.get('as_of') or '未提供'}｜"
+            f"資料截至：{stock_as_of or '未提供'}｜"
             "內容只描述已發生資料。"
         )
         return ConversationAnswer(
             text,
-            data_as_of=data.get("as_of"),
+            data_as_of=stock_as_of,
             data_quality="available",
             tools_used=("verified_observation_snapshot",),
         )
@@ -2331,6 +2372,12 @@ def _observation_conversation(
             source_date=report.get("source_market_date"),
             applicable_date=report.get("applicable_trading_date"),
         )
+        date_answer = _observation_date_answer(
+            question, market="US", data_as_of=report.get("source_market_date"),
+            tools_used=("verified_us_report_index",), citations=[us_citation] if us_citation else [],
+        )
+        if date_answer is not None:
+            return date_answer
         generated = _asksorb_grounded_answer(
             question,
             {"market": "US", "report": report},
@@ -2358,6 +2405,12 @@ def _observation_conversation(
         source_date=snapshot.get("observation_as_of"),
         applicable_date=None,
     )
+    date_answer = _observation_date_answer(
+        question, market="TW", data_as_of=snapshot.get("observation_as_of"),
+        tools_used=("verified_observation_dashboard",), citations=[dashboard_citation] if dashboard_citation else [],
+    )
+    if date_answer is not None:
+        return date_answer
     generated = _asksorb_grounded_answer(
         question,
         {

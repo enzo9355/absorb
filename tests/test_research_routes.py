@@ -8,6 +8,36 @@ from stock_papi.web.routes.research import register_research_routes
 
 
 class ResearchRouteTests(unittest.TestCase):
+    def test_relationship_links_and_compare_share_supported_markets(self):
+        html = self.client.get('/industries/ai-server/relationships').get_data(as_text=True)
+        self.assertIn('/stock/NVDA', html)
+        self.assertEqual(self.client.get('/compare?symbols=NVDA,2317').status_code, 200)
+        self.assertEqual(self.client.get('/compare?symbols=000660,NVDA').status_code, 400)
+
+    def test_unsupported_market_keeps_evidence_without_broken_links(self):
+        app = Flask(__name__, template_folder=str(Path(__file__).parents[1] / 'templates'))
+        app.add_url_rule('/industries', 'industries_page', lambda: '')
+        app.add_url_rule('/stock/<code>', 'stock_page', lambda code: code)
+        register_research_routes(app, load_relationships=lambda: {
+            'topic': 'AI 伺服器', 'stages': [], 'relationships': [{
+                'from': {'symbol': '000660', 'name': 'SK hynix'},
+                'to': {'symbol': 'NVDA', 'name': 'NVIDIA'}, 'type': '供應關係',
+                'source': {'url': 'https://example.com/evidence', 'title': '來源'},
+            }]}, load_events=lambda: [], load_opinions=lambda: {},
+            stock_observation=lambda code: {'as_of': '2026-10-02' if code == 'NVDA' else '2026-10-07'},
+            get_stock_name=lambda code: code,
+            allowed_symbols=lambda: {'2330'})
+        html = app.test_client().get('/industries/ai-server/relationships').get_data(as_text=True)
+        self.assertNotIn('/stock/000660', html)
+        self.assertNotIn('symbols=000660,NVDA', html)
+        self.assertIn('000660 尚未提供個股觀察', html)
+        self.assertIn('https://example.com/evidence', html)
+        compare = app.test_client().get('/compare?symbols=NVDA,2330')
+        self.assertEqual(compare.status_code, 200)
+        self.assertIn('2026-10-02', compare.get_data(as_text=True))
+        self.assertIn('2026-10-07', compare.get_data(as_text=True))
+        self.assertIn('不能視為同日比較', compare.get_data(as_text=True))
+
     def test_company_announcements_paginate_and_keep_filters(self):
         app = Flask(__name__, template_folder=str(Path(__file__).parents[1] / 'templates'))
         rows = [dict(id=f'announcement-{i}', symbol='2317', name='鴻海', event_type='重大訊息',

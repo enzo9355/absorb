@@ -8,6 +8,20 @@ from reporting.professional_html import build_professional_report_view
 
 
 class ProfessionalReportHtmlTests(unittest.TestCase):
+    def test_uncategorized_observations_do_not_claim_risk_or_unused_models(self):
+        view = self._view()
+        view['key_events'] = [dict(headline='中性事件', description='中性事件'),
+                              dict(headline='有明確風險', description='限制', category='risk')]
+        env = Environment(loader=DictLoader({
+            'report': pathlib.Path('templates/reports/post_close_professional.html').read_text(encoding='utf-8'),
+            'base.html': '{% block content %}{% endblock %}',
+        }))
+        html = env.get_template('report').render(report=view)
+        self.assertIn('event-category-badge">觀察', html)
+        self.assertIn('event-category-badge">風險', html)
+        self.assertEqual(html.count('中性事件'), 1)
+        self.assertNotIn('量化回歸研究模型', html)
+
     def _metadata(self):
         return {
             "schema_version": 2,

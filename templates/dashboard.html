@@ -29,7 +29,7 @@
       <div><dt>資料基準日</dt><dd>{{ observation.observation_as_of or '待更新' }}</dd></div>
       <div><dt>資料覆蓋</dt><dd>{{ '%.1f%%'|format(quality.get('coverage') * 100) if quality.get('coverage') is not none else '資料不足' }}</dd></div>
       <div><dt>有效標的</dt><dd>{{ available_count if available_count is not none else '資料不足' }}</dd></div>
-      <div><dt>產生時間</dt><dd>{{ observation.generated_at|replace('T', ' ')|replace('Z', ' UTC') if observation.generated_at else '待更新' }}</dd></div>
+      <div><dt>產生時間（台北）</dt><dd>{{ observation.generated_at|research_time if observation.generated_at else '待更新' }}</dd></div>
     </dl>
   </header>
 
@@ -55,6 +55,7 @@
           <table><caption>加權指數最近五個交易日 OHLC</caption><thead><tr><th>日期</th><th>開盤</th><th>最高</th><th>最低</th><th>收盤</th></tr></thead><tbody>{% for row in market_index.get('candles', [])[-5:] %}<tr><td>{{ row.time }}</td><td>{{ row.open }}</td><td>{{ row.high }}</td><td>{{ row.low }}</td><td>{{ row.close }}</td></tr>{% endfor %}</tbody></table>
         </div>
         {% else %}<p class="empty-state market-index-empty">已驗證的大盤指數 K 線尚待發布。</p>{% endif %}
+        <p class="muted small">全市場有效股票的中位報酬（與上方指數漲跌幅不同）</p>
         <dl class="return-grid">
           {% for key, label in [('return_1d_pct','1 日'),('return_5d_pct','5 日'),('return_20d_pct','20 日'),('return_60d_pct','60 日')] %}
           {% set value = market.get(key) %}<div><dt>{{ label }}</dt><dd class="{{ 'positive' if value is not none and value > 0 else 'negative' if value is not none and value < 0 else '' }}">{{ '%+.2f%%'|format(value) if value is not none else '資料不足' }}</dd></div>

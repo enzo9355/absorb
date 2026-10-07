@@ -25,7 +25,16 @@ def register_market_routes(
     trading_beta_users=None, trade_plan_builder=None,
     load_intel_snapshot=None, intel_enabled=False,
     resolve_intel_stock_instrument=None,
+    load_data_freshness=None,
 ):
+    def freshness(market, observation_as_of=None):
+        try:
+            if load_data_freshness:
+                return load_data_freshness(market, observation_as_of=observation_as_of)
+        except Exception:
+            pass
+        return {"status": "unavailable", "source_market_date": observation_as_of}
+
     def dashboard_api():
         snapshot = dashboard_snapshot()
         if not isinstance(snapshot, dict):
@@ -282,6 +291,7 @@ def register_market_routes(
             related_opinions=related_opinions,
             intel_snapshot=intel_snapshot,
             intel_instrument_id=intel_instrument_id,
+            observation_freshness=freshness(market, data.get("observation_as_of") or data.get("as_of")),
         ) if data else "查無資料"
 
     def us_stocks_page():
@@ -301,6 +311,7 @@ def register_market_routes(
         return render_template(
             "stocks.html", observation=observation, search_query="",
             search_error=False, market="US", data_unavailable=False,
+            observation_freshness=freshness("US", observation.get("observation_as_of")),
         )
 
     def market_page():

@@ -378,6 +378,72 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
         ):
             self.assertNotIn(text, encoded)
 
+    @patch("stock_papi.web.routes.system._utc_now", return_value=datetime.datetime(2026, 10, 7, 12, tzinfo=datetime.timezone.utc))
+    @patch.object(stock_app, "_asksorb_report_citation")
+    @patch.object(stock_app, "_asksorb_grounded_answer", return_value=None)
+    @patch.object(stock_app, "_published_dashboard_snapshot")
+    @patch.object(stock_app, "search_stock_code", return_value=(None, None))
+    @patch.object(stock_app, "fetch_published_quant_snapshot")
+    def test_market_date_question_uses_dashboard_even_in_stock_or_us_context(
+        self, fetch, search, snapshot, grounded, citation, clock
+    ):
+        snapshot.return_value = observation_dashboard()
+        citation.return_value = {"label": "盤後觀察", "url": "/reports/2026-07-15/post-close"}
+        for context in ({}, {"market_context": "US"},
+                        {"page_context": "stock", "symbol_context": "AAPL"}):
+            answer = stock_app.run_absorb_conversation(
+                principal="web:test", question="台股最新資料日是哪一天？請附來源。", **context
+            )
+            self.assertEqual(answer.data_as_of, "2026-07-15")
+            self.assertIn("2026-07-15", answer.text)
+            self.assertIn("資料過期", answer.text)
+            self.assertTrue(answer.stale)
+            self.assertEqual(answer.data_quality, "stale")
+            self.assertEqual(answer.citations[0]["url"], "/reports/2026-07-15/post-close")
+        fetch.assert_not_called()
+        grounded.assert_not_called()
+
+    @patch.object(stock_app, "_conversation_report_lookup")
+    @patch.object(stock_app, "search_stock_code", return_value=(None, None))
+    def test_explicit_us_date_question_does_not_inherit_tw_stock_page(self, search, lookup):
+        lookup.return_value = {"data_quality": "available", "source_market_date": "2026-10-02",
+                               "applicable_trading_date": "2026-10-05"}
+        answer = stock_app.run_absorb_conversation(
+            principal="web:test", question="美股最新資料日是哪一天？請附來源。",
+            market_context="TW", page_context="stock", symbol_context="2330",
+        )
+        self.assertIn("美股最近一次已驗證資料日：2026-10-02", answer.text)
+        self.assertEqual(answer.citations[0]["url"], "/reports/us/2026-10-02/post-close")
+        lookup.assert_called_once_with("post_close", market="US")
+
+    @patch("stock_papi.web.routes.system._utc_now", return_value=datetime.datetime(2026, 7, 6, 4, tzinfo=datetime.timezone.utc))
+    @patch.object(stock_app, "resolve_entities", return_value=[
+        {"market": "TW", "symbol": "2330", "name": "台積電"},
+        {"market": "US", "symbol": "AAPL", "name": "Apple"},
+    ])
+    @patch.object(stock_app, "fetch_published_quant_snapshot")
+    def test_stock_date_uses_successful_observation_market_and_official_status_date(self, fetch, resolve, clock):
+        us = quant_snapshot('AAPL', 'US')
+        us['daily'] = [row for row in us['daily'] if row['Date'][:10] <= '2026-07-02']
+        us['as_of'] = '2026-07-02'
+        fetch.side_effect = [None, us]
+        answer = stock_app.run_absorb_conversation(
+            principal='web:test', question='2330和AAPL最新資料日與過期狀態？'
+        )
+        self.assertIn('AAPL', answer.text)
+        self.assertIn('資料最新', answer.text)
+        self.assertEqual(answer.data_quality, 'available')
+        self.assertFalse(answer.stale)
+
+        status = status_stock_document()
+        clock.return_value = datetime.datetime(2026, 7, 20, 4, tzinfo=datetime.timezone.utc)
+        resolve.return_value = [{'market': 'TW', 'symbol': status['symbol'], 'name': status['name']}]
+        fetch.side_effect = None
+        fetch.return_value = status
+        answer = stock_app.run_absorb_conversation(principal='web:test', question='最新資料日？')
+        self.assertEqual(answer.data_as_of, status['observation_as_of'])
+        self.assertEqual(answer.citations[0]['date'], status['observation_as_of'])
+
     @patch.object(stock_app, "fetch_published_quant_snapshot")
     @patch.object(stock_app, "search_stock_code")
     def test_formal_conversation_is_deterministic_observation_only(

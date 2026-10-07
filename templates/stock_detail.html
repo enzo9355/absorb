@@ -22,7 +22,9 @@
 {% block title %}{% if d.name and d.name|upper != d.code|upper %}{{ d.name }}（{{ d.code }}）{% else %}{{ d.code }}{% endif %}觀察｜ABSORB{% endblock %}
 {% block head %}{% if observation_kind == "regular_price" %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>{% endif %}{% endblock %}
 {% block content %}
+{% set quote_label = '最近可用收盤' if (observation_freshness|default({}, true)).get('status') in ['stale', 'updating'] else '最新收盤' %}
 <div class="page stock-page" data-stock-code="{{ d.code }}" data-stock-name="{{ d.name }}"{% if observation_kind == "regular_price" %} data-stock-price="{{ '%.2f'|format(d.price) }}"{% endif %}>
+  {% include "observation_freshness.html" %}
   {% if observation_kind != "regular_price" %}
   <header class="stock-hero" id="status-summary">
     <div class="hero-copy">
@@ -45,12 +47,12 @@
       <p class="eyebrow">{{ market }} · {{ d.code }}</p>
       <h1>{{ d.name }}</h1>
       <p class="decision-headline">個股觀察摘要</p>
-      <p class="muted">最新收盤 {{ '{:,.2f}'.format(d.price) }}；均線狀態為 {{ {'above_ma20_ma60':'站上 MA20 與 MA60', 'above_ma20':'站上 MA20', 'below_ma60':'低於 MA60', 'mixed':'均線交錯'}.get(trend_observation, '資料不足') }}。</p>
+      <p class="muted">{{ quote_label }} {{ '{:,.2f}'.format(d.price) }}；均線狀態為 {{ {'above_ma20_ma60':'站上 MA20 與 MA60', 'above_ma20':'站上 MA20', 'below_ma60':'低於 MA60', 'mixed':'均線交錯'}.get(trend_observation, '資料不足') }}。</p>
       <p class="muted small">資料日 {{ as_of }}｜{{ quant_source }}</p>
       <button class="button button-secondary watchlist-toggle" type="button" data-watchlist-toggle data-code="{{ d.code }}" data-name="{{ d.name }}" aria-pressed="false">加入關注</button>
     </div>
     <section class="summary-strip" aria-label="個股觀察摘要">
-      <article class="summary-card"><span>最新收盤</span><strong>{{ '{:,.2f}'.format(d.price) }}</strong><small>資料日 {{ as_of }}</small></article>
+      <article class="summary-card"><span>{{ quote_label }}</span><strong>{{ '{:,.2f}'.format(d.price) }}</strong><small>資料日 {{ as_of }}</small></article>
       <article class="summary-card"><span>MA20</span><strong>{{ '{:,.2f}'.format(ma20) if ma20 is not none else '資料不足' }}</strong><small>20 日移動平均</small></article>
       <article class="summary-card"><span>MA60</span><strong>{{ '{:,.2f}'.format(ma60) if ma60 is not none else '資料不足' }}</strong><small>60 日移動平均</small></article>
       <article class="summary-card"><span>量比</span><strong>{{ '%.2f'|format(volume_ratio) if volume_ratio is not none else '資料不足' }}</strong><small>相對近期常態量</small></article>
@@ -60,7 +62,7 @@
   <section class="panel trade-plan-panel" aria-label="條件式交易計畫" data-trade-plan
            data-market="{{ market }}" data-symbol="{{ d.code }}">
       <div class="section-heading"><div><p class="eyebrow">TRADE PLAN · TRIAL</p><h2>條件式交易計畫</h2></div></div>
-      <p class="muted small">日線規則試用版，尚未驗證獲利能力。私人計畫經 no-store API 載入；資料截至日、觸發價、上限、失效價載入後顯示。</p>
+      <p class="muted small">日線規則試用版，尚未驗證獲利能力。使用 LINE 登入且受邀後，可查看自己的資料截至日、觸發條件與失效條件。</p>
       <div data-plan-body><p class="empty-state">載入中…</p></div>
     </section>
 

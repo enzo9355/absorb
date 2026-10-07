@@ -8,6 +8,7 @@
     {% if reviewed_refresh_status == 'source_error' %}<p class="error-banner" role="status">審核版本更新暫時失敗，目前保留上次成功取得的已核對內容及原發布時間。</p>{% elif reviewed_refresh_status == 'deployment_snapshot' %}<p class="muted small">目前使用隨網站版本部署的已核對資料；尚未取得獨立審核發布版本。</p>{% endif %}
     <dl><div><dt>最近核對時間</dt><dd>{{ reviewed_at|research_time }}（台北時間）</dd></div><div><dt>最近候選抓取</dt><dd>{{ fetched_at|research_time }}</dd></div><div><dt>資料發布時間</dt><dd>{{ published_at|research_time }}</dd></div></dl>
     <p class="muted small">{{ pending_count }} 筆候選待審；{{ unreviewed_count }} 筆舊紀錄或未核對紀錄未列入清單。各來源涵蓋範圍見下方卡片；更新時間不代表涵蓋完整。</p>
+    {% if pending_count %}<p class="muted small" role="note">候選抓取時間只代表取得待審資料；以下公開清單仍以最近核對時間為準，完成審核與發布後才會新增內容。</p>{% endif %}
     {% if catalog_status == 'unavailable' %}<p class="error-banner" role="status">資料暫時無法驗證（unavailable），請稍後再試。</p>{% elif catalog_status == 'empty' %}<p class="empty-state">目前尚未建立可核對的公開紀錄。</p>{% endif %}
   </section>
   <nav class="activity-tabs" aria-label="動態類型">

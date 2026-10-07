@@ -156,9 +156,26 @@ def create_data_freshness_loader(
         reports=_UNSET,
         snapshot=_UNSET,
         reference_now=_UNSET,
+        observation_as_of=_UNSET,
     ):
         if market not in _MARKET_TIMEZONES:
             return unavailable()
+
+        resolver = next_session_for_market or _next_session_for_market
+        if observation_as_of is not _UNSET:
+            source = _parse_iso_date(observation_as_of)
+            if source is None:
+                return unavailable()
+            try:
+                applicable = resolver(market, source)
+                if type(applicable) is not dt.date or applicable <= source:
+                    return unavailable(source.isoformat())
+            except Exception:
+                return unavailable(source.isoformat())
+            reports = [{"market": market, "report_type": "post_close",
+                        "source_market_date": source.isoformat(),
+                        "applicable_trading_date": applicable.isoformat()}]
+            snapshot = {"market": market, "observation_as_of": source.isoformat()}
 
         if reports is _UNSET:
             try:
@@ -201,7 +218,6 @@ def create_data_freshness_loader(
         except Exception:
             return unavailable(source, applicable)
 
-        resolver = next_session_for_market or _next_session_for_market
         return classify_data_freshness(
             source_market_date=source,
             applicable_trading_date=applicable,

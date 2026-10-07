@@ -147,12 +147,12 @@
         {% for event in report.key_events %}
           <div class="event-item severity-{{ event.severity or 'medium' }}">
             <div class="event-meta">
-              <span class="badge event-category-badge">{{ '正面' if event.category == 'positive' else '風險' }}</span>
-              <span class="badge severity-badge">{{ event.severity|upper }}</span>
+              <span class="badge event-category-badge">{{ {'positive':'正面','risk':'風險','negative':'風險'}.get(event.category, '觀察') }}</span>
+              {% if event.severity %}<span class="badge severity-badge">{{ {'high':'極端','medium':'顯著','low':'注意'}.get(event.severity, event.severity) }}</span>{% endif %}
               {% if event.symbol %}<span class="event-symbol">{{ event.name or event.symbol }}（{{ event.symbol }}）</span>{% endif %}
             </div>
             <strong class="event-headline">{{ event.headline }}</strong>
-            <p class="event-desc">{{ event.description }}</p>
+            {% if event.description and event.description != event.headline %}<p class="event-desc">{{ event.description }}</p>{% endif %}
           </div>
         {% else %}
           <div class="empty-state">目前沒有已通過條件的重大異常事件。</div>
@@ -720,10 +720,11 @@
       <p>
         <strong>免責聲明：</strong>
         {% if market_code == 'US' %}
-          {% set report_sources = '美國公開市場資料、已驗證產業架構及量化回歸研究模型' %}
+          {% set report_sources = '美國公開市場資料、已驗證產業架構' %}
         {% else %}
-          {% set report_sources = '台灣證券交易所 (TWSE)、證券櫃檯買賣中心 (TPEx) 公開市場資料、已驗證產業架構及量化回歸研究模型' %}
+          {% set report_sources = '台灣證券交易所 (TWSE)、證券櫃檯買賣中心 (TPEx) 公開市場資料、已驗證產業架構' %}
         {% endif %}
+        {% if quant_sec.status == 'available' %}{% set report_sources = report_sources ~ '及量化回歸研究模型' %}{% endif %}
         {% if ai_sec.status == 'available' %}
           本報告內容由 Google Gemini 根據 ABSORB 可取得之{{ report_sources }}分析生成。
         {% else %}

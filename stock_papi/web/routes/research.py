@@ -13,6 +13,7 @@ from stock_papi.services.industry_relationships import relationship_is_current
 from stock_papi.services.opinion_consensus import build_consensus, query_opinions
 from stock_papi.services.public_opinions import query_activities
 from stock_papi.services.event_context import annotate_events
+from stock_papi.shared.validation import is_us_ticker
 
 
 _MARKETS = {"TW", "US"}
@@ -34,7 +35,7 @@ _LABELS = {'bullish': '看多', 'bearish': '看空', 'neutral': '中立', 'uncle
            'household': '家庭', 'institution': '機構', 'purchase': '買入', 'sale': '賣出',
            'holding': '持有', 'common_stock': '普通股', 'option': '選擇權', 'self': '本人',
            'spouse': '配偶', 'joint': '共同持有', 'confirmed': '已確認', 'corrected': '已更正',
-           'cancelled': '已取消'}
+           'cancelled': '已取消', 'active': '有效', 'historical': '歷史紀錄'}
 
 
 def _time_label(value):
@@ -55,6 +56,10 @@ def register_research_routes(
 ):
     app.jinja_env.filters['research_label'] = lambda value: _LABELS.get(value, value or '未提供')
     app.jinja_env.filters['research_time'] = _time_label
+    def supported_symbol(symbol):
+        permitted = allowed_symbols() if callable(allowed_symbols) else allowed_symbols
+        return symbol in (permitted or ()) or is_us_ticker(symbol)
+
     def add_graph(catalog):
         catalog = copy.deepcopy(catalog or {})
         stages = catalog.get("stages") or []
@@ -188,6 +193,7 @@ def register_research_routes(
             relationships=list(catalog.get("relationships") or []),
             research_leads=list(catalog.get("research_leads") or []),
             focus=focus,
+            supported_symbol=supported_symbol,
         )
 
     def relationships_api():
@@ -221,10 +227,9 @@ def register_research_routes(
     def compare_page():
         raw = request.args.get("symbols", "")
         symbols = [item.strip().upper() for item in raw.split(",") if item.strip()]
-        permitted = {str(item).upper() for item in (allowed_symbols() or set())}
         if not 2 <= len(symbols) <= 4 or len(set(symbols)) != len(symbols):
             return jsonify({"error": "請選擇 2 至 4 檔不同公司"}), 400
-        if any(symbol not in permitted for symbol in symbols):
+        if any(not supported_symbol(symbol) for symbol in symbols):
             return jsonify({"error": "公司代碼無法驗證"}), 400
         rows = []
         for symbol in symbols:

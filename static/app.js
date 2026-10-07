@@ -1,4 +1,5 @@
 const bySelector = (selector, root = document) => root.querySelector(selector);
+const riskStateLabels = {normal: "一般", cautious: "謹慎", elevated: "升高", defensive: "防守"};
 
 function migrateLegacyHashRoute() {
   if (!["/", "/dashboard"].includes(window.location.pathname)) return;
@@ -103,11 +104,7 @@ function renderDashboard(data) {
   const marketData = data.market_observation || {};
   const hero = bySelector("[data-market-hero]");
   if (hero) {
-    const riskState = {
-      normal: "一般",
-      cautious: "謹慎",
-      elevated: "升高",
-    }[marketData.risk_state] || "資料不足";
+    const riskState = riskStateLabels[marketData.risk_state] || "資料不足";
     replaceContent(hero, [
       element("p", "action-label action-insufficient", `市場風險狀態：${riskState}`),
       element("h1", "market-headline", `上漲 ${marketData.advancing_count ?? "—"} 檔、下跌 ${marketData.declining_count ?? "—"} 檔`),
@@ -131,7 +128,7 @@ function renderDashboard(data) {
   if (focus) {
     const items = Array.isArray(data.daily_focus) ? data.daily_focus : [];
     replaceContent(focus, items.length ? items.map((text, index) =>
-      card("article", "focus-card", [["span", "", `焦點 ${index + 1}`], ["strong", "", text]])
+      card("article", "focus-card", [["span", "", `焦點 ${index + 1}`], ["strong", "", text.replace(/^市場風險狀態[:：]\s*(normal|cautious|elevated|defensive)$/, (_, state) => `市場風險狀態：${riskStateLabels[state]}`)]])
     ) : [emptyState("今日焦點資料不足。")]);
   }
 
@@ -213,6 +210,7 @@ function renderDashboard(data) {
         ["strong", "", `收盤 ${displayNumber(item.price)}`],
         ["p", "", `單日 ${displaySigned(item.return_1d_pct)} · 5 日 ${displaySigned(item.return_5d_pct)}`],
         ["small", "", `${observationTrend(item.trend_observation)} · 量比 ${displayNumber(item.volume_ratio)}`],
+        ["small", "", `資料日 ${item.as_of || data.observation_as_of || "未提供"}`],
       ], stockHref(item.symbol))
     ) : [emptyState("ETF 觀察資料不足。")]);
   }

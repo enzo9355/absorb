@@ -5,6 +5,16 @@ from jinja2 import DictLoader, Environment
 
 
 class ReportsTemplateTests(unittest.TestCase):
+    def test_older_reports_use_closed_native_disclosure_without_removing_history(self):
+        reports = [dict(report_type='post_close', title=f'報告-{day}', summary=['摘要'],
+                        source_market_date=f'2026-07-{day:02d}', applicable_trading_date=f'2026-07-{day+1:02d}')
+                   for day in range(20, 12, -1)]
+        output = self._render(reports_v2=reports, reports=[])
+        self.assertIn('<details class="report-history-older">', output)
+        self.assertIn('查看較早報告（5 份）', output)
+        self.assertEqual(output.count('class="report-card report-card-post_close"'), 8)
+        self.assertIn('type="date"', output)
+
     def _render(self, *, reports_v2, reports, unavailable=False):
         template_text = pathlib.Path("templates/reports.html").read_text(encoding="utf-8")
         env = Environment(

@@ -49,6 +49,52 @@ def prediction_product(market="TW", symbol="2330", as_of="2026-07-15"):
 
 
 class WebProductTests(unittest.TestCase):
+    @patch.object(stock_app, '_published_report_index_v2')
+    def test_report_date_filter_uses_each_report_type_date_and_validates_input(self, load_index):
+        load_index.return_value = [dict(product_mode='observation', report_type=kind, title=kind, summary=['市場風險狀態：normal'],
+                                       source_market_date='2026-07-15', applicable_trading_date='2026-07-16')
+                                  for kind in ('post_close', 'pre_market')]
+        client = stock_app.app.test_client()
+        for path in ('/reports', '/reports/us'):
+            source = client.get(path + '?date=2026-07-15').get_data(as_text=True)
+            applicable = client.get(path + '?date=2026-07-16').get_data(as_text=True)
+            self.assertIn('report-card-post_close', source)
+            self.assertNotIn('report-card-pre_market', source)
+            self.assertIn('report-card-pre_market', applicable)
+            self.assertNotIn('report-card-post_close', applicable)
+            self.assertIn('市場風險狀態：一般', source)
+            self.assertEqual(client.get(path + '?date=2026-02-30').status_code, 400)
+        self.assertEqual(load_index.return_value[0]['summary'], ['市場風險狀態：normal'])
+
+    def test_stock_and_etf_freshness_uses_the_observation_date(self):
+        with patch.object(stock_app, "fetch_published_quant_snapshot", return_value=quant_snapshot()), \
+             patch.object(stock_app, "_published_us_securities_observation", return_value={
+                 "observation_as_of": "2026-07-15", "stock_events": [],
+                 "etf_observations": [{"symbol": "SPY", "name": "S&P 500 ETF", "price": 600,
+                                       "return_5d_pct": None}]}), \
+             patch.object(web_routes.system, "_utc_now", return_value=dt.datetime(2026, 7, 20, 12, tzinfo=dt.timezone.utc)), \
+             patch.object(web_routes.system, "_next_session_for_market", side_effect=lambda market, day: day + dt.timedelta(days=1)):
+            for path, date in (('/stock/2330', quant_snapshot()['as_of']), ('/us/stocks', '2026-07-15')):
+                html = stock_app.app.test_client().get(path).get_data(as_text=True)
+                self.assertIn('data-freshness-status="stale"', html)
+                self.assertIn('資料日 ' + date, html)
+                self.assertIn('不代表今日即時行情', html)
+                if path.startswith('/stock/'):
+                    self.assertIn('最近可用收盤', html)
+
+    def test_observation_freshness_preserves_weekends_and_fails_closed(self):
+        loader = web_routes.system.create_data_freshness_loader(
+            load_dashboard_snapshot=lambda: {}, load_report_index_v2=lambda **kwargs: [],
+            next_session_for_market=lambda market, day: dt.date(2026, 10, 5) if day == dt.date(2026, 10, 2) else dt.date(2026, 10, 6),
+        )
+        for date, expected in [('2026-10-04', 'current'), ('2026-10-05', 'current'),
+                               ('2026-10-06', 'updating'), ('2026-10-07', 'stale')]:
+            actual = loader('US', observation_as_of='2026-10-02',
+                            reference_now=dt.datetime.fromisoformat(date + 'T16:00:00+00:00'))
+            self.assertEqual(actual['status'], expected)
+            self.assertEqual(actual['source_market_date'], '2026-10-02')
+        self.assertEqual(loader('US', observation_as_of='broken')['status'], 'unavailable')
+
     @patch.object(stock_app, "_published_prediction_snapshot")
     @patch.object(stock_app, "_published_dashboard_snapshot")
 

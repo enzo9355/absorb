@@ -67,6 +67,7 @@ def register_routes(app, dependencies):
         prediction_snapshot=dependencies["prediction_snapshot"],
         load_report_index_v2=dependencies["load_report_index_v2"],
         load_relationships=dependencies["load_research_relationships"],
+        load_data_freshness=load_data_freshness,
         load_events=dependencies["load_research_events"],
         load_opinions=dependencies["load_public_opinions"],
         load_intel_snapshot=dependencies.get("load_intel_snapshot"),

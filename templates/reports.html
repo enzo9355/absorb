@@ -32,6 +32,12 @@
       </div>
       {% endif %}
     </div>
+    <form method="get" class="report-date-filter" aria-label="依報告日期篩選">
+      <label for="report-date">報告日期（盤前適用日／盤後資料日）</label>
+      <input id="report-date" type="date" name="date" value="{{ selected_date|default('') }}">
+      <button class="button button-secondary" type="submit">篩選日期</button>
+      {% if selected_date %}<a class="button button-secondary" href="{{ url_for('us_reports_page' if is_us else 'reports_page') }}">清除日期</a>{% endif %}
+    </form>
     {% if reports_v2 %}
       <div class="report-lanes" data-report-lanes>
         {% for report_type, lane_title, lane_description in [('pre_market', '盤前風險更新', '開盤前確認隔夜訊號與資料限制'), ('post_close', '盤後市場觀察', '收盤後整理市場、產業與異常事件')] %}
@@ -43,6 +49,7 @@
           </header>
           <div class="report-lane-list">
             {% for report in lane_reports %}
+            {% if loop.index == 4 %}<details class="report-history-older"><summary>查看較早報告（{{ lane_reports|length - 3 }} 份）</summary>{% endif %}
             <article class="report-card report-card-{{ report_type }}">
               <div>
                 <p class="report-date">{{ report.applicable_trading_date if report_type == 'pre_market' else report.source_market_date }}</p>
@@ -61,6 +68,7 @@
                 {% endif %}
               </div>
             </article>
+            {% if loop.last and lane_reports|length > 3 %}</details>{% endif %}
             {% else %}
             <div class="empty-state" role="status"><p>目前沒有已通過發布驗證的{{ lane_title }}。</p></div>
             {% endfor %}
@@ -94,8 +102,8 @@
     {% endif %}
     {% if not reports_v2 and not reports %}
       <div class="empty-state" role="status">
-        <h3>目前沒有可用的每日報告</h3>
-        <p>{% if unavailable %}報告服務暫時無法讀取，請稍後再試。{% else %}目前尚無已完成發布驗證的報告。{% endif %}</p>
+        <h3>{{ '目前沒有符合此日期的報告' if selected_date else '目前沒有可用的每日報告' }}</h3>
+        <p>{% if unavailable %}報告服務暫時無法讀取，請稍後再試。{% elif selected_date %}此日期尚無已完成發布驗證的報告，可清除日期查看其他報告。{% else %}目前尚無已完成發布驗證的報告。{% endif %}</p>
       </div>
     {% endif %}
   </section>

@@ -348,11 +348,12 @@ class VisualCalendar:
 
 _REPORT_ROOT = tempfile.TemporaryDirectory()
 _REPORT_PUBLISH = Path(_REPORT_ROOT.name)
+_TW_METADATA = build_post_close_observation_metadata(observation_dashboard(), VisualCalendar())
 publish_report_v2(
     _REPORT_PUBLISH,
-    build_post_close_observation_metadata(
-        observation_dashboard(),
-        VisualCalendar(),
+    _TW_METADATA,
+    professional_report=build_professional_post_close_artifact(
+        _TW_METADATA, code_commit_sha="b" * 40
     ),
 )
 _US_METADATA = build_post_close_observation_metadata(

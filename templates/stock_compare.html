@@ -2,7 +2,7 @@
 {% block title %}同業比較｜ABSORB{% endblock %}
 {% block content %}
 <div class="page research-page">
-  <header class="page-header"><div><p class="eyebrow">COMPANY COMPARISON</p><h1>公司比較</h1><p class="page-intro">比較同一資料日的已驗證市場觀察；缺少欄位會保留為資料不足。</p></div><a class="button button-secondary" href="{{ url_for('industry_relationships_page') }}">回到產業關係</a></header>
+  <header class="page-header"><div><p class="eyebrow">COMPANY COMPARISON</p><h1>公司比較</h1><p class="page-intro">依各標的資料日比較已驗證觀察；資料日不同時，報酬期間也不同，不能視為同日比較。缺少欄位會保留為資料不足。</p></div><a class="button button-secondary" href="{{ url_for('industry_relationships_page') }}">回到產業關係</a></header>
   <section class="panel comparison-table-wrap"><table class="comparison-table"><thead><tr><th>指標</th>{% for row in rows %}<th><a href="{{ url_for('stock_page', code=row.code) }}">{{ row.name }}<small>{{ row.code }}</small></a></th>{% endfor %}</tr></thead><tbody>
     <tr><th>資料日</th>{% for row in rows %}<td>{{ row.get('as_of') or '資料不足' }}</td>{% endfor %}</tr>
     <tr><th>最新收盤</th>{% for row in rows %}<td>{{ '%.2f'|format(row.get('price')) if row.get('price') is not none else '資料不足' }}</td>{% endfor %}</tr>

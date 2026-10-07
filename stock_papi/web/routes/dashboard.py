@@ -4,6 +4,7 @@ from flask import abort, make_response, render_template, request
 
 from reporting.exceptions import ReportWebError
 from stock_papi.services.prediction_view import prediction_for
+from stock_papi.services.us_presentation import localize_us_key_event
 
 
 def register_dashboard_page(
@@ -37,6 +38,11 @@ def register_dashboard_page(
             for report_type in ("post_close", "pre_market")
         }
         snapshot = _snapshot()
+        snapshot = {**snapshot, "daily_focus": [localize_us_key_event({"headline": text})["headline"]
+                                               for text in snapshot.get("daily_focus", [])]}
+        daily_cards = {kind: {**item, "summary": [localize_us_key_event({"headline": text})["headline"]
+                                                 for text in item.get("summary", [])]} if item else None
+                       for kind, item in daily_cards.items()}
         market_index = snapshot.get("market_index") or {}
         prediction = None
         if load_prediction_snapshot is not None and market_index.get("as_of"):

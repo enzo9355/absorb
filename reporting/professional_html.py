@@ -9,6 +9,7 @@ import zoneinfo
 
 from .professional_schema import ProfessionalPostCloseReport, ProfessionalSection
 from .regression_schema import RegressionResearchArtifact
+from stock_papi.services.us_presentation import localize_us_key_event
 
 
 REGRESSION_UNAVAILABLE_REASON = "量化回歸研究目前無法安全顯示。"
@@ -132,7 +133,7 @@ def build_professional_report_view(
             "model_version": identity.model_version,
         },
         "executive_summary": report.executive_summary.to_document(),
-        "key_events": copy.deepcopy(list(report.key_events)),
+        "key_events": [localize_us_key_event(item) for item in copy.deepcopy(list(report.key_events))],
         "market": _section_view(report.market),
         "capital_flows": capital_flows_view,
         "industries": _section_view(report.industries),

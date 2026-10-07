@@ -9,7 +9,7 @@ import os
 import re
 import uuid
 
-from flask import abort, make_response, redirect, render_template, url_for
+from flask import abort, make_response, redirect, render_template, request, url_for
 
 from reporting.exceptions import ReportWebError
 from reporting.web import find_report
@@ -31,7 +31,7 @@ from stock_papi.services.report_view import (
     dedupe_reports_for_list,
 )
 from stock_papi.services.market_summary import build_market_summary_view
-from stock_papi.services.us_presentation import latest_post_close_item
+from stock_papi.services.us_presentation import latest_post_close_item, localize_us_key_event
 from stock_papi.services.prediction_view import prediction_for
 from reporting.config import MAX_CANONICAL_REPORT_BYTES
 from werkzeug.exceptions import HTTPException
@@ -366,6 +366,9 @@ def register_report_routes(
             )
 
     def reports_page():
+        selected_date = request.args.get("date", "")
+        if selected_date and not _valid_report_date(selected_date):
+            abort(400)
         if observation_mode:
             reports = []
         else:
@@ -380,10 +383,12 @@ def register_report_routes(
                 return _report_error(503, exc=exc)
             reports_v2 = None
         response = make_response(render_template(
-            "reports.html", reports=reports or [],
-            reports_v2=dedupe_reports_for_list(reports_v2 or []),
+            "reports.html", reports=[item for item in reports or []
+                                     if not selected_date or item.get("report_date") == selected_date],
+            reports_v2=_history_reports(reports_v2, selected_date),
             unavailable=reports is None and reports_v2 is None,
             market="TW",
+            selected_date=selected_date,
         ))
         return _secure_response(response)
 
@@ -456,7 +461,17 @@ def register_report_routes(
             abort(404)
         return _observation_page(trading_date, "pre_market", market="TW")
 
+    def _history_reports(reports, selected_date):
+        rows = dedupe_reports_for_list(reports or [])
+        return [{**row, "summary": [localize_us_key_event({"headline": text})["headline"]
+                                    for text in row.get("summary", [])]}
+                for row in rows if not selected_date or selected_date == row.get(
+                    "applicable_trading_date" if row.get("report_type") == "pre_market" else "source_market_date")]
+
     def us_reports_page():
+        selected_date = request.args.get("date", "")
+        if selected_date and not _valid_report_date(selected_date):
+            abort(400)
         try:
             reports_v2 = _v2_reports(market="US", required=observation_mode)
         except ReportWebError as exc:
@@ -465,9 +480,10 @@ def register_report_routes(
             reports_v2 = None
         response = make_response(render_template(
             "reports.html", reports=[],
-            reports_v2=dedupe_reports_for_list(reports_v2 or []),
+            reports_v2=_history_reports(reports_v2, selected_date),
             unavailable=reports_v2 is None,
             market="US",
+            selected_date=selected_date,
         ))
         return _secure_response(response)
 

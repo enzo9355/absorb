@@ -1,0 +1,6 @@
+{% set freshness = observation_freshness|default({}, true) %}
+<section class="freshness-status" data-freshness-status="{{ freshness.get('status', 'unavailable') }}" aria-label="觀察資料狀態">
+  <div><h2>資料狀態</h2><p>{{ {'current':'資料最新','updating':'更新中','stale':'資料過期','unavailable':'暫時無法核對新鮮度'}.get(freshness.get('status'), '暫時無法核對新鮮度') }}</p></div>
+  <p>資料日 {{ freshness.get('source_market_date') or '尚無已驗證日期' }}</p>
+  {% if freshness.get('status') in ['stale','updating','unavailable'] %}<p class="freshness-warning">以下為最近一次已驗證觀察，不代表今日即時行情。{{ '新交易日資料尚待發布。' if freshness.get('status') == 'updating' else '最新交易日是否已涵蓋，請以資料日期為準。' }}</p>{% endif %}
+</section>
