@@ -432,7 +432,9 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
         )
         self.assertIn('AAPL', answer.text)
         self.assertIn('資料最新', answer.text)
-        self.assertEqual(answer.data_quality, 'available')
+        self.assertEqual(answer.data_quality, 'partial')
+        self.assertIn('2330', answer.text)
+        self.assertIn('無已驗證觀察資料', answer.text)
         self.assertFalse(answer.stale)
 
         status = status_stock_document()
@@ -443,6 +445,66 @@ class ObservationPublicSurfaceTests(unittest.TestCase):
         answer = stock_app.run_absorb_conversation(principal='web:test', question='最新資料日？')
         self.assertEqual(answer.data_as_of, status['observation_as_of'])
         self.assertEqual(answer.citations[0]['date'], status['observation_as_of'])
+
+    @patch.object(stock_app, 'asksorb_model', None)
+    @patch.object(stock_app, 'fetch_published_quant_snapshot', return_value=quant_snapshot())
+    @patch.object(stock_app, 'search_stock_code', return_value=('2330', '台積電'))
+    def test_latest_data_modifier_preserves_analysis_and_verified_freshness(self, search, fetch):
+        for question in ('根據台積電最新資料，目前價格與均線如何？',
+                         '台積電最新資料日那天收盤是多少？',
+                         '台積電資料日那天偏強還是偏弱？'):
+            with self.subTest(question=question):
+                answer = stock_app.run_absorb_conversation(principal='web:test', question=question)
+                self.assertIn('收盤', answer.text)
+                self.assertIn('均線狀態', answer.text)
+                self.assertIn('資料過期', answer.text)
+                self.assertTrue(answer.stale)
+                self.assertEqual(answer.citations[0]['date'], quant_snapshot()['as_of'])
+
+    @patch.object(stock_app, 'fetch_published_quant_snapshot', return_value=quant_snapshot())
+    @patch.object(stock_app, 'search_stock_code', return_value=('2330', '台積電'))
+    @patch.object(stock_app, '_asksorb_grounded_answer')
+    def test_mixed_date_analysis_keeps_grounding_and_deterministic_warning(self, grounded, search, fetch):
+        grounded.return_value = stock_app.ConversationAnswer('已驗證的均線分析。', data_quality='available')
+        answer = stock_app.run_absorb_conversation(principal='web:test', question='台積電資料日與均線如何？')
+        grounded.assert_called_once()
+        self.assertIn('已驗證的均線分析', answer.text)
+        self.assertIn('資料過期', answer.text)
+        self.assertTrue(answer.stale)
+        self.assertIn('observation_freshness', grounded.call_args.args[1])
+
+    @patch.object(stock_app, '_asksorb_grounded_answer')
+    @patch.object(stock_app, 'fetch_published_quant_snapshot')
+    @patch.object(stock_app, 'search_stock_code')
+    def test_multi_stock_date_lists_every_entity_without_llm_or_shared_date(self, search, fetch, grounded):
+        search.side_effect = lambda query: ('2330', '台積電') if '2330' in query else (
+            ('AAPL', 'Apple') if 'AAPL' in query else (None, None))
+        tw, us = quant_snapshot(), quant_snapshot('AAPL', 'US')
+        us['daily'] = us['daily'][:-1]
+        us['as_of'] = us['daily'][-1]['Date'][:10]
+        fetch.side_effect = lambda symbol: {'2330': tw, 'AAPL': us}[symbol]
+        answer = stock_app.run_absorb_conversation(principal='web:test', question='2330 和 AAPL 最新資料日與過期狀態？')
+        self.assertIn('2330', answer.text)
+        self.assertIn('AAPL', answer.text)
+        self.assertIn(tw['as_of'], answer.text)
+        self.assertIn(us['as_of'], answer.text)
+        self.assertEqual({item['url'] for item in answer.citations}, {'/stock/2330', '/stock/AAPL'})
+        self.assertIsNone(answer.data_as_of)
+        self.assertTrue(answer.stale)
+        grounded.assert_not_called()
+
+        fetch.side_effect = lambda symbol: tw if symbol == '2330' else None
+        answer = stock_app.run_absorb_conversation(principal='web:test', question='2330 和 AAPL 最新資料日？')
+        self.assertIn('AAPL', answer.text)
+        self.assertIn('無已驗證觀察資料', answer.text)
+        self.assertEqual([item['url'] for item in answer.citations], ['/stock/2330'])
+
+        fetch.side_effect = lambda symbol: None
+        answer = stock_app.run_absorb_conversation(principal='web:test', question='2330 和 AAPL 最新資料日？')
+        self.assertIn('2330', answer.text)
+        self.assertIn('AAPL', answer.text)
+        self.assertEqual(answer.data_quality, 'unavailable')
+        self.assertFalse(answer.citations)
 
     @patch.object(stock_app, "fetch_published_quant_snapshot")
     @patch.object(stock_app, "search_stock_code")

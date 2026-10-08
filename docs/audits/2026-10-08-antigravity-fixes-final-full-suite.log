@@ -1,0 +1,1133 @@
+2026-10-08 23:31:20,703 [INFO] absorb.conversation: conversation request correlation_id=41b3486bf3fbd33c
+2026-10-08 23:31:20,707 [INFO] absorb.conversation: conversation request correlation_id=bcabf5e688f4c800
+2026-10-08 23:31:20,707 [INFO] absorb.conversation: conversation request correlation_id=2f184c8c011dbc5c
+2026-10-08 23:31:20,707 [INFO] absorb.conversation: conversation request correlation_id=927c173ee9b4002c
+2026-10-08 23:31:20,713 [INFO] absorb.conversation: conversation request correlation_id=ea0144a4590a3b45
+2026-10-08 23:31:20,713 [INFO] absorb.conversation: conversation request correlation_id=04de5cc02364e3e5
+2026-10-08 23:31:20,713 [INFO] absorb.conversation: conversation request correlation_id=9cc50399aca09581
+2026-10-08 23:31:20,713 [INFO] absorb.conversation: conversation request correlation_id=bfea4959f61b2d99
+2026-10-08 23:31:20,713 [INFO] absorb.conversation: conversation request correlation_id=c854cf9273c3fa61
+2026-10-08 23:31:20,714 [INFO] absorb.conversation: conversation request correlation_id=0282aae07c98a5ac
+2026-10-08 23:31:20,714 [INFO] absorb.conversation: conversation request correlation_id=035203c781dadfd3
+2026-10-08 23:31:20,716 [INFO] absorb.conversation: conversation request correlation_id=901570fb5b0e8911
+2026-10-08 23:31:20,719 [INFO] absorb.conversation: conversation request correlation_id=3461e5ca48ce8510
+2026-10-08 23:31:20,722 [INFO] absorb.conversation: conversation request correlation_id=64ef754865f4feb7
+2026-10-08 23:31:20,723 [INFO] absorb.conversation: conversation request correlation_id=3f2bd993fa493cb9
+2026-10-08 23:31:20,725 [INFO] absorb.conversation: conversation request correlation_id=7f255bc9f3e595e6
+2026-10-08 23:31:20,726 [INFO] absorb.conversation: conversation request correlation_id=2f3d592ca98b667c
+2026-10-08 23:31:20,727 [INFO] absorb.conversation: conversation request correlation_id=2483c17a735b8dbb
+2026-10-08 23:31:20,727 [INFO] absorb.conversation: conversation request correlation_id=b7cff7c0863a3022
+2026-10-08 23:31:20,728 [INFO] absorb.conversation: conversation request correlation_id=980fab5ed7b8c7a4
+2026-10-08 23:31:20,728 [INFO] absorb.conversation: conversation request correlation_id=2b7666df304b2d1c
+2026-10-08 23:31:20,729 [INFO] absorb.conversation: conversation request correlation_id=2caf7b950f814c91
+2026-10-08 23:31:20,729 [INFO] absorb.conversation: conversation request correlation_id=beab5583c1a7e70e
+2026-10-08 23:31:20,730 [INFO] absorb.conversation: conversation request correlation_id=084ee1279942556e
+2026-10-08 23:31:20,731 [INFO] absorb.conversation: conversation request correlation_id=7ed6c601d3201b9c
+2026-10-08 23:31:20,733 [INFO] absorb.conversation: conversation request correlation_id=0c75515bfad67fc5
+2026-10-08 23:31:20,736 [INFO] absorb.conversation: conversation request correlation_id=7f978047ad14fe06
+2026-10-08 23:31:20,737 [INFO] absorb.conversation: conversation request correlation_id=d2dd2a7e98efc52f
+2026-10-08 23:31:20,739 [INFO] absorb.conversation: conversation request correlation_id=02240c2873403332
+2026-10-08 23:31:20,739 [INFO] absorb.conversation: conversation request correlation_id=fd608fafcebf7991
+2026-10-08 23:31:20,739 [INFO] absorb.conversation: conversation request correlation_id=4c5289a893b07c4a
+2026-10-08 23:31:20,741 [INFO] absorb.conversation: conversation request correlation_id=fee4a7dd79db750a
+2026-10-08 23:31:20,741 [INFO] absorb.conversation: conversation request correlation_id=b064f5ee6d30047a
+2026-10-08 23:31:20,742 [INFO] absorb.conversation: conversation request correlation_id=4b3cfc4a34d98ecd
+2026-10-08 23:31:20,744 [INFO] absorb.conversation: conversation request correlation_id=f40095fd549a84a6
+2026-10-08 23:31:20,745 [INFO] absorb.conversation: conversation request correlation_id=9a68ab1a7e33318e
+2026-10-08 23:31:20,746 [INFO] absorb.conversation: conversation request correlation_id=e25912ebd32169d8
+2026-10-08 23:31:20,750 [INFO] absorb.conversation: conversation request correlation_id=c7af4c1ffdb674ab
+2026-10-08 23:31:20,750 [INFO] absorb.conversation: conversation request correlation_id=51f5ee76ea213bc1
+2026-10-08 23:31:20,760 [INFO] absorb.conversation: conversation request correlation_id=1c6d7675f9230143
+2026-10-08 23:31:20,760 [INFO] absorb.conversation: conversation request correlation_id=266d96acfedcb0e1
+2026-10-08 23:31:20,761 [INFO] absorb.conversation: conversation request correlation_id=263b9baf54585c86
+2026-10-08 23:31:20,764 [INFO] absorb.conversation: conversation request correlation_id=071b14986f5b5417
+2026-10-08 23:31:20,766 [INFO] absorb.conversation: conversation request correlation_id=320c4fec3551617c
+2026-10-08 23:31:20,768 [INFO] absorb.conversation: conversation request correlation_id=7fe0af08c28ea7f2
+2026-10-08 23:31:20,769 [INFO] absorb.conversation: conversation request correlation_id=2e2d4e27d4a72bee
+2026-10-08 23:31:20,770 [INFO] absorb.conversation: conversation request correlation_id=d816f97f42b3bdae
+2026-10-08 23:31:20,773 [INFO] absorb.conversation: conversation request correlation_id=87e659b702ac4070
+2026-10-08 23:31:20,774 [INFO] absorb.conversation: conversation request correlation_id=53fc9414bec35c38
+2026-10-08 23:31:20,846 [INFO] absorb.conversation: conversation request correlation_id=8476bdfd37601fe8
+2026-10-08 23:31:20,849 [INFO] absorb.conversation: conversation request correlation_id=be308de0bc4063ec
+2026-10-08 23:31:20,851 [INFO] absorb.conversation: conversation request correlation_id=0c2c22527f3df592
+2026-10-08 23:31:20,854 [INFO] absorb.conversation: conversation request correlation_id=bb441af6a9e952d4
+2026-10-08 23:31:20,857 [INFO] absorb.conversation: conversation request correlation_id=9b3d14b407be1316
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:25,683 [ERROR] app: report_render_failed correlation_id=0a217d8b2d134afe report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 65, in validate_professional_report_binding
+    raise ValueError("applicable_trading_date mismatch between report identity and metadata")
+ValueError: applicable_trading_date mismatch between report identity and metadata
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:25,787 [ERROR] app: report_render_failed correlation_id=edf4a752c1644325 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 105, in validate_professional_report_binding
+    raise ValueError("pointer code_commit_sha does not match report identity code_commit_sha")
+ValueError: pointer code_commit_sha does not match report identity code_commit_sha
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+2026-10-08 23:31:25,834 [ERROR] app: report_render_failed correlation_id=030b0851885f4405 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:31:26,162 [ERROR] app: report_render_failed correlation_id=4ad8665df0b14769 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+2026-10-08 23:31:26,207 [ERROR] app: report_render_failed correlation_id=6ac59278064f4636 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 103, in validate_professional_report_binding
+    raise ValueError("pointer generator_version does not match report identity generator_version")
+ValueError: pointer generator_version does not match report identity generator_version
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:31:26,260 [ERROR] app: report_render_failed correlation_id=1256895b08654e1d report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 215, in _load_verified_professional_report
+    report = ProfessionalPostCloseReport.from_document(canonical_doc)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 385, in from_document
+    raise ValueError("professional report schema_version is unsupported")
+ValueError: professional report schema_version is unsupported
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 217, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 驗證失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,307 [ERROR] app: report_render_failed correlation_id=44aad40aefb04b26 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 205, in _load_verified_professional_report
+    canonical_doc = json.loads(raw_bytes.decode("utf-8"))
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\decoder.py", line 353, in raw_decode
+    obj, end = self.scan_once(s, idx)
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 209, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object JSON 解析失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object JSON 解析失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,353 [ERROR] app: report_render_failed correlation_id=5b88bf01a0174802 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 205, in _load_verified_professional_report
+    canonical_doc = json.loads(raw_bytes.decode("utf-8"))
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 207, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 解碼失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 解碼失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,402 [ERROR] app: report_render_failed correlation_id=2fed3631a9e647da report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 211, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 格式錯誤")
+reporting.exceptions.ReportWebError: Canonical Object 格式錯誤
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,449 [ERROR] app: report_render_failed correlation_id=b0fa95c55040400c report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 215, in _load_verified_professional_report
+    report = ProfessionalPostCloseReport.from_document(canonical_doc)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 390, in from_document
+    identity = ProfessionalReportIdentity.from_document(document.get("identity"))
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 165, in from_document
+    raise ValueError(f"source_manifest is invalid: {source_manifest}")
+ValueError: source_manifest is invalid: quant/v1/other.json
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 217, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 驗證失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,496 [ERROR] app: report_render_failed correlation_id=ad607d442c1f4659 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 69, in validate_professional_report_binding
+    raise ValueError("source_manifest_sha256 mismatch between report identity and metadata")
+ValueError: source_manifest_sha256 mismatch between report identity and metadata
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,546 [ERROR] app: report_render_failed correlation_id=2436cf0c0755489b report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,600 [ERROR] app: report_render_failed correlation_id=741d80fafdf74ce5 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:31:26,655 [ERROR] app: report_render_failed correlation_id=3e5897b319894bb4 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,704 [ERROR] app: report_render_failed correlation_id=0357bc6f3ea84dcc report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 320, in _validate_report_metadata_v2
+    ReportMetadataV2.from_document(document)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\schemas.py", line 109, in from_document
+    raise ValueError("professional_report.object invalid")
+ValueError: professional_report.object invalid
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 264, in validate_report_metadata
+    return _validate_report_metadata_v2(document, item)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 322, in _validate_report_metadata_v2
+    raise ReportWebError("Observation report metadata 不合法") from exc
+reporting.exceptions.ReportWebError: Observation report metadata 不合法
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,933 [ERROR] app: report_render_failed correlation_id=12b72eebef4341e8 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 101, in validate_professional_report_binding
+    raise ValueError("pointer content_sha256 does not match report identity content_sha256")
+ValueError: pointer content_sha256 does not match report identity content_sha256
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:26,983 [ERROR] app: report_render_failed correlation_id=86a38566f636485a report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 215, in _load_verified_professional_report
+    report = ProfessionalPostCloseReport.from_document(canonical_doc)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 390, in from_document
+    identity = ProfessionalReportIdentity.from_document(document.get("identity"))
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 173, in from_document
+    raise ValueError("report_id is invalid")
+ValueError: report_id is invalid
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 217, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 驗證失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:31:27,033 [ERROR] app: report_render_failed correlation_id=478ba46e463e47fe report_type=post_close report_date=2026-07-16 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 264, in validate_report_metadata
+    return _validate_report_metadata_v2(document, item)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 315, in _validate_report_metadata_v2
+    raise ReportWebError("報告 metadata v2 與索引不一致")
+reporting.exceptions.ReportWebError: 報告 metadata v2 與索引不一致
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:31:27,182 [ERROR] app: report_render_failed correlation_id=2ef1f857ce6c4b80 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:31:44,667 [WARNING] absorb: Firestore read slots exhausted (MAX_WORKERS=4)
+2026-10-08 23:31:44,676 [ERROR] absorb: Firestore state load failed
+2026-10-08 23:31:44,680 [ERROR] absorb: Firestore state load failed
+2026-10-08 23:31:44,789 [ERROR] absorb: Firestore state load failed
+2026-10-08 23:31:44,789 [ERROR] absorb: Firestore state load failed
+2026-10-08 23:31:44,791 [ERROR] absorb: Firestore state load failed
+C:\Users\enzo\Documents\absorb-production-runner-v2\.venv\lib\site-packages\linebot\models\base.py:98: LineBotSdkDeprecatedIn30: Call to deprecated function (or staticmethod) to_snake_case. (Use 'from linebot.v3.utils import to_snake_case' instead. See https://github.com/line/line-bot-sdk-python/blob/master/README.rst for more details.) -- Deprecated since version 3.0.0.
+  new_data = {utils.to_snake_case(key): value
+C:\Users\enzo\Documents\absorb-production-runner-v2\.venv\lib\site-packages\linebot\models\base.py:72: LineBotSdkDeprecatedIn30: Call to deprecated function (or staticmethod) to_camel_case. (Use 'from linebot.v3.utils import to_camel_case' instead. See https://github.com/line/line-bot-sdk-python/blob/master/README.rst for more details.) -- Deprecated since version 3.0.0.
+  camel_key = utils.to_camel_case(key)
+2026-10-08 23:31:46,410 [ERROR] absorb: Firestore state load failed
+2026-10-08 23:31:46,510 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,510 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,517 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,517 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,521 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,521 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,581 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,582 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,653 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,653 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,669 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,669 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,679 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,679 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,691 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,692 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,754 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,754 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,766 [WARNING] auth: line_token_status=500
+2026-10-08 23:31:46,776 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,776 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,784 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,784 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,801 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,801 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,803 [WARNING] auth: line_token_status=200
+2026-10-08 23:31:46,803 [WARNING] auth: line_verify_status=200
+2026-10-08 23:31:46,814 [WARNING] line_state: Transient HTTP 503 from Firestore, retrying in 0.5s... (Attempt 1/3)
+2026-10-08 23:31:47,328 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-10-08 23:31:48,339 [WARNING] line_state: Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+2026-10-08 23:31:48,854 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-10-08 23:31:49,866 [INFO] line_state: Firestore load starting
+2026-10-08 23:31:49,866 [INFO] line_state: Firestore load document not found
+2026-10-08 23:31:49,867 [INFO] line_state: Firestore load starting
+2026-10-08 23:31:49,867 [INFO] line_state: Firestore load successful
+2026-10-08 23:31:49,867 [INFO] line_state: Firestore load starting
+2026-10-08 23:31:49,867 [WARNING] line_state: Transient HTTP 500 from Firestore, retrying in 0.5s... (Attempt 1/3)
+2026-10-08 23:31:50,379 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-10-08 23:31:51,389 [INFO] line_state: Firestore load starting
+2026-10-08 23:31:51,389 [WARNING] line_state: Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+2026-10-08 23:31:51,902 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-10-08 23:31:52,914 [INFO] line_state: Firestore load starting
+2026-10-08 23:31:52,914 [INFO] line_state: Firestore load successful
+2026-10-08 23:31:52,915 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,915 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,915 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,915 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,915 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,916 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,916 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,917 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,917 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,917 [ERROR] line_state: Metadata token request failed
+2026-10-08 23:31:52,919 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:52,920 [WARNING] line_state: Firestore save conflict (409/412)
+2026-10-08 23:31:52,921 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:52,922 [WARNING] line_state: Firestore save conflict (409/412)
+2026-10-08 23:31:52,922 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:52,922 [WARNING] line_state: Transient HTTP 500 from Firestore, retrying in 0.5s... (Attempt 1/3)
+2026-10-08 23:31:53,427 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-10-08 23:31:54,441 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:54,441 [WARNING] line_state: Transient exception in Firestore request, retrying in 0.5s... (Attempt 1/3)
+2026-10-08 23:31:54,951 [WARNING] line_state: Transient exception in Firestore request, retrying in 1.0s... (Attempt 2/3)
+2026-10-08 23:31:55,963 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:55,963 [ERROR] line_state: Firestore save response invalid
+2026-10-08 23:31:55,963 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:55,963 [WARNING] line_state: Firestore save conflict (FAILED_PRECONDITION)
+2026-10-08 23:31:55,963 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:55,963 [ERROR] line_state: Firestore save failed with status 400
+2026-10-08 23:31:55,964 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:55,964 [ERROR] line_state: Firestore save failed with status 400
+2026-10-08 23:31:55,964 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:55,964 [INFO] line_state: Firestore save successful
+2026-10-08 23:31:55,964 [INFO] line_state: Firestore save starting
+2026-10-08 23:31:55,964 [INFO] line_state: Firestore save successful
+2026-10-08 23:31:55,965 [INFO] line_state: Firestore update starting
+2026-10-08 23:31:55,965 [WARNING] line_state: Firestore update conflict on attempt 1
+2026-10-08 23:31:55,965 [WARNING] line_state: Firestore update conflict on attempt 2
+2026-10-08 23:31:55,967 [INFO] line_state: Firestore update starting
+2026-10-08 23:31:55,967 [INFO] line_state: Firestore update starting
+2026-10-08 23:31:55,967 [INFO] line_state: Firestore update successful on attempt 1
+2026-10-08 23:31:55,968 [INFO] line_state: Firestore update starting
+2026-10-08 23:31:55,968 [WARNING] line_state: Firestore update conflict on attempt 1
+2026-10-08 23:31:55,968 [INFO] line_state: Firestore update successful on attempt 2
+{"checked_at": "2026-10-08T23:31:36.623087+08:00", "sources": {"TWSE": {"status": "unavailable", "error": "ValueError"}, "TPEx": {"status": "unavailable", "error": "ValueError"}}, "status": "unavailable", "error": "official source unavailable; previous catalog retained"}
+{"checked_at": "2026-10-08T23:31:36.627757+08:00", "sources": {"TWSE": {"status": "available", "rows": 0}, "TPEx": {"status": "available", "rows": 0}}, "status": "available", "published_at": "2026-10-08T23:31:36.627757+08:00"}
+{"checked_at": "2026-10-08T15:31:36.827202Z", "success": true, "report_date": "2026-07-03", "pdf_path": null, "pdf_sha256": null, "pdf_size": 0, "warnings": ["dry-run：未生成或發布 PDF。"], "error_type": null, "error_message": null}
+{"checked_at": "2026-10-08T15:31:37.005767Z", "success": true, "report_date": "2026-07-03", "pdf_path": "C:\\Users\\enzo\\AppData\\Local\\Temp\\tmp0xvyo2td\\reports\\TW\\absorb-tw-industry-daily-2026-07-03.pdf", "pdf_sha256": "6943800b42704a8f4f146aa5e734653d196f091cc91baa954388fccc145a9f4b", "pdf_size": 18, "warnings": [], "error_type": null, "error_message": null}
+{"checked_at": "2026-10-08T15:31:37.051701Z", "success": true, "report_date": "2026-07-03", "pdf_path": null, "pdf_sha256": null, "pdf_size": 0, "warnings": ["dry-run：未生成或發布 PDF。"], "error_type": null, "error_message": null}
+
+==================================================
+📊 TW MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 06:00:00
+* Total Symbols Scanned: 1
+* Published Symbols Count: 0
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 0
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 5%
+* Final Publish Ratio: 0.00%
+* Publish Success: False
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+
+==================================================
+📊 US MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 06:00:00
+* Total Symbols Scanned: 1
+* Published Symbols Count: 0
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 0
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 25%
+* Final Publish Ratio: 0.00%
+* Publish Success: False
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+{"TW":{"attempted":1},"US":{"attempted":1}}
+local quant phase=run free_gb=200.0
+local quant phase=run free_gb=200.0
+{"as_of":"2026-07-04","mops":0,"etfs":0}
+local quant phase=run free_gb=200.0
+local quant phase=closed free_gb=200.0
+
+==================================================
+📊 TW MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 06:00:00
+* Total Symbols Scanned: 1
+* Published Symbols Count: 1
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 0
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 5%
+* Final Publish Ratio: 100.00%
+* Publish Success: True
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+{"TW":{"attempted":1,"completed":1,"failed":[],"next_index":1,"published":true}}
+local quant phase=run free_gb=200.0
+
+==================================================
+📊 TW MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 06:00:00
+* Total Symbols Scanned: 100
+* Published Symbols Count: 99
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 1
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 5%
+* Final Publish Ratio: 99.00%
+* Publish Success: True
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+{"TW":{"failed":[{"symbol":"0099","error":"ValueError"}],"next_index":100,"published":true}}
+local quant phase=run free_gb=200.0
+local quant phase=closed free_gb=200.0
+local quant refused: D drive requires at least 100 GB free
+
+==================================================
+📊 TW MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 06:00:00
+* Total Symbols Scanned: 2
+* Published Symbols Count: 0
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 0
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 5%
+* Final Publish Ratio: 0.00%
+* Publish Success: False
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+{"TW":{"attempted":2}}
+local quant phase=run free_gb=200.0
+local quant phase=closed free_gb=200.0
+
+==================================================
+📊 TW MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 17:00:00
+* Total Symbols Scanned: 1
+* Published Symbols Count: 0
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 0
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 5%
+* Final Publish Ratio: 0.00%
+* Publish Success: False
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+{"TW":{"attempted":1,"completed":1,"failed":[],"pending":[],"excluded":[],"next_index":1,"published":false,"publish_skipped_reason":"observation_only"}}
+local quant phase=run free_gb=200.0
+
+==================================================
+📊 TW MARKET QUANT SNAPSHOT SUMMARY
+==================================================
+* Execution Time: 2026-07-04 17:00:00
+* Total Symbols Scanned: 1
+* Published Symbols Count: 0
+* Stale Filtered Count: 0
+* Pending Exclusion Count: 0
+* Permanently Excluded Count: 0
+* Temporary Failure Count: 0
+* Delisted Candidates Count: 0
+* Invalid Symbols Candidates Count: 0
+* Failure Threshold: 5%
+* Final Publish Ratio: 0.00%
+* Publish Success: False
+* CSV Write Status: SUCCESS
+* Invalid Operator Actions: 0
+==================================================
+
+{"TW":{"attempted":1,"completed":1,"failed":[],"pending":[],"excluded":[],"next_index":1,"published":false,"publish_skipped_reason":"observation_only"}}
+local quant phase=run free_gb=200.0
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"ok": false, "error": "every selected row must be confirmed"}
+{"ok": true, "action": "publish", "opinions": 4}
+{"ok": false, "error": "catalog changed since review preparation"}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:34:15,551 [WARNING] absorb: FinMind provider failure: dataset=TaiwanStockPrice status=401 category=authentication_or_permission
+2026-10-08 23:34:15,553 [INFO] absorb: FinMind empty dataset: dataset=TaiwanStockPrice status=none category=empty_dataset
+2026-10-08 23:34:15,556 [WARNING] absorb: FinMind provider failure: dataset=login status=none category=login_timeout
+1970-01-01 08:16:40,000 [WARNING] absorb: FinMind provider blocked: dataset=TaiwanStockPrice status=402 category=quota_or_rate_limit blocked_until=1970-01-01T01:16:40Z
+1970-01-01 08:16:40,000 [WARNING] absorb: FinMind provider blocked: dataset=TaiwanStockInstitutionalInvestorsBuySell status=none category=blocked blocked_until=1970-01-01T01:16:40Z
+1970-01-01 08:16:40,000 [WARNING] absorb: FinMind provider blocked: dataset=TaiwanStockPrice status=403 category=authentication_or_permission blocked_until=1970-01-01T00:46:40Z
+1970-01-01 08:16:40,000 [WARNING] absorb: FinMind provider blocked: dataset=TaiwanStockInstitutionalInvestorsBuySell status=none category=blocked blocked_until=1970-01-01T00:46:40Z
+1970-01-01 08:16:40,000 [WARNING] absorb: FinMind provider blocked: dataset=TaiwanStockPrice status=429 category=quota_or_rate_limit blocked_until=1970-01-01T00:46:40Z
+1970-01-01 08:16:40,000 [WARNING] absorb: FinMind provider blocked: dataset=TaiwanStockInstitutionalInvestorsBuySell status=none category=blocked blocked_until=1970-01-01T00:46:40Z
+{"ok": false, "error": "output_must_differ_from_input"}
+{"ok": false, "error": "output_already_exists"}
+{"ok": false, "error": "input_invalid_json"}
+{"ok": true, "added": 0, "duplicate": 0, "pending": 1, "rejected": 0}
+{"ok": true, "added": 2, "duplicate": 0, "pending": 0, "rejected": 0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"release_failed","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:34:20,754 [ERROR] reporting.publish_lock: report_v2_publish_lock event=release_failed waited_milliseconds=0
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"release_failed","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:34:20,766 [ERROR] reporting.publish_lock: report_v2_publish_lock event=release_failed waited_milliseconds=0
+2026-10-08 23:34:20,778 [ERROR] reporting.publish_lock: report_v2_publish_lock event=release_failed waited_milliseconds=0
+{"event":"waiting","kind":"absorb-pipeline-lock","max_wait_milliseconds":50,"scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"timeout","kind":"absorb-pipeline-lock","max_wait_milliseconds":50,"scope":"report_v2_publish","waited_milliseconds":62}
+2026-10-08 23:34:20,844 [ERROR] reporting.publish_lock: report_v2_publish_lock event=timeout waited_milliseconds=62
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:34:21,000 [ERROR] reporting.publish_lock: report_v2_publish_lock event=timeout waited_milliseconds=125
+{"event":"waiting","kind":"absorb-pipeline-lock","max_wait_milliseconds":50,"scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"timeout","kind":"absorb-pipeline-lock","max_wait_milliseconds":50,"scope":"report_v2_publish","waited_milliseconds":63}
+2026-10-08 23:34:21,688 [ERROR] reporting.publish_lock: report_v2_publish_lock event=timeout waited_milliseconds=63
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"waiting","kind":"absorb-pipeline-lock","max_wait_milliseconds":300000,"scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":311}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":311}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:34:31,241 [ERROR] test_regression_route_integration: report_render_failed correlation_id=dfcc4f5e415e4e0c report_type=post_close report_date=2026-07-17 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 205, in _load_verified_professional_report
+    canonical_doc = json.loads(raw_bytes.decode("utf-8"))
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 209, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object JSON 解析失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object JSON 解析失敗
+2026-10-08 23:34:31,299 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=FileNotFoundError
+2026-10-08 23:34:31,462 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+2026-10-08 23:34:31,634 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+2026-10-08 23:34:32,115 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+2026-10-08 23:34:32,293 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+2026-10-08 23:34:32,506 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=UnicodeDecodeError
+2026-10-08 23:34:32,697 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=JSONDecodeError
+2026-10-08 23:34:32,869 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+2026-10-08 23:34:33,035 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+2026-10-08 23:34:33,199 [WARNING] test_regression_route_integration: optional_regression_overlay_unavailable error_type=ValueError
+[{"status": "sent"}]
+[{"status": "sent"}]
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":62}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":62}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+2026-10-08 23:34:37,528 [ERROR] app: report_render_failed correlation_id=c4a2efee305f4a4d report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 262, in validate_report_metadata
+    raise ReportWebError("報告 metadata 市場不符")
+reporting.exceptions.ReportWebError: 報告 metadata 市場不符
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+2026-10-08 23:34:37,722 [ERROR] app: report_render_failed correlation_id=ce9fc690a32b4ea0 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 262, in validate_report_metadata
+    raise ReportWebError("報告 metadata 市場不符")
+reporting.exceptions.ReportWebError: 報告 metadata 市場不符
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":63}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":63}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+2026-10-08 23:34:38,189 [ERROR] app: report_render_failed correlation_id=18bc79f85f6a48ad report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":62}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":62}
+2026-10-08 23:34:38,393 [ERROR] app: report_render_failed correlation_id=deb8e6a38ca1442e report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":47}
+2026-10-08 23:34:38,587 [ERROR] app: report_render_failed correlation_id=0fc99ceb83634bca report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":31}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":31}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:34:38,939 [ERROR] app: report_render_failed correlation_id=192aef2a27474f82 report_type=pre_market report_date=2026-07-16 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 313, in _observation_page
+    report = build_observation_report_view(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\services\report_view.py", line 373, in build_observation_report_view
+    raise ReportWebError("Pre-market report base 不合法")
+reporting.exceptions.ReportWebError: Pre-market report base 不合法
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:34:39,257 [ERROR] app: report_render_failed correlation_id=314bf87dd2054734 report_type=post_close report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 499, in _us_summary_response
+    report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:34:39,307 [INFO] app: us_index_predictions_empty source_market_date=2026-07-15 has_product=False
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:35:02,972 [WARNING] tej-test: TEJ status=authentication_failed detail=account discovery failed
+2026-10-08 23:35:03,151 [WARNING] stock_papi.research.tej_quota: Row quota budget exceeded: planned=900, budget=800
+TW official post-close refused: recovery symbol allowlist identity is required
+{"checked_at": "2026-10-08T23:34:39.919154+08:00", "sources": {"TWSE": {"status": "available", "rows": 1}, "TPEx": {"status": "available", "rows": 1}}, "status": "available", "published_at": "2026-10-08T23:34:39.919154+08:00"}
+{"checked_at": "2026-10-08T23:34:40.106427+08:00", "sources": {"TWSE": {"status": "unavailable", "error": "ValueError"}, "TPEx": {"status": "unavailable", "error": "ValueError"}}, "status": "unavailable", "error": "official source unavailable; previous catalog retained"}
+{"checked_at": "2026-10-08T23:34:40.223876+08:00", "sources": {"TWSE": {"status": "available", "rows": 1}, "TPEx": {"status": "available", "rows": 1}}, "status": "available", "published_at": "2026-10-08T23:34:40.223876+08:00"}
+{"checked_at": "2026-10-08T23:34:40.408440+08:00", "sources": {"TWSE": {"status": "available", "rows": 0}, "TPEx": {"status": "available", "rows": 0}}, "status": "available", "published_at": "2026-10-08T23:34:40.408440+08:00"}
+==================================================
+US ACTIVE UNIVERSE AUDIT
+==================================================
+* Configured/Listed SEC rows: 100
+* Eligible Listed Securities: 100
+* Excluded non-major exchange: 0
+* Excluded crypto terms:       0
+* Excluded invalid tickers:    0
+* Excluded derivative types:   0 ({})
+* Terminated / delisted count: 0
+* Lifecycle evidence status:    lifecycle_evidence_unavailable
+* Security metadata status:      unavailable
+* Active Universe A Count:     100
+* Exchange Breakdown:          {'NASDAQ': 100}
+==================================================
+Authoritative US Trading Halt Evidence Ingested: 0 symbols
+==================================================
+US OBSERVATION BATCH RESULT
+==================================================
+* Target Market Date:       2026-08-19
+* Source Market Date:       2026-08-19
+* Applicable Trading Date:  2026-08-20
+* Active Universe A:        100
+* R (Regular Price):        99
+* N (Verified Non-Price):   0
+* M (Legitimate Unavail):   1
+* Operational Failures:     0
+* Observation Coverage:     99.0000%
+==================================================
+Saved machine-readable audit evidence: C:\Users\enzo\AppData\Local\Temp\tmp8wvv_ltz\release\data-quality\us-universe-audit-20260819.json
+Published US Manifest v4: C:\Users\enzo\AppData\Local\Temp\tmp8wvv_ltz\publish\quant\v1\latest-US.json
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+Successfully promoted US observation candidate: {'report_latest': 'C:\\Users\\enzo\\AppData\\Local\\Temp\\tmp8wvv_ltz\\publish\\reports\\v2\\latest-US-post_close.json', 'dashboard_latest': 'C:\\Users\\enzo\\AppData\\Local\\Temp\\tmp8wvv_ltz\\publish\\dashboard\\v1\\latest-US.json'}
+==================================================
+US ACTIVE UNIVERSE AUDIT
+==================================================
+* Configured/Listed SEC rows: 100
+* Eligible Listed Securities: 100
+* Excluded non-major exchange: 0
+* Excluded crypto terms:       0
+* Excluded invalid tickers:    0
+* Excluded derivative types:   0 ({})
+* Terminated / delisted count: 0
+* Lifecycle evidence status:    lifecycle_evidence_unavailable
+* Security metadata status:      unavailable
+* Active Universe A Count:     100
+* Exchange Breakdown:          {'NASDAQ': 100}
+==================================================
+Authoritative US Trading Halt Evidence Ingested: 0 symbols
+==================================================
+US OBSERVATION BATCH RESULT
+==================================================
+* Target Market Date:       2026-08-19
+* Source Market Date:       2026-08-19
+* Applicable Trading Date:  2026-08-20
+* Active Universe A:        100
+* R (Regular Price):        99
+* N (Verified Non-Price):   0
+* M (Legitimate Unavail):   0
+* Operational Failures:     1
+* Observation Coverage:     99.0000%
+==================================================
+Saved machine-readable audit evidence: C:\Users\enzo\AppData\Local\Temp\tmpe2go8iyn\release\data-quality\us-universe-audit-20260819.json
+==================================================
+US ACTIVE UNIVERSE AUDIT
+==================================================
+* Configured/Listed SEC rows: 100
+* Eligible Listed Securities: 100
+* Excluded non-major exchange: 0
+* Excluded crypto terms:       0
+* Excluded invalid tickers:    0
+* Excluded derivative types:   0 ({})
+* Terminated / delisted count: 0
+* Lifecycle evidence status:    lifecycle_evidence_unavailable
+* Security metadata status:      unavailable
+* Active Universe A Count:     100
+* Exchange Breakdown:          {'NASDAQ': 100}
+==================================================
+Authoritative US Trading Halt Evidence Ingested: 0 symbols
+==================================================
+US OBSERVATION BATCH RESULT
+==================================================
+* Target Market Date:       2026-08-19
+* Source Market Date:       2026-08-19
+* Applicable Trading Date:  2026-08-20
+* Active Universe A:        100
+* R (Regular Price):        99
+* N (Verified Non-Price):   0
+* M (Legitimate Unavail):   0
+* Operational Failures:     1
+* Observation Coverage:     99.0000%
+==================================================
+Saved machine-readable audit evidence: C:\Users\enzo\AppData\Local\Temp\tmp055il1zm\release\data-quality\us-universe-audit-20260819.json
+==================================================
+US ACTIVE UNIVERSE AUDIT
+==================================================
+* Configured/Listed SEC rows: 100
+* Eligible Listed Securities: 100
+* Excluded non-major exchange: 0
+* Excluded crypto terms:       0
+* Excluded invalid tickers:    0
+* Excluded derivative types:   0 ({})
+* Terminated / delisted count: 0
+* Lifecycle evidence status:    lifecycle_evidence_unavailable
+* Security metadata status:      unavailable
+* Active Universe A Count:     100
+* Exchange Breakdown:          {'NASDAQ': 100}
+==================================================
+Authoritative US Trading Halt Evidence Ingested: 0 symbols
+==================================================
+US OBSERVATION BATCH RESULT
+==================================================
+* Target Market Date:       2026-08-19
+* Source Market Date:       2026-08-19
+* Applicable Trading Date:  2026-08-20
+* Active Universe A:        100
+* R (Regular Price):        95
+* N (Verified Non-Price):   0
+* M (Legitimate Unavail):   5
+* Operational Failures:     0
+* Observation Coverage:     95.0000%
+==================================================
+Saved machine-readable audit evidence: C:\Users\enzo\AppData\Local\Temp\tmpw8cgpjvh\release\data-quality\us-universe-audit-20260819.json
+==================================================
+US ACTIVE UNIVERSE AUDIT
+==================================================
+* Configured/Listed SEC rows: 1
+* Eligible Listed Securities: 1
+* Excluded non-major exchange: 0
+* Excluded crypto terms:       0
+* Excluded invalid tickers:    0
+* Excluded derivative types:   0 ({})
+* Terminated / delisted count: unavailable
+* Lifecycle evidence status:    lifecycle_evidence_unavailable
+* Security metadata status:      unavailable
+* Active Universe A Count:     1
+* Exchange Breakdown:          {'NASDAQ': 1}
+==================================================
+==================================================
+US ACTIVE UNIVERSE AUDIT
+==================================================
+* Configured/Listed SEC rows: 2
+* Eligible Listed Securities: 2
+* Excluded non-major exchange: 0
+* Excluded crypto terms:       0
+* Excluded invalid tickers:    0
+* Excluded derivative types:   0 ({})
+* Terminated / delisted count: 0
+* Lifecycle evidence status:    lifecycle_evidence_unavailable
+* Security metadata status:      unavailable
+* Active Universe A Count:     2
+* Exchange Breakdown:          {'NASDAQ': 2}
+==================================================
+Authoritative US Trading Halt Evidence Ingested: 0 symbols
+==================================================
+US OBSERVATION BATCH RESULT
+==================================================
+* Target Market Date:       2026-08-19
+* Source Market Date:       2026-08-19
+* Applicable Trading Date:  2026-08-20
+* Active Universe A:        2
+* R (Regular Price):        2
+* N (Verified Non-Price):   0
+* M (Legitimate Unavail):   0
+* Operational Failures:     0
+* Observation Coverage:     100.0000%
+==================================================
+Saved machine-readable audit evidence: C:\Users\enzo\AppData\Local\Temp\tmp841p1rlo\release\data-quality\us-universe-audit-20260819.json
+Published US Manifest v4: C:\Users\enzo\AppData\Local\Temp\tmp841p1rlo\publish\quant\v1\latest-US.json
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+Successfully promoted US observation candidate: {'report_latest': 'C:\\Users\\enzo\\AppData\\Local\\Temp\\tmp841p1rlo\\publish\\reports\\v2\\latest-US-post_close.json', 'dashboard_latest': 'C:\\Users\\enzo\\AppData\\Local\\Temp\\tmp841p1rlo\\publish\\dashboard\\v1\\latest-US.json'}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+Published US pre-market report: C:\Users\enzo\AppData\Local\Temp\tmp841p1rlo\publish\reports\v2\latest-US-pre_market.json
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:35:35,716 [ERROR] app: report_render_failed correlation_id=66eb9bba0af64469 report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 476, in us_reports_page
+    reports_v2 = _v2_reports(market="US", required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+2026-10-08 23:35:36,203 [ERROR] app: report_render_failed correlation_id=30416c4a6bde4eac report_type=post_close report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 91, in _v2_reports
+    reports = load_index_v2(market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2890, in <lambda>
+    "load_report_index_v2": lambda market="TW": _published_report_index_v2(market=market),
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1114, in __call__
+    return self._mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1118, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1179, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\tests\test_web_product.py", line 502, in reports_for
+    raise TypeError("reader implementation failed")
+TypeError: reader implementation failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 492, in _us_summary_response
+    reports = _v2_reports(market="US", required=True)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 95, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用") from exc
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+2026-10-08 23:35:36,238 [ERROR] app: report_render_failed correlation_id=da00b689528a4786 report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+======================================================================
+FAIL: test_mutex_abandonment_and_partial_timeout_release_exactly_once (test_pipeline_scheduler.PipelineSchedulerTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\tests\test_pipeline_scheduler.py", line 676, in test_mutex_abandonment_and_partial_timeout_release_exactly_once
+    self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+AssertionError: 1 != 0 : abandoned mutex ownership was not safely released
+At line:33 char:156
++ ... cquired') { throw 'abandoned mutex ownership was not safely released' ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (abandoned mutex...safely released:String) [], RuntimeException
+    + FullyQualifiedErrorId : abandoned mutex ownership was not safely released
+ 
+
+
+======================================================================
+FAIL: test_us_post_close_retries_through_yahoo_eod_finalization (test_pipeline_scheduler.PipelineSchedulerTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\tests\test_pipeline_scheduler.py", line 1260, in test_us_post_close_retries_through_yahoo_eod_finalization
+    self.assertIn(
+AssertionError: "Name='ABSORB-US-PostClose'; Job='US-PostClose'; Time='09:00'; RepetitionInterval='PT20M'; RepetitionDuration='PT5H00M'" not found in '[CmdletBinding(SupportsShouldProcess)]\nparam(\n  [string]$DataRoot = \'D:\\AbsorbData\',\n  [ValidateSet(\'Saturday\',\'Sunday\')][string]$WeeklyDay = \'Saturday\'\n)\n$ErrorActionPreference = \'Stop\'\nif ($DataRoot -ne \'D:\\AbsorbData\') { throw \'Data root is not allowlisted\' }\n\nfunction Get-AbsorbPipelineTaskDefinitions {\n  [CmdletBinding()]\n  param([Parameter(Mandatory)][ValidateSet(\'Saturday\',\'Sunday\')][string]$WeeklyDay)\n\n  $DefaultExecutionTimeLimit = New-TimeSpan -Hours 4\n  return @(\n    @{ Name=\'ABSORB-TW-PostClose\'; Job=\'TW-PostClose\'; Time=\'17:10\'; RepetitionInterval=\'PT20M\'; RepetitionDuration=\'PT4H50M\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    @{ Name=\'ABSORB-TW-PreMarket\'; Job=\'TW-PreMarket\'; Time=\'07:30\'; RepetitionInterval=\'PT10M\'; RepetitionDuration=\'PT1H20M\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    @{ Name=\'ABSORB-TW-ObservationRecovery\'; Job=\'TW-ObservationRecovery\'; Time=\'06:15\'; RepetitionInterval=\'PT10M\'; RepetitionDuration=\'PT15M\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    @{ Name=\'ABSORB-FullBacktest\'; Job=\'FullBacktest\'; Time=\'22:30\'; ExecutionTimeLimit=(New-TimeSpan -Minutes 225); Enabled=$false },\n    @{ Name=\'ABSORB-US-Daily\'; Job=\'US-Daily\'; Time=\'05:30\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    # Yahoo can finalize daily Close fields near New York midnight; cover both EDT and EST.\n    # 2026-09-22/23 gaps: thin names (e.g. CIG-C) still unsettled at 02:00 NY,\n    # so the retry window must reach well past NY midnight (09:00 -> 21:00 +08).\n    @{ Name=\'ABSORB-US-PostClose\'; Job=\'US-PostClose\'; Time=\'09:00\'; RepetitionInterval=\'PT20M\'; RepetitionDuration=\'PT12H00M\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    @{ Name=\'ABSORB-US-PreMarket\'; Job=\'US-PreMarket\'; Time=\'20:30\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    @{ Name=\'ABSORB-WeeklyModel\'; Job=\'WeeklyModel\'; Time=\'18:00\'; Days=$WeeklyDay; ExecutionTimeLimit=$DefaultExecutionTimeLimit },\n    @{ Name=\'ABSORB-ReportUploadRecovery\'; Job=\'ReportUploadRecovery\'; Time=\'09:35\'; ExecutionTimeLimit=$DefaultExecutionTimeLimit }\n  )\n}\n\n$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot \'..\')).Path\n$Identity = [Security.Principal.WindowsIdentity]::GetCurrent()\n$Principal = New-ScheduledTaskPrincipal -UserId $Identity.Name -LogonType Interactive -RunLevel Limited\n$TaskWrapper = Join-Path $PSScriptRoot \'invoke_pipeline_task.ps1\'\nif (-not (Test-Path -LiteralPath $TaskWrapper -PathType Leaf)) { throw "Task wrapper not found: $TaskWrapper" }\n$HiddenLauncher = Join-Path $PSScriptRoot \'run_hidden.vbs\'\nif (-not (Test-Path -LiteralPath $HiddenLauncher -PathType Leaf)) { throw "Hidden launcher not found: $HiddenLauncher" }\n$WscriptExe = (Get-Command wscript.exe -ErrorAction Stop).Source\n$PowerShellExe = (Get-Command powershell.exe -ErrorAction Stop).Source\n$Definitions = @(Get-AbsorbPipelineTaskDefinitions -WeeklyDay $WeeklyDay)\nforeach ($Definition in $Definitions) {\n  $ActionArguments = @(\n    \'//B\',\n    \'//NoLogo\',\n    "`"$HiddenLauncher`"",\n    "`"$PowerShellExe`"",\n    \'-NoProfile\',\n    \'-NonInteractive\',\n    \'-WindowStyle\',\n    \'Hidden\',\n    \'-ExecutionPolicy\',\n    \'Bypass\',\n    \'-File\',\n    "`"$TaskWrapper`"",\n    \'-Job\',\n    "`"$($Definition.Job)`"",\n    \'-DataRoot\',\n    "`"$DataRoot`""\n  ) -join \' \'\n  $Action = New-ScheduledTaskAction -Execute $WscriptExe -Argument $ActionArguments -WorkingDirectory $RepoRoot\n  $At = [datetime]::ParseExact($Definition.Time, \'HH:mm\', $null)\n  $Trigger = if ($Definition.Days) {\n    New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Definition.Days -At $At\n  } else {\n    New-ScheduledTaskTrigger -Daily -At $At\n  }\n  $Settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit $Definition.ExecutionTimeLimit -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 10)\n  $Settings.StartWhenAvailable = $true\n  $Settings.WakeToRun = $true\n  if ($PSCmdlet.ShouldProcess($Definition.Name, \'Register shadow pipeline task\')) {\n    Register-ScheduledTask -TaskName $Definition.Name -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Force | Out-Null\n    $TaskXml = [xml](schtasks /query /tn "\\$($Definition.Name)" /xml)\n    $Namespace = New-Object Xml.XmlNamespaceManager($TaskXml.NameTable)\n    $Namespace.AddNamespace(\'t\', \'http://schemas.microsoft.com/windows/2004/02/mit/task\')\n    $Changed = $false\n    $TriggerNode = $TaskXml.SelectSingleNode(\'//t:CalendarTrigger\', $Namespace)\n    if ($TriggerNode -and $Definition.RepetitionInterval -and $Definition.RepetitionDuration -and -not $TaskXml.SelectSingleNode(\'//t:Repetition\', $Namespace)) {\n      $RepetitionNode = $TaskXml.CreateElement(\'Repetition\', \'http://schemas.microsoft.com/windows/2004/02/mit/task\')\n      $IntervalNode = $TaskXml.CreateElement(\'Interval\', \'http://schemas.microsoft.com/windows/2004/02/mit/task\')\n      $IntervalNode.InnerText = $Definition.RepetitionInterval\n      $DurationNode = $TaskXml.CreateElement(\'Duration\', \'http://schemas.microsoft.com/windows/2004/02/mit/task\')\n      $DurationNode.InnerText = $Definition.RepetitionDuration\n      $StopNode = $TaskXml.CreateElement(\'StopAtDurationEnd\', \'http://schemas.microsoft.com/windows/2004/02/mit/task\')\n      $StopNode.InnerText = \'true\'\n      $RepetitionNode.AppendChild($IntervalNode) | Out-Null\n      $RepetitionNode.AppendChild($DurationNode) | Out-Null\n      $RepetitionNode.AppendChild($StopNode) | Out-Null\n      $TriggerNode.AppendChild($RepetitionNode) | Out-Null\n      $Changed = $true\n    }\n    $SettingsNode = $TaskXml.SelectSingleNode(\'//t:Settings\', $Namespace)\n    if ($null -eq $SettingsNode) { throw \'Scheduled task settings node is missing\' }\n    foreach ($BatteryNodeName in @(\'DisallowStartIfOnBatteries\', \'StopIfGoingOnBatteries\')) {\n      $BatteryNode = $SettingsNode.SelectSingleNode("t:$BatteryNodeName", $Namespace)\n      if ($null -eq $BatteryNode) {\n        $BatteryNode = $TaskXml.CreateElement($BatteryNodeName, \'http://schemas.microsoft.com/windows/2004/02/mit/task\')\n        $ExecutionTimeLimitNode = $SettingsNode.SelectSingleNode(\'t:ExecutionTimeLimit\', $Namespace)\n        if ($null -eq $ExecutionTimeLimitNode) { throw \'Scheduled task execution limit node is missing\' }\n        $SettingsNode.InsertBefore($BatteryNode, $ExecutionTimeLimitNode) | Out-Null\n        $Changed = $true\n      }\n      if ([string]$BatteryNode.InnerText -ne \'false\') {\n        $BatteryNode.InnerText = \'false\'\n        $Changed = $true\n      }\n    }\n    if ($Changed) {\n      Register-ScheduledTask -TaskName $Definition.Name -Xml $TaskXml.OuterXml -Force | Out-Null\n    }\n    if ($Definition.ContainsKey(\'Enabled\') -and $Definition.Enabled -eq $false) {\n      try {\n        Disable-ScheduledTask -TaskName $Definition.Name -ErrorAction Stop | Out-Null\n      }\n      catch {\n        throw "Unable to disable completed scheduled task $($Definition.Name)"\n      }\n      try {\n        [xml]$RegistrationXml = schtasks /query /tn "\\$($Definition.Name)" /xml\n        $EnabledNode = $RegistrationXml.SelectSingleNode(\n          "/*[local-name()=\'Task\']/*[local-name()=\'Settings\']/*[local-name()=\'Enabled\']"\n        )\n      }\n      catch {\n        throw "Unable to verify completed scheduled task registration $($Definition.Name)"\n      }\n      if (\n        $null -eq $EnabledNode -or\n        ([string]$EnabledNode.InnerText).Trim().ToLowerInvariant() -ne \'false\'\n      ) {\n        throw "Scheduled task $($Definition.Name) must remain disabled"\n      }\n    }\n  }\n}\n'
+
+----------------------------------------------------------------------
+Ran 1903 tests in 256.169s
+
+FAILED (failures=2, skipped=2)

@@ -464,7 +464,7 @@ def register_report_routes(
     def _history_reports(reports, selected_date):
         rows = dedupe_reports_for_list(reports or [])
         return [{**row, "summary": [localize_us_key_event({"headline": text})["headline"]
-                                    for text in row.get("summary", [])]}
+                                    for text in (row.get("summary") or []) if isinstance(text, str)]}
                 for row in rows if not selected_date or selected_date == row.get(
                     "applicable_trading_date" if row.get("report_type") == "pre_market" else "source_market_date")]
 

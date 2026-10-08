@@ -1,0 +1,487 @@
+2026-10-08 23:30:34,251 [ERROR] app: report_render_failed correlation_id=abbaed8860044b4f report_type=post_close report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 91, in _v2_reports
+    reports = load_index_v2(market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2890, in <lambda>
+    "load_report_index_v2": lambda market="TW": _published_report_index_v2(market=market),
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1114, in __call__
+    return self._mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1118, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1179, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\tests\test_web_product.py", line 502, in reports_for
+    raise TypeError("reader implementation failed")
+TypeError: reader implementation failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 492, in _us_summary_response
+    reports = _v2_reports(market="US", required=True)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 95, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用") from exc
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+2026-10-08 23:30:34,277 [ERROR] app: report_render_failed correlation_id=c1f52efc2c3a4ffc report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+2026-10-08 23:30:37,006 [INFO] absorb.conversation: conversation request correlation_id=d3a8ffbe3a88ecf3
+2026-10-08 23:30:37,007 [INFO] absorb.conversation: conversation request correlation_id=a2381a16fc83b62f
+2026-10-08 23:30:37,007 [INFO] absorb.conversation: conversation request correlation_id=376957fe2adb3ec3
+2026-10-08 23:30:37,008 [INFO] absorb.conversation: conversation request correlation_id=aca15c580ea09c68
+2026-10-08 23:30:37,011 [INFO] absorb.conversation: conversation request correlation_id=3a8bc8cd5667d4b8
+2026-10-08 23:30:37,011 [INFO] absorb.conversation: conversation request correlation_id=47281e3ecd3b1bf3
+2026-10-08 23:30:37,012 [INFO] absorb.conversation: conversation request correlation_id=a8286f0cd3b26e79
+2026-10-08 23:30:37,012 [INFO] absorb.conversation: conversation request correlation_id=42aa8d488fc03d71
+2026-10-08 23:30:37,012 [INFO] absorb.conversation: conversation request correlation_id=d07e5707b1ee1e06
+2026-10-08 23:30:37,012 [INFO] absorb.conversation: conversation request correlation_id=7e02a906c98e1411
+2026-10-08 23:30:37,013 [INFO] absorb.conversation: conversation request correlation_id=995d00313ada1dbf
+2026-10-08 23:30:37,014 [INFO] absorb.conversation: conversation request correlation_id=043653b769df83d2
+2026-10-08 23:30:37,016 [INFO] absorb.conversation: conversation request correlation_id=547ff9834d7f8b03
+2026-10-08 23:30:37,018 [INFO] absorb.conversation: conversation request correlation_id=2ad235744016f274
+2026-10-08 23:30:37,021 [INFO] absorb.conversation: conversation request correlation_id=f52b34098cfd186d
+2026-10-08 23:30:37,022 [INFO] absorb.conversation: conversation request correlation_id=c1576bd76c0f84a0
+2026-10-08 23:30:37,023 [INFO] absorb.conversation: conversation request correlation_id=e373478de89d25fe
+2026-10-08 23:30:37,024 [INFO] absorb.conversation: conversation request correlation_id=a4799d50384c0dc6
+2026-10-08 23:30:37,024 [INFO] absorb.conversation: conversation request correlation_id=2cf113bd4bbf3ccf
+2026-10-08 23:30:37,024 [INFO] absorb.conversation: conversation request correlation_id=0a53454f79e126d7
+2026-10-08 23:30:37,026 [INFO] absorb.conversation: conversation request correlation_id=1e16496c796da7fb
+2026-10-08 23:30:37,026 [INFO] absorb.conversation: conversation request correlation_id=192cdc5e83bc986a
+2026-10-08 23:30:37,026 [INFO] absorb.conversation: conversation request correlation_id=f638498daa8ff309
+2026-10-08 23:30:37,028 [INFO] absorb.conversation: conversation request correlation_id=a94d62ba30cebdec
+2026-10-08 23:30:37,030 [INFO] absorb.conversation: conversation request correlation_id=77823eb17eb09f79
+2026-10-08 23:30:37,031 [INFO] absorb.conversation: conversation request correlation_id=3c7cd5c28af56206
+2026-10-08 23:30:37,033 [INFO] absorb.conversation: conversation request correlation_id=d459244bf175c720
+2026-10-08 23:30:37,034 [INFO] absorb.conversation: conversation request correlation_id=f307464e860e3e06
+2026-10-08 23:30:37,036 [INFO] absorb.conversation: conversation request correlation_id=6a5405d14096f517
+2026-10-08 23:30:37,036 [INFO] absorb.conversation: conversation request correlation_id=846d9682d4d1dc8b
+2026-10-08 23:30:37,036 [INFO] absorb.conversation: conversation request correlation_id=29a39dda9f291446
+2026-10-08 23:30:37,037 [INFO] absorb.conversation: conversation request correlation_id=cfa81a9738d2f6a7
+2026-10-08 23:30:37,038 [INFO] absorb.conversation: conversation request correlation_id=d12e9d6f86294b9e
+2026-10-08 23:30:37,039 [INFO] absorb.conversation: conversation request correlation_id=a6081e01604171fd
+2026-10-08 23:30:37,040 [INFO] absorb.conversation: conversation request correlation_id=a8a17db9d2a51aef
+2026-10-08 23:30:37,040 [INFO] absorb.conversation: conversation request correlation_id=e084b4f09d8f2fda
+2026-10-08 23:30:37,042 [INFO] absorb.conversation: conversation request correlation_id=728adc6e48a0c88a
+2026-10-08 23:30:37,046 [INFO] absorb.conversation: conversation request correlation_id=a00cbdcbf943a696
+2026-10-08 23:30:37,047 [INFO] absorb.conversation: conversation request correlation_id=0854e440bb080601
+2026-10-08 23:30:37,049 [INFO] absorb.conversation: conversation request correlation_id=1b301f91768e5383
+2026-10-08 23:30:37,049 [INFO] absorb.conversation: conversation request correlation_id=9aedc8e6f4855905
+2026-10-08 23:30:37,051 [INFO] absorb.conversation: conversation request correlation_id=fbbf67a9b0a29330
+2026-10-08 23:30:37,053 [INFO] absorb.conversation: conversation request correlation_id=bb2359139c52940b
+2026-10-08 23:30:37,053 [INFO] absorb.conversation: conversation request correlation_id=2725960575c742f8
+2026-10-08 23:30:37,054 [INFO] absorb.conversation: conversation request correlation_id=f570df04e3d0e60a
+2026-10-08 23:30:37,055 [INFO] absorb.conversation: conversation request correlation_id=e36ad881ca0934e6
+2026-10-08 23:30:37,055 [INFO] absorb.conversation: conversation request correlation_id=dd5825a990fd97b6
+2026-10-08 23:30:37,057 [INFO] absorb.conversation: conversation request correlation_id=d03b35c7b40f8589
+2026-10-08 23:30:37,058 [INFO] absorb.conversation: conversation request correlation_id=ebdec570a51eb06b
+2026-10-08 23:30:37,070 [INFO] absorb.conversation: conversation request correlation_id=ad0b406b2dc491fa
+2026-10-08 23:30:37,074 [INFO] absorb.conversation: conversation request correlation_id=91f49481e238bb02
+2026-10-08 23:30:37,076 [INFO] absorb.conversation: conversation request correlation_id=c5070107e580ce8f
+2026-10-08 23:30:37,079 [INFO] absorb.conversation: conversation request correlation_id=c8da5a5498395c5f
+2026-10-08 23:30:37,081 [INFO] absorb.conversation: conversation request correlation_id=649f67d71485d878
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:38,945 [ERROR] app: report_render_failed correlation_id=2d9b51a7796748cb report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 262, in validate_report_metadata
+    raise ReportWebError("報告 metadata 市場不符")
+reporting.exceptions.ReportWebError: 報告 metadata 市場不符
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:38,985 [ERROR] app: report_render_failed correlation_id=167df5cb222f452b report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 262, in validate_report_metadata
+    raise ReportWebError("報告 metadata 市場不符")
+reporting.exceptions.ReportWebError: 報告 metadata 市場不符
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:39,150 [ERROR] app: report_render_failed correlation_id=f49cd9c48a934838 report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:39,198 [ERROR] app: report_render_failed correlation_id=6f35b59b09334156 report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:39,241 [ERROR] app: report_render_failed correlation_id=928c6b0c813443af report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:39,556 [ERROR] app: report_render_failed correlation_id=b21624e2617b4eee report_type=pre_market report_date=2026-07-16 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 313, in _observation_page
+    report = build_observation_report_view(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\services\report_view.py", line 373, in build_observation_report_view
+    raise ReportWebError("Pre-market report base 不合法")
+reporting.exceptions.ReportWebError: Pre-market report base 不合法
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:39,870 [ERROR] app: report_render_failed correlation_id=d4e041276a144975 report_type=post_close report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 499, in _us_summary_response
+    report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:39,922 [INFO] app: us_index_predictions_empty source_market_date=2026-07-15 has_product=False
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:40,132 [ERROR] app: report_render_failed correlation_id=b8951d94b63447b5 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 65, in validate_professional_report_binding
+    raise ValueError("applicable_trading_date mismatch between report identity and metadata")
+ValueError: applicable_trading_date mismatch between report identity and metadata
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,183 [ERROR] app: report_render_failed correlation_id=17f0a60399344f02 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 105, in validate_professional_report_binding
+    raise ValueError("pointer code_commit_sha does not match report identity code_commit_sha")
+ValueError: pointer code_commit_sha does not match report identity code_commit_sha
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,229 [ERROR] app: report_render_failed correlation_id=3aedce61dc6f479b report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,277 [ERROR] app: report_render_failed correlation_id=49f88b6a398f4f1d report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,326 [ERROR] app: report_render_failed correlation_id=bd1c4b1f528a4cce report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 103, in validate_professional_report_binding
+    raise ValueError("pointer generator_version does not match report identity generator_version")
+ValueError: pointer generator_version does not match report identity generator_version
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,376 [ERROR] app: report_render_failed correlation_id=1aa74d6fef3c477c report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 215, in _load_verified_professional_report
+    report = ProfessionalPostCloseReport.from_document(canonical_doc)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 385, in from_document
+    raise ValueError("professional report schema_version is unsupported")
+ValueError: professional report schema_version is unsupported
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 217, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 驗證失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:40,429 [ERROR] app: report_render_failed correlation_id=56c8e33f19d148fe report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 205, in _load_verified_professional_report
+    canonical_doc = json.loads(raw_bytes.decode("utf-8"))
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\json\decoder.py", line 353, in raw_decode
+    obj, end = self.scan_once(s, idx)
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 209, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object JSON 解析失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object JSON 解析失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,485 [ERROR] app: report_render_failed correlation_id=4c312f7886d84460 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 205, in _load_verified_professional_report
+    canonical_doc = json.loads(raw_bytes.decode("utf-8"))
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 207, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 解碼失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 解碼失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,535 [ERROR] app: report_render_failed correlation_id=5a2e421af6c24f46 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 211, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 格式錯誤")
+reporting.exceptions.ReportWebError: Canonical Object 格式錯誤
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":16}
+2026-10-08 23:30:40,583 [ERROR] app: report_render_failed correlation_id=bc3c1e7f9747452e report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 215, in _load_verified_professional_report
+    report = ProfessionalPostCloseReport.from_document(canonical_doc)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 390, in from_document
+    identity = ProfessionalReportIdentity.from_document(document.get("identity"))
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 165, in from_document
+    raise ValueError(f"source_manifest is invalid: {source_manifest}")
+ValueError: source_manifest is invalid: quant/v1/other.json
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 217, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 驗證失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:40,636 [ERROR] app: report_render_failed correlation_id=45ccda2aeb3c4179 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 69, in validate_professional_report_binding
+    raise ValueError("source_manifest_sha256 mismatch between report identity and metadata")
+ValueError: source_manifest_sha256 mismatch between report identity and metadata
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,686 [ERROR] app: report_render_failed correlation_id=587e8b0967794338 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,730 [ERROR] app: report_render_failed correlation_id=603f9bf29e984f8c report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,777 [ERROR] app: report_render_failed correlation_id=a786ee1e68c14708 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 196, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 內容無效")
+reporting.exceptions.ReportWebError: Canonical Object 內容無效
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,821 [ERROR] app: report_render_failed correlation_id=8ebdf351e71f48a8 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 320, in _validate_report_metadata_v2
+    ReportMetadataV2.from_document(document)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\schemas.py", line 109, in from_document
+    raise ValueError("professional_report.object invalid")
+ValueError: professional_report.object invalid
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 264, in validate_report_metadata
+    return _validate_report_metadata_v2(document, item)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 322, in _validate_report_metadata_v2
+    raise ReportWebError("Observation report metadata 不合法") from exc
+reporting.exceptions.ReportWebError: Observation report metadata 不合法
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,919 [ERROR] app: report_render_failed correlation_id=80fb2cfa8b434d2e report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 225, in _load_verified_professional_report
+    validate_professional_report_binding(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_binding.py", line 101, in validate_professional_report_binding
+    raise ValueError("pointer content_sha256 does not match report identity content_sha256")
+ValueError: pointer content_sha256 does not match report identity content_sha256
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 232, in _load_verified_professional_report
+    raise ReportWebError("Professional Report 綁定驗證失敗") from exc
+reporting.exceptions.ReportWebError: Professional Report 綁定驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:40,965 [ERROR] app: report_render_failed correlation_id=b0c7b95581d94132 report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 215, in _load_verified_professional_report
+    report = ProfessionalPostCloseReport.from_document(canonical_doc)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 390, in from_document
+    identity = ProfessionalReportIdentity.from_document(document.get("identity"))
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\professional_schema.py", line 173, in from_document
+    raise ValueError("report_id is invalid")
+ValueError: report_id is invalid
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 217, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 驗證失敗") from exc
+reporting.exceptions.ReportWebError: Canonical Object 驗證失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+2026-10-08 23:30:41,011 [ERROR] app: report_render_failed correlation_id=11a0d14d47ef4a76 report_type=post_close report_date=2026-07-16 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 270, in _observation_page
+    metadata = load_metadata_v2(item, expected_market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2897, in <lambda>
+    "load_report_metadata_v2": lambda item, expected_market: load_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\repositories\report_store.py", line 56, in load_report_metadata
+    else validate_report_metadata(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 264, in validate_report_metadata
+    return _validate_report_metadata_v2(document, item)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\reporting\web.py", line 315, in _validate_report_metadata_v2
+    raise ReportWebError("報告 metadata v2 與索引不一致")
+reporting.exceptions.ReportWebError: 報告 metadata v2 與索引不一致
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":15}
+2026-10-08 23:30:41,142 [ERROR] app: report_render_failed correlation_id=04931f303975444c report_type=post_close report_date=2026-07-15 error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 328, in _observation_page
+    prof_report = _load_verified_professional_report(
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 200, in _load_verified_professional_report
+    raise ReportWebError("Canonical Object 雜湊比對失敗")
+reporting.exceptions.ReportWebError: Canonical Object 雜湊比對失敗
+{"event":"acquired","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+{"event":"released","kind":"absorb-pipeline-lock","scope":"report_v2_publish","waited_milliseconds":0}
+----------------------------------------------------------------------
+Ran 323 tests in 9.374s
+
+OK

@@ -126,7 +126,7 @@ function renderDashboard(data) {
 
   const focus = bySelector("[data-daily-focus]");
   if (focus) {
-    const items = Array.isArray(data.daily_focus) ? data.daily_focus : [];
+    const items = Array.isArray(data.daily_focus) ? data.daily_focus.filter(text => typeof text === "string") : [];
     replaceContent(focus, items.length ? items.map((text, index) =>
       card("article", "focus-card", [["span", "", `焦點 ${index + 1}`], ["strong", "", text.replace(/^市場風險狀態[:：]\s*(normal|cautious|elevated|defensive)$/, (_, state) => `市場風險狀態：${riskStateLabels[state]}`)]])
     ) : [emptyState("今日焦點資料不足。")]);

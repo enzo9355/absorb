@@ -1,0 +1,35 @@
+2026-10-08 23:22:57,775 [ERROR] app: report_render_failed correlation_id=e6460b75ed994cc4 report_type=post_close report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 91, in _v2_reports
+    reports = load_index_v2(market=market)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\application.py", line 2881, in <lambda>
+    "load_report_index_v2": lambda market="TW": _published_report_index_v2(market=market),
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1114, in __call__
+    return self._mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1118, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+  File "C:\Users\enzo\AppData\Local\Python\pythoncore-3.10-64\lib\unittest\mock.py", line 1179, in _execute_mock_call
+    result = effect(*args, **kwargs)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\tests\test_web_product.py", line 502, in reports_for
+    raise TypeError("reader implementation failed")
+TypeError: reader implementation failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 492, in _us_summary_response
+    reports = _v2_reports(market="US", required=True)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 95, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用") from exc
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+2026-10-08 23:22:57,801 [ERROR] app: report_render_failed correlation_id=e83bc5b811df4b25 report_type=None report_date=None error_type=ReportWebError
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 380, in reports_page
+    reports_v2 = _v2_reports(required=observation_mode)
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\stock_papi\web\routes\reports.py", line 98, in _v2_reports
+    raise ReportWebError("報告索引暫時無法使用")
+reporting.exceptions.ReportWebError: 報告索引暫時無法使用
+----------------------------------------------------------------------
+Ran 145 tests in 3.817s
+
+OK

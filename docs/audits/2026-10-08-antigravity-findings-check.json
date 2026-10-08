@@ -1,0 +1,18 @@
+{
+  "analysis_question_short_circuited": true,
+  "multi_stock_answer": "台積電（2330）最近一次已驗證資料日：2026-07-16。資料狀態：資料過期。資料日依市場交易日曆核對，不代表今日即時行情。",
+  "multi_stock_citation_codes": [
+    "/stock/2330"
+  ],
+  "regular_market_and_dates": {
+    "market": "US",
+    "as_of": "2026-07-16",
+    "observation_as_of": "2026-07-16"
+  },
+  "official_market_and_dates": {
+    "market": "TW",
+    "as_of": null,
+    "observation_as_of": "2026-07-29"
+  },
+  "dashboard_validator_accepts_null_focus_item": true
+}

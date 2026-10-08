@@ -1,0 +1,1 @@
+PASS: actual app.js ignores non-string focus items and handles a null list.

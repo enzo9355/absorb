@@ -39,9 +39,9 @@ def register_dashboard_page(
         }
         snapshot = _snapshot()
         snapshot = {**snapshot, "daily_focus": [localize_us_key_event({"headline": text})["headline"]
-                                               for text in snapshot.get("daily_focus", [])]}
+                                               for text in (snapshot.get("daily_focus") or []) if isinstance(text, str)]}
         daily_cards = {kind: {**item, "summary": [localize_us_key_event({"headline": text})["headline"]
-                                                 for text in item.get("summary", [])]} if item else None
+                                                 for text in (item.get("summary") or []) if isinstance(text, str)]} if item else None
                        for kind, item in daily_cards.items()}
         market_index = snapshot.get("market_index") or {}
         prediction = None

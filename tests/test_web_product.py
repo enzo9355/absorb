@@ -49,6 +49,29 @@ def prediction_product(market="TW", symbol="2330", as_of="2026-07-15"):
 
 
 class WebProductTests(unittest.TestCase):
+    @patch.object(stock_app, 'fetch_published_quant_snapshot', return_value=quant_snapshot())
+    @patch.object(web_routes.system, '_next_session_for_market', side_effect=ValueError('calendar unavailable'))
+    def test_unknown_stock_freshness_never_labels_quote_latest(self, calendar, fetch):
+        html = stock_app.app.test_client().get('/stock/2330').get_data(as_text=True)
+        self.assertIn('data-freshness-status="unavailable"', html)
+        self.assertIn('最近可用收盤', html)
+        self.assertNotIn('最新收盤', html)
+
+    @patch.object(stock_app, '_published_report_index_v2')
+    @patch.object(stock_app, '_published_dashboard_snapshot')
+    def test_view_localization_handles_null_lists_without_mutating_sources(self, load_snapshot, load_index):
+        snapshot = observation_dashboard()
+        snapshot['daily_focus'] = None
+        load_snapshot.return_value = snapshot
+        load_index.return_value = [dict(product_mode='observation', report_type='post_close',
+                                       title='空摘要', summary=None, source_market_date='2026-07-15',
+                                       applicable_trading_date='2026-07-16')]
+        for path in ('/dashboard', '/reports', '/reports/us'):
+            with self.subTest(path=path):
+                self.assertEqual(stock_app.app.test_client().get(path).status_code, 200)
+        self.assertIsNone(snapshot['daily_focus'])
+        self.assertIsNone(load_index.return_value[0]['summary'])
+
     @patch.object(stock_app, '_published_report_index_v2')
     def test_report_date_filter_uses_each_report_type_date_and_validates_input(self, load_index):
         load_index.return_value = [dict(product_mode='observation', report_type=kind, title=kind, summary=['市場風險狀態：normal'],

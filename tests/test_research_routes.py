@@ -4,10 +4,24 @@ from pathlib import Path
 from flask import Flask
 
 from stock_papi.services import public_opinions
+from stock_papi.services.observation_view import build_stock_observation
 from stock_papi.web.routes.research import register_research_routes
+from tests.report_fixtures import status_stock_document
 
 
 class ResearchRouteTests(unittest.TestCase):
+    def test_compare_preserves_official_status_observation_date(self):
+        official = build_stock_observation(status_stock_document())
+        app = Flask(__name__, template_folder=str(Path(__file__).parents[1] / 'templates'))
+        app.add_url_rule('/industries', 'industries_page', lambda: '')
+        app.add_url_rule('/stock/<code>', 'stock_page', lambda code: code)
+        register_research_routes(app, load_relationships=lambda: {}, load_events=lambda: [],
+                                 load_opinions=lambda: {}, stock_observation=lambda code: official,
+                                 get_stock_name=lambda code: code, allowed_symbols=[official['code'], '2330'])
+        response = app.test_client().get('/compare?symbols=' + official['code'] + ',2330')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(official['observation_as_of'], response.get_data(as_text=True))
+
     def test_relationship_links_and_compare_share_supported_markets(self):
         html = self.client.get('/industries/ai-server/relationships').get_data(as_text=True)
         self.assertIn('/stock/NVDA', html)

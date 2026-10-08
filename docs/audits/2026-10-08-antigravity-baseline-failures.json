@@ -1,0 +1,14 @@
+{
+  "baseline": "fa1cf7c8cd02b5dfed092ded5ad5f74eabe9978d",
+  "files_unchanged": {
+    "tests/test_pipeline_scheduler.py": true,
+    "scripts/invoke_pipeline_task.ps1": true,
+    "scripts/install_pipeline_tasks.ps1": true
+  },
+  "tests_run": 2,
+  "failures": [
+    "test_mutex_abandonment_and_partial_timeout_release_exactly_once",
+    "test_us_post_close_retries_through_yahoo_eod_finalization"
+  ],
+  "errors": []
+}

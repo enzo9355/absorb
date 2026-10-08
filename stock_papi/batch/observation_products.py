@@ -848,6 +848,7 @@ def validate_observation_dashboard(document):
         or not isinstance(document.get("stock_events"), list)
         or not isinstance(document.get("etf_observations"), list)
         or not isinstance(document.get("daily_focus"), list)
+        or not all(isinstance(text, str) for text in document["daily_focus"])
         or not isinstance(document.get("data_quality"), dict)
         or not isinstance(document.get("gates"), dict)
     ):

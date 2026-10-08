@@ -8,6 +8,7 @@ import threading
 import time
 import datetime
 import logging
+from dataclasses import replace
 from concurrent.futures import ThreadPoolExecutor
 import requests
 import twstock
@@ -2192,8 +2193,40 @@ def _asksorb_grounded_answer(question, evidence, *, data_as_of, tools_used, cita
     )
 
 
+def _observation_date_intent(question):
+    explicit_date = any(term in question for term in ("資料日", "資料截至", "過期", "更新時間"))
+    if not explicit_date and "最新資料" not in question:
+        return None
+    analysis = any(term in question.lower() for term in (
+        "價格", "價位", "收盤", "均線", "走勢", "表現", "報酬", "漲跌", "指標",
+        "量比", "成交", "籌碼", "風險事件", "摘要", "內容", "說明", "多少",
+        "幾元", "如何", "怎麼", "rsi", "macd", "ma20", "ma60",
+    ))
+    if explicit_date and not analysis:
+        suffix = re.split(r"資料日|資料截至|過期|更新時間", question, maxsplit=1)[1]
+        # Unknown suffixes keep the analysis path rather than dropping a second request.
+        if re.fullmatch(
+            r"(?:[？?。.!！,，、：:；;\s]|資料日|資料截至|過期|狀態|更新時間|哪一天|哪天|幾號|何時|日期|時間|"
+            r"什麼時候|是不是|是否|有沒有|已經|是|到|為|的|了|嗎|呢|與|和|及|請|附上|附|提供|可驗證|來源|連結|出處)*",
+            suffix,
+        ):
+            return "only"
+    return "mixed"
+
+
+def _with_observation_freshness(answer, date_answer):
+    if date_answer is None:
+        return answer
+    return replace(
+        answer, text=f"{answer.text}\n\n{date_answer.text}",
+        data_as_of=date_answer.data_as_of, data_quality=date_answer.data_quality,
+        stale=date_answer.stale, citations=date_answer.citations,
+        tools_used=tuple(dict.fromkeys(answer.tools_used + date_answer.tools_used)),
+    )
+
+
 def _observation_date_answer(question, *, market, data_as_of, tools_used, citations, subject=None):
-    if not any(term in question for term in ("資料日", "資料截至", "過期", "最新資料", "更新時間")):
+    if _observation_date_intent(question) is None:
         return None
     from stock_papi.web.routes.system import create_data_freshness_loader
 
@@ -2300,67 +2333,90 @@ def _observation_conversation(
 
     if entities:
         observations = []
+        stock_citations = []
+        date_answers = []
+        date_intent = _observation_date_intent(question)
         for entity in entities:
             data = build_stock_observation(
                 fetch_published_quant_snapshot(entity["symbol"]),
                 get_stock_name=get_stock_name,
             )
-            if isinstance(data, dict):
-                observations.append(data)
+            if not isinstance(data, dict):
+                if date_intent:
+                    date_answers.append(ConversationAnswer(
+                        f"{entity.get('name') or entity['symbol']}（{entity['symbol']}）：無已驗證觀察資料。",
+                        tools_used=("verified_observation_snapshot",),
+                    ))
+                continue
+            observations.append(data)
+            stock_as_of = data.get("observation_as_of") or data.get("as_of")
+            citations = []
+            if re.fullmatch(r"[A-Z0-9.-]{1,16}", str(data.get("code") or "")):
+                citations.append({
+                    "label": f"{data.get('name') or data.get('code')}（{data.get('code')}）個股觀察",
+                    "url": f"/stock/{data.get('code')}", "date": stock_as_of,
+                    "chapters": ["官方交易狀態"] if data.get("observation_kind") != "regular_price" else ["價格與均線", "籌碼觀察", "風險事件"],
+                })
+            stock_citations.extend(citations)
+            if date_intent:
+                date_answers.append(_observation_date_answer(
+                    question, market=data.get("market"), data_as_of=stock_as_of,
+                    tools_used=("verified_observation_snapshot",), citations=citations,
+                    subject=f"{data.get('name') or data.get('code')}（{data.get('code')}）",
+                ))
+        date_answer = None
+        if date_answers:
+            dates = {answer.data_as_of for answer in date_answers}
+            stale = any(answer.stale for answer in date_answers)
+            qualities = {answer.data_quality for answer in date_answers}
+            quality = "stale" if stale else "available" if qualities == {"available"} else (
+                "partial" if "available" in qualities else "unavailable")
+            date_answer = ConversationAnswer(
+                "\n".join(answer.text for answer in date_answers),
+                data_as_of=next(iter(dates)) if len(dates) == 1 else None,
+                data_quality=quality, stale=stale, citations=tuple(stock_citations),
+                tools_used=tuple(dict.fromkeys(tool for answer in date_answers for tool in answer.tools_used)),
+            )
+            if date_intent == "only" or not observations:
+                return date_answer
         if not observations:
             return ConversationAnswer("已驗證的個股觀察資料暫時無法取得。")
-        data = observations[0]
-        stock_as_of = data.get("observation_as_of") or data.get("as_of")
-        stock_citations = []
-        symbol_text = re.fullmatch(r"[A-Z0-9.-]{1,16}", str(data.get("code") or ""))
-        if symbol_text:
-            stock_citations.append(
-                {
-                    "label": f"{data.get('name') or data.get('code')}（{data.get('code')}）個股觀察",
-                    "url": f"/stock/{data.get('code')}",
-                    "date": stock_as_of,
-                    "chapters": ["官方交易狀態"] if data.get("observation_kind") != "regular_price" else ["價格與均線", "籌碼觀察", "風險事件"],
-                }
-            )
-        date_answer = _observation_date_answer(
-            question, market=data.get("market"), data_as_of=stock_as_of,
-            tools_used=("verified_observation_snapshot",), citations=stock_citations,
-            subject=f"{data.get('name') or data.get('code')}（{data.get('code')}）",
-        )
-        if date_answer is not None:
-            return date_answer
+        dates = {data.get("observation_as_of") or data.get("as_of") for data in observations}
+        stock_as_of = next(iter(dates)) if len(dates) == 1 else None
+        evidence = {"stocks": observations}
+        if date_answer:
+            evidence["observation_freshness"] = date_answer.to_dict()
         generated = _asksorb_grounded_answer(
             question,
-            {"stocks": observations},
+            evidence,
             data_as_of=stock_as_of,
             tools_used=("verified_observation_snapshot",),
             citations=stock_citations,
         )
         if generated is not None:
-            return generated
-        trend = {
-            "above_ma20_ma60": "站上 MA20 與 MA60",
-            "above_ma20": "站上 MA20",
-            "below_ma60": "低於 MA60",
-            "mixed": "均線交錯",
-        }.get(data.get("trend_observation"), "資料不足")
-        events = "；".join(data.get("risk_events", [])[:3]) or "未觸發額外事件"
-        text = (
-            f"{data['name']}（{data['code']}）市場觀察："
-            f"最新收盤 {_observation_number(data.get('price'))}，"
-            f"均線狀態為{trend}，"
-            f"RSI {_observation_number(data.get('rsi'), 1)}，"
-            f"量比 {_observation_number(data.get('volume_ratio'))}。"
-            f"已觸發事件：{events}。\n\n"
-            f"資料截至：{stock_as_of or '未提供'}｜"
-            "內容只描述已發生資料。"
-        )
-        return ConversationAnswer(
-            text,
+            return _with_observation_freshness(generated, date_answer)
+        lines = []
+        for data in observations:
+            trend = {
+                "above_ma20_ma60": "站上 MA20 與 MA60", "above_ma20": "站上 MA20",
+                "below_ma60": "低於 MA60", "mixed": "均線交錯",
+            }.get(data.get("trend_observation"), "資料不足")
+            events = "；".join(data.get("risk_events", [])[:3]) or "未觸發額外事件"
+            quote_label = "最近可用收盤" if date_answer and date_answer.data_quality != "available" else "最新收盤"
+            lines.append(
+                f"{data['name']}（{data['code']}）市場觀察："
+                f"{quote_label} {_observation_number(data.get('price'))}，均線狀態為{trend}，"
+                f"RSI {_observation_number(data.get('rsi'), 1)}，量比 {_observation_number(data.get('volume_ratio'))}。"
+                f"已觸發事件：{events}。\n\n"
+                f"資料截至：{data.get('observation_as_of') or data.get('as_of') or '未提供'}｜內容只描述已發生資料。"
+            )
+        return _with_observation_freshness(ConversationAnswer(
+            "\n\n".join(lines),
             data_as_of=stock_as_of,
             data_quality="available",
             tools_used=("verified_observation_snapshot",),
-        )
+            citations=tuple(stock_citations),
+        ), date_answer)
 
     if market_context == "US":
         report = _conversation_report_lookup("post_close", market="US")
@@ -2376,25 +2432,28 @@ def _observation_conversation(
             question, market="US", data_as_of=report.get("source_market_date"),
             tools_used=("verified_us_report_index",), citations=[us_citation] if us_citation else [],
         )
-        if date_answer is not None:
+        if date_answer is not None and _observation_date_intent(question) == "only":
             return date_answer
+        evidence = {"market": "US", "report": report}
+        if date_answer:
+            evidence["observation_freshness"] = date_answer.to_dict()
         generated = _asksorb_grounded_answer(
             question,
-            {"market": "US", "report": report},
+            evidence,
             data_as_of=report.get("source_market_date"),
             tools_used=("verified_us_report_index",),
             citations=[us_citation] if us_citation else [],
         )
         if generated is not None:
-            return generated
+            return _with_observation_freshness(generated, date_answer)
         summary = "；".join(report.get("summary") or []) or report.get("title")
-        return ConversationAnswer(
+        return _with_observation_freshness(ConversationAnswer(
             f"美股市場實況：{summary}\n\n資料截至：{report.get('source_market_date') or '未提供'}｜內容只描述已發布資料。",
             data_as_of=report.get("source_market_date"),
             data_quality="available",
             tools_used=("verified_us_report_index",),
             citations=[us_citation] if us_citation else (),
-        )
+        ), date_answer)
 
     snapshot = _published_dashboard_snapshot()
     if not isinstance(snapshot, dict) or snapshot.get("product_mode") != "observation":
@@ -2409,25 +2468,28 @@ def _observation_conversation(
         question, market="TW", data_as_of=snapshot.get("observation_as_of"),
         tools_used=("verified_observation_dashboard",), citations=[dashboard_citation] if dashboard_citation else [],
     )
-    if date_answer is not None:
+    if date_answer is not None and _observation_date_intent(question) == "only":
         return date_answer
+    evidence = {
+        "market": snapshot.get("market", "TW"),
+        "observation_as_of": snapshot.get("observation_as_of"),
+        "market_observation": snapshot.get("market_observation", {}),
+        "industry_observations": list(snapshot.get("industry_observations") or [])[:10],
+        "daily_focus": list(snapshot.get("daily_focus") or [])[:8],
+        "stock_events": list(snapshot.get("stock_events") or [])[:12],
+        "data_quality": snapshot.get("data_quality", {}),
+    }
+    if date_answer:
+        evidence["observation_freshness"] = date_answer.to_dict()
     generated = _asksorb_grounded_answer(
         question,
-        {
-            "market": snapshot.get("market", "TW"),
-            "observation_as_of": snapshot.get("observation_as_of"),
-            "market_observation": snapshot.get("market_observation", {}),
-            "industry_observations": list(snapshot.get("industry_observations") or [])[:10],
-            "daily_focus": list(snapshot.get("daily_focus") or [])[:8],
-            "stock_events": list(snapshot.get("stock_events") or [])[:12],
-            "data_quality": snapshot.get("data_quality", {}),
-        },
+        evidence,
         data_as_of=snapshot.get("observation_as_of"),
         tools_used=("verified_observation_dashboard",),
         citations=[dashboard_citation] if dashboard_citation else [],
     )
     if generated is not None:
-        return generated
+        return _with_observation_freshness(generated, date_answer)
     industries = snapshot.get("industry_observations", [])
     industry = next(
         (
@@ -2450,13 +2512,13 @@ def _observation_conversation(
             f"資料截至：{snapshot.get('observation_as_of')}｜"
             "內容只描述已發生資料。"
         )
-        return ConversationAnswer(
+        return _with_observation_freshness(ConversationAnswer(
             text,
             data_as_of=snapshot.get("observation_as_of"),
             data_quality="available",
             tools_used=("verified_observation_dashboard",),
             citations=[dashboard_citation] if dashboard_citation else (),
-        )
+        ), date_answer)
     if any(term in question for term in ("台股", "大盤", "市場", "盤勢", "今天")):
         market = snapshot.get("market_observation", {})
         risk = {
@@ -2475,17 +2537,17 @@ def _observation_conversation(
             f"資料截至：{snapshot.get('observation_as_of')}｜"
             "內容只描述已發生資料。"
         )
-        return ConversationAnswer(
+        return _with_observation_freshness(ConversationAnswer(
             text,
             data_as_of=snapshot.get("observation_as_of"),
             data_quality="available",
             tools_used=("verified_observation_dashboard",),
             citations=[dashboard_citation] if dashboard_citation else (),
-        )
-    return ConversationAnswer(
+        ), date_answer)
+    return _with_observation_freshness(ConversationAnswer(
         "AI 預測研究中。你可以詢問市場實況、產業實際強弱、"
         "個股價格、均線、技術指標、籌碼或已觸發事件。"
-    )
+    ), date_answer)
 
 
 def run_absorb_conversation(

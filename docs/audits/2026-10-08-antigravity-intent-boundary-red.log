@@ -1,0 +1,12 @@
+======================================================================
+FAIL: test_latest_data_modifier_preserves_analysis_and_verified_freshness (tests.test_observation_public_surfaces.ObservationPublicSurfaceTests) (question='台積電資料日那天偏強還是偏弱？')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\enzo\.codex\worktrees\719b\absorb-production-runner-v2\tests\test_observation_public_surfaces.py", line 458, in test_latest_data_modifier_preserves_analysis_and_verified_freshness
+    self.assertIn('收盤', answer.text)
+AssertionError: '收盤' not found in '台積電（2330）最近一次已驗證資料日：2026-07-16。資料狀態：資料過期。資料日依市場交易日曆核對，不代表今日即時行情。'
+
+----------------------------------------------------------------------
+Ran 1 test in 2.302s
+
+FAILED (failures=1)

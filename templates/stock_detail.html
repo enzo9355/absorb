@@ -22,7 +22,7 @@
 {% block title %}{% if d.name and d.name|upper != d.code|upper %}{{ d.name }}（{{ d.code }}）{% else %}{{ d.code }}{% endif %}觀察｜ABSORB{% endblock %}
 {% block head %}{% if observation_kind == "regular_price" %}<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>{% endif %}{% endblock %}
 {% block content %}
-{% set quote_label = '最近可用收盤' if (observation_freshness|default({}, true)).get('status') in ['stale', 'updating'] else '最新收盤' %}
+{% set quote_label = '最新收盤' if (observation_freshness|default({}, true)).get('status') == 'current' else '最近可用收盤' %}
 <div class="page stock-page" data-stock-code="{{ d.code }}" data-stock-name="{{ d.name }}"{% if observation_kind == "regular_price" %} data-stock-price="{{ '%.2f'|format(d.price) }}"{% endif %}>
   {% include "observation_freshness.html" %}
   {% if observation_kind != "regular_price" %}

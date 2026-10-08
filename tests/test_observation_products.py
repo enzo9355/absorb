@@ -229,6 +229,13 @@ def _walk_keys(value):
 
 
 class ObservationProductsTests(unittest.TestCase):
+    def test_daily_focus_rejects_non_string_items_at_publication_boundary(self):
+        for item in (None, 23, {}, ['nested']):
+            document = self.build()
+            document['daily_focus'] = [item]
+            with self.subTest(item=item), self.assertRaises(ValueError):
+                validate_observation_dashboard(document)
+
     def test_market_aggregation_uses_canonical_rows_and_ready_latest(self):
         document = warmup_stock_document("2330")
         stock = StockSnapshot.from_document(document, sha256="a" * 64, size=1)
