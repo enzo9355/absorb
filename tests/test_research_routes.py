@@ -10,6 +10,16 @@ from tests.report_fixtures import status_stock_document
 
 
 class ResearchRouteTests(unittest.TestCase):
+    def test_creator_shows_source_health_and_taipei_capture_time(self):
+        self.opinion_catalog['ingestion'] = {'alpha': {'provider': 'RSS', 'count': 2,
+            'fetched_at': '2026-09-17T01:00:00Z', 'checked_at': '2026-09-17T02:00:00Z', 'status': 'error'}}
+        html = self.client.get('/perspectives/alpha?cutoff_at=2026-09-18T00:00:00Z').get_data(as_text=True)
+        self.assertIn('來源更新失敗', html)
+        self.assertIn('2026-09-17 09:00', html)
+        self.assertIn('RSS', html)
+        main = self.client.get('/perspectives?cutoff_at=2026-09-18T00:00:00Z').get_data(as_text=True)
+        self.assertIn('來源更新失敗', main)
+
     def test_compare_preserves_official_status_observation_date(self):
         official = build_stock_observation(status_stock_document())
         app = Flask(__name__, template_folder=str(Path(__file__).parents[1] / 'templates'))
@@ -121,12 +131,12 @@ class ResearchRouteTests(unittest.TestCase):
         response = self.client.get("/perspectives/alpha")
         self.assertEqual(200, response.status_code)
         text = response.get_data(as_text=True)
-        self.assertIn("7 筆待審貼文", text)
+        self.assertIn("7 筆待審內容", text)
         self.assertIn("尚未計入選股共識", text)
         self.assertIn("資料覆蓋不完整", text)
         for path in ('/perspectives', '/perspectives/alpha'):
             before_fetch = self.client.get(path + '?cutoff_at=2026-09-17T05:00:00Z').get_data(as_text=True)
-            self.assertNotIn('7 筆待審貼文', before_fetch)
+            self.assertNotIn('7 筆待審內容', before_fetch)
             self.assertNotIn('7 筆候選待審', before_fetch)
 
     def setUp(self):
@@ -332,9 +342,9 @@ class ResearchRouteTests(unittest.TestCase):
         response = self.client.get("/perspectives/serenity")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("pending_review", html)
+        self.assertIn("待核對", html)
         self.assertIn("identity pending", html)
-        self.assertIn("Coverage", html)
+        self.assertIn("來源與更新狀態", html)
 
     def test_creator_page_uses_shared_query_parser_and_round_trips_cutoff(self):
         response = self.client.get(

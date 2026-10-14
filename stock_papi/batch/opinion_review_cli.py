@@ -10,6 +10,7 @@ from pathlib import Path
 from stock_papi.batch.x_opinions_cli import _write_json
 from stock_papi.services.public_opinions import build_catalog
 from stock_papi.services.research_catalog import MAX_RESEARCH_BYTES
+from stock_papi.services import free_research_feeds as feeds
 
 
 def _read(path, limit=MAX_RESEARCH_BYTES):
@@ -28,7 +29,8 @@ def prepare(catalog, digest, paths):
     opinions, ingestion = [], {}
     for path in paths:
         candidate, _ = _read(path, 2_000_000)
-        if candidate.get('catalog_id') != 'public-opinions-fxtwitter-candidate':
+        feed = candidate.get('catalog_id') == 'public-opinions-feed-candidate'
+        if not feed and candidate.get('catalog_id') != 'public-opinions-fxtwitter-candidate':
             raise ValueError('unsupported candidate catalog')
         meta = candidate.get('fetch_meta') or {}
         rows = candidate.get('opinions')
@@ -37,16 +39,25 @@ def prepare(catalog, digest, paths):
         fetched = datetime.fromisoformat(str(meta.get('fetched_at', '')).replace('Z', '+00:00'))
         if fetched.tzinfo is None:
             raise ValueError('candidate fetch time requires timezone')
-        matched = [creator for creator in creators.values() if creator.get('handle') == meta.get('username')]
+        if feed:
+            source = feeds.SOURCES.get(meta.get('creator_id'))
+            if not source or meta.get('feed_url') != source['url']:
+                raise ValueError('unknown candidate feed')
+            matched = [creator for creator in creators.values() if creator['id'] == meta.get('creator_id')]
+        else:
+            matched = [creator for creator in creators.values() if creator.get('handle') == meta.get('username')]
         if len(matched) != 1:
             raise ValueError('candidate account is not uniquely known')
         creator_id = matched[0]['id']
         pending_ids = {row.get('opinion_id') for row in rows if isinstance(row, dict) and row.get('opinion_id') not in known}
         ingestion[creator_id] = {'fetched_at': meta['fetched_at'], 'count': len(pending_ids),
-                                'has_more': bool(meta.get('has_more')), 'provider': 'FxTwitter'}
+                                'has_more': bool(meta.get('has_more')),
+                                'provider': ('YouTube' if 'channel_id' in source else 'RSS') if feed else 'FxTwitter'}
         for row in rows:
             creator = creators.get(row.get('creator_id')) if isinstance(row, dict) else None
-            if not creator or creator.get('handle') != meta.get('username') or row.get('review_status') != 'pending_review':
+            if (not creator or creator['id'] != creator_id or row.get('review_status') != 'pending_review'
+                    or (feed and not feeds.is_source_url(creator_id, row.get('source_url')))
+                    or (not feed and creator.get('handle') != meta.get('username'))):
                 raise ValueError('candidate creator or review state mismatch')
             if not row.get('opinion_id') or row['opinion_id'] in known:
                 continue

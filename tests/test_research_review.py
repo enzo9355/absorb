@@ -38,12 +38,14 @@ class ResearchReviewTests(unittest.TestCase):
     def test_published_object_strips_candidate_text_and_rejects_stale_generation(self):
         from stock_papi.repositories.reviewed_opinions import publish_review, REVIEWED_OBJECT, validate_catalog
         _, raw, review = fixture(); store = MemoryStore()
+        review['opinions'][0]['source_author'] = 'Article Author'
         receipt = publish_review(store, raw, '0', review)
         public, generation = store.read(REVIEWED_OBJECT)
         self.assertEqual(receipt['generation'], generation)
         self.assertNotIn(b'PRIVATE', public)
         catalog = validate_catalog(json.loads(public))
         self.assertEqual(catalog['opinions'][-1]['text'], '人工核對摘要')
+        self.assertEqual(catalog['opinions'][-1]['source_author'], 'Article Author')
         with self.assertRaises(ValueError):
             publish_review(store, raw, '0', review)
         self.assertEqual(store.read(REVIEWED_OBJECT)[0], public)

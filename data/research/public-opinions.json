@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "catalog_id": "public-opinions",
-  "catalog_version": "public-opinions-v2-c2-2026-09-18-x-review",
-  "generated_at": "2026-09-18T01:07:19+08:00",
+  "catalog_version": "public-opinions-v2-2026-10-15-free-feeds",
+  "generated_at": "2026-10-14T16:00:47.897217+00:00",
   "creators": [
     {
       "id": "unusual-whales",
@@ -38,21 +38,85 @@
     },
     {
       "id": "gmoney-finance-corner",
-      "name": "財經皓角",
+      "name": "財經皓角（G MONEY）",
       "platform": "YouTube",
       "coverage_since": "2025-07-21",
-      "identity_status": "legacy_unverified",
-      "source_status": "pending_review",
-      "description": "Legacy v1 public video record retained for compatibility; not eligible for v2 confirmed consensus until re-reviewed."
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "官方頻道為 G MONEY；近期清單未提供可確認的財經皓角節目，因此暫不加入每日擷取。可由原發布者連結查看；舊影片仍待重新核對。",
+      "canonical_profile_url": "https://www.youtube.com/@gmoneytv",
+      "official_url": "https://www.youtube.com/@gmoneytv"
     },
     {
       "id": "stock-nobleman",
-      "name": "股市貴公子",
+      "name": "股市貴公子／鍾崑禎",
       "platform": "YouTube",
       "coverage_since": "2025-12-29",
-      "identity_status": "legacy_unverified",
-      "source_status": "pending_review",
-      "description": "Legacy v1 public video record retained for compatibility; not eligible for v2 confirmed consensus until re-reviewed."
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方頻道近期影片；標題與簡介先進入待審區，未核對完整內容前不列入選股共識。",
+      "canonical_profile_url": "https://www.youtube.com/@WE178",
+      "official_url": "https://www.youtube.com/@WE178"
+    },
+    {
+      "id": "aswath-damodaran",
+      "name": "Aswath Damodaran",
+      "platform": "RSS",
+      "canonical_profile_url": "https://aswathdamodaran.blogspot.com/",
+      "official_url": "https://aswathdamodaran.blogspot.com/",
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方網站公開文章；文章先進入待審區，未核對前不推定買賣立場。"
+    },
+    {
+      "id": "ben-carlson",
+      "name": "Ben Carlson",
+      "platform": "RSS",
+      "canonical_profile_url": "https://awealthofcommonsense.com/",
+      "official_url": "https://awealthofcommonsense.com/",
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方網站公開文章；文章先進入待審區，未核對前不推定買賣立場。"
+    },
+    {
+      "id": "meb-faber",
+      "name": "Meb Faber",
+      "platform": "RSS",
+      "canonical_profile_url": "https://mebfaber.com/",
+      "official_url": "https://mebfaber.com/",
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方網站公開文章；文章先進入待審區，未核對前不推定買賣立場。"
+    },
+    {
+      "id": "nick-maggiulli",
+      "name": "Nick Maggiulli",
+      "platform": "RSS",
+      "canonical_profile_url": "https://ofdollarsanddata.com/",
+      "official_url": "https://ofdollarsanddata.com/",
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方網站公開文章；文章先進入待審區，未核對前不推定買賣立場。"
+    },
+    {
+      "id": "barry-ritholtz",
+      "name": "Barry Ritholtz",
+      "platform": "RSS",
+      "canonical_profile_url": "https://ritholtz.com/",
+      "official_url": "https://ritholtz.com/",
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方網站公開文章；文章先進入待審區，未核對前不推定買賣立場。"
+    },
+    {
+      "id": "alpha-architect",
+      "name": "Alpha Architect",
+      "platform": "RSS",
+      "canonical_profile_url": "https://alphaarchitect.com/",
+      "official_url": "https://alphaarchitect.com/",
+      "identity_status": "verified",
+      "source_status": "partial",
+      "description": "追蹤官方網站公開文章；本來源為多位作者的研究機構，保留各篇作者歸屬。"
     }
   ],
   "coverage": [
@@ -61,7 +125,7 @@
       "source": "x_profile",
       "checked_at": "2026-09-18T01:07:19+08:00",
       "reviewed_through": "2026-09-16T21:01:00Z",
-      "catalog_version": "public-opinions-v2-c2-2026-09-18-x-review",
+      "catalog_version": "public-opinions-v2-2026-10-15-free-feeds",
       "canonical_profile_url": "https://x.com/unusual_whales",
       "identity_evidence": [
         "https://x.com/unusual_whales",
@@ -86,7 +150,7 @@
       "source": "x_profile_and_third_party_references",
       "checked_at": "2026-09-18T01:07:19+08:00",
       "reviewed_through": "2026-09-14T08:15:51Z",
-      "catalog_version": "public-opinions-v2-c2-2026-09-18-x-review",
+      "catalog_version": "public-opinions-v2-2026-10-15-free-feeds",
       "canonical_profile_url": "https://x.com/aleabitoreddit",
       "identity_evidence": [
         "https://x.com/aleabitoreddit",
@@ -112,7 +176,7 @@
       "source": "x_profile",
       "checked_at": "2026-09-18T01:07:19+08:00",
       "reviewed_through": "2026-09-15T14:46:39Z",
-      "catalog_version": "public-opinions-v2-c2-2026-09-18-x-review",
+      "catalog_version": "public-opinions-v2-2026-10-15-free-feeds",
       "canonical_profile_url": "https://x.com/michaelsikand",
       "identity_evidence": [
         "https://x.com/michaelsikand",

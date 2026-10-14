@@ -21,7 +21,7 @@ _lock = threading.Lock()
 PUBLIC_FIELDS = frozenset('id opinion_id creator_id source_url source_kind source_platform acquisition_method '
     'origin_group_id continuation_of withdraws_id supersedes_id withdrawn_at market symbol company_id security_status '
     'published_at first_seen_at reviewed_at review_status source_status content_type stance recommendation_kind '
-    'direction text name summary outcome_status horizon conditions reviewer rights_note'.split())
+    'direction text name summary outcome_status horizon conditions reviewer rights_note source_author'.split())
 
 
 def _reject_private(value):
@@ -50,6 +50,8 @@ def validate_catalog(document):
     for row in document['opinions']:
         if not isinstance(row, dict) or set(row) - PUBLIC_FIELDS:
             raise ValueError('unexpected public opinion field')
+        if 'source_author' in row and (not isinstance(row['source_author'], str) or len(row['source_author']) > 200):
+            raise ValueError('invalid source author')
     validated = build_catalog(document)
     for row in validated['opinions']:
         if not row.get('is_confirmed'):

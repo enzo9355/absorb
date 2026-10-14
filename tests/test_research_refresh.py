@@ -7,6 +7,11 @@ from stock_papi.services import research_catalog
 
 
 class ResearchRefreshTests(unittest.TestCase):
+    def setUp(self):
+        feeds = patch('stock_papi.batch.research_refresh_cli.feeds.SOURCES', {})
+        feeds.start()
+        self.addCleanup(feeds.stop)
+
     def test_refresh_publishes_metadata_only_and_preserves_rows_on_source_failure(self):
         from stock_papi.batch import research_refresh_cli as cli
         from stock_papi.services.x_api import XApiError

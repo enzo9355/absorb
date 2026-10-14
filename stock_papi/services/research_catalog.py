@@ -93,11 +93,13 @@ def load_opinions():
             public_metadata = {}
         for creator in catalog["creators"]:
             public_meta = public_metadata.get(creator.get('id'))
-            if (isinstance(public_meta, dict) and _has_timezone(public_meta.get('fetched_at'))
+            if (isinstance(public_meta, dict) and (_has_timezone(public_meta.get('fetched_at'))
+                    or (public_meta.get('fetched_at') is None and public_meta.get('status') == 'error' and _has_timezone(public_meta.get('checked_at'))))
                     and type(public_meta.get('count')) is int and 0 <= public_meta['count'] <= 10000):
                 catalog['ingestion'][creator['id']] = {
                     'fetched_at': public_meta['fetched_at'], 'count': public_meta['count'],
-                    'has_more': bool(public_meta.get('has_more')), 'provider': 'FxTwitter',
+                    'has_more': bool(public_meta.get('has_more')), 'provider': public_meta.get('provider', 'FxTwitter'),
+                    'status': public_meta.get('status', 'ok'), 'checked_at': public_meta.get('checked_at'),
                 }
             handle = creator.get("handle", "")
             if not re.fullmatch(r"[A-Za-z0-9_]{1,15}", handle):

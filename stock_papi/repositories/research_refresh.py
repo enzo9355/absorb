@@ -43,12 +43,19 @@ def validate_bundle(bundle):
         raise ValueError('invalid ingestion metadata')
     for creator, meta in opinion['ingestion'].items():
         if (not isinstance(creator, str) or not isinstance(meta, dict)
-                or set(meta) != {'fetched_at', 'count', 'has_more', 'provider'}
-                or meta['provider'] != 'FxTwitter' or type(meta['has_more']) is not bool
+                or not {'fetched_at', 'count', 'has_more', 'provider'} <= set(meta)
+                or set(meta) - {'fetched_at', 'count', 'has_more', 'provider', 'status', 'checked_at'}
+                or meta['provider'] not in {'FxTwitter', 'RSS', 'YouTube'} or type(meta['has_more']) is not bool
                 or type(meta['count']) is not int or not 0 <= meta['count'] <= 10000
-                or not isinstance(meta['fetched_at'], str)
-                or datetime.fromisoformat(meta['fetched_at'].replace('Z', '+00:00')).tzinfo is None):
+                or (meta['fetched_at'] is None and (meta.get('status') != 'error' or meta['count'] != 0))
+                or (meta['fetched_at'] is not None and (not isinstance(meta['fetched_at'], str)
+                    or datetime.fromisoformat(meta['fetched_at'].replace('Z', '+00:00')).tzinfo is None))):
             raise ValueError('invalid public creator metadata')
+        if ('status' in meta) != ('checked_at' in meta):
+            raise ValueError('incomplete source health')
+        if 'status' in meta and (meta['status'] not in {'ok', 'error'} or not isinstance(meta['checked_at'], str)
+                or datetime.fromisoformat(meta['checked_at'].replace('Z', '+00:00')).tzinfo is None):
+            raise ValueError('invalid source health')
     return bundle
 
 

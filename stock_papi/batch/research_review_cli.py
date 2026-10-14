@@ -22,6 +22,7 @@ from stock_papi.batch.x_opinions_cli import _write_json
 from stock_papi.repositories.research_refresh import SnapshotStore
 from stock_papi.repositories.reviewed_opinions import REVIEWED_OBJECT, publish_review, validate_catalog
 from stock_papi.services.research_catalog import _read_local_json
+from stock_papi.services import free_research_feeds as feeds
 
 
 def create_review_app(catalog, candidates, save_review, token, *, port=8767):
@@ -34,7 +35,8 @@ def create_review_app(catalog, candidates, save_review, token, *, port=8767):
         raise ValueError('operator token is too short')
     for row in candidates['opinions']:
         source = urlsplit(str(row.get('source_url') or ''))
-        if source.scheme != 'https' or source.hostname not in {'x.com', 'twitter.com', 'www.x.com', 'www.twitter.com'} or source.username or source.password:
+        is_x = (row.get('source_kind') == 'x_post' and source.hostname in {'x.com', 'twitter.com', 'www.x.com', 'www.twitter.com'})
+        if source.scheme != 'https' or source.username or source.password or not (is_x or feeds.is_source_url(row.get('creator_id'), row.get('source_url'))):
             raise ValueError('invalid candidate source URL')
 
     @app.before_request
@@ -150,7 +152,7 @@ def fetch_workspace(store, workspace):
         raw = json.dumps(catalog, ensure_ascii=False).encode()
     (workspace / 'base.json').write_bytes(raw)
     paths = []
-    for handle in SOURCES:
+    for handle in [*SOURCES, *('feed-' + key for key in feeds.SOURCES)]:
         candidate, _ = store.read(f'research/v1/private/latest/{handle}.json')
         if candidate:
             path = workspace / (handle + '.json')

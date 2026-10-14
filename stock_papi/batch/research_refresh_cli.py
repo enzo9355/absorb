@@ -5,6 +5,9 @@ import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from datetime import datetime, timezone
+
+import requests
 
 from stock_papi.batch import company_events_cli, x_watch_cli
 from stock_papi.batch.opinion_review_cli import prepare
@@ -12,6 +15,7 @@ from stock_papi.batch.x_opinions_cli import _write_json
 from stock_papi.repositories.research_refresh import PUBLIC_OBJECT, SnapshotStore, validate_bundle
 from stock_papi.repositories.reviewed_opinions import REVIEWED_OBJECT, validate_catalog
 from stock_papi.services.research_catalog import _read_local_json
+from stock_papi.services import free_research_feeds as feeds
 
 
 def _encode(document):
@@ -54,11 +58,52 @@ def run_once(store):
                 store.write(f'research/v1/private/latest/{handle}.json', candidate, generation=private_generations[handle])
         reviewed_raw, _ = store.read(REVIEWED_OBJECT)
         catalog = validate_catalog(json.loads(reviewed_raw)) if reviewed_raw else _read_local_json('public-opinions.json')
+        creator_ids = {row['id'] for row in catalog['creators']}
+        for creator_id in feeds.SOURCES:
+            if creator_id not in creator_ids:
+                continue
+            key = 'feed-' + creator_id
+            name = f'research/v1/private/latest/{key}.json'
+            previous, previous_generation = store.read(name)
+            path = root / 'feed-candidates' / (creator_id + '.json')
+            old_candidate = json.loads(previous) if previous else None
+            if old_candidate:
+                _write_json(path, old_candidate)
+            health = state['accounts'][key] = {'status': 'error'}
+            try:
+                candidate = feeds.fetch_candidates(creator_id)
+                # First-seen belongs to the original capture, not today's fetch.
+                old_rows = {r['opinion_id']: r for r in (old_candidate or {}).get('opinions', [])}
+                for row in candidate['opinions']:
+                    old = old_rows.get(row['opinion_id'])
+                    if old and old.get('text') == row['text']:
+                        row['first_seen_at'] = old['first_seen_at']
+                _write_json(path, candidate)
+                prepare(catalog, '', [path])
+            except (ValueError, TypeError, KeyError, requests.RequestException):
+                if old_candidate:
+                    _write_json(path, old_candidate)
+                elif path.exists():
+                    path.unlink()
+            else:
+                encoded_candidate = _encode(candidate)
+                _archive(store, f'research/v1/private/snapshots/{key}/', encoded_candidate)
+                store.write(name, encoded_candidate, generation=previous_generation)
+                health['status'] = 'ok'
+            if path.exists():
+                paths.append(path)
         review = prepare(catalog, '', paths)
         # No candidate summaries or classifications enter the public bundle.
         old_meta = docs['public-opinions-status.json']
         ingestion = dict(old_meta['ingestion']) if old_meta['catalog_version'] == catalog['catalog_version'] else {}
         ingestion.update(review['ingestion'])
+        checked_at = datetime.now(timezone.utc).isoformat()
+        for key, health in state['accounts'].items():
+            creator_id = key.removeprefix('feed-') if key.startswith('feed-') else x_watch_cli.SOURCES[key]
+            if creator_id not in ingestion:
+                provider = ('YouTube' if 'channel_id' in feeds.SOURCES[creator_id] else 'RSS') if key.startswith('feed-') else 'FxTwitter'
+                ingestion[creator_id] = {'fetched_at': None, 'count': 0, 'has_more': False, 'provider': provider}
+            ingestion[creator_id].update(status=health['status'], checked_at=checked_at)
         public = {'schema_version': 1, 'documents': {
             'events.json': json.loads((root / 'events.json').read_text(encoding='utf-8')),
             'events-status.json': json.loads((root / 'events-status.json').read_text(encoding='utf-8')),

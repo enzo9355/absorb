@@ -436,9 +436,17 @@ def register_research_routes(
         return coverage
 
     def _available_ingestion(catalog, cutoff):
-        return {key: item for key, item in (catalog.get('ingestion') or {}).items()
-                if item.get('fetched_at') and _parse_cutoff(item['fetched_at'])
-                and _parse_cutoff(item['fetched_at']) <= cutoff}
+        result = {}
+        for key, item in (catalog.get('ingestion') or {}).items():
+            stamp = _parse_cutoff(item.get('fetched_at') or item.get('checked_at'))
+            if stamp and stamp <= cutoff:
+                row = dict(item)
+                checked = _parse_cutoff(row.get('checked_at'))
+                if checked and checked > cutoff:
+                    row.pop('status', None)
+                    row.pop('checked_at', None)
+                result[key] = row
+        return result
 
     def _opinion_text(item):
         return item.get("summary") or item.get("text") or item.get("raw_text") or ""
@@ -660,6 +668,7 @@ def register_research_routes(
             catalog_status=catalog_status,
             creators=creators,
             coverage_by_creator=coverage,
+            ingestion_by_creator=ingestion,
             opinions=opinions[start:start + _PAGE_SIZE],
             opinions_total=len(opinions),
             activities=activities,

@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from stock_papi.integrations.market_data.tw_security_master import is_taiwan_symbol
 from stock_papi.integrations.market_data.us_universe import validate_us_ticker
+from stock_papi.services.free_research_feeds import SOURCES as FEED_SOURCES, is_source_url
 
 
 _DIRECTIONS = {"buy", "sell", "long", "short", "hold"}
@@ -20,7 +21,7 @@ _SOURCE_KINDS = {"x_post", "youtube_video", "official_site", "article", "video"}
 _SOURCE_HOSTS = {
     "youtube_video": {"www.youtube.com", "youtube.com", "youtu.be"},
     "official_site": {"unusualwhales.com", "sikandmedia.com", "www.sikandmedia.com"},
-    "article": set(),
+    "article": {urlsplit(source['site']).hostname for source in FEED_SOURCES.values() if 'channel_id' not in source},
     "video": {"www.youtube.com", "youtube.com", "youtu.be"},
 }
 _STANCES = {"bullish", "bearish", "neutral", "unclear"}
@@ -437,6 +438,8 @@ def _validate_v2_opinion(opinion, creators, seen_sources):
     creator = creators.get(item.get("creator_id")) or {}
     if creator.get("identity_status") != "verified":
         errors.append("creator_identity_unverified")
+    if item.get('creator_id') in FEED_SOURCES and not is_source_url(item['creator_id'], item.get('source_url')):
+        errors.append('source_creator_mismatch')
     source = _normalize_source_url(item.get("source_url"), item.get("source_kind"))
     if source is None:
         errors.append("invalid_source_url")

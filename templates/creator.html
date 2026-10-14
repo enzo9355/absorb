@@ -2,28 +2,27 @@
 {% block title %}{{ creator.name }}觀點｜ABSORB{% endblock %}
 {% block content %}
 <div class="page research-page">
-  <header class="page-header">
-    <div><p class="eyebrow">CREATOR PROFILE</p><h1>{{ creator.name }}</h1><p class="page-intro">{{ creator.description or '只收錄可回查的公開內容。' }}</p>{% if query.query_string %}<p class="muted small">目前查詢：{{ query.query_string }}</p>{% endif %}</div>
-    <a class="button button-secondary" href="{{ url_for('perspectives_page') }}">回到觀點追蹤</a>
-  </header>
-  {% if catalog_status == 'unavailable' %}<div class="error-banner" role="status">public opinions catalog unavailable</div>{% elif catalog_status == 'empty' %}<div class="error-banner" role="status">public opinions catalog empty</div>{% elif catalog_status == 'stale' %}<div class="error-banner" role="status">public opinions catalog stale</div>{% endif %}
-  <section class="panel coverage-list" aria-label="Coverage">
-    <div class="section-heading"><div><p class="eyebrow">Coverage</p><h2>來源可行性</h2></div><a class="muted small" href="{{ creator.canonical_profile_url or '#' }}" target="_blank" rel="noopener noreferrer">來源 CTA</a></div>
+  <header class="page-header"><div><p class="eyebrow">CREATOR PROFILE</p><h1>{{ creator.name }}</h1><p class="page-intro">{{ creator.description or '只收錄可回查的公開內容。' }}</p></div><a class="button button-secondary" href="{{ url_for('perspectives_page') }}">回到觀點追蹤</a></header>
+  {% if query.query_string %}<p class="muted small">目前查詢：{{ query.query_string }}</p>{% endif %}
+  {% if catalog_status == 'unavailable' %}<p class="error-banner" role="status">目前無法驗證觀點資料，請稍後再試。</p>{% endif %}
+  <section class="panel coverage-list" aria-label="來源與更新狀態">
+    <div class="section-heading"><h2>來源與更新狀態</h2>{% if creator.canonical_profile_url %}<a class="source-link" href="{{ creator.canonical_profile_url }}" target="_blank" rel="noopener noreferrer">查看原發布者</a>{% endif %}</div>
     <dl>
-      <div><dt>identity</dt><dd>{{ creator.identity_status or 'pending' }}</dd></div>
-      <div><dt>source</dt><dd>{{ creator.source_status or 'pending' }}</dd></div>
-      <div><dt>status</dt><dd>{{ coverage.status if coverage else 'pending' }}</dd></div>
-      <div><dt>reviewed_through</dt><dd>{{ coverage.reviewed_through if coverage else '未提供' }}</dd></div>
+      <div><dt>身分核對</dt><dd>{{ creator.identity_status|research_label }}</dd></div>
+      <div><dt>涵蓋狀態</dt><dd>{{ (coverage.status if coverage else 'pending_review')|research_label }}</dd></div>
+      <div><dt>觀點核對至</dt><dd>{{ (coverage.reviewed_through if coverage else none)|research_time }}</dd></div>
+      {% if ingestion %}<div><dt>免費取得方式</dt><dd>{{ ingestion.provider }}</dd></div><div><dt>上次成功抓取</dt><dd>{{ ingestion.fetched_at|research_time }}（台北時間）</dd></div><div><dt>待審內容</dt><dd>{{ ingestion.count }} 筆待審內容，尚未計入選股共識</dd></div>{% endif %}
     </dl>
-    {% if coverage and coverage.gaps %}<p class="muted small">{{ coverage.gaps|join(' / ') }}</p>{% else %}<p class="muted small">沒有額外 coverage gap。</p>{% endif %}
+    {% if ingestion and ingestion.status == 'error' %}<p class="error-banner" role="status">來源更新失敗，保留前次可用資料；成功抓取時間不會因此改寫。</p>{% endif %}
+    <p class="muted small">每日台北時間 08:00 檢查免費來源。新文章、影片或貼文會先進入待審區，未核對前不列入公開觀點或共識；影片標題不代表已核對完整內容。</p>
+    {% if ingestion and ingestion.has_more %}<p class="muted small">資料覆蓋不完整：目前只取得來源提供的近期內容，未涵蓋完整歷史。</p>{% endif %}
+    {% if coverage and coverage.gaps %}<p class="muted small">{{ coverage.gaps|join('／') }}</p>{% endif %}
   </section>
-  <section class="panel research-list timeline-list">
-    {% if ingestion %}
-    <p role="status">免費來源已取得 {{ ingestion.count }} 筆待審貼文；尚未計入選股共識。上次成功抓取：{{ ingestion.fetched_at }}。{% if ingestion.has_more %}尚有未抓取頁面，資料覆蓋不完整。{% endif %}</p>
-    {% endif %}
-    {% for item in related_activities %}<article class="opinion-card"><div><p class="eyebrow">{{ item.type_label }} · {{ item.subject_name }}</p><h2>{{ item.market }} · {{ item.symbol }}</h2><p>{{ item.summary }}</p><small class="muted small">{{ item.activity_id }}</small></div><p class="muted small">揭露 {{ item.public_label }} · {{ item.transaction_label }}</p></div>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>{% else %}<p class="empty-state">此發布者尚無相關已核對動態。</p>{% endfor %}</section><section class="panel research-list timeline-list"><div class="section-heading"><div><p class="eyebrow">RELATED</p><h2>相關動態</h2></div></div>{% for item in opinions %}
-    <article class="opinion-card"><div><p class="eyebrow">{{ item.market }} · {{ item.symbol }} · {{ item.stance }}</p><h2>{{ item.name or item.symbol }}</h2><p>{{ item.summary }}</p><small class="muted small">{{ item.activity_id }}</small></div><p class="muted small">發布 {{ item.published_at }} · {{ item.outcome_status or '結果不適用' }}</p>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>
-    {% else %}<p class="empty-state">此創作者目前沒有已審核觀點。</p>{% endfor %}
+  <section class="panel research-list timeline-list"><div class="section-heading"><h2>已核對動態</h2></div>
+    {% for item in related_activities %}<article class="opinion-card"><div><p class="eyebrow">{{ item.type_label }} · {{ item.subject_name }}</p><h2>{{ item.market }} · {{ item.symbol }}</h2><p>{{ item.summary }}</p>{% if item.source_author %}<p class="muted small">原文作者：{{ item.source_author }}</p>{% endif %}</div><p class="muted small">揭露 {{ item.public_label|research_time }} · {{ item.transaction_label }}</p>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>{% else %}<p class="empty-state">此發布者尚無已核對的交易或持倉動態，不代表沒有交易。</p>{% endfor %}
+  </section>
+  <section class="panel research-list timeline-list"><div class="section-heading"><h2>已核對公開觀點</h2></div>
+    {% for item in opinions %}<article class="opinion-card"><div><p class="eyebrow">{{ item.market }} · {{ item.symbol }} · {{ item.stance|research_label }}</p><h2>{{ item.name or item.symbol }}</h2><p>{{ item.summary }}</p>{% if item.source_author %}<p class="muted small">原文作者：{{ item.source_author }}</p>{% endif %}</div><dl><div><dt>公開時間</dt><dd>{{ item.published_at|research_time }}</dd></div><div><dt>核對時間</dt><dd>{{ item.reviewed_at|research_time }}</dd></div></dl>{% if item.source_url %}<a class="source-link" href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">原始來源</a>{% endif %}</article>{% else %}<p class="empty-state">目前尚無符合條件的已核對觀點。可先查看原發布者；待審內容不會當作買賣立場。</p>{% endfor %}
   </section>
 </div>
 {% endblock %}

@@ -24,6 +24,8 @@
 
 ## 試跑與驗收
 
+2026-10-15 免費來源擴充：在三個既有 X 帳號之外加入六個官方 RSS 與一個 YouTube 頻道，維持每日 08:00。候選仍只進私有待審；每個來源獨立保留成功時間與失敗狀態。清冊、限制與新版 reader／Job 發布順序見 [免費研究來源維護紀錄](../free-research-sources.md)。
+
 ```powershell
 gcloud run jobs execute absorb-research-refresh --project line-stock-bot-498908 --region asia-east1 --wait
 gcloud scheduler jobs run absorb-research-refresh --project line-stock-bot-498908 --location asia-east1
