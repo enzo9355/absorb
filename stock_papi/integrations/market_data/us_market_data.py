@@ -515,6 +515,66 @@ def fetch_nasdaq_historical_chart(
     return prepared
 
 
+def fetch_uhaul_historical_chart(
+    symbol: str, *, target_market_date: datetime.date,
+) -> pd.DataFrame:
+    """Read complete UHAL-B bars from the issuer's own historical quote feed."""
+    if symbol != "UHAL-B" or type(target_market_date) is not datetime.date:
+        raise USSchemaError("U-Haul issuer history requires UHAL-B and an exact target date")
+    # Issuer lookup maps NYSE:UHAL.B to XNYS:UHAL/B, distinct from voting UHAL.
+    query = urllib.parse.urlencode({
+        "exchange": "XNYS", "symbol": "UHAL/B", "pageSize": 1000,
+        "startDate": (target_market_date - datetime.timedelta(days=730)).isoformat(),
+        "endDate": target_market_date.isoformat(),
+    })
+    source_url = "https://investors.uhaul.com/feed/StockQuote.svc/GetStockQuoteHistoricalList?" + query
+    request = urllib.request.Request(source_url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            raw = response.read(8 * 1024 * 1024 + 1)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise USProviderOperationalError("U-Haul issuer history transport failed") from exc
+    if len(raw) > 8 * 1024 * 1024:
+        raise USSchemaError("U-Haul issuer history response is too large")
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, ValueError) as exc:
+        raise USSchemaError("U-Haul issuer history is not valid JSON") from exc
+    rows = document.get("GetStockQuoteHistoricalListResult") if isinstance(document, dict) else None
+    if not isinstance(rows, list) or not rows:
+        raise USSchemaError("U-Haul issuer history rows are missing")
+    records = []
+    target_row = None
+    for row in rows:
+        try:
+            date = datetime.datetime.strptime(row["HistoricalDate"], "%m/%d/%Y %H:%M:%S").date()
+        except (KeyError, TypeError, ValueError) as exc:
+            raise USSchemaError("U-Haul issuer history date is invalid") from exc
+        if date > target_market_date:
+            raise USSchemaError("U-Haul issuer history contains a future session")
+        records.append({"Date": date, **{
+            field: row.get(source) for field, source in {
+                "Open": "Open", "High": "High", "Low": "Low", "Close": "Last", "Volume": "Volume",
+            }.items()
+        }})
+        if date == target_market_date:
+            target_row = row
+    prepared = _prepare_us_history_frame(pd.DataFrame.from_records(records), symbol)
+    if target_market_date not in prepared.index:
+        raise USSchemaError("U-Haul issuer history has no complete target session")
+    prepared = compute_us_technical_indicators(prepared)
+    digest = hashlib.sha256(raw).hexdigest()
+    prepared.attrs.update({
+        "source_schema_version": "uhaul-issuer-history-v1",
+        "source_id": "uhaul:issuer-history", "source_url": source_url,
+        "source_identity": "uhaul:issuer-history:" + digest, "payload_sha256": digest,
+        "provider_symbol": "UHAL/B", "provider_asset_class": "stocks",
+        "target_market_date": target_market_date.isoformat(), "target_observation": "present",
+        "target_row_sha256": hashlib.sha256(json.dumps(target_row, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+    })
+    return prepared
+
+
 def _prepare_us_history_frame(raw_df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     """Normalize and validate every provider row before any filtering or deduplication."""
     if raw_df is None or raw_df.empty:

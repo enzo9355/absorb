@@ -27,6 +27,24 @@ def calendar_document(year, *, closed=(), special_open=()):
 
 
 class TradingCalendarTests(unittest.TestCase):
+    def test_tw_typhoon_closure_does_not_block_october_catchup(self):
+        from stock_papi.integrations.market_data.tw_calendar import get_tw_calendar_documents
+        from stock_papi.batch.tw_official_post_close_cli import _required_trading_dates
+
+        calendars = TradingCalendarSet.from_documents(get_tw_calendar_documents(2026, 2026))
+        self.assertFalse(calendars.is_session(datetime.date(2026, 10, 23)))
+        from stock_papi.web.routes.system import _next_session_for_market
+        self.assertEqual(_next_session_for_market("TW", datetime.date(2026, 10, 22)), datetime.date(2026, 10, 27))
+        self.assertEqual(calendars.next_session(datetime.date(2026, 10, 22)), datetime.date(2026, 10, 27))
+        self.assertEqual(
+            _required_trading_dates(
+                calendars,
+                earliest_latest_date=datetime.date(2026, 10, 22),
+                target_market_date=datetime.date(2026, 10, 29),
+            ),
+            tuple(datetime.date(2026, 10, day) for day in (27, 28, 29)),
+        )
+
     def test_official_closures_and_special_open_days_override_weekdays(self):
         calendars = TradingCalendarSet.from_documents([
             calendar_document(

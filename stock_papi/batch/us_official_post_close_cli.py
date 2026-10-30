@@ -28,6 +28,7 @@ from stock_papi.integrations.market_data.us_calendar import (
 )
 from stock_papi.integrations.market_data.us_market_data import (
     fetch_nasdaq_historical_chart,
+    fetch_uhaul_historical_chart,
     fetch_us_stock_history,
     USObservationError,
     USObservationUnavailable,
@@ -45,6 +46,8 @@ from stock_papi.integrations.market_data.us_universe import (
     get_us_universe_breakdown,
     USUniverseBreakdown,
 )
+
+from stock_papi.shared.logging import safe_exception_text
 
 NEW_YORK = zoneinfo.ZoneInfo("America/New_York")
 
@@ -127,6 +130,7 @@ def _provider_result(
                 "target_row_sha256",
                 "skipped_incomplete_rows",
                 "target_observation",
+                "previous_fallback_failure",
             )
             if key in attrs
         }
@@ -143,6 +147,7 @@ def _fetch_and_classify_symbol(
     """Fetch and classify a single symbol into R, N, M, or OP_FAIL using typed exception semantics."""
     target_iso = target_market_date.isoformat()
     primary_failure: USObservationError | None = None
+    issuer_failure: Exception | None = None
     try:
         try:
             df = fetch_us_stock_history(symbol, target_market_date=target_market_date)
@@ -156,7 +161,17 @@ def _fetch_and_classify_symbol(
             except USObservationUnavailable:
                 raise
             except Exception as fallback_exc:
-                raise exc from fallback_exc
+                if symbol != "UHAL-B":
+                    raise exc from fallback_exc
+                try:
+                    df = fetch_uhaul_historical_chart(symbol, target_market_date=target_market_date)
+                    df.attrs["previous_fallback_failure"] = {
+                        "error_type": type(fallback_exc).__name__,
+                        "message": safe_exception_text(fallback_exc)[:1024],
+                    }
+                except Exception as issuer_exc:
+                    issuer_failure = issuer_exc
+                    raise exc from fallback_exc
         dropped_placeholder_count = int(
             getattr(df, "attrs", {}).get(
                 "dropped_non_observation_placeholder_count", 0
@@ -415,6 +430,13 @@ def _fetch_and_classify_symbol(
             error_type=type(exc).__name__,
             reason_code=type(exc).__name__,
             security_evidence=(security_evidence_by_symbol or {}).get(symbol),
+            provider_result={
+                "status": "failed",
+                "issuer_failure": {
+                    "error_type": type(issuer_failure).__name__,
+                    "message": safe_exception_text(issuer_failure)[:1024],
+                },
+            } if issuer_failure is not None else None,
         )
     except Exception as exc:
         # Any unexpected error is strictly classified as OP_FAIL (Fail-Closed)
@@ -632,7 +654,10 @@ def run_us_post_close(
             "target_session_semantics": "full_regular_session_effective_interval",
         },
         "operational_failures": [
-            {"symbol": f.symbol, "error_type": f.error_type, "detail": str(f.detail)}
+            {
+                "symbol": f.symbol, "error_type": f.error_type, "detail": str(f.detail),
+                **({"provider_result": f.provider_result} if f.provider_result is not None else {}),
+            }
             for f in op_failures
         ],
     }
