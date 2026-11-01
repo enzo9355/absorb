@@ -42,6 +42,16 @@ class FreeFeedTests(unittest.TestCase):
         self.assertEqual(row['source_author'], 'Ben Carlson')
         self.assertIn('作者：Ben Carlson', row['text'])
 
+    def test_guest_author_does_not_block_verified_author_entries(self):
+        guest = RSS[RSS.index(b'<item>'):RSS.index(b'</item>')+7].replace(
+            b'Ben Carlson', b'nelson').replace(b'/valuation/', b'/guest/')
+        doc = self.parse(RSS.replace(b'</channel>', guest + b'</channel>'))
+        self.assertEqual(len(doc['opinions']), 1)
+        self.assertEqual(doc['opinions'][0]['source_author'], 'Ben Carlson')
+        self.assertEqual(doc['opinions'][0]['review_status'], 'pending_review')
+        self.assertEqual(doc['opinions'][0]['source_url'],
+                         'https://awealthofcommonsense.com/2026/10/valuation/')
+
     def test_wrong_site_author_dates_and_xml_entities_rejected(self):
         for raw in (RSS.replace(b'awealthofcommonsense.com/2026', b'evil.test/2026'),
                     RSS.replace(b'Ben Carlson', b'Impersonator'),

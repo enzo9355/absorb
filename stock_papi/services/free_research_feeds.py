@@ -102,7 +102,8 @@ def parse_feed(creator_id, raw, *, now=None):
             url = (entry.findtext('link') or '').strip()
             author = entry.findtext('{http://purl.org/dc/elements/1.1/}creator') or entry.findtext('author') or ''
             if author and not source.get('multiple_authors') and author not in {source['name'], 'noreply@blogger.com ('+source['name']+')'}:
-                raise ValueError('entry author identity changed')
+                # Guest posts must not be attributed to the tracked author or block their feed.
+                continue
             published = parsedate_to_datetime(entry.findtext('pubDate') or '')
             excerpt = entry.findtext('description')
         if not title or not is_source_url(creator_id, url) or published.tzinfo is None or published > now:
