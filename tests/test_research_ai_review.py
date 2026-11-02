@@ -22,7 +22,7 @@ class CloudReviewTests(unittest.TestCase):
         with patch('stock_papi.services.research_ai_review.fetch_original', side_effect=ValueError('unavailable')) as fetch:
             run_review(MemoryStore(), catalog, json.dumps(catalog).encode(), '0',
                        {'opinions': rows, 'ingestion': {}})
-        self.assertEqual(fetch.call_count, 20)
+        self.assertEqual(fetch.call_count, 5)
         self.assertEqual(fetch.call_args_list[1].args[0]['opinion_id'], 'other')
 
     def test_invalid_model_json_is_an_operational_error(self):
