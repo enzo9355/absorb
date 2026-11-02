@@ -7,11 +7,21 @@
 
 - 此聊天的隔離工作區：`C:/Users/enzo/.codex/worktrees/research-review-recovery/absorb-production-runner-v2`。
 - Python：`C:/Users/enzo/Documents/absorb-production-runner-v2/.venv/Scripts/python.exe`。
-- 每日台北時間 08:00 為雲端抓取；AI 任務排在 08:20，使用本機 Codex，需開機且 App 運行。
+- 每日台北時間 08:00 由雲端 `absorb-research-refresh` 接續抓取、AI 原文查核及發布，無須本機 Codex 開啟。部署驗證成功後移除舊 08:20 本機任務。
 - 專案 `line-stock-bot-498908`、區域 `asia-east1`、bucket `line-stock-bot-498908-quant-snapshots`。
 - 正式頁面：`https://line-stock-bot-3visrvv4yq-de.a.run.app/perspectives`。
 
-## 每次流程
+## 雲端每日流程
+
+`research_refresh_cli` 啟用 `ABSORB_RESEARCH_AI_REVIEW_ENABLED=true` 後呼叫 `research_ai_review.run_review`。每次最多 20 筆、查核階段 450 秒，各來源輪流處理，優先未查核與較新資料。原始網址、作者及日期先驗證；模型撰寫短摘要後再次比對原文，並與官方證券名錄核對。影片僅有標題時不發布。
+
+模型使用現有 Gemini 2.5 Flash，透過 Secret Manager 注入 `RESEARCH_GEMINI_API_KEY`，公開 reviewer 如實標為 `Gemini AI source review`。來源證據、未通過理由、查核進度及發布 receipt 保存於私有 `research/v1/private/ai-reviews/` 與 `ai-review-state.json`。沿用既有 schema、generation、hash、去重和讀回檢查；沒有新合格內容不改核對／發布時間。
+
+暫時性模型錯誤重試一次，仍失敗則工作回報失敗，讓 Cloud Run 重試；錯誤候選不會被當日去重略過。每日抓取時間不等於查核時間。模型使用量受現有帳戶額度及計費設定約束，未升級方案。
+
+## 人工觸發的備援查核流程
+
+下列程序供維護或故障復原使用，不再由本機每日排程執行。人工操作 Codex 時使用 `Codex AI source review`，不要將雲端 Gemini 查核誤標為 Codex 或人工。
 
 1. 檢查 `absorb-research-refresh` 最新 execution 完成狀態及公開 `research/v1/public/latest.json`，區分部分來源失敗與整體未發布。不要因缺少新資料而改寫核對日期。
 2. 使用 `python -m stock_papi.batch.research_review_cli fetch --workspace .research-review/<唯一批次名>` 取得當前公開基線、私有候選與 generation；不要重用或覆蓋舊批次。

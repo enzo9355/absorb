@@ -31,7 +31,7 @@ def _archive(store, prefix, raw):
         raise ValueError('immutable research archive mismatch')
 
 
-def run_once(store):
+def run_once(store, *, reviewer=None):
     raw, generation = store.read(PUBLIC_OBJECT)
     docs = validate_bundle(json.loads(raw))['documents'] if raw else {name: _read_local_json(name) for name in
             ('events.json', 'events-status.json', 'public-opinions-status.json')}
@@ -56,7 +56,7 @@ def run_once(store):
                 candidate = _encode(json.loads(path.read_text(encoding='utf-8')))
                 _archive(store, f'research/v1/private/snapshots/{handle}/', candidate)
                 store.write(f'research/v1/private/latest/{handle}.json', candidate, generation=private_generations[handle])
-        reviewed_raw, _ = store.read(REVIEWED_OBJECT)
+        reviewed_raw, reviewed_generation = store.read(REVIEWED_OBJECT)
         catalog = validate_catalog(json.loads(reviewed_raw)) if reviewed_raw else _read_local_json('public-opinions.json')
         creator_ids = {row['id'] for row in catalog['creators']}
         for creator_id in feeds.SOURCES:
@@ -104,6 +104,15 @@ def run_once(store):
                 provider = ('YouTube' if 'channel_id' in feeds.SOURCES[creator_id] else 'RSS') if key.startswith('feed-') else 'FxTwitter'
                 ingestion[creator_id] = {'fetched_at': None, 'count': 0, 'has_more': False, 'provider': provider}
             ingestion[creator_id].update(status=health['status'], checked_at=checked_at)
+        review_result = {'published': 0, 'errors': 0}
+        if reviewer is not None:
+            review['ingestion'] = ingestion
+            catalog, review_result = reviewer(store, catalog, reviewed_raw or _encode(catalog),
+                                              reviewed_generation, review)
+            # Bind pending counts to the catalog just published, retaining source health.
+            remaining = prepare(catalog, '', paths)['ingestion']
+            for creator_id, meta in remaining.items():
+                ingestion[creator_id]['count'] = meta['count']
         public = {'schema_version': 1, 'documents': {
             'events.json': json.loads((root / 'events.json').read_text(encoding='utf-8')),
             'events-status.json': json.loads((root / 'events-status.json').read_text(encoding='utf-8')),
@@ -114,12 +123,13 @@ def run_once(store):
         readback, actual_generation = store.read(PUBLIC_OBJECT)
         if readback != encoded or actual_generation != published_generation:
             raise ValueError('research publication readback mismatch')
-        failed = event_exit != 0 or any(row.get('status') != 'ok' for row in state['accounts'].values())
+        failed = event_exit != 0 or bool(review_result['errors']) or any(row.get('status') != 'ok' for row in state['accounts'].values())
         result = {'ok': not failed, 'generation': published_generation,
                   'sha256': hashlib.sha256(encoded).hexdigest(),
                   'announcements': len(public['documents']['events.json']['events']),
                   'candidate_counts': {key: value['count'] for key, value in ingestion.items()},
-                  'accounts': {key: value.get('status') for key, value in state['accounts'].items()}}
+                  'accounts': {key: value.get('status') for key, value in state['accounts'].items()},
+                  'review': review_result}
         return result
 
 
@@ -128,8 +138,12 @@ def main():
     from google.auth.transport.requests import AuthorizedSession
     try:
         credentials, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/devstorage.read_write'])
+        reviewer = None
+        if os.getenv('ABSORB_RESEARCH_AI_REVIEW_ENABLED') == 'true':
+            from stock_papi.services.research_ai_review import run_review
+            reviewer = run_review
         with AuthorizedSession(credentials) as session:
-            result = run_once(SnapshotStore(os.environ['QUANT_SNAPSHOT_BUCKET'], session))
+            result = run_once(SnapshotStore(os.environ['QUANT_SNAPSHOT_BUCKET'], session), reviewer=reviewer)
         print(json.dumps(result))
         return 0 if result['ok'] else 2
     except Exception as exc:

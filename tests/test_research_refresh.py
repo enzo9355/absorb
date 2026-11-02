@@ -71,6 +71,25 @@ class ResearchRefreshTests(unittest.TestCase):
                 'alpha': {'fetched_at': '2026-10-01T12:00:00Z', 'count': 7, 'has_more': True,
                           'provider': 'FxTwitter'}}}}}
 
+    def test_cloud_review_runs_after_fetch_and_public_metadata_uses_new_catalog(self):
+        from stock_papi.batch import research_refresh_cli as cli
+        from tests.test_research_review import MemoryStore
+        store = MemoryStore()
+        def reviewer(store, catalog, base_raw, generation, draft):
+            self.assertEqual(json.loads(base_raw)['catalog_version'], catalog['catalog_version'])
+            self.assertEqual(generation, '0')
+            self.assertIn('ingestion', draft)
+            updated = copy.deepcopy(catalog)
+            updated['catalog_version'] = 'new-reviewed-version'
+            return updated, {'published': 1, 'errors': 0}
+        with patch.object(cli.x_watch_cli, 'SOURCES', {}), \
+             patch.object(cli.company_events_cli, 'fetch_source', return_value=[]):
+            result = cli.run_once(store, reviewer=reviewer)
+        self.assertTrue(result['ok'])
+        meta = json.loads(store.read(cli.PUBLIC_OBJECT)[0])['documents']['public-opinions-status.json']
+        self.assertEqual(meta['catalog_version'], 'new-reviewed-version')
+        self.assertEqual(result['review']['published'], 1)
+
     def test_public_bundle_rejects_private_documents_and_invalid_events(self):
         from stock_papi.repositories.research_refresh import validate_bundle
         bundle = self.bundle()
