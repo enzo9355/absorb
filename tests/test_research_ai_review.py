@@ -12,6 +12,29 @@ HTML = b'''<html><meta property="article:published_time" content="2026-10-13T12:
 
 
 class CloudReviewTests(unittest.TestCase):
+    def test_quoted_bank_is_not_the_subject_security(self):
+        from stock_papi.services.research_ai_review import review_candidate
+        original = {'text': 'Canadian housing looks weak, according to BMO.', 'author': 'Example'}
+        decision = dict(self.decision(), symbol='BMO', security_role='quoted_source',
+                        summary='作者引述銀行對加拿大房市偏弱的看法。',
+                        evidence_quote=original['text'], content_type='news_relay', stance='bearish')
+        with self.assertRaises(ValueError):
+            review_candidate(dict(self.row(), source_kind='x_post'), original,
+                             {'US:BMO': {'name': 'Bank Of Montreal Common Stock'}},
+                             Mock(side_effect=[decision, {'supported': True}]))
+
+    def test_relay_stance_numbers_and_missing_subject_verdict_are_rejected(self):
+        from stock_papi.services.research_ai_review import review_candidate
+        original = {'text': 'I mention $NVDA without recommending a trade.', 'author': 'Ben Carlson'}
+        registry = {'US:NVDA': {'name': 'NVIDIA'}}
+        for decision, verdict in [
+            (dict(self.decision(), content_type='news_relay', stance='bearish'), {'supported': True}),
+            (dict(self.decision(), summary='作者表示輝達價格下跌五分之一。'), {'supported': True}),
+            (self.decision(), {'supported': True}),
+        ]:
+            with self.assertRaises(ValueError):
+                review_candidate(self.row(), original, registry, Mock(side_effect=[decision, verdict]))
+
     def test_busy_source_does_not_starve_other_sources(self):
         from stock_papi.services.research_ai_review import run_review
         from tests.test_research_review import MemoryStore
@@ -69,7 +92,7 @@ class CloudReviewTests(unittest.TestCase):
                 fetch_original(self.row(), {'name': 'Ben Carlson'})
 
     def decision(self):
-        return {'publish': True, 'market': 'US', 'symbol': 'NVDA',
+        return {'publish': True, 'market': 'US', 'symbol': 'NVDA', 'security_role': 'subject',
                 'summary': '作者僅提及輝達，未提出交易建議。',
                 'content_type': 'original_opinion', 'stance': 'unclear',
                 'recommendation_kind': 'mention',
@@ -79,7 +102,7 @@ class CloudReviewTests(unittest.TestCase):
         from stock_papi.services.research_ai_review import review_candidate
         original = {'text': 'I mention $NVDA without recommending a trade.', 'author': 'Ben Carlson'}
         registry = {'US:NVDA': {'name': 'NVIDIA Corporation', 'source_id': 'official-test'}}
-        reviewer = Mock(side_effect=[self.decision(), {'supported': True}])
+        reviewer = Mock(side_effect=[self.decision(), {'supported': True, 'security_is_subject': True}])
         result, _ = review_candidate(self.row(), original, registry, reviewer)
         self.assertEqual(result['review_status'], 'confirmed')
         self.assertEqual(result['first_seen_at'], self.row()['first_seen_at'])
@@ -109,7 +132,7 @@ class CloudReviewTests(unittest.TestCase):
         with patch('stock_papi.services.research_ai_review.fetch_original', return_value=original), \
              patch('stock_papi.services.research_ai_review.load_securities', return_value=registry):
             result, receipt = run_review(store, catalog, base_raw, '0', draft,
-                reviewer=Mock(side_effect=[self.decision(), {'supported': True}]))
+                reviewer=Mock(side_effect=[self.decision(), {'supported': True, 'security_is_subject': True}]))
             self.assertEqual(receipt['published'], 1)
             self.assertEqual(result['ingestion']['ben-carlson']['count'], 0)
             published, generation = store.read(REVIEWED_OBJECT)
