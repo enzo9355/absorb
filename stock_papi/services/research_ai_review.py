@@ -42,10 +42,12 @@ def parse_original(row, creator, raw):
         node.decompose()
     if row['source_kind'] == 'x_post':
         article = soup.select_one('article')
-        body = article.select_one('[data-testid="tweetText"]') if article else None
-        body = body if body is not None else article
         if article is None or '@' + creator.get('handle', '') not in article.get_text(' ', strip=True):
             raise ValueError('source_author_mismatch')
+        bodies = article.select('[data-testid="tweetText"], div[dir="auto"].whitespace-pre-wrap')
+        if article.select_one('article, blockquote, [data-testid="quoteTweet"]') or len(bodies) > 1:
+            raise ValueError('quoted_or_ambiguous_x_body')
+        body = bodies[0] if bodies else None
         author = creator['name']
     else:
         body = soup.select_one('.post-body, .entry-content, .td-post-content')

@@ -12,6 +12,20 @@ HTML = b'''<html><meta property="article:published_time" content="2026-10-13T12:
 
 
 class CloudReviewTests(unittest.TestCase):
+    def test_x_body_never_includes_quoted_posts_or_page_metadata(self):
+        from stock_papi.services.research_ai_review import parse_original
+        row = dict(self.row(), source_kind='x_post')
+        creator = {'name': 'Example', 'handle': 'example'}
+        raw = b'''<meta property="article:published_time" content="2026-10-13T12:00:00Z">
+        <article><span>@example</span><div dir="auto" class="whitespace-pre-wrap">I mention $NVDA without recommending a trade.</div><footer>Views 100</footer></article>'''
+        self.assertEqual(parse_original(row, creator, raw)['text'],
+                         'I mention $NVDA without recommending a trade.')
+        quoted = raw.replace(b'<footer>', b'<article>@example Older conditional acquisition claim.</article><footer>')
+        with self.assertRaisesRegex(ValueError, 'quoted_or_ambiguous_x_body'):
+            parse_original(row, creator, quoted)
+        with self.assertRaisesRegex(ValueError, 'original_body_unavailable'):
+            parse_original(row, creator, raw.replace(b'whitespace-pre-wrap', b'unknown-layout'))
+
     def test_quoted_bank_is_not_the_subject_security(self):
         from stock_papi.services.research_ai_review import review_candidate
         original = {'text': 'Canadian housing looks weak, according to BMO.', 'author': 'Example'}
