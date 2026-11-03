@@ -178,7 +178,7 @@ DATA: ''' + json.dumps(original, ensure_ascii=False)
     if (not isinstance(quote, str) or not 10 <= len(quote) <= 1800 or quote not in original['text']
             or not isinstance(summary, str) or not 10 <= len(summary) <= 220):
         raise ValueError('unsupported_model_evidence')
-    if re.search(r'\d|[零一二三四五六七八九十百千萬億兆兩]+(?:分之|[%％]|年|倍|元|點|成)', summary):
+    if re.search(r'\d|一半|半數|過半|減半|折半|[零一二三四五六七八九十百千萬億兆兩]+(?:分之|[%％]|年|倍|元|點|成)', summary):
         raise ValueError('numeric_claim_in_summary')
     market, symbol = decision.get('market'), decision.get('symbol')
     security = securities.get(str(market) + ':' + str(symbol))

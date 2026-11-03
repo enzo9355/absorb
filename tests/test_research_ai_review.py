@@ -17,22 +17,24 @@ class CloudReviewTests(unittest.TestCase):
         original = {'text': 'Canadian housing looks weak, according to BMO.', 'author': 'Example'}
         decision = dict(self.decision(), symbol='BMO', security_role='quoted_source',
                         summary='作者引述銀行對加拿大房市偏弱的看法。',
-                        evidence_quote=original['text'], content_type='news_relay', stance='bearish')
-        with self.assertRaises(ValueError):
-            review_candidate(dict(self.row(), source_kind='x_post'), original,
+                        evidence_quote=original['text'], content_type='news_relay', stance='unclear')
+        with self.assertRaisesRegex(ValueError, 'security_is_only_quoted_source'):
+            review_candidate(self.row(), original,
                              {'US:BMO': {'name': 'Bank Of Montreal Common Stock'}},
-                             Mock(side_effect=[decision, {'supported': True}]))
+                             Mock(side_effect=[decision, {'supported': True, 'security_is_subject': True}]))
 
     def test_relay_stance_numbers_and_missing_subject_verdict_are_rejected(self):
         from stock_papi.services.research_ai_review import review_candidate
         original = {'text': 'I mention $NVDA without recommending a trade.', 'author': 'Ben Carlson'}
         registry = {'US:NVDA': {'name': 'NVIDIA'}}
-        for decision, verdict in [
-            (dict(self.decision(), content_type='news_relay', stance='bearish'), {'supported': True}),
-            (dict(self.decision(), summary='作者表示輝達價格下跌五分之一。'), {'supported': True}),
-            (self.decision(), {'supported': True}),
+        valid = {'supported': True, 'security_is_subject': True}
+        for decision, verdict, reason in [
+            (dict(self.decision(), content_type='news_relay', stance='bearish'), valid, 'news_relay_cannot'),
+            (dict(self.decision(), summary='作者表示輝達價格下跌五分之一。'), valid, 'numeric_claim'),
+            (dict(self.decision(), summary='作者指出輝達的銷售額減少一半。'), valid, 'numeric_claim'),
+            (self.decision(), {'supported': True}, 'independent_check_rejected'),
         ]:
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, reason):
                 review_candidate(self.row(), original, registry, Mock(side_effect=[decision, verdict]))
 
     def test_busy_source_does_not_starve_other_sources(self):
