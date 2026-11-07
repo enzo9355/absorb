@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -131,10 +132,22 @@ def parse_feed(creator_id, raw, *, now=None):
 
 
 def fetch_candidates(creator_id, *, now=None):
+    for attempt in range(2):
+        try:
+            return _fetch_once(creator_id, now=now)
+        except requests.RequestException as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if attempt or not (isinstance(exc, (requests.Timeout, requests.ConnectionError))
+                               or status in {502, 503, 504}):
+                raise
+            time.sleep(2)
+
+
+def _fetch_once(creator_id, *, now=None):
     with requests.get(SOURCES[creator_id]['url'], headers={'User-Agent': 'ABSORB-research/1.0'},
                       timeout=(10, 20), stream=True, allow_redirects=False) as response:
         if response.status_code != 200:
-            raise ValueError('feed HTTP ' + str(response.status_code))
+            raise requests.HTTPError('feed HTTP ' + str(response.status_code), response=response)
         raw = bytearray()
         for chunk in response.iter_content(65536):
             raw.extend(chunk)

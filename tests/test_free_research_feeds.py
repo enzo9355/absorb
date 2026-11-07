@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -79,8 +80,42 @@ class FreeFeedTests(unittest.TestCase):
             response.iter_content.return_value = chunks
             response.__enter__ = Mock(return_value=response)
             response.__exit__ = Mock(return_value=False)
-            with patch('stock_papi.services.free_research_feeds.requests.get', return_value=response), self.assertRaises(ValueError):
+            with patch('stock_papi.services.free_research_feeds.requests.get', return_value=response), self.assertRaises((ValueError, requests.RequestException)):
                 fetch_candidates('ben-carlson', now=NOW)
+
+    def test_transient_feed_failure_retries_once_and_validates_recovered_body(self):
+        from stock_papi.services.free_research_feeds import fetch_candidates
+        for failure in (requests.ReadTimeout('private URL'), 502, 503, 504):
+            response = Mock(status_code=200)
+            response.iter_content.return_value = [RSS]
+            response.__enter__ = Mock(return_value=response)
+            response.__exit__ = Mock(return_value=False)
+            first = failure
+            if isinstance(failure, int):
+                first = Mock(status_code=failure)
+                first.__enter__ = Mock(return_value=first)
+                first.__exit__ = Mock(return_value=False)
+            with self.subTest(failure=failure), \
+                 patch('stock_papi.services.free_research_feeds.requests.get', side_effect=[first, response]) as get, \
+                 patch('time.sleep'):
+                self.assertEqual(fetch_candidates('ben-carlson', now=NOW)['opinions'][0]['review_status'], 'pending_review')
+                self.assertEqual(get.call_count, 2)
+
+    def test_feed_retries_are_bounded_and_invalid_content_is_not_retried(self):
+        from stock_papi.services.free_research_feeds import fetch_candidates
+        with patch('stock_papi.services.free_research_feeds.requests.get', side_effect=requests.ReadTimeout('private')) as get, patch('time.sleep'):
+            with self.assertRaises(requests.ReadTimeout):
+                fetch_candidates('ben-carlson', now=NOW)
+            self.assertEqual(get.call_count, 2)
+        for status, body in ((403, RSS), (429, RSS), (200, b'invalid XML')):
+            response = Mock(status_code=status)
+            response.iter_content.return_value = [body]
+            response.__enter__ = Mock(return_value=response)
+            response.__exit__ = Mock(return_value=False)
+            with patch('stock_papi.services.free_research_feeds.requests.get', return_value=response) as get:
+                with self.assertRaises((ValueError, requests.RequestException)):
+                    fetch_candidates('ben-carlson', now=NOW)
+                self.assertEqual(get.call_count, 1)
 
     def catalog(self):
         return {'schema_version': 2, 'catalog_id': 'public-opinions', 'catalog_version': 'test',
@@ -137,8 +172,11 @@ class FreeFeedTests(unittest.TestCase):
              patch.object(cli.x_watch_cli, 'SOURCES', {}), \
              patch.object(cli.feeds, 'SOURCES', {'ben-carlson': SOURCES['ben-carlson']}), \
              patch.object(cli.company_events_cli, 'fetch_source', return_value=[]), \
-             patch.object(cli.feeds, 'fetch_candidates', side_effect=ValueError('429')):
-            self.assertFalse(cli.run_once(store)['ok'])
+             patch.object(cli.feeds, 'fetch_candidates', side_effect=requests.HTTPError('PRIVATE response and token', response=Mock(status_code=503))):
+            result = cli.run_once(store)
+            self.assertFalse(result['ok'])
+            self.assertEqual(result['source_errors']['feed-ben-carlson'], {'type': 'HTTPError', 'http_status': 503})
+            self.assertNotIn('PRIVATE', json.dumps(result))
         self.assertEqual(store.read('research/v1/private/latest/feed-ben-carlson.json'), (before, generation))
         meta = json.loads(store.read(cli.PUBLIC_OBJECT)[0])['documents']['public-opinions-status.json']['ingestion']['ben-carlson']
         self.assertEqual(meta['status'], 'error')

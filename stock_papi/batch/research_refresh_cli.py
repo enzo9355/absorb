@@ -59,6 +59,7 @@ def run_once(store, *, reviewer=None):
         reviewed_raw, reviewed_generation = store.read(REVIEWED_OBJECT)
         catalog = validate_catalog(json.loads(reviewed_raw)) if reviewed_raw else _read_local_json('public-opinions.json')
         creator_ids = {row['id'] for row in catalog['creators']}
+        source_errors = {}
         for creator_id in feeds.SOURCES:
             if creator_id not in creator_ids:
                 continue
@@ -80,7 +81,11 @@ def run_once(store, *, reviewer=None):
                         row['first_seen_at'] = old['first_seen_at']
                 _write_json(path, candidate)
                 prepare(catalog, '', [path])
-            except (ValueError, TypeError, KeyError, requests.RequestException):
+            except (ValueError, TypeError, KeyError, requests.RequestException) as exc:
+                # Exception messages can contain source content or authenticated URLs.
+                error = source_errors[key] = {'type': type(exc).__name__}
+                if isinstance(exc, requests.RequestException) and exc.response is not None:
+                    error['http_status'] = exc.response.status_code
                 if old_candidate:
                     _write_json(path, old_candidate)
                 elif path.exists():
@@ -129,6 +134,7 @@ def run_once(store, *, reviewer=None):
                   'announcements': len(public['documents']['events.json']['events']),
                   'candidate_counts': {key: value['count'] for key, value in ingestion.items()},
                   'accounts': {key: value.get('status') for key, value in state['accounts'].items()},
+                  'source_errors': source_errors,
                   'review': review_result}
         return result
 
