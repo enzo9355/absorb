@@ -5,6 +5,7 @@ from flask import abort, jsonify, make_response, redirect, render_template, url_
 from stock_papi.shared.formatting import safe_float as _safe_float
 from stock_papi.services.model_evidence import sanitize_recommendation
 from stock_papi.services.prediction_view import prediction_for
+from stock_papi.services.stock_quote import QuoteCache, quote_symbol
 
 
 def register_market_routes(
@@ -15,6 +16,23 @@ def register_market_routes(
     us_securities_observation,
     prediction_snapshot,
 ):
+    quotes = QuoteCache()
+
+    def stock_quote_api(code):
+        code = code.upper()
+        info = None if is_us_ticker(code) else twstock_codes().get(code)
+        try:
+            symbol = quote_symbol(code, info)
+        except ValueError:
+            abort(404)
+        result = quotes.get(symbol)
+        available = result["status"] == "available"
+        response = make_response(jsonify({**result, "code": code}), 200 if available else 503)
+        response.headers["Cache-Control"] = "no-store"
+        if not available:
+            response.headers["Retry-After"] = str(result["refresh_seconds"])
+        return response
+
     def dashboard_api():
         snapshot = dashboard_snapshot()
         if not isinstance(snapshot, dict):
@@ -206,5 +224,6 @@ def register_market_routes(
     app.add_url_rule("/api/market-insights", "market_insights_api", market_insights_api)
     app.add_url_rule("/market-map", "market_map_page", market_map_page)
     app.add_url_rule("/stock/<code>", "stock_page", stock_page)
+    app.add_url_rule("/api/stock/<code>/quote", "stock_quote_api", stock_quote_api)
     app.add_url_rule("/us/stocks", "us_stocks_page", us_stocks_page)
     app.add_url_rule("/market", "market_page", market_page)

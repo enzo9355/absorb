@@ -20,7 +20,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     flask_app.jinja_env.globals["AI_QUANT_DISCLOSURE"] = AI_QUANT_DISCLOSURE
     asset_hasher = hashlib.sha256()
     static_root = Path(application.APPLICATION_ROOT) / "static"
-    for asset_name in ("app.css", "app.js"):
+    for asset_name in ("app.css", "app.js", "stock-quote.js"):
         asset_hasher.update((static_root / asset_name).read_bytes())
     asset_version = asset_hasher.hexdigest()[:12]
     flask_app.jinja_env.globals["STATIC_ASSET_VERSION"] = asset_version

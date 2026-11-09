@@ -50,7 +50,14 @@
       <button class="button button-secondary watchlist-toggle" type="button" data-watchlist-toggle data-code="{{ d.code }}" data-name="{{ d.name }}">登入後加入關注</button>
     </div>
     <section class="summary-strip" aria-label="個股觀察摘要">
-      <article class="summary-card"><span>最新收盤</span><strong>{{ '{:,.2f}'.format(d.price) }}</strong><small>資料日 {{ as_of }}</small></article>
+      <article class="summary-card" data-stock-quote data-code="{{ d.code }}" data-market="{{ market }}" data-quote-url="{{ url_for('stock_quote_api', code=d.code) }}">
+        <span>最新報價</span><strong data-quote-price>—</strong>
+        <div><small data-quote-change>一般交易時段報價</small></div>
+        <div><small data-quote-time>收盤參考 {{ '{:,.2f}'.format(d.price) }}（{{ as_of }}）</small></div>
+        <div><small data-quote-status role="status">正在取得報價…</small></div>
+        <div><small>Yahoo Finance · 資料可能延遲</small></div>
+        <noscript><small>請啟用 JavaScript 以自動更新報價。</small></noscript>
+      </article>
       <article class="summary-card"><span>MA20</span>{% if ma20 is not none %}<strong>{{ '{:,.2f}'.format(ma20) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>20 日移動平均</small></article>
       <article class="summary-card"><span>MA60</span>{% if ma60 is not none %}<strong>{{ '{:,.2f}'.format(ma60) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>60 日移動平均</small></article>
       <article class="summary-card"><span>量比</span>{% if volume_ratio is not none %}<strong>{{ '%.2f'|format(volume_ratio) }}</strong>{% else %}<span class="value-unavailable">尚未驗證</span>{% endif %}<small>相對近期常態量</small></article>
@@ -196,6 +203,7 @@
   </section>
 
   <script id="stock-chart-data" type="application/json">{{ ({"candles": candles, "ma20": ma20_line, "prediction": prediction.line, "band": prediction.get("band")} if prediction else {"candles": candles, "ma20": ma20_line})|tojson }}</script>
+  <script src="{{ url_for('static', filename='stock-quote.js', v=STATIC_ASSET_VERSION) }}" defer></script>
   {% endif %}
 </div>
 {% endblock %}
