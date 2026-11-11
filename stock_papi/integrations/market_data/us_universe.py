@@ -40,7 +40,10 @@ NASDAQ_CORPORATE_ACTION_ALERT_SOURCE_ID = "nasdaqtrader:corporate_action:ECA2026
 NASDAQ_CORPORATE_ACTION_ALERT_CLAIMS_SHA256 = "228096681f4d7b2f280f7fc7df4c063336227bc4ef6ee011fcb54d598ed822a2"
 NASDAQ_CORPORATE_ACTION_ALERT_EFFECTIVE_DATE = datetime.date(2026, 8, 17)
 NASDAQ_CORPORATE_ACTION_ALERT_MAX_BYTES = 2 * 1024 * 1024
-US_UNIVERSE_CACHE_CONTRACT_VERSION = 8
+OPAY_IPO_TERMINATION_URL = "https://www.sec.gov/Archives/edgar/data/2103076/000119312526441937/d27197dex991.htm"
+OPAY_IPO_TERMINATION_DATE = datetime.date(2026, 10, 30)
+OPAY_IPO_TERMINATION_CLAIMS_SHA256 = "bc603aad898f3d343af34328ee79dcf323e4a4526bb35c12de74ed3584516778"
+US_UNIVERSE_CACHE_CONTRACT_VERSION = 9
 US_ACCEPTED_EXCHANGES = frozenset(
     {"NASDAQ", "NYSE", "CBOE", "BATS", "NYS", "ASE", "AMEX"}
 )
@@ -855,6 +858,31 @@ def parse_nasdaq_corporate_action_alert(
     return {"events": list(unique_events.values()), "sources": [source]}
 
 
+def parse_opay_ipo_termination(text: str) -> dict[str, Any]:
+    """Verify the SEC-filed cancellation, not the vendor's placeholder price."""
+    clean = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", text)).split())
+    try:
+        claims = clean.split("Termination of Previously Announced Initial Public Offering", 1)[1].split("Safe Harbor Statement", 1)[0].strip()
+    except IndexError as exc:
+        raise ValueError("OPay cancellation announcement is missing") from exc
+    digest = hashlib.sha256(claims.encode("utf-8")).hexdigest()
+    if digest != OPAY_IPO_TERMINATION_CLAIMS_SHA256:
+        raise ValueError("OPay cancellation claims hash mismatch")
+    payload_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    source = {
+        "source": OPAY_IPO_TERMINATION_URL,
+        "source_id": "sec:2103076:000119312526441937:ex99.1",
+        "source_identity": f"{OPAY_IPO_TERMINATION_URL}:{payload_hash}",
+        "payload_sha256": payload_hash,
+        "evidence_sha256": digest,
+    }
+    # shortcut: pinned cancelled offering; replace this event if the issuer relaunches its IPO.
+    event = {**source, "symbol": "OPAY", "issuer_cik": "2103076",
+             "event": "listing_cancelled", "security_type": "ADR",
+             "effective_date": OPAY_IPO_TERMINATION_DATE.isoformat()}
+    return {"events": [event], "sources": [{**source, "status": "healthy"}]}
+
+
 def fetch_us_lifecycle_events(
     target_market_date: datetime.date | None,
     *,
@@ -869,23 +897,24 @@ def fetch_us_lifecycle_events(
     if target_market_date is None or target_market_date < NASDAQ_CORPORATE_ACTION_ALERT_EFFECTIVE_DATE:
         return {"events": [], "sources": []}
 
-    if fetch_text is not None:
-        content = fetch_text(NASDAQ_CORPORATE_ACTION_ALERT_URL)
-        if isinstance(content, str):
-            raw_content = content.encode("utf-8")
-        elif isinstance(content, bytes):
-            raw_content = content
+    def read_source(url):
+        if fetch_text is not None:
+            content = fetch_text(url)
+            if isinstance(content, str):
+                raw_content = content.encode("utf-8")
+            elif isinstance(content, bytes):
+                raw_content = content
+            else:
+                raise ValueError("US lifecycle fetcher returned invalid content")
         else:
-            raise ValueError("Nasdaq corporate-action fetcher returned invalid content")
-    else:
-        request = urllib.request.Request(
-            NASDAQ_CORPORATE_ACTION_ALERT_URL,
-            headers={"User-Agent": "ABSORB-Research/1.0 (contact@absorb.local)"},
-        )
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw_content = response.read(NASDAQ_CORPORATE_ACTION_ALERT_MAX_BYTES + 1)
-    if len(raw_content) > NASDAQ_CORPORATE_ACTION_ALERT_MAX_BYTES:
-        raise RuntimeError("Nasdaq corporate-action alert response is too large")
+            request = urllib.request.Request(url, headers={"User-Agent": "ABSORB-Research/1.0 (contact@absorb.local)"})
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw_content = response.read(NASDAQ_CORPORATE_ACTION_ALERT_MAX_BYTES + 1)
+        if len(raw_content) > NASDAQ_CORPORATE_ACTION_ALERT_MAX_BYTES:
+            raise RuntimeError("US lifecycle source response is too large")
+        return raw_content
+
+    raw_content = read_source(NASDAQ_CORPORATE_ACTION_ALERT_URL)
     payload_sha256 = hashlib.sha256(raw_content).hexdigest()
     document = parse_nasdaq_corporate_action_alert(
         raw_content.decode("utf-8-sig"),
@@ -895,6 +924,10 @@ def fetch_us_lifecycle_events(
     )
     if document["sources"][0]["evidence_sha256"] != NASDAQ_CORPORATE_ACTION_ALERT_CLAIMS_SHA256:
         raise RuntimeError("Nasdaq corporate-action claims hash mismatch")
+    if target_market_date >= OPAY_IPO_TERMINATION_DATE:
+        cancellation = parse_opay_ipo_termination(read_source(OPAY_IPO_TERMINATION_URL).decode("utf-8-sig"))
+        document["events"].extend(cancellation["events"])
+        document["sources"].extend(cancellation["sources"])
     document["events"] = [
         event
         for event in document["events"]
@@ -988,7 +1021,7 @@ def parse_sec_us_universe_with_metadata(
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError("US lifecycle event is invalid") from exc
             if (
-                event_type not in {"delisted", "terminated", "suspended"}
+                event_type not in {"delisted", "terminated", "suspended", "listing_cancelled"}
                 or not source
                 or not source_identity
                 or not _SHA256.fullmatch(evidence_hash)
@@ -1009,6 +1042,11 @@ def parse_sec_us_universe_with_metadata(
             }
             if source_id:
                 event["source_id"] = source_id
+            if event_type == "listing_cancelled":
+                issuer_cik = str(raw_event.get("issuer_cik") or "").lstrip("0")
+                if not issuer_cik.isdigit():
+                    raise ValueError("Cancelled listing requires issuer identity")
+                event["issuer_cik"] = issuer_cik
             if payload_hash:
                 event["payload_sha256"] = payload_hash
             if security_type != "UNKNOWN":
@@ -1104,6 +1142,10 @@ def parse_sec_us_universe_with_metadata(
 
         eligible_listed_count += 1
         lifecycle_event = lifecycle_by_symbol.get(valid_sym)
+        if lifecycle_event and lifecycle_event.get("issuer_cik"):
+            row_cik = str(row[cik_position] or "").lstrip("0") if cik_position is not None else ""
+            if row_cik != lifecycle_event["issuer_cik"]:
+                lifecycle_event = None
         metadata = security_records.get(valid_sym)
         classification = _authoritative_security_classification(
             valid_sym, name_val, raw_ticker, metadata
