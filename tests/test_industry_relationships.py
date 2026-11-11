@@ -50,6 +50,8 @@ class IndustryRelationshipTests(unittest.TestCase):
                     "nvidianews.nvidia.com",
                     "news.skhynix.com",
                     "investor.nvidia.com",
+                    "ir.amd.com", "usa.visa.com", "www.pfizer.com",
+                    "news.microsoft.com", "www.pepsico.com", "www.sec.gov",
                 }
             ),
         )

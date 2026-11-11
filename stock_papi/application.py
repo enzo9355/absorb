@@ -251,7 +251,10 @@ from stock_papi.services.news import get_news as _get_news
 from stock_papi.services.market_insights import (
     market_insights_payload as _market_insights_payload,
 )
-from stock_papi.services.industry_relationships import load_relationships as _load_research_relationships
+from stock_papi.services.industry_relationships import (
+    load_all_relationships as _load_research_relationships,
+    load_relationship_atlas as _load_relationship_atlas,
+)
 from stock_papi.services.opinion_consensus import build_consensus as _build_opinion_consensus
 from stock_papi.services.research_catalog import (
     load_events as _load_research_events,
@@ -1843,7 +1846,7 @@ def _research_catalog_answer(question, *, access, principal, entities, market_co
             *_research_source_lines(direct),
             "",
             f"資料截至：{catalog.get('updated_at') or '未提供'}｜未列入不代表不存在關係。",
-            "對應頁面：/industries/ai-server/relationships",
+            "對應頁面：/industries/relationships",
         ]
         return ConversationAnswer(
             "\n".join(lines), data_as_of=catalog.get("updated_at"),
@@ -1861,7 +1864,7 @@ def _research_catalog_answer(question, *, access, principal, entities, market_co
         return ConversationAnswer(
             f"目前收錄的產業鏈環節：{covered}。\n\n"
             f"資料截至：{catalog.get('updated_at') or '未提供'}｜{catalog.get('coverage_note') or '覆蓋範圍有限，未列入不代表不存在關係。'}\n"
-            "對應頁面：/industries/ai-server/relationships",
+            "對應頁面：/industries/relationships",
             data_as_of=catalog.get("updated_at"), data_quality="available",
             tools_used=("verified_relationship_catalog",),
         )
@@ -1889,7 +1892,7 @@ def _research_catalog_answer(question, *, access, principal, entities, market_co
         for item in selected:
             endpoint = item.get("to") if want_customer else item.get("from")
             names.append(f"{endpoint.get('name') or endpoint.get('symbol')}（{endpoint.get('symbol')}）")
-        lines = [f"已確認的{label}：" + "、".join(names), "", "來源：", *_research_source_lines(selected), "", f"資料截至：{catalog.get('updated_at') or '未提供'}｜內容只列出有來源的供應關係。", "對應頁面：/industries/ai-server/relationships"]
+        lines = [f"已確認的{label}：" + "、".join(names), "", "來源：", *_research_source_lines(selected), "", f"資料截至：{catalog.get('updated_at') or '未提供'}｜內容只列出有來源的供應關係。", "對應頁面：/industries/relationships"]
         return ConversationAnswer(
             "\n".join(lines), data_as_of=catalog.get("updated_at"),
             data_quality="available", tools_used=("verified_relationship_catalog",),
@@ -1917,7 +1920,7 @@ def _research_catalog_answer(question, *, access, principal, entities, market_co
             f"{_RESEARCH_RELATIONSHIP_TYPES.get(item.get('type'), item.get('type') or '關係')}｜"
             f"{item.get('product_scope') or '範圍未提供'}：{item.get('description') or '未提供描述'}"
         )
-    lines += ["", "來源：", *_research_source_lines(selected), "", f"資料截至：{catalog.get('updated_at') or '未提供'}｜未列入不代表不存在關係。", "對應頁面：/industries/ai-server/relationships"]
+    lines += ["", "來源：", *_research_source_lines(selected), "", f"資料截至：{catalog.get('updated_at') or '未提供'}｜未列入不代表不存在關係。", "對應頁面：/industries/relationships"]
     return ConversationAnswer(
         "\n".join(lines), data_as_of=catalog.get("updated_at"),
         data_quality="available", tools_used=("verified_relationship_catalog",),
@@ -2936,6 +2939,7 @@ def route_dependencies():
         "industry_map": lambda: industry_map,
         "market_insights_payload": lambda: market_insights_payload(),
         "load_research_relationships": _load_research_relationships,
+        "load_relationship_atlas": _load_relationship_atlas,
         "load_research_events": _load_research_events,
         "load_research_events_status": _load_research_events_status,
         "load_public_opinions": _load_public_opinions,

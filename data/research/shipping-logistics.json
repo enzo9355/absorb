@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "catalog_id": "shipping-logistics",
+  "topic": "航運與物流",
+  "updated_at": "2026-11-04",
+  "coverage_note": "首批僅收錄可核對來源的部分公司，將逐步增加。產業位置不代表直接供應；關係以原文的產品及日期範圍為準。",
+  "stages": [
+    {
+      "id": "upstream",
+      "name": "雲端與物流技術",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "MSFT",
+          "name": "Microsoft",
+          "aliases": [
+            "微軟"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "downstream",
+      "name": "物流營運",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "FDX",
+          "name": "FedEx",
+          "aliases": [
+            "聯邦快遞"
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "shipping-logistics-official",
+      "url": "https://news.microsoft.com/source/2022/01/24/fedex-and-microsoft-announce-new-cross-platform-logistics-solution-for-e-commerce/",
+      "title": "FedEx and Microsoft announce new cross-platform logistics solution for e-commerce",
+      "publisher": "Microsoft Source",
+      "published_at": "2022-01-24",
+      "locator": "首段 multiyear collaboration；FedEx Surround 段落",
+      "checked_at": "2026-11-04",
+      "status": "available"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "shipping-logistics-relationship",
+      "from": {
+        "market": "US",
+        "symbol": "MSFT",
+        "name": "Microsoft",
+        "aliases": [
+          "微軟"
+        ]
+      },
+      "to": {
+        "market": "US",
+        "symbol": "FDX",
+        "name": "FedEx",
+        "aliases": [
+          "聯邦快遞"
+        ]
+      },
+      "type": "partnership",
+      "product_scope": "跨平台電商物流與 Azure（2022 年公告）",
+      "description": "2022 年公告揭露 FedEx 與 Microsoft 多年合作的物流方案，包含 Azure 與 Dynamics 365。由於未取得近期存續證據，本筆僅保留為歷史紀錄，不畫成現行合作。",
+      "source": {
+        "id": "shipping-logistics-official",
+        "title": "FedEx and Microsoft announce new cross-platform logistics solution for e-commerce",
+        "url": "https://news.microsoft.com/source/2022/01/24/fedex-and-microsoft-announce-new-cross-platform-logistics-solution-for-e-commerce/"
+      },
+      "reviewed_at": "2026-11-04",
+      "valid_from": "2022-01-24",
+      "status": "historical"
+    }
+  ]
+}

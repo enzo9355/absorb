@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "catalog_id": "semiconductors",
+  "topic": "半導體",
+  "updated_at": "2026-11-04",
+  "coverage_note": "首批僅收錄可核對來源的部分公司，將逐步增加。產業位置不代表直接供應；關係以原文的產品及日期範圍為準。",
+  "stages": [
+    {
+      "id": "upstream",
+      "name": "晶圓製造",
+      "nodes": [
+        {
+          "market": "TW",
+          "symbol": "2330",
+          "name": "台積電",
+          "aliases": [
+            "TSMC",
+            "Taiwan Semiconductor"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "downstream",
+      "name": "晶片設計",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "AMD",
+          "name": "AMD",
+          "aliases": [
+            "超微",
+            "Advanced Micro Devices"
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "semiconductors-official",
+      "url": "https://ir.amd.com/news-events/press-releases/detail/1245/amd-achieves-first-tsmc-n2-product-silicon-milestone",
+      "title": "AMD Achieves First TSMC N2 Product Silicon Milestone",
+      "publisher": "AMD Investor Relations",
+      "published_at": "2025-04-14",
+      "locator": "開頭兩段；semiconductor manufacturing partnership",
+      "checked_at": "2026-11-04",
+      "status": "available"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "semiconductors-relationship",
+      "from": {
+        "market": "TW",
+        "symbol": "2330",
+        "name": "台積電",
+        "aliases": [
+          "TSMC",
+          "Taiwan Semiconductor"
+        ]
+      },
+      "to": {
+        "market": "US",
+        "symbol": "AMD",
+        "name": "AMD",
+        "aliases": [
+          "超微",
+          "Advanced Micro Devices"
+        ]
+      },
+      "type": "partnership",
+      "product_scope": "EPYC Venice 處理器與 TSMC N2 製程合作",
+      "description": "AMD 於 2025 年公告 Venice 處理器在台積電 N2 製程完成流片與啟動驗證，並說明雙方在架構與製程上的協作。此紀錄不推論後續量產時程或訂單金額。",
+      "source": {
+        "id": "semiconductors-official",
+        "title": "AMD Achieves First TSMC N2 Product Silicon Milestone",
+        "url": "https://ir.amd.com/news-events/press-releases/detail/1245/amd-achieves-first-tsmc-n2-product-silicon-milestone"
+      },
+      "reviewed_at": "2026-11-04",
+      "valid_from": "2025-04-14",
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "catalog_id": "consumer-retail",
+  "topic": "消費與零售",
+  "updated_at": "2026-11-04",
+  "coverage_note": "首批僅收錄可核對來源的部分公司，將逐步增加。產業位置不代表直接供應；關係以原文的產品及日期範圍為準。",
+  "stages": [
+    {
+      "id": "upstream",
+      "name": "食品與飲料",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "PEP",
+          "name": "PepsiCo",
+          "aliases": [
+            "百事",
+            "百事公司"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "downstream",
+      "name": "零售通路",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "WMT",
+          "name": "Walmart",
+          "aliases": [
+            "沃爾瑪"
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "consumer-retail-official",
+      "url": "https://www.pepsico.com/docs/pepsico-5v9wci20/media/Files/investors/pepsico-2025-annual-report.pdf",
+      "title": "PepsiCo 2025 Annual Report",
+      "publisher": "PepsiCo",
+      "published_at": "2026-02-02",
+      "locator": "PDF 第 14 頁 Our Customers；發布日採內附 10-K 簽署日期",
+      "checked_at": "2026-11-04",
+      "status": "available"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "consumer-retail-relationship",
+      "from": {
+        "market": "US",
+        "symbol": "PEP",
+        "name": "PepsiCo",
+        "aliases": [
+          "百事",
+          "百事公司"
+        ]
+      },
+      "to": {
+        "market": "US",
+        "symbol": "WMT",
+        "name": "Walmart",
+        "aliases": [
+          "沃爾瑪"
+        ]
+      },
+      "type": "supply",
+      "product_scope": "食品飲料銷售與通路（2025 年報）",
+      "description": "PepsiCo 2025 年報將 Walmart 及其關係企業列為主要客戶；相關銷售也包含經獨立裝瓶商轉售的產品。此關係限於年報揭露，不據此推算單一品牌、獨家供貨或目前營收占比。",
+      "source": {
+        "id": "consumer-retail-official",
+        "title": "PepsiCo 2025 Annual Report",
+        "url": "https://www.pepsico.com/docs/pepsico-5v9wci20/media/Files/investors/pepsico-2025-annual-report.pdf"
+      },
+      "reviewed_at": "2026-11-04",
+      "valid_from": "2026-02-02",
+      "status": "active"
+    }
+  ]
+}

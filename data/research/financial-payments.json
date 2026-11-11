@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "catalog_id": "financial-payments",
+  "topic": "金融與支付",
+  "updated_at": "2026-11-04",
+  "coverage_note": "首批僅收錄可核對來源的部分公司，將逐步增加。產業位置不代表直接供應；關係以原文的產品及日期範圍為準。",
+  "stages": [
+    {
+      "id": "upstream",
+      "name": "支付網路",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "V",
+          "name": "Visa",
+          "aliases": [
+            "威士"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "downstream",
+      "name": "銀行與支付服務",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "JPM",
+          "name": "JPMorgan Chase",
+          "aliases": [
+            "摩根大通",
+            "J.P. Morgan"
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "financial-payments-official",
+      "url": "https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.20636.html",
+      "title": "Visa Inc. and J.P. Morgan Payments Forge Strategic Collaboration through Visa Direct",
+      "publisher": "Visa Newsroom",
+      "published_at": "2024-05-06",
+      "locator": "首段及 With Visa Direct’s extensive reach 段落",
+      "checked_at": "2026-11-04",
+      "status": "available"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "financial-payments-relationship",
+      "from": {
+        "market": "US",
+        "symbol": "V",
+        "name": "Visa",
+        "aliases": [
+          "威士"
+        ]
+      },
+      "to": {
+        "market": "US",
+        "symbol": "JPM",
+        "name": "JPMorgan Chase",
+        "aliases": [
+          "摩根大通",
+          "J.P. Morgan"
+        ]
+      },
+      "type": "partnership",
+      "product_scope": "Visa Direct 美國境內付款合作",
+      "description": "Visa 於 2024 年公告與 J.P. Morgan Payments 合作，透過 Visa Direct 支援美國境內付款。此項關係限定公告所述支付服務，並不表示兩家公司全部業務相互依賴。",
+      "source": {
+        "id": "financial-payments-official",
+        "title": "Visa Inc. and J.P. Morgan Payments Forge Strategic Collaboration through Visa Direct",
+        "url": "https://usa.visa.com/about-visa/newsroom/press-releases.releaseId.20636.html"
+      },
+      "reviewed_at": "2026-11-04",
+      "valid_from": "2024-05-06",
+      "status": "active"
+    }
+  ]
+}

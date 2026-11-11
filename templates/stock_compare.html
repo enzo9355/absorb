@@ -12,7 +12,7 @@
     <tr><th>量比</th>{% for row in rows %}<td>{{ '%.2f'|format(row.get('volume_ratio')) if row.get('volume_ratio') is not none else '資料不足' }}</td>{% endfor %}</tr>
     <tr><th>近 5 日外資</th>{% for row in rows %}<td>{{ '%.0f'|format(row.get('foreign_net_5')) if row.get('foreign_net_5') is not none else '資料不足' }}</td>{% endfor %}</tr>
     <tr><th>資料品質</th>{% for row in rows %}<td>{{ row.get('data_quality') or ('已驗證觀察' if row.get('observation_as_of') or row.get('as_of') else '資料不足') }}</td>{% endfor %}</tr>
-    <tr><th>產業關係</th>{% for row in rows %}<td><a href="{{ url_for('industry_relationships_page', focus=row.code) }}">查看已核對關係</a></td>{% endfor %}</tr>
+    <tr><th>產業關係</th>{% for row in rows %}<td><a href="{{ url_for('industry_atlas_page', q=row.code) }}">查看已核對關係</a></td>{% endfor %}</tr>
   </tbody></table></section>
 </div>
 {% endblock %}

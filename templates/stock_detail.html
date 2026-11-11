@@ -52,7 +52,14 @@
       <button class="button button-secondary watchlist-toggle" type="button" data-watchlist-toggle data-code="{{ d.code }}" data-name="{{ d.name }}" aria-pressed="false">加入關注</button>
     </div>
     <section class="summary-strip" aria-label="個股觀察摘要">
-      <article class="summary-card"><span>{{ quote_label }}</span><strong>{{ '{:,.2f}'.format(d.price) }}</strong><small>資料日 {{ as_of }}</small></article>
+      <article class="summary-card" data-stock-quote data-code="{{ d.code }}" data-market="{{ market }}" data-quote-url="{{ url_for('stock_quote_api', code=d.code) }}">
+        <span>最新報價</span><strong data-quote-price>—</strong>
+        <div><small data-quote-change>一般交易時段報價</small></div>
+        <div><small data-quote-time>收盤參考 {{ '{:,.2f}'.format(d.price) }}（{{ as_of }}）</small></div>
+        <div><small data-quote-status role="status">正在取得報價…</small></div>
+        <div><small>Yahoo Finance · 資料可能延遲</small></div>
+        <noscript><small>請啟用 JavaScript 以自動更新報價。</small></noscript>
+      </article>
       <article class="summary-card"><span>MA20</span><strong>{{ '{:,.2f}'.format(ma20) if ma20 is not none else '資料不足' }}</strong><small>20 日移動平均</small></article>
       <article class="summary-card"><span>MA60</span><strong>{{ '{:,.2f}'.format(ma60) if ma60 is not none else '資料不足' }}</strong><small>60 日移動平均</small></article>
       <article class="summary-card"><span>量比</span><strong>{{ '%.2f'|format(volume_ratio) if volume_ratio is not none else '資料不足' }}</strong><small>相對近期常態量</small></article>
@@ -92,7 +99,7 @@
     {% endif %}
     {% if related_relationships %}
     <div role="tabpanel" id="relationships" aria-labelledby="tab-relationships" data-research-panel="relationships" tabindex="0">
-      <div class="section-heading"><div><p class="eyebrow">RESEARCH RELATIONSHIPS</p><h3 id="stock-relationships-title">已確認產業關係</h3></div><a class="muted small" href="/industries/ai-server/relationships">查看完整關係圖</a></div>
+      <div class="section-heading"><div><p class="eyebrow">RESEARCH RELATIONSHIPS</p><h3 id="stock-relationships-title">已確認產業關係</h3></div><a class="muted small" href="/industries/relationships">查看完整關係圖</a></div>
       <div class="stock-research-list">{% for item in related_relationships %}<article><strong>{{ item['from']['name'] }} → {{ item['to']['name'] }}</strong><span>{{ item.type }} · {{ item.product_scope }}</span><small>{{ item.description or '已由來源確認，請開啟來源查看定位。' }}｜審核 {{ item.reviewed_at or '未提供' }}</small><a class="source-link" href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">{{ item.source.title }}</a>{% if item['from']['symbol'].isdigit() and item['to']['symbol'].isdigit() %}<a class="button button-secondary" href="/compare?symbols={{ item['from']['symbol'] }},{{ item['to']['symbol'] }}">比較兩家公司</a>{% endif %}</article>{% endfor %}</div>
     </div>
     {% endif %}
@@ -165,6 +172,7 @@
   </section>
 
   <script id="stock-chart-data" type="application/json">{% if prediction %}{{ {"candles": candles, "ma20": ma20_line, "prediction": prediction.line}|tojson }}{% else %}{{ {"candles": candles, "ma20": ma20_line}|tojson }}{% endif %}</script>
+  <script src="{{ url_for('static', filename='stock-quote.js', v=STATIC_ASSET_VERSION) }}" defer></script>
   {% endif %}
   {% if market == "US" and intel_snapshot %}{% include "partials/stock_intel.html" %}{% endif %}
 </div>

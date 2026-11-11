@@ -12,6 +12,9 @@ from stock_papi.services.us_presentation import latest_post_close_item
 from stock_papi.services.opinion_consensus import query_opinions
 from stock_papi.web.routes.intel import sanitize_public_event, sanitize_public_summary
 
+from stock_papi.services.stock_quote import QuoteCache, quote_symbol
+from stock_papi.services.industry_relationships import company_market, relationship_is_current
+
 
 def register_market_routes(
     app, *, analyze, stock_observation, dashboard_sector_cards, cached_opportunities,
@@ -34,6 +37,23 @@ def register_market_routes(
         except Exception:
             pass
         return {"status": "unavailable", "source_market_date": observation_as_of}
+
+    quotes = QuoteCache()
+
+    def stock_quote_api(code):
+        code = code.upper()
+        info = None if is_us_ticker(code) else twstock_codes().get(code)
+        try:
+            symbol = quote_symbol(code, info)
+        except ValueError:
+            abort(404)
+        result = quotes.get(symbol)
+        available = result["status"] == "available"
+        response = make_response(jsonify({**result, "code": code}), 200 if available else 503)
+        response.headers["Cache-Control"] = "no-store"
+        if not available:
+            response.headers["Retry-After"] = str(result["refresh_seconds"])
+        return response
 
     def dashboard_api():
         snapshot = dashboard_snapshot()
@@ -216,9 +236,9 @@ def register_market_routes(
                 catalog = load_relationships()
                 related_relationships = [
                     item for item in catalog.get("relationships", [])
-                    if code in (
-                        (item.get("from") or {}).get("symbol"),
-                        (item.get("to") or {}).get("symbol"),
+                    if relationship_is_current(item) and any(
+                        code == node.get("symbol") and market == company_market(node)
+                        for node in (item.get("from") or {}, item.get("to") or {})
                     )
                 ]
             except Exception:
@@ -333,5 +353,6 @@ def register_market_routes(
     )
     app.add_url_rule("/market-map", "market_map_page", market_map_page)
     app.add_url_rule("/stock/<code>", "stock_page", stock_page)
+    app.add_url_rule("/api/stock/<code>/quote", "stock_quote_api", stock_quote_api)
     app.add_url_rule("/us/stocks", "us_stocks_page", us_stocks_page)
     app.add_url_rule("/market", "market_page", market_page)

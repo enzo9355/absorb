@@ -9,7 +9,7 @@ from flask import abort, jsonify, render_template, request
 from stock_papi.integrations.market_data.tw_security_master import is_taiwan_symbol
 from stock_papi.integrations.market_data.us_universe import validate_us_ticker
 from stock_papi.services.company_events import CompanyEventSchemaError, split_event_window
-from stock_papi.services.industry_relationships import relationship_is_current
+from stock_papi.services.industry_relationships import relationship_is_current, build_atlas_view, IndustryRelationshipSchemaError
 from stock_papi.services.opinion_consensus import build_consensus, query_opinions
 from stock_papi.services.public_opinions import query_activities
 from stock_papi.services.event_context import annotate_events
@@ -52,13 +52,39 @@ def _time_label(value):
 
 def register_research_routes(
     app, *, load_relationships, load_events, load_opinions, load_events_status=None,
-    stock_observation, get_stock_name, allowed_symbols,
+    stock_observation, get_stock_name, allowed_symbols, load_atlas=None,
 ):
     app.jinja_env.filters['research_label'] = lambda value: _LABELS.get(value, value or '未提供')
     app.jinja_env.filters['research_time'] = _time_label
     def supported_symbol(symbol):
         permitted = allowed_symbols() if callable(allowed_symbols) else allowed_symbols
         return symbol in (permitted or ()) or is_us_ticker(symbol)
+
+    def atlas_payload():
+        catalogs = load_atlas() if load_atlas is not None else [load_relationships()]
+        return build_atlas_view(
+            catalogs, industry=request.args.get("industry", "ai-server"),
+            query=request.args.get("q", ""), market=request.args.get("market", "").upper(),
+            focus=request.args.get("focus") or None,
+        )
+
+    def atlas_page():
+        try:
+            payload = atlas_payload()
+        except IndustryRelationshipSchemaError:
+            return render_template("industry_atlas.html", atlas_error="搜尋條件無法辨識，請回到產業關係重新查詢。"), 400
+        except Exception:
+            return render_template("industry_atlas.html", atlas_error="產業關係資料暫時無法讀取，請稍後再試。"), 503
+        return render_template("industry_atlas.html", comparison_symbols=set(allowed_symbols() or []), **payload)
+
+    def atlas_api():
+        try:
+            payload = atlas_payload()
+        except IndustryRelationshipSchemaError:
+            return jsonify({"status": "invalid", "message": "搜尋條件無法辨識"}), 400
+        except Exception:
+            return jsonify({"status": "unavailable", "message": "產業關係資料暫時無法讀取"}), 503
+        return jsonify(payload)
 
     def add_graph(catalog):
         catalog = copy.deepcopy(catalog or {})
@@ -160,6 +186,8 @@ def register_research_routes(
         })
 
     def relationships_page():
+        if load_atlas is not None:
+            return atlas_page()
         focus = request.args.get("focus", "").strip().upper()
         try:
             raw_catalog = load_relationships() or {}
@@ -197,6 +225,8 @@ def register_research_routes(
         )
 
     def relationships_api():
+        if load_atlas is not None:
+            return atlas_api()
         focus = request.args.get("focus", "").strip().upper()
         try:
             raw_catalog = load_relationships() or {}
@@ -814,6 +844,7 @@ def register_research_routes(
             query=query,
         )
 
+    app.add_url_rule("/industries/relationships", "industry_atlas_page", atlas_page)
     app.add_url_rule(
         "/industries/ai-server/relationships",
         "industry_relationships_page", relationships_page,

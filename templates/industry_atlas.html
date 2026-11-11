@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}產業關係｜ABSORB{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='industry-atlas.css', v=STATIC_ASSET_VERSION) }}">{% endblock %}
+{% macro relation_card(item, historical=false) %}
+<article class="atlas-relation{% if historical %} atlas-historical{% endif %}">
+  <div class="atlas-relation-heading"><span class="atlas-kind">{{ item.type_label }}</span><span class="atlas-status">{{ item.display_status }}</span></div>
+  <p class="atlas-endpoints"><a href="{{ url_for('industry_atlas_page', industry=industry, focus=item['from']['key']) }}">{{ item['from']['name'] }}</a><span aria-label="{{ '供應給' if item.directed else '與' }}">{{ '→' if item.directed else '↔' }}</span><a href="{{ url_for('industry_atlas_page', industry=industry, focus=item['to']['key']) }}">{{ item['to']['name'] }}</a></p>
+  <p>{{ item.product_scope }}</p>
+  {% if item['from']['market'] in ('TW','US') and item['to']['market'] in ('TW','US') and item['from']['symbol'] in comparison_symbols and item['to']['symbol'] in comparison_symbols %}<a class="atlas-stock-link" href="{{ url_for('stock_compare_page', symbols=item['from']['symbol'] + ',' + item['to']['symbol']) }}">比較這兩家公司 ↗</a>{% endif %}
+  <p class="atlas-caption">來源發布 {{ item.source.published_at }} · 最近核對 {{ item.reviewed_at }}</p>
+  <details><summary>查看證據與範圍</summary><p>{{ item.description or '以原始來源所述產品與合作範圍為準。' }}</p><dl><div><dt>發布者</dt><dd>{{ item.source.publisher }}</dd></div><div><dt>原文定位</dt><dd>{{ item.source.locator }}</dd></div>{% if item.valid_from %}<div><dt>紀錄起點</dt><dd>{{ item.valid_from }}</dd></div>{% endif %}{% if item.valid_to %}<div><dt>有效至</dt><dd>{{ item.valid_to }}</dd></div>{% endif %}</dl><a class="atlas-source" href="{{ item.source.url }}" target="_blank" rel="noopener noreferrer">{{ item.source.title }} ↗</a></details>
+</article>
+{% endmacro %}
+{% block content %}
+<div class="page atlas-page" id="industry-atlas">
+  <header class="page-header atlas-header"><div><p class="eyebrow">THE INDUSTRY ATLAS</p><h1>產業關係</h1><p class="page-intro">看見公司背後的連結。從產業全貌，深入產品、上下游與合作範圍。</p></div><a class="button button-secondary" href="{{ url_for('industries_page') }}">產業觀察</a></header>
+  {% if atlas_error %}<section class="panel"><p role="alert">{{ atlas_error }}</p><a href="{{ url_for('industry_atlas_page') }}">回到產業關係</a></section>
+  {% else %}
+  <nav class="atlas-industries" aria-label="選擇產業">{% for item in industries %}<a href="{{ url_for('industry_atlas_page', industry=item.id, market=selected_market) }}"{% if item.id == industry %} aria-current="page"{% endif %}><span>{{ item.topic }}</span><small>{{ '暫不可用' if item.unavailable else item.company_count|string + ' 家' }}</small></a>{% endfor %}</nav>
+  <section class="atlas-workspace" aria-label="搜尋與探索公司關係">
+    <form method="get" action="{{ url_for('industry_atlas_page') }}" class="atlas-toolbar" id="atlas-search-form" data-search-api="{{ url_for('industry_relationships_api') }}">
+      <input type="hidden" name="industry" value="{{ industry }}">
+      <div class="atlas-search-field"><label for="atlas-query">跨產業搜尋公司</label><div class="atlas-search-input"><input id="atlas-query" name="q" type="search" maxlength="120" value="{{ query }}" placeholder="公司中文名、英文名或代號" autocomplete="off" aria-controls="atlas-search-results"><button type="submit" class="button button-primary">搜尋</button></div></div>
+      <div class="atlas-market-field"><label for="atlas-market">公司市場</label><select id="atlas-market" name="market"><option value=""{% if not selected_market %} selected{% endif %}>全部市場</option><option value="TW"{% if selected_market == 'TW' %} selected{% endif %}>台股</option><option value="US"{% if selected_market == 'US' %} selected{% endif %}>美股</option><option value="KR"{% if selected_market == 'KR' %} selected{% endif %}>韓國合作對象</option></select></div>
+      <div class="atlas-view-switch" hidden><button type="button" data-atlas-view="map" aria-pressed="true">關係圖</button><button type="button" data-atlas-view="list" aria-pressed="false">公司清單</button></div>
+    </form>
+    <section class="atlas-search-results" id="atlas-search-results" aria-label="搜尋結果"{% if not query %} hidden{% endif %}>
+      <p id="atlas-search-status" role="status">{% if search_results %}找到 {{ search_results|length }} 家公司{% else %}尚未收錄符合條件的公司；未收錄不代表沒有產業關係。{% endif %}</p>
+      <div class="atlas-results" id="atlas-results">{% for company in search_results %}<article class="atlas-result"><strong>{{ company.name }}</strong><span>{{ company.market }} · {{ company.symbol }}</span><div>{% for membership in company.industries %}<a href="{{ url_for('industry_atlas_page', industry=membership.id, focus=company.key, market=selected_market) }}">{{ membership.topic }} →</a>{% endfor %}</div></article>{% endfor %}</div>
+    </section>
+    <div class="atlas-split">
+      <section class="atlas-map-side" aria-label="產業位置與關係圖">
+        <div class="atlas-map-heading"><div><p class="eyebrow">INDUSTRY CONNECTIONS</p><h2>{{ catalog.topic }}</h2><p class="atlas-caption">{{ stages|map(attribute='nodes')|map('length')|sum }} 家公司 · {{ relationships|length }} 條已核對來源的關係{% if selected_company %} · 聚焦 {{ selected_company.name }}{% endif %}</p></div>{% if selected_company %}<a class="atlas-reset" href="{{ url_for('industry_atlas_page', industry=industry, market=selected_market) }}">查看全貌</a>{% endif %}</div>
+        <p class="atlas-coverage"{% if catalog.unavailable %} role="alert"{% endif %}>{{ catalog.coverage_note }}</p>
+        <div class="atlas-graph" id="atlas-graph">
+          <svg class="atlas-wires" aria-hidden="true"></svg>
+          <div class="atlas-lanes">
+            {% for stage in stages %}<section class="atlas-lane"><h3><span>{{ '%02d'|format(loop.index) }}</span>{{ stage.name }}</h3><div class="atlas-lane-nodes">{% for node in stage.nodes %}<a class="atlas-node{% if node.key == focus %} is-selected{% endif %}" data-company-key="{{ node.key }}" href="{{ url_for('industry_atlas_page', industry=industry, focus=node.key, market=selected_market) }}"{% if node.key == focus %} aria-current="true"{% endif %}><strong>{{ node.name }}</strong><span>{{ node.market }} · {{ node.symbol }}</span><small>{{ stage.name }}</small></a>{% else %}<p class="atlas-caption">此市場尚未收錄此環節的公司。</p>{% endfor %}</div></section>{% endfor %}
+          </div>
+        </div>
+        <div class="atlas-legend"><span><i class="atlas-line-key"></i>供應方向 →</span><span><i class="atlas-line-key is-dashed"></i>合作／同業</span><span>位置分類不等於供應關係</span></div>
+        <p class="atlas-mobile-note atlas-caption">可點選公司，從下方證據清單查看直接關係。</p>
+        {% if selected_market %}<p class="atlas-caption">市場篩選保留已連結的跨市場對象，方便追溯完整關係。</p>{% endif %}
+        {% if not relationships %}<p class="atlas-empty">目前範圍沒有可列入關係圖的已核對紀錄。{% if archived_relationships %}較早資料請見歷史與待複核區。{% else %}公司位置保留供查詢，未連線不代表不存在往來。{% endif %}</p>{% endif %}
+      </section>
+      <aside class="atlas-inspector" aria-label="公司關聯詳情">
+        {% if selected_company %}<p class="eyebrow">COMPANY CONNECTIONS</p><h2>{{ selected_company.name }}</h2><p class="atlas-caption">{{ selected_company.market }} · {{ selected_company.symbol }}</p><div class="atlas-memberships">{% for member in selected_company.industries %}<a href="{{ url_for('industry_atlas_page', industry=member.id, focus=selected_company.key) }}">{{ member.topic }}</a>{% endfor %}</div><p class="atlas-caption">{{ selected_company.roles|join(' / ') }}</p>{% if selected_company.market in ('TW','US') %}<a class="atlas-stock-link" href="{{ url_for('stock_page', code=selected_company.symbol) }}">查看個股觀察 ↗</a>{% endif %}
+        {% else %}<p class="eyebrow">EVIDENCE DIRECTORY</p><h2>關係與證據</h2><p class="atlas-caption">點選公司可聚焦直接關聯，或展開下方來源閱讀。</p>{% endif %}
+        <details class="atlas-archive"{% if selected_company or relationships|length <= 3 %} open{% endif %}><summary>已核對來源（{{ relationships|length }}）</summary><div class="atlas-evidence">{% for item in relationships %}{{ relation_card(item) }}{% else %}<p class="atlas-empty">尚無符合條件的關係。</p>{% endfor %}</div></details>
+        {% if archived_relationships %}<details class="atlas-archive"><summary>歷史與待複核紀錄（{{ archived_relationships|length }}）</summary><p class="atlas-caption">以下未列入現行關係圖；來源仍可追溯。</p>{% for item in archived_relationships %}{{ relation_card(item, true) }}{% endfor %}</details>{% endif %}
+      </aside>
+    </div>
+  </section>
+  <footer class="atlas-footer"><span>{{ industries|length }} 個產業 · {{ company_count }} 家已收錄公司 · 名錄逐步擴充</span><span>資料整理 {{ catalog.updated_at or '未提供' }} · 90 天複核窗口</span></footer>
+  <p class="atlas-caption">核對日期表示來源已閱讀，不保證合作仍持續或計畫已實現。每筆關係以來源日期、業務範圍及狀態為準。</p>
+  <script id="atlas-edges" type="application/json">{{ relationships|tojson }}</script>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='industry-atlas.js', v=STATIC_ASSET_VERSION) }}" defer></script>{% endblock %}

@@ -1809,7 +1809,7 @@ class WebProductTests(unittest.TestCase):
         self.assertIn('class="mobile-primary-nav"', html)
         self.assertIn('class="mobile-more-menu"', html)
         for href in (
-            'href="/industries/ai-server/relationships"',
+            'href="/industries/relationships"',
             'href="/events"',
             'href="/perspectives"',
             'href="/auth/line/login?return_to=/dashboard"',

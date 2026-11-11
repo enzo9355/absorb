@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "catalog_id": "healthcare",
+  "topic": "醫療與製藥",
+  "updated_at": "2026-11-04",
+  "coverage_note": "首批僅收錄可核對來源的部分公司，將逐步增加。產業位置不代表直接供應；關係以原文的產品及日期範圍為準。",
+  "stages": [
+    {
+      "id": "upstream",
+      "name": "生技與疫苗研發",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "BNTX",
+          "name": "BioNTech",
+          "aliases": [
+            "拜恩泰科"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "downstream",
+      "name": "製藥與共同開發",
+      "nodes": [
+        {
+          "market": "US",
+          "symbol": "PFE",
+          "name": "Pfizer",
+          "aliases": [
+            "輝瑞"
+          ]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "healthcare-official",
+      "url": "https://www.pfizer.com/news/press-release/press-release-detail/european-commission-authorizes-pfizer-and-biontech-xfg",
+      "title": "European Commission Authorizes Pfizer and BioNTech XFG-adapted COVID-19 Vaccine in the European Union",
+      "publisher": "Pfizer",
+      "published_at": "2026-07-29",
+      "locator": "公告日期與首段 companies’ 2026-2027 COVID-19 vaccine formula",
+      "checked_at": "2026-11-04",
+      "status": "available"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "healthcare-relationship",
+      "from": {
+        "market": "US",
+        "symbol": "BNTX",
+        "name": "BioNTech",
+        "aliases": [
+          "拜恩泰科"
+        ]
+      },
+      "to": {
+        "market": "US",
+        "symbol": "PFE",
+        "name": "Pfizer",
+        "aliases": [
+          "輝瑞"
+        ]
+      },
+      "type": "partnership",
+      "product_scope": "2026–2027 季 XFG 疫苗共同開發與商業化",
+      "description": "2026 年 7 月聯合公告說明雙方 XFG 調整型疫苗獲歐盟許可。此處只標示合作產品與公告範圍，不延伸為醫療建議或其他藥物的合作。",
+      "source": {
+        "id": "healthcare-official",
+        "title": "European Commission Authorizes Pfizer and BioNTech XFG-adapted COVID-19 Vaccine in the European Union",
+        "url": "https://www.pfizer.com/news/press-release/press-release-detail/european-commission-authorizes-pfizer-and-biontech-xfg"
+      },
+      "reviewed_at": "2026-11-04",
+      "valid_from": "2026-07-29",
+      "status": "active"
+    }
+  ]
+}

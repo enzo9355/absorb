@@ -81,6 +81,7 @@ def register_routes(app, dependencies):
     )
     register_research_routes(
         app,
+        load_atlas=dependencies.get("load_relationship_atlas"),
         load_relationships=dependencies["load_research_relationships"],
         load_events=dependencies["load_research_events"],
         load_events_status=dependencies.get("load_research_events_status"),
