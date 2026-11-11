@@ -229,32 +229,37 @@
 
     {% if flows_sec.status == 'available' %}
       {% set flows = flows_sec.data %}
+      {% if flows.scope == 'TWSE' %}
+      <p class="muted small">僅含上市市場，不含上櫃；外資不含外資自營商，自營商合計自行買賣與避險。
+        <a href="{{ flows.source }}" target="_blank" rel="noopener noreferrer">證交所三大法人買賣金額統計表</a>
+      </p>
+      {% endif %}
       <div class="report-kpi-grid">
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_primary_label }}</span>
           <strong class="kpi-value {{ 'positive' if flows.foreign_net and flows.foreign_net >= 0 else ('negative' if flows.foreign_net and flows.foreign_net < 0 else '') }}">
-            {{ '%+,.1f'|format(flows.foreign_net) if flows.foreign_net is not none else '—' }}
+            {{ '{:+,.1f}'.format(flows.foreign_net) if flows.foreign_net is not none else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_primary_sub }}</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_secondary_label }}</span>
           <strong class="kpi-value {{ 'positive' if flows.investment_trust_net and flows.investment_trust_net >= 0 else ('negative' if flows.investment_trust_net and flows.investment_trust_net < 0 else '') }}">
-            {{ '%+,.1f'|format(flows.investment_trust_net) if flows.investment_trust_net is not none else '—' }}
+            {{ '{:+,.1f}'.format(flows.investment_trust_net) if flows.investment_trust_net is not none else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_secondary_sub }}</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_dealer_label }}</span>
           <strong class="kpi-value {{ 'positive' if flows.dealer_net and flows.dealer_net >= 0 else ('negative' if flows.dealer_net and flows.dealer_net < 0 else '') }}">
-            {{ '%+,.1f'|format(flows.dealer_net) if flows.dealer_net is not none else '—' }}
+            {{ '{:+,.1f}'.format(flows.dealer_net) if flows.dealer_net is not none else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_dealer_sub }}</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_total_label }}</span>
           <strong class="kpi-value {{ 'positive' if flows.total_institutional_net and flows.total_institutional_net >= 0 else ('negative' if flows.total_institutional_net and flows.total_institutional_net < 0 else '') }}">
-            {{ '%+,.1f'|format(flows.total_institutional_net) if flows.total_institutional_net is not none else '—' }}
+            {{ '{:+,.1f}'.format(flows.total_institutional_net) if flows.total_institutional_net is not none else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_total_sub }}</span>
         </div>

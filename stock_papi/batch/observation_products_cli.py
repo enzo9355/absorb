@@ -31,7 +31,7 @@ def _resolve_validation_date(args, today):
     return validation_date
 
 
-def build(args, *, today=None, load_market_index=None):
+def build(args, *, today=None, load_market_index=None, load_capital_flows=None):
     from reporting.cli import _load_industry_map
     from reporting.config import ReportConfig
     from reporting.observation_v2 import build_post_close_observation_metadata
@@ -70,6 +70,17 @@ def build(args, *, today=None, load_market_index=None):
         dashboard,
         _calendars(args.calendar_artifact),
     )
+    if load_capital_flows is not None:
+        from requests import RequestException
+        from stock_papi.services.institutional_flows import validate_twse_flows
+
+        try:
+            flows = load_capital_flows(source.manifest.market_as_of)
+            metadata["content"]["capital_flows"] = validate_twse_flows(
+                flows, source.manifest.market_as_of
+            )
+        except (ValueError, RequestException):
+            metadata["warnings"].append("上市市場法人金額來源未通過同日核對，本次不提供法人金額")
     candidate = write_observation_candidate(args.root, metadata, dashboard)
     return {
         "mode": "observation-candidate",
@@ -113,6 +124,8 @@ def main(argv=None, *, today=None):
     promote.add_argument("--candidate", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "build":
+        from stock_papi.services.institutional_flows import fetch_twse_flows
+
         validation_date = _resolve_validation_date(args, today)
         load_market_index = None
         if args.include_market_index:
@@ -123,7 +136,8 @@ def main(argv=None, *, today=None):
                 target, http_get=requests.get
             )
         result = build(
-            args, today=validation_date, load_market_index=load_market_index
+            args, today=validation_date, load_market_index=load_market_index,
+            load_capital_flows=fetch_twse_flows,
         )
     else:
         from stock_papi.batch.observation_products import (

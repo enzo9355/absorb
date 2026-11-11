@@ -10,6 +10,11 @@ from tests.test_batch_calendar import calendar_document
 
 
 class ObservationProductsCliTests(unittest.TestCase):
+    def setUp(self):
+        fetch = patch("stock_papi.services.institutional_flows.fetch_twse_flows", side_effect=ValueError("offline test"))
+        fetch.start()
+        self.addCleanup(fetch.stop)
+
     def test_build_rejects_validation_date_that_does_not_match_source_date(self):
         from stock_papi.batch.observation_products_cli import main
 

@@ -149,7 +149,8 @@ def _build_next_session(market: Mapping[str, Any], source_date: str) -> dict[str
     }
 
 ALLOWED_CAPITAL_FLOWS_KEYS = frozenset(
-    {"as_of", "unit", "foreign_net", "investment_trust_net", "dealer_net"}
+    {"as_of", "unit", "foreign_net", "investment_trust_net", "dealer_net",
+     "scope", "source", "source_sha256", "source_body"}
 )
 
 
@@ -187,6 +188,16 @@ def _build_capital_flows(
             "reason": "法人流向鍵值包含未授權屬性",
             "data": {},
         }
+
+    evidence = {}
+    if {"scope", "source", "source_sha256", "source_body"}.intersection(data):
+        from stock_papi.services.institutional_flows import validate_twse_flows
+
+        try:
+            verified = validate_twse_flows(data, source_date)
+        except ValueError:
+            return {"status": "unavailable", "reason": "法人流向來源證據核對失敗", "data": {}}
+        evidence = {key: verified[key] for key in ("scope", "source", "source_sha256")}
 
     if data.get("as_of") != source_date:
         return {
@@ -235,6 +246,7 @@ def _build_capital_flows(
             "foreign_net": validated_flows["foreign_net"],
             "investment_trust_net": validated_flows["investment_trust_net"],
             "dealer_net": validated_flows["dealer_net"],
+            **evidence,
         },
     }
 
