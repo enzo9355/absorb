@@ -64,6 +64,32 @@ class CloudReviewTests(unittest.TestCase):
         self.assertEqual(fetch.call_count, 5)
         self.assertEqual(fetch.call_args_list[1].args[0]['opinion_id'], 'other')
 
+    def test_chinese_currency_and_quantity_claims_never_reach_second_approval(self):
+        from stock_papi.services.research_ai_review import review_candidate
+        original = {'text': 'I mention $NVDA without recommending a trade.', 'author': 'Ben Carlson'}
+        for summary in (
+            'Serenity觀察到，輝達股價大幅下跌，市值蒸發近兩兆美元，此前該公司曾預計未來年度將有供應受限的成長。',
+            '作者表示輝達的市值蒸發近兩兆。',
+            '作者提及輝達股價上漲十美元。',
+            '作者提及輝達的投資金額達貳仟萬港元。',
+            '作者指出輝達新增兩家客戶。',
+            '作者提及輝達成交量超過三億股。',
+        ):
+            reviewer = Mock(side_effect=[dict(self.decision(), summary=summary),
+                                        {'supported': True, 'security_is_subject': True}])
+            with self.subTest(summary=summary), self.assertRaisesRegex(ValueError, 'numeric_claim'):
+                review_candidate(self.row(), original, {'US:NVDA': {'name': 'NVIDIA'}}, reviewer)
+            self.assertEqual(reviewer.call_count, 1)
+
+    def test_nonquantitative_chinese_phrasing_remains_eligible(self):
+        from stock_papi.services.research_ai_review import review_candidate
+        original = {'text': 'I mention $NVDA without recommending a trade.', 'author': 'Ben Carlson'}
+        summary = '作者對輝達的看法一致，並提醒一般投資人留意市場預期。'
+        reviewer = Mock(side_effect=[dict(self.decision(), summary=summary),
+                                    {'supported': True, 'security_is_subject': True}])
+        item, _ = review_candidate(self.row(), original, {'US:NVDA': {'name': 'NVIDIA'}}, reviewer)
+        self.assertEqual(item['summary'], summary)
+
     def test_invalid_model_json_is_an_operational_error(self):
         from stock_papi.services.research_ai_review import gemini_review
         response = Mock(status_code=200)

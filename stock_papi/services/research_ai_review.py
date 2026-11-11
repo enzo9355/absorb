@@ -160,7 +160,8 @@ The selected security MUST be the subject being discussed, not a bank/analyst qu
 housing, the economy, another company or another asset. Such quoted-source mentions are rejected.
 Return {"publish":false,"reason":"short reason"} when unsuitable. Otherwise return exactly:
 publish:true, market:TW|US, symbol, security_role:subject,
-summary (<=220 Chinese characters, attributed, no numbers, years, percentages or fractions),
+summary (<=220 Chinese characters, attributed, no numeric quantities in any notation,
+including Chinese numerals, currency amounts, years, percentages or fractions),
 content_type:original_opinion|news_relay|flow_observation|trade_disclosure,
 stance:bullish|bearish|neutral|unclear, recommendation_kind:explicit|conditional|mention,
 evidence_quote (exact source excerpt supporting the summary and identifying the security).
@@ -180,7 +181,10 @@ DATA: ''' + json.dumps(original, ensure_ascii=False)
     if (not isinstance(quote, str) or not 10 <= len(quote) <= 1800 or quote not in original['text']
             or not isinstance(summary, str) or not 10 <= len(summary) <= 220):
         raise ValueError('unsupported_model_evidence')
-    if re.search(r'\d|一半|半數|過半|減半|折半|[零一二三四五六七八九十百千萬億兆兩]+(?:分之|[%％]|年|倍|元|點|成)', summary):
+    numerals = r'[零〇一二三四五六七八九十百千萬億兆兩两万亿壹貳參肆伍陸柒捌玖拾佰仟]+'
+    if re.search(r'\d|一半|半數|過半|減半|折半|' + numerals +
+                 r'(?:分之|[%％]|美元|港元|歐元|日圓|日元|人民幣|新[台臺]幣|新[台臺]元|'
+                 r'英鎊|加元|澳元|韓元|[十百千萬億兆万亿拾佰仟年月日季倍元圓點成股張家個次人])', summary):
         raise ValueError('numeric_claim_in_summary')
     market, symbol = decision.get('market'), decision.get('symbol')
     security = securities.get(str(market) + ':' + str(symbol))
