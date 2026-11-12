@@ -1,5 +1,6 @@
 import datetime
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -225,6 +226,193 @@ class ObservationProductsCliTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+
+class ObservationProductsCliMarketIndexTests(unittest.TestCase):
+    setUp = ObservationProductsCliTests.setUp
+    def _fixture(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        document = stock_document("2330", as_of="2026-08-07")
+        document.update(name="台積電", sample_data=False)
+        publish = write_quant_publish(root, [document])
+        latest = json.loads(
+            (publish / "latest-TW.json").read_text(encoding="utf-8")
+        )
+        calendar = root / "calendar.json"
+        calendar.write_text(
+            json.dumps(calendar_document(2026)), encoding="utf-8"
+        )
+        return root, latest, calendar
+
+    @staticmethod
+    def _taiex_snapshot(as_of):
+        previous = as_of - datetime.timedelta(days=1)
+        return {
+            "symbol": "TAIEX",
+            "name": "加權指數",
+            "source": "臺灣證券交易所",
+            "as_of": as_of.isoformat(),
+            "price": 23150.25,
+            "change": 188.4,
+            "change_pct": 0.82,
+            "open": 22982.1,
+            "high": 23210.8,
+            "low": 22940.6,
+            "candles": [
+                {
+                    "time": previous.isoformat(),
+                    "open": 22800.0,
+                    "high": 23010.0,
+                    "low": 22760.0,
+                    "close": 22961.85,
+                },
+                {
+                    "time": as_of.isoformat(),
+                    "open": 22982.1,
+                    "high": 23210.8,
+                    "low": 22940.6,
+                    "close": 23150.25,
+                },
+            ],
+            "ma20": [],
+            "returns": {"1d": 0.82, "5d": 1.4, "20d": 2.1, "60d": None},
+        }
+
+    def _arguments(self, root, latest, calendar, *flags):
+        return [
+            "build",
+            "--root",
+            str(root),
+            "--source-market-date",
+            "2026-08-07",
+            "--source-validation-date",
+            "2026-08-07",
+            "--source-manifest",
+            f"quant/v1/{latest['manifest']}",
+            "--source-manifest-sha256",
+            latest["manifest_sha256"],
+            "--calendar-artifact",
+            str(calendar),
+            *flags,
+        ]
+
+    def _run(self, arguments, loader_result=None, loader_error=None):
+        from stock_papi.batch.observation_products_cli import main
+
+        output = []
+        market_index_loader = (
+            patch(
+                "stock_papi.services.market_index.fetch_twse_index_snapshot",
+                return_value=loader_result,
+            )
+            if loader_error is None
+            else patch(
+                "stock_papi.services.market_index.fetch_twse_index_snapshot",
+                side_effect=loader_error,
+            )
+        )
+        with patch(
+            "reporting.cli._load_industry_map",
+            return_value={"全市場": ["2330"], "半導體": ["2330"]},
+        ), market_index_loader, patch(
+            "builtins.print", side_effect=output.append
+        ):
+            exit_code = main(arguments, today=datetime.date(2026, 8, 15))
+        return exit_code, json.loads(output[-1])
+
+    def test_if_available_includes_a_valid_snapshot(self):
+        root, latest, calendar = self._fixture()
+        exit_code, receipt = self._run(
+            self._arguments(
+                root, latest, calendar, "--include-market-index-if-available"
+            ),
+            loader_result=self._taiex_snapshot(datetime.date(2026, 8, 7)),
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(receipt["market_index_status"], "included")
+        dashboard = json.loads(
+            Path(receipt["dashboard_path"]).read_text(encoding="utf-8")
+        )
+        self.assertEqual(dashboard["market_index"]["symbol"], "TAIEX")
+
+    def test_if_available_none_continues_without_market_index(self):
+        root, latest, calendar = self._fixture()
+        exit_code, receipt = self._run(
+            self._arguments(
+                root, latest, calendar, "--include-market-index-if-available"
+            ),
+            loader_result=None,
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(receipt["market_index_status"], "unavailable")
+        dashboard = json.loads(
+            Path(receipt["dashboard_path"]).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("market_index", dashboard)
+
+    def test_if_available_loader_exception_continues_without_market_index(self):
+        root, latest, calendar = self._fixture()
+        exit_code, receipt = self._run(
+            self._arguments(
+                root, latest, calendar, "--include-market-index-if-available"
+            ),
+            loader_error=RuntimeError("verified TAIEX actuals are unavailable"),
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(receipt["market_index_status"], "unavailable")
+        dashboard = json.loads(
+            Path(receipt["dashboard_path"]).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("market_index", dashboard)
+
+    def test_include_market_index_stays_fail_closed_when_unavailable(self):
+        root, latest, calendar = self._fixture()
+        from stock_papi.batch.observation_products_cli import main
+
+        with patch(
+            "reporting.cli._load_industry_map",
+            return_value={"全市場": ["2330"], "半導體": ["2330"]},
+        ), patch(
+            "stock_papi.services.market_index.fetch_twse_index_snapshot",
+            return_value=None,
+        ), self.assertRaisesRegex(
+            ValueError, "verified TAIEX actuals are unavailable"
+        ):
+            main(
+                self._arguments(
+                    root, latest, calendar, "--include-market-index"
+                ),
+                today=datetime.date(2026, 8, 15),
+            )
+
+    def test_include_market_index_flags_are_mutually_exclusive(self):
+        root, latest, calendar = self._fixture()
+        from stock_papi.batch.observation_products_cli import main
+
+        with self.assertRaises(SystemExit):
+            main(
+                self._arguments(
+                    root,
+                    latest,
+                    calendar,
+                    "--include-market-index",
+                    "--include-market-index-if-available",
+                ),
+                today=datetime.date(2026, 8, 15),
+            )
+
+    def test_no_market_index_flag_reports_not_requested(self):
+        root, latest, calendar = self._fixture()
+        exit_code, receipt = self._run(
+            self._arguments(root, latest, calendar)
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(receipt["market_index_status"], "not_requested")
+        dashboard = json.loads(
+            Path(receipt["dashboard_path"]).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("market_index", dashboard)
 
 
 if __name__ == "__main__":
