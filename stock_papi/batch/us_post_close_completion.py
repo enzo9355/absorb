@@ -33,9 +33,13 @@ def is_complete(root, target, *, read_remote):
         local = root.joinpath(*path.parts)
         if not 0 < local.stat().st_size <= limit:
             raise ValueError('invalid publication size')
-        body = local.read_bytes()
-        if body != read_remote(name, limit) or local.read_bytes() != body:
+        with local.open('rb') as stream:
+            body = stream.read(limit + 1)
+        if not 0 < len(body) <= limit or body != read_remote(name, limit):
             raise ValueError('publication differs')
+        with local.open('rb') as stream:
+            if stream.read(limit + 1) != body:
+                raise ValueError('publication changed')
         if name in POINTERS:
             pointers.setdefault(name, body)
         return body
