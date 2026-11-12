@@ -304,7 +304,7 @@ $Definitions = @{
     'TW-PreMarket' = @{ Script = 'run_tw_pre_market_pipeline.ps1'; Arguments = @() }
     'TW-ObservationRecovery' = @{ Script = 'run_tw_observation_recovery.ps1'; Arguments = @() }
     'US-PostClose' = @{ Script = 'run_us_post_close_pipeline.ps1'; Arguments = @('-PublishObservation') }
-    'US-PreMarket' = @{ Script = 'run_us_pre_market_pipeline.ps1'; Arguments = @() }
+    'US-PreMarket' = @{ Script = 'run_us_pre_market_pipeline.ps1'; Arguments = @('-PublishObservation') }
     'FullBacktest' = @{ Script = 'run_full_backtest.ps1'; Arguments = @('-MaxItems', '500') }
     'US-Daily' = @{ Script = 'run_us_daily.ps1'; Arguments = @() }
     'WeeklyModel' = @{ Script = 'run_weekly_model.ps1'; Arguments = @() }

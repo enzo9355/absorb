@@ -1259,8 +1259,18 @@ if ($fullBacktest.Count -ne 1) {{ throw 'full backtest definition was not unique
         ).read_text(encoding="utf-8")
         self.assertIn(
             "Name='ABSORB-US-PostClose'; Job='US-PostClose'; Time='09:00'; "
-            "RepetitionInterval='PT20M'; RepetitionDuration='PT5H00M'",
+            "RepetitionInterval='PT20M'; RepetitionDuration='PT12H00M'",
             install_source,
+        )
+
+    def test_us_pre_market_task_publishes_its_report(self):
+        wrapper = (
+            Path(__file__).parents[1] / "scripts" / "invoke_pipeline_task.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "'US-PreMarket' = @{ Script = 'run_us_pre_market_pipeline.ps1'; "
+            "Arguments = @('-PublishObservation') }",
+            wrapper,
         )
 
     @staticmethod
