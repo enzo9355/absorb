@@ -3,14 +3,15 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('static/stock-quote.js', 'utf8');
 
-async function harness({hidden = false, offline = false} = {}) {
+async function harness({hidden = false, offline = false, quotedAt, initialPrice} = {}) {
   let now = Date.parse('2026-11-06T02:30:00Z');
   const listeners = {}, timers = new Map(), nodes = {};
   let sequence = 0, calls = 0, fail = false;
   const panel = {
-    dataset: {code: '2330', market: 'TW', quoteUrl: '/api/stock/2330/quote'},
+    dataset: {code: '2330', market: 'TW', quoteUrl: '/api/stock/2330/quote', quotedAt},
     querySelector: (key) => nodes[key] ||= {textContent: '', classList: {toggle() {}}},
   };
+  if (initialPrice) panel.querySelector('[data-quote-price]').textContent = initialPrice;
   const document = {hidden, querySelector: () => panel, addEventListener: (name, callback) => listeners[name] = callback};
   const navigator = {onLine: !offline};
   const window = {addEventListener: (name, callback) => listeners[name] = callback};
@@ -54,5 +55,7 @@ async function harness({hidden = false, offline = false} = {}) {
   assert.match(bad.nodes['[data-quote-status]'].textContent, /失敗/);
   const old = await harness(); old.payload.quoted_at = '2026-11-05T02:29:30Z'; await old.tick();
   assert.match(old.nodes['[data-quote-status]'].textContent, /失敗/);
+  const rendered = await harness({quotedAt: '2026-11-06T02:29:45Z', initialPrice: '101.25'});
+  assert.equal(rendered.nodes['[data-quote-price]'].textContent, '101.25', 'an older first response must not replace the server-rendered quote');
   console.log('Quote frontend: visibility, cadence, offline, failure retention, identity and monotonic time passed');
 })().catch(error => {console.error(error); process.exitCode = 1;});

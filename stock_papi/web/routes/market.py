@@ -218,6 +218,16 @@ def register_market_routes(
             abort(404)
         data = stock_observation(code)
         market = "US" if is_us_ticker(code) else "TW"
+        if not data and market == "US":
+            quote = quotes.get(code)
+            available = quote.get("status") == "available"
+            response = make_response(render_template(
+                "stock_quote_only.html", code=code, market=market, quote=quote,
+            ), 200 if available else 503)
+            response.headers["Cache-Control"] = "no-store"
+            if not available:
+                response.headers["Retry-After"] = str(quote["refresh_seconds"])
+            return response
         peer_group = find_industry_peers(code)
         peers = [{"code": peer, "name": get_stock_name(peer)} for peer in peer_group["codes"]]
         prediction = None

@@ -10,7 +10,7 @@
     timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
   });
-  let timer, controller, nextDue = 0, lastTimestamp = 0;
+  let timer, controller, nextDue = 0, lastTimestamp = Date.parse(panel.dataset.quotedAt) || 0;
   let activeStatus = '正在取得報價…';
   const visible = () => !document.hidden && navigator.onLine !== false;
   const schedule = () => {

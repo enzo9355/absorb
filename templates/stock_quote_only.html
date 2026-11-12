@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} 報價｜ABSORB{% endblock %}
+{% block content %}
+{% set available = quote.status == 'available' %}
+<div class="page stock-page">
+  <header class="stock-hero">
+    <div class="hero-copy">
+      <a class="back-link" href="{{ url_for('us_dashboard_page') }}">返回美股市場</a>
+      <p class="eyebrow">{{ market }} · {{ code }}</p>
+      <h1>{{ code }} 報價</h1>
+      <p class="decision-headline">完整觀察資料尚未提供</p>
+      <p class="muted">目前可查詢獨立報價；本頁尚無收盤觀察、技術指標或 AI 分析。</p>
+    </div>
+    <section class="summary-grid" aria-label="最新報價">
+      <article class="summary-card" data-stock-quote data-code="{{ code }}" data-market="{{ market }}"
+               data-quote-url="{{ url_for('stock_quote_api', code=code) }}"{% if available %} data-quoted-at="{{ quote.quoted_at }}"{% endif %}>
+        <span>最新報價 · USD</span>
+        <strong data-quote-price>{{ '{:,.2f}'.format(quote.price) if available else '—' }}</strong>
+        <div><small data-quote-change>{% if available %}{{ '{:+.2f}%'.format(quote.change_pct) }} · USD{% else %}報價暫缺{% endif %}</small></div>
+        <div><small data-quote-time>{% if available %}報價時間 {{ quote.quoted_at }}（UTC）{% endif %}</small></div>
+        <div><small data-quote-status role="status">{% if available %}觀看時自動更新{% else %}暫時無法取得報價，稍後自動重試{% endif %}</small></div>
+        <p class="muted small">來源：Yahoo Finance。報價可能延遲，請留意報價時間。</p>
+      </article>
+    </section>
+  </header>
+  <script src="{{ url_for('static', filename='stock-quote.js', v=STATIC_ASSET_VERSION) }}" defer></script>
+</div>
+{% endblock %}
