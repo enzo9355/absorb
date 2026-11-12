@@ -47,6 +47,10 @@ LIFECYCLE_SOURCE_DEFINITIONS = MappingProxyType({
         "twse_intraday_halt", "TWSE", "lifecycle",
         "https://openapi.twse.com.tw/v1/exchangeReport/TWTAWU", "json", 5 * 1024 * 1024,
     ),
+    "twse_intraday_history": OfficialSourceDefinition(
+        "twse_intraday_history", "TWSE", "lifecycle",
+        "https://www.twse.com.tw/rwd/zh/afterTrading/TWTAWU", "json", 5 * 1024 * 1024,
+    ),
     "twse_reduction_resume": OfficialSourceDefinition(
         "twse_reduction_resume", "TWSE", "lifecycle",
         "https://www.twse.com.tw/rwd/zh/reducation/TWTAUU", "json", 5 * 1024 * 1024,
@@ -751,6 +755,42 @@ def _twse_intraday_events(payload: Any, payload_sha256: str) -> list[dict[str, A
     return events
 
 
+def _twse_history_resume_events(payload, digest, pending, target_date, source_id):
+    """Close an OpenAPI halt only with a matching official historical row."""
+    start = min(date for _symbol, date in pending)
+    fields = ["編號", "證券代號", "證券名稱", "暫停交易日期", "暫停交易時間", "恢復交易日期", "恢復交易時間"]
+    if (not isinstance(payload, Mapping) or payload.get("stat") != "OK"
+            or payload.get("fields") != fields or not isinstance(payload.get("data"), list)
+            or not isinstance(payload.get("params"), Mapping)
+            or payload["params"].get("startDate") != start.strftime("%Y%m%d")
+            or payload["params"].get("endDate") != target_date.strftime("%Y%m%d")):
+        raise ValueError("TWSE intraday history schema or interval is invalid")
+    events = []
+    seen = set()
+    for row in payload["data"]:
+        if not isinstance(row, list) or len(row) != len(fields):
+            raise ValueError("TWSE intraday history row is invalid")
+        symbol, halt_date = normalize_symbol(row[1]), _roc_date(row[3])
+        if not start <= halt_date <= target_date:
+            raise ValueError("TWSE intraday history row is outside requested interval")
+        identity = (symbol, halt_date)
+        if identity not in pending:
+            continue
+        if identity in seen:
+            raise ValueError("TWSE intraday history row is ambiguous")
+        seen.add(identity)
+        if not _text(row[5]):
+            continue
+        if _roc_date(row[5]) < halt_date or not _text(row[6]):
+            raise ValueError("TWSE intraday history resumption is invalid")
+        events.append(_lifecycle_event(
+            exchange="TWSE", symbol=symbol, event_type="resume",
+            effective_date=row[5], source_id=source_id,
+            payload_sha256=digest, raw_row=row,
+        ))
+    return events
+
+
 def _twse_reduction_rows(payload: Any, payload_sha256: str) -> tuple[list[dict[str, Any]], list[tuple[str, str]]]:
     if not isinstance(payload, Mapping) or str(payload.get("stat", "")).lower() != "ok":
         raise ValueError("TWSE reduction resume schema is invalid")
@@ -1066,6 +1106,26 @@ def load_lifecycle_snapshot(
             events.extend(_twse_current_stop_events(payload, digest, target_date))
             payload, digest = load("twse_intraday_halt")
             events.extend(_twse_intraday_events(payload, digest))
+            # OpenAPI can omit a published resumption; retain both source hashes.
+            pending = {
+                (normalize_symbol(row["Code"]), _roc_date(row["TradingHaltDate"]))
+                for row in payload
+                if normalize_symbol(row["Code"]) in requested["TWSE"]
+                and _text(row.get("TradingHaltDate"))
+                and not _text(row.get("TradingResumptionDate"))
+                and _roc_date(row["TradingHaltDate"]) <= target_date
+            }
+            if pending:
+                start = min(date for _symbol, date in pending)
+                history_id = f"twse_intraday_history_{start:%Y%m%d}_{target_date:%Y%m%d}"
+                history, history_digest = load(
+                    "twse_intraday_history", cache_source_id=history_id,
+                    params={"startDate": start.strftime("%Y%m%d"),
+                            "endDate": target_date.strftime("%Y%m%d"), "response": "json"},
+                )
+                events.extend(_twse_history_resume_events(
+                    history, history_digest, pending, target_date, history_id
+                ))
             payload, digest = load("twse_reduction_resume")
             reduction_events, details = _twse_reduction_rows(payload, digest)
             events.extend(reduction_events)

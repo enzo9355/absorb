@@ -200,6 +200,75 @@ class OfficialPdfLifecycleSession(LifecycleSession):
 
 
 class TwTradingStatusTests(unittest.TestCase):
+    def test_historical_resumption_closes_stale_openapi_halt_and_preserves_cache(self):
+        target = datetime.date(2026, 11, 11)
+        session = LifecycleSession()
+        session.payloads["twse_current_stop"]["tables"][0]["title"] = "115年11月11日 停止買賣"
+        session.payloads["twse_intraday_halt"] = [{
+            "Code": "2314", "TradingHaltDate": "1151110", "TradingResumptionDate": "",
+        }]
+        history = {
+            "stat": "OK",
+            "fields": ["編號", "證券代號", "證券名稱", "暫停交易日期", "暫停交易時間", "恢復交易日期", "恢復交易時間"],
+            "data": [[1, "2314", "台揚", "115/11/10", "8:00", "115/11/11", "8:00"]],
+            "params": {"startDate": "20261110", "endDate": "20261111"},
+        }
+        session.payloads["twse_intraday_history"] = history
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            kwargs = dict(session=session, required_symbols_by_exchange={"TWSE": {"2314"}},
+                          now=datetime.datetime(2026, 11, 12, tzinfo=datetime.timezone.utc))
+            first = load_lifecycle_snapshot(root, target, **kwargs)
+            self.assertNotIn("2314", first.status_by_symbol)
+            self.assertIn("twse_intraday_halt", first.source_hashes)
+            self.assertIn("twse_intraday_history_20261110_20261111", first.source_hashes)
+            before = list(session.calls)
+            second = load_lifecycle_snapshot(root, target, **kwargs)
+            self.assertEqual(session.calls, before)
+            self.assertEqual(second.source_hashes, first.source_hashes)
+            self.assertEqual(second.request_count, 0)
+            raw = trading_status.load_cached_raw_source(
+                root, source_id="twse_intraday_halt", target_date=target,
+                parser_version=trading_status.LIFECYCLE_PARSER_VERSION,
+            )
+            self.assertEqual(json.loads(raw.payload)[0]["TradingResumptionDate"], "")
+
+    def test_history_resume_requires_same_symbol_halt_interval_and_valid_date(self):
+        import copy
+
+        target = datetime.date(2026, 11, 11)
+        pending = {("2314", datetime.date(2026, 11, 10))}
+        base = {
+            "stat": "OK",
+            "fields": ["編號", "證券代號", "證券名稱", "暫停交易日期", "暫停交易時間", "恢復交易日期", "恢復交易時間"],
+            "data": [[1, "2314", "台揚", "115/11/10", "8:00", "115/11/11", "8:00"]],
+            "params": {"startDate": "20261110", "endDate": "20261111"},
+        }
+        def parse(payload):
+            return trading_status._twse_history_resume_events(payload, "b" * 64, pending, target, "twse_intraday_history_test")
+        for column, value in ((1, "2330"), (3, "115/11/11"), (5, "")):
+            payload = copy.deepcopy(base)
+            payload["data"][0][column] = value
+            self.assertEqual(parse(payload), [])
+        for mutate in (
+            lambda p: p["params"].update(endDate="20261112"),
+            lambda p: p["data"].append(p["data"][0]),
+            lambda p: p["data"][0].__setitem__(5, "115/11/09"),
+            lambda p: p["data"][0].__setitem__(6, ""),
+            lambda p: p.update(fields=[]),
+        ):
+            payload = copy.deepcopy(base)
+            mutate(payload)
+            with self.assertRaises(ValueError):
+                parse(payload)
+        halt = trading_status._twse_intraday_events(
+            [{"Code": "2314", "TradingHaltDate": "1151110", "TradingResumptionDate": ""}], "a" * 64
+        )
+        events = halt + parse(base)
+        self.assertEqual(resolve_lifecycle_status(events, datetime.date(2026, 11, 10), active=True)["status"], "officially_suspended")
+        self.assertIsNone(resolve_lifecycle_status(events, target, active=True))
+        self.assertEqual(resolve_lifecycle_status(halt, target, active=True)["status"], "officially_suspended")
+
     def test_listing_change_binding_supports_multiple_companies_and_lifecycle_pairs(self):
         fixture = json.loads(
             TWSE_LISTING_CHANGE_MULTI_COMPANY_FIXTURE.read_text(encoding="utf-8")
