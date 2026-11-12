@@ -80,6 +80,13 @@ if ($CalendarCheckCode -eq 3) {
 }
 if ($CalendarCheckCode -ne 0) { exit $CalendarCheckCode }
 
+& $PythonExe -m stock_papi.batch.us_post_close_completion `
+    --root $DataRoot --target-market-date $TargetDate
+if ($LASTEXITCODE -eq 0) {
+    Write-Output "US PostClose is verified locally and in GCS for $TargetDate; skipping duplicate execution."
+    exit 0
+}
+
 # Run US observation data collection & publish
 Write-Output "Running US PostClose observation pipeline for $TargetDate..."
 Invoke-AbsorbUsPipelineNativeCommand `
