@@ -4,6 +4,7 @@
 .codex/
 .research-review/
 .deployment-evidence/
+artifacts/
 .superpowers/
 .pytest_cache/
 AGENTS.md
