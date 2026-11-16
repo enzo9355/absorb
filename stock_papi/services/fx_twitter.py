@@ -44,16 +44,16 @@ class FxTwitterClient:
                     status, body = self._transport(url, {"Accept": "application/json", "User-Agent": "ABSORB-research/1.0"}, 20)
                     if status != 200:
                         raise XApiError("FxTwitter request failed", status_code=status)
+                    try:
+                        payload = json.loads(body)
+                    except (ValueError, UnicodeError, TypeError) as exc:
+                        raise XApiError("FxTwitter returned invalid JSON") from exc
                     break
                 except XApiError as exc:
                     # The timeline API intermittently returns 404 for existing accounts.
                     if attempt or exc.status_code not in (None, 404, 408, 429, 500, 502, 503, 504):
                         raise
                     time.sleep(1)
-            try:
-                payload = json.loads(body)
-            except (ValueError, UnicodeError, TypeError) as exc:
-                raise XApiError("FxTwitter returned invalid JSON") from exc
             if not isinstance(payload, dict) or payload.get("code") != 200 or not isinstance(payload.get("results"), list):
                 raise XApiError("FxTwitter returned invalid timeline data")
             for raw in payload["results"]:

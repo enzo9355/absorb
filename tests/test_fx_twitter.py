@@ -32,7 +32,8 @@ def _response(rows, cursor=None, code=200):
 
 class FxTwitterClientTests(unittest.TestCase):
     def test_transient_source_failure_retries_once_but_auth_errors_do_not(self):
-        for failure in ((404, b''), (503, b''), XApiError('network', status_code=None)):
+        for failure in ((404, b''), (503, b''), (200, b'<html>temporary upstream error</html>'),
+                        XApiError('network', status_code=None)):
             for recovered in (True, False):
                 calls = []
                 def transport(*args):
