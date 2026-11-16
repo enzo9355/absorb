@@ -2889,6 +2889,7 @@ def _handle_message_impl(event):
 def route_dependencies():
     return {
         "search_stock": lambda query: search_stock_code(query),
+        "load_quant_manifest": lambda *args, **kwargs: _published_quant_manifest(*args, **kwargs),
         "load_report_index": lambda: _published_report_index(),
         "load_report_index_v2": lambda market="TW": _published_report_index_v2(market=market),
         "load_report_pdf": lambda item: load_report_pdf(

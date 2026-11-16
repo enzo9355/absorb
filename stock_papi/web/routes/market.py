@@ -325,6 +325,8 @@ def register_market_routes(
         ) if data else "查無資料"
 
     def us_stocks_page():
+        search_query = request.args.get('q', '').strip()
+        search_error = request.args.get('error') == 'not-found'
         try:
             observation = us_securities_observation()
             if (
@@ -335,12 +337,12 @@ def register_market_routes(
                 raise ValueError("US securities observation is invalid")
         except Exception:
             return render_template(
-                "stocks.html", observation={}, search_query="",
-                search_error=False, market="US", data_unavailable=True,
+                "stocks.html", observation={}, search_query=search_query,
+                search_error=search_error, market="US", data_unavailable=True,
             ), 503
         return render_template(
-            "stocks.html", observation=observation, search_query="",
-            search_error=False, market="US", data_unavailable=False,
+            "stocks.html", observation=observation, search_query=search_query,
+            search_error=search_error, market="US", data_unavailable=False,
             observation_freshness=freshness("US", observation.get("observation_as_of")),
         )
 

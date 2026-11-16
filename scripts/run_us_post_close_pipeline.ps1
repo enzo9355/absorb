@@ -20,17 +20,9 @@ $env:PYTHONPATH = [string]::Join(
 # Resolve default TargetDate if not explicitly provided
 if (-not $TargetDate) {
     $TargetDate = (& $PythonExe -c "
-import datetime, zoneinfo
-from stock_papi.integrations.market_data.us_calendar import get_us_exchange_holidays
-ny_now = datetime.datetime.now(zoneinfo.ZoneInfo('America/New_York'))
-closed, early = get_us_exchange_holidays(ny_now.year)
-cur = ny_now.date()
-close_hour = 13 if cur in early else 16
-if ny_now.hour < close_hour:
-    cur -= datetime.timedelta(days=1)
-while cur.weekday() >= 5 or cur in closed:
-    cur -= datetime.timedelta(days=1)
-print(cur.isoformat())
+import datetime
+from stock_papi.integrations.market_data.us_calendar import latest_completed_us_session
+print(latest_completed_us_session(datetime.datetime.now(datetime.timezone.utc)).isoformat())
 ").Trim()
 }
 

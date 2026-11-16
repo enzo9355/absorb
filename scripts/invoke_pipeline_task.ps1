@@ -20,6 +20,19 @@ function Test-AbsorbVerifiedFullBacktestCompletion {
     return $LASTEXITCODE -eq 0
 }
 
+function Test-AbsorbVerifiedUsPostCloseCompletion {
+    param([string]$DataRoot, [string]$RepoRoot)
+    try {
+        . (Join-Path $RepoRoot 'scripts\python_runtime.ps1')
+        $PythonExe = Resolve-AbsorbPythonExecutable -RepoRoot $RepoRoot
+        Push-Location $RepoRoot
+        try {
+            & $PythonExe -m stock_papi.batch.us_post_close_completion --root $DataRoot | Out-Null
+            return $LASTEXITCODE -eq 0
+        } finally { Pop-Location }
+    } catch { return $false }
+}
+
 function Get-AbsorbPipelineMutexPlan {
     [CmdletBinding()]
     param(
@@ -224,8 +237,16 @@ function Invoke-AbsorbPipelineTask {
     $SafeFailureStage = $null
     $FullBacktestTask = $null
     $FullBacktestCompletionVerified = $false
+    $PostCloseCompletionVerified = $false
 
     try {
+        $PostCloseCompletionVerified = $Job -eq 'US-PostClose' -and
+            (Test-AbsorbVerifiedUsPostCloseCompletion -DataRoot $DataRoot -RepoRoot $RepoRoot)
+        if ($PostCloseCompletionVerified) {
+            $TaskExitCode = 0
+            $TaskSucceeded = $true
+            Add-Content -LiteralPath $LogPath -Value 'US PostClose is verified locally and in GCS; skipping duplicate before writer lock.'
+        } else {
         $MutexLeases = @(Enter-AbsorbPipelineMutexPlan -Plan $MutexPlan -Receipts $MutexReceipts)
         $Arguments = @(
             '-NoProfile',
@@ -259,6 +280,7 @@ function Invoke-AbsorbPipelineTask {
             }
             $TaskSucceeded = $true
         }
+        }
     } catch [TimeoutException] {
         $TaskExitCode = 1
         $SafeError = 'Pipeline mutex acquisition timed out'
@@ -286,6 +308,7 @@ function Invoke-AbsorbPipelineTask {
         success = $TaskSucceeded
         exit_code = $TaskExitCode
         full_backtest_completion_verified = $FullBacktestCompletionVerified
+        us_post_close_completion_verified = $PostCloseCompletionVerified
         log = $LogPath
         mutexes = @($MutexReceipts.ToArray())
     }

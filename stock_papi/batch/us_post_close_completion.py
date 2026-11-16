@@ -26,6 +26,16 @@ def is_complete(root, target, *, read_remote):
     root = Path(root) / 'publish'
     pointers = {}
 
+    def publication_value(name, body):
+        if name != 'reports/v2/index-US.json':
+            return body
+        # Premarket may publish independently; compare only the validated target post-close entry.
+        items = validate_report_index(body, expected_version=2, expected_market='US')
+        items = [item for item in items if item['report_type'] == 'post_close'
+                 and item['source_market_date'] == target.isoformat()]
+        return json.dumps(dict(schema_version=2, kind='absorb-report-index', market='US', reports=items),
+                          sort_keys=True).encode()
+
     def read_equal(name, limit):
         path = PurePosixPath(name)
         if path.is_absolute() or '..' in path.parts or '\\' in name:
@@ -35,10 +45,13 @@ def is_complete(root, target, *, read_remote):
             raise ValueError('invalid publication size')
         with local.open('rb') as stream:
             body = stream.read(limit + 1)
-        if not 0 < len(body) <= limit or body != read_remote(name, limit):
+        if not 0 < len(body) <= limit:
+            raise ValueError('invalid publication size')
+        body = publication_value(name, body)
+        if body != publication_value(name, read_remote(name, limit)):
             raise ValueError('publication differs')
         with local.open('rb') as stream:
-            if stream.read(limit + 1) != body:
+            if publication_value(name, stream.read(limit + 1)) != body:
                 raise ValueError('publication changed')
         if name in POINTERS:
             pointers.setdefault(name, body)
@@ -111,11 +124,14 @@ def is_complete(root, target, *, read_remote):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--target-market-date', type=datetime.date.fromisoformat, required=True)
+    parser.add_argument('--target-market-date', type=datetime.date.fromisoformat)
     args = parser.parse_args()
     if str(args.root) not in (r'D:\AbsorbData', r'D:\StockPapiData'):
         return 1
     try:
+        if args.target_market_date is None:
+            from stock_papi.integrations.market_data.us_calendar import latest_completed_us_session
+            args.target_market_date = latest_completed_us_session(datetime.datetime.now(datetime.timezone.utc))
         import requests
         from stock_papi.repositories.gcs import get_allowed_object
         token = subprocess.run([shutil.which('gcloud') or 'gcloud', 'auth', 'print-access-token',

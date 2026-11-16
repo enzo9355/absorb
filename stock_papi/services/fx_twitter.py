@@ -27,7 +27,7 @@ class FxTwitterClient:
         if start and end and start >= end:
             raise ValueError("start_time must precede end_time")
         posts, seen_ids, seen_cursors = [], set(), set()
-        skipped = {"reposts": 0, "unavailable": 0, "outside_window": 0, "duplicates": 0}
+        skipped = {"reposts": 0, "unavailable": 0, "outside_window": 0, "duplicates": 0, "no_text": 0}
         user = {"username": username, "name": username, "id": ""}
         author_id = None
         cursor = None
@@ -39,9 +39,17 @@ class FxTwitterClient:
             if cursor:
                 params["cursor"] = cursor
             url = f"https://api.fxtwitter.com/2/profile/{username}/statuses?{urlencode(params)}"
-            status, body = self._transport(url, {"Accept": "application/json", "User-Agent": "ABSORB-research/1.0"}, 20)
-            if status != 200:
-                raise XApiError("FxTwitter request failed", status_code=status)
+            for attempt in range(2):
+                try:
+                    status, body = self._transport(url, {"Accept": "application/json", "User-Agent": "ABSORB-research/1.0"}, 20)
+                    if status != 200:
+                        raise XApiError("FxTwitter request failed", status_code=status)
+                    break
+                except XApiError as exc:
+                    # The timeline API intermittently returns 404 for existing accounts.
+                    if attempt or exc.status_code not in (None, 404, 408, 429, 500, 502, 503, 504):
+                        raise
+                    time.sleep(1)
             try:
                 payload = json.loads(body)
             except (ValueError, UnicodeError, TypeError) as exc:
@@ -68,7 +76,7 @@ class FxTwitterClient:
                     raise XApiError("FxTwitter timeline contains conflicting author ids")
                 author_id = author["id"]
                 post_id, text = raw.get("id"), raw.get("text")
-                if not isinstance(post_id, str) or not POST_ID_RE.fullmatch(post_id) or not isinstance(text, str) or not text.strip():
+                if not isinstance(post_id, str) or not POST_ID_RE.fullmatch(post_id) or not isinstance(text, str):
                     raise XApiError("FxTwitter post has invalid id or text")
                 try:
                     date = raw["created_at"]
@@ -88,6 +96,9 @@ class FxTwitterClient:
                     continue
                 seen_ids.add(post_id)
                 user.update(name=str(author.get("name") or username), id=str(author.get("id") or ""))
+                if not text.strip():
+                    skipped['no_text'] += 1
+                    continue
                 posts.append({"id": post_id, "text": text, "created_at": _iso(published), "author_id": user["id"], "source_payload": raw})
             cursors = payload.get("cursor", {})
             if not isinstance(cursors, dict):

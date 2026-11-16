@@ -15,6 +15,20 @@ NEW_YORK = zoneinfo.ZoneInfo("America/New_York")
 
 
 class USCalendarTests(unittest.TestCase):
+    def test_latest_completed_session_respects_dst_holidays_early_close_and_year_boundary(self):
+        from stock_papi.integrations.market_data.us_calendar import latest_completed_us_session
+        cases = [('2026-11-16T20:00:00+08:00', '2026-11-13'),
+                 ('2026-11-17T05:00:00+08:00', '2026-11-16'),
+                 ('2026-07-04T04:00:00+08:00', '2026-07-02'),
+                 ('2026-11-27T17:59:00+00:00', '2026-11-25'),
+                 ('2026-11-27T18:00:00+00:00', '2026-11-27'),
+                 ('2026-01-01T18:00:00+00:00', '2025-12-31')]
+        for stamp, expected in cases:
+            with self.subTest(stamp=stamp):
+                self.assertEqual(expected, latest_completed_us_session(datetime.datetime.fromisoformat(stamp)).isoformat())
+        with self.assertRaises(ValueError):
+            latest_completed_us_session(datetime.datetime(2026, 11, 17))
+
     def test_2026_us_calendar_document_valid(self):
         doc = generate_us_calendar_document(2026)
         self.assertEqual(doc["schema_version"], 1)

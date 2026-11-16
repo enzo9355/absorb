@@ -49,6 +49,21 @@ def prediction_product(market="TW", symbol="2330", as_of="2026-07-15"):
 
 
 class WebProductTests(unittest.TestCase):
+    def test_search_resolves_share_classes_index_and_unknown_symbols(self):
+        def manifest(market, today=None):
+            return {'symbols': {'AAPL': {}, 'GGLL': {}, 'BRK-B': {}} if market == 'US' else {'2330': {}}}
+        client = stock_app.app.test_client()
+        with patch.object(stock_app, '_published_quant_manifest', side_effect=manifest), patch.object(
+            stock_app, '_published_us_securities_observation', return_value={'stock_events': [], 'etf_observations': []}
+        ):
+            for query, target in [('GGLL', '/stock/GGLL'), ('BRK.B', '/stock/BRK-B'), ('TAIEX', '/market')]:
+                with self.subTest(query=query):
+                    response = client.get('/search', query_string={'q': query, 'market': 'US'})
+                    self.assertEqual(302, response.status_code)
+                    self.assertTrue(response.headers['Location'].endswith(target))
+            response = client.get('/search?q=FOOBAR&market=US', follow_redirects=True)
+            self.assertIn('找不到「FOOBAR」', response.get_data(as_text=True))
+
     @patch.object(stock_app, 'fetch_published_quant_snapshot', return_value=quant_snapshot())
     @patch.object(web_routes.system, '_next_session_for_market', side_effect=ValueError('calendar unavailable'))
     def test_unknown_stock_freshness_never_labels_quote_latest(self, calendar, fetch):

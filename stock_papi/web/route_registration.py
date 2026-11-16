@@ -34,6 +34,8 @@ def register_routes(app, dependencies):
         app,
         search_stock=dependencies["search_stock"],
         load_data_freshness=load_data_freshness,
+        load_quant_manifest=dependencies.get('load_quant_manifest'),
+        is_us_ticker=dependencies['is_us_ticker'],
     )
     register_report_routes(
         app,

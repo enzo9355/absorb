@@ -31,6 +31,42 @@ def _response(rows, cursor=None, code=200):
 
 
 class FxTwitterClientTests(unittest.TestCase):
+    def test_transient_source_failure_retries_once_but_auth_errors_do_not(self):
+        for failure in ((404, b''), (503, b''), XApiError('network', status_code=None)):
+            for recovered in (True, False):
+                calls = []
+                def transport(*args):
+                    calls.append(args)
+                    if recovered and len(calls) == 2:
+                        return _response([_post()])
+                    if isinstance(failure, Exception):
+                        raise failure
+                    return failure
+                with self.subTest(failure=failure, recovered=recovered), patch('stock_papi.services.fx_twitter.time.sleep'):
+                    client = FxTwitterClient(transport=transport)
+                    if recovered:
+                        self.assertEqual(1, len(client.fetch_user_posts('creator')['posts']))
+                    else:
+                        with self.assertRaises(XApiError):
+                            client.fetch_user_posts('creator')
+                    self.assertEqual(2, len(calls))
+        calls = []
+        with self.assertRaises(XApiError):
+            FxTwitterClient(transport=lambda *args: (calls.append(args) or (401, b''))).fetch_user_posts('creator')
+        self.assertEqual(1, len(calls))
+
+    def test_textless_posts_are_counted_without_blocking_authored_opinions(self):
+        rows = [_post('1', text='', media={'photos': [{}]}), _post('2')]
+        result = FxTwitterClient(transport=lambda *args: _response(rows)).fetch_user_posts('creator')
+        self.assertEqual(['2'], [row['id'] for row in result['posts']])
+        self.assertEqual(1, result['skipped']['no_text'])
+        candidate = build_pending_candidate(result, creator_id='creator')
+        self.assertEqual(['x:2'], [row['opinion_id'] for row in candidate['opinions']])
+        for change in ({'id': None}, {'author': {}}, {'created_at': 'bad date'}):
+            with self.subTest(change=change), self.assertRaises(XApiError):
+                FxTwitterClient(transport=lambda *args: _response([
+                    _post(text='', **change)])).fetch_user_posts('creator')
+
     def test_same_handle_cannot_change_author_id(self):
         rows = [_post(), _post("2", author={"screen_name": "creator", "id": "43"})]
         with self.assertRaisesRegex(XApiError, "conflicting author ids"):

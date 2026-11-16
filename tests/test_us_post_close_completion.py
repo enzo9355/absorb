@@ -2,6 +2,8 @@ import datetime
 import hashlib
 import json
 import unittest
+import subprocess
+import tempfile
 from pathlib import Path
 from tests import test_us_market_pipeline as us_fixture
 from tests.test_prediction_products import snapshot
@@ -9,6 +11,30 @@ from stock_papi.batch.prediction_products import build_research_prediction_produ
 
 
 class CallerTests(unittest.TestCase):
+    def test_completed_run_skips_before_mutex_and_unverified_run_still_locks(self):
+        from tests.test_pipeline_scheduler import PipelineSchedulerTests
+        script = Path(__file__).parents[1] / 'scripts/invoke_pipeline_task.ps1'
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            harness = PipelineSchedulerTests._powershell_function_import(script) + r'''
+$ErrorActionPreference = 'Stop'
+function Test-AbsorbVerifiedUsPostCloseCompletion { return $Global:Complete }
+function Enter-AbsorbPipelineMutexPlan { throw [TimeoutException]::new('held by premarket') }
+function Invoke-NativeProcessStreaming { throw 'completed publication must not run a child' }
+''' + f"$root = '{str(root).replace(chr(39), chr(39)*2)}'\n" + r'''
+foreach ($complete in @($true, $false)) {
+    $Global:Complete = $complete
+    $code = Invoke-AbsorbPipelineTask -Job US-PostClose -DataRoot $root -ScriptPath unused -LogDirectory $root -PowerShellExe unused
+    $status = Get-Content (Join-Path $root current-US-PostClose.json) -Raw | ConvertFrom-Json
+    if ($status.success -ne $complete -or $status.us_post_close_completion_verified -ne $complete) { throw 'incorrect completion receipt' }
+    if ($complete -and ($code -ne 0)) { throw 'published data incorrectly waited for mutex' }
+    if (-not $complete -and ($code -eq 0 -or $status.error -ne 'Pipeline mutex acquisition timed out')) { throw 'unverified data bypassed locking' }
+}
+'''
+            result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', harness],
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
     def test_guard_runs_after_session_check_before_collection(self):
         script = (Path(__file__).parents[1] / 'scripts/run_us_post_close_pipeline.ps1').read_text(encoding='utf-8')
         self.assertLess(script.index('not a US trading session; skipped'),
@@ -19,6 +45,19 @@ class CallerTests(unittest.TestCase):
 
 
 class CompletionTests(unittest.TestCase):
+    def test_premarket_index_updates_do_not_invalidate_completed_postclose(self):
+        name = 'reports/v2/index-US.json'
+        index = json.loads(self.remote[name])
+        item = dict(index['reports'][0], report_type='pre_market')
+        for key in ('pdf_path', 'pdf_sha256', 'pdf_size', 'page_count'):
+            item.pop(key, None)
+        index['reports'].append(item)
+        (self.root / 'publish' / name).write_text(json.dumps(index))
+        self.assertTrue(self.check())
+        index['reports'][0]['title'] += ' changed post-close'
+        (self.root / 'publish' / name).write_text(json.dumps(index))
+        self.assertFalse(self.check())
+
     def setUp(self):
         fixture = us_fixture.USMarketPipelineIntegrationTests()
         fixture.setUp()
@@ -73,6 +112,24 @@ class CompletionTests(unittest.TestCase):
         def offline(*_):
             raise OSError('offline')
         self.assertFalse(self.check(offline))
+
+    def test_changed_or_malformed_report_index_does_not_skip(self):
+        name = 'reports/v2/index-US.json'
+        counts = 0
+        def changed(key, limit):
+            nonlocal counts
+            if key != name:
+                return self.remote.get(key)
+            counts += 1
+            index = json.loads(self.remote[name])
+            if counts > 1:
+                index['reports'][0]['title'] += ' changed'
+            return json.dumps(index).encode()
+        self.assertFalse(self.check(changed))
+        index = json.loads(self.remote[name])
+        index['reports'].append({'report_type': 'pre_market'})
+        self.remote[name] = json.dumps(index).encode()
+        self.assertFalse(self.check())
 
     def test_changed_remote_pointer_during_check_does_not_skip(self):
         counts = {}

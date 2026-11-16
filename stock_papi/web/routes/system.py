@@ -229,7 +229,7 @@ def create_data_freshness_loader(
 
 
 def register_system_routes(
-    app, *, search_stock, load_data_freshness, now=None
+    app, *, search_stock, load_data_freshness, load_quant_manifest=None, is_us_ticker=None, now=None
 ):
     def healthz():
         return "ok", 200
@@ -247,12 +247,36 @@ def register_system_routes(
         }
         return jsonify({"service": {"status": "ok"}, "markets": markets})
 
+    def _manifest_symbols(market_code):
+        if not callable(load_quant_manifest):
+            return None
+        try:
+            manifest = load_quant_manifest(market_code)
+        except Exception:
+            return None
+        symbols = manifest.get('symbols') if isinstance(manifest, dict) else None
+        return symbols if isinstance(symbols, dict) and symbols else None
+
     def search_page():
         query = request.args.get("q", "").strip()
         market = request.args.get("market", "TW").upper()
         code, _name = search_stock(query)
+        if not code and callable(is_us_ticker):
+            normalized = query.upper().replace('.', '-')
+            if normalized != query.upper() and is_us_ticker(normalized):
+                symbols = _manifest_symbols('US')
+                if symbols is not None and normalized in symbols:
+                    code = normalized
+        if code == 'TAIEX':
+            return redirect(url_for('market_page'), code=302)
         if code:
-            return redirect(url_for("stock_page", code=code), code=302)
+            target_market = 'US' if callable(is_us_ticker) and is_us_ticker(code) else 'TW'
+            symbols = _manifest_symbols(target_market)
+            if symbols is not None and code not in symbols:
+                code = None
+                market = target_market
+            if code:
+                return redirect(url_for("stock_page", code=code), code=302)
         return redirect(
             url_for(
                 "us_stocks_page" if market == "US" else "stocks_page",

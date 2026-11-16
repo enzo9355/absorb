@@ -152,3 +152,16 @@ def get_us_calendar_documents(
         generate_us_calendar_document(year)
         for year in range(start_year, end_year + 1)
     ]
+
+
+def latest_completed_us_session(now):
+    from stock_papi.batch.calendar import TradingCalendarSet
+    if not isinstance(now, datetime.datetime) or now.utcoffset() is None:
+        raise ValueError('now must be timezone-aware')
+    local = now.astimezone(NEW_YORK)
+    calendar = TradingCalendarSet.from_documents(get_us_calendar_documents(local.year - 1, local.year))
+    day = local.date()
+    _, early = get_us_exchange_holidays(local.year)
+    if local.hour < (13 if day in early else 16):
+        day -= datetime.timedelta(days=1)
+    return calendar.latest_session_on_or_before(day)
