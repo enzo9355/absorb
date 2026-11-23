@@ -1,169 +1,93 @@
 # ABSORB
 
-ABSORB 是以 LINE 為主要操作入口、Web 為研究與展示介面的 AI 量化市場情報與決策輔助系統。它整合五日方向模型、歷史回測、技術面、籌碼、新聞情緒、產業資料與已驗證報告；缺資料時明確降級，不以 SAMPLE 或推測補位。
+ABSORB 是涵蓋台股與美股的市場研究平台。Web 提供大盤、產業、個股、公司事件與盤前／盤後報告。LINE Bot 提供快速查詢、關注清單和提醒。兩個入口共用自然語言研究助理 ASKsorb，讓使用者從回答回到原始資料與研究頁面。
 
-## 產品邊界
+[開啟 ABSORB](https://line-stock-bot-3visrvv4yq-de.a.run.app/) · [市場資料狀態](https://line-stock-bot-3visrvv4yq-de.a.run.app/health/data)
 
-- LINE：股票查詢、固定指令、關注、提醒與自然語言研究問答。
-- Web：市場、產業、個股、報告、LINE Login 與共用自然語言研究介面。
-- Windows 本地：資料更新、模型、回測、PDF 與發布 candidate。
-- Cloud Run：讀取已完成且驗證過的 artifacts；request 與 import 期間不執行重型分析。
+## 功能與入口
+
+| 功能 | 內容 | Web 入口 |
+| --- | --- | --- |
+| 台股與美股觀察 | 大盤、產業、個股 K 線、報酬、成交量與異常事件。台股另有市場熱圖，支援個股比較。 | `/dashboard`、`/us`、`/market-map`、`/compare?symbols=2330,2317` |
+| 個股報價 | 個股頁按需載入 Yahoo Finance 報價，標示來源與時間，報價可能延遲。歷史 K 線、觀察指標及報告沿用已驗證的收盤資料。 | `/stock/2330`、`/stock/AAPL` |
+| 產業關係 | 首批收錄 AI 伺服器、半導體、電動車等八個產業。可用公司名稱、別名或代號搜尋，查閱供應、合作等關係的來源與核對日期。 | `/industries/relationships` |
+| 公司事件與大咖動態 | 台股官方公告、已核對的公開觀點與原始來源。來源中斷時保留上次成功的資料，並標示更新狀態。 | `/events`、`/perspectives` |
+| 盤前與盤後報告 | 台美股按交易日歸檔。盤後整理收盤觀察，盤前補充已驗證的隔夜資訊。台股專業盤後報告在來源齊備時納入 TWSE 法人買賣超金額。 | `/reports`、`/reports/us` |
+| ASKsorb | 以自然語言查台美股的資料、報告與研究來源。Web 與 LINE 共用同一套研究工具。 | `/ask` |
+| 個人工作區 | LINE Login 連接關注清單與提醒。登入後可建立、追蹤及匯出站內交易計畫。 | `/account/watchlist`、`/account/trading` |
+
+LINE 可直接輸入股票代號（例如 `2330`）、`我的關注` 或 `提醒管理`。固定指令先由程式處理，自然語言問題再交給 ASKsorb。涉及新增或移除自選股、建立或取消提醒時，須先確認操作。
+
+## 最近一次有驗收紀錄的正式發布
+
+**2026-11-17（台北時間）**，Cloud Run 版本 `line-stock-bot-00330-moq`（來源 `6fa2b9f`）讀回為 100% 流量。候選版與正式站各通過 25 項冒煙測試，獨立切換驗證為 READY。發布來源的完整測試共 1,989 項，通過且有 2 項略過。
+
+- **個股與搜尋**修正 `BRK.B`、`TAIEX` 與無效代號的導向，在正式站確認 GGLL 的個股圖表、期間切換、報價與報告入口。
+- **美股日報**盤前排程接上報告發布。盤後重試前先驗證本機和 GCS 成品，只有確認該交易日已完整發布才略過重跑。台股盤前若缺隔夜美股資料，會標明缺項並保留盤後觀察。
+- **研究更新**針對暫時性 HTTP 或非 JSON 回應加入有限重試。手動恢復執行後，10 個來源皆回報正常，並完成公開快照讀回。這次恢復執行只更新來源資料，當次未發布新觀點。
+
+交易助手已開放 LINE 登入者使用，交易助手的 LINE 推播開關關閉。11 月這次驗收涵蓋公開頁面、手動恢復與資料讀回。登入後的私人流程、LINE 推播送達與下一次自然排程另需實測。最新市場日期與新鮮度請查 [資料狀態](https://line-stock-bot-3visrvv4yq-de.a.run.app/health/data)。
+
+## 資料與部署架構
 
 ```mermaid
 flowchart LR
-    U[LINE / Web] --> C[Cloud Run read-only application]
-    C --> G[Verified GCS artifacts]
-    W[Windows local batch / D:\AbsorbData] --> V[verify and publish]
-    V --> G
+    W["Windows 批次"] -->|行情、回測、報告| G["GCS 驗證快照"]
+    J["研究更新 Job"] -->|公告與核對狀態| G
+    G --> C["Cloud Run · Flask"]
+    C --> U["Web 與 LINE Bot"]
+    C <--> F["Firestore · 登入與個人狀態"]
 ```
 
-## 品牌與設計
+- **Windows 批次**透過 Task Scheduler 編排台美股盤前與盤後、補跑和研究用模型作業。批次在 `D:\AbsorbData` 產生資料、量化快照與報告。通過交易日、覆蓋率及完整性檢查後，先發布不可變成品與 manifest，再更新讀取指標。
+- **Cloud Run 網站**以 Flask、Gunicorn 與 Jinja 提供 Web 和 LINE webhook。伺服器驗證 GCS 快照，並標示資料日期、過期或缺項。全市場計算、LightGBM 訓練、回測和 PDF 產生在批次端執行。
+- **研究更新**由獨立 Cloud Run Job 擷取公司公告與公開研究來源，保留每個來源的成功時間、錯誤與待審狀態。通過審核的觀點才會出現在公開頁。
+- **研究限制**預設為 `research` 模式，公開頁面呈現市場觀察，五日模型機率、排名、強行動標籤與績效背書保持關閉。工作樹中的 SEC 申報事件模組仍屬實驗功能，預設停用。
 
-- 唯一 canonical Logo：`static/brand/absorb-mark.png`。
-- 視覺與元件規則：[DESIGN.md](DESIGN.md)。
-- 圖形保持原始輪廓、白底與安全邊距，不重畫、不加字、不裁切。
-- 新 Web、LINE 與 report producer 只顯示 ABSORB；歷史 immutable 產物不改寫。
+## 本機開發
 
-## 安裝與本機測試
-
-需求：Python 3.10+、PowerShell、Git。依目前部署方式安裝 `requirements.txt`，再設定必要環境變數。
+Windows 使用 Python 3.10 和 PowerShell。以下指令從專案根目錄執行，Node.js 用於檢查 JavaScript。
 
 ```powershell
-python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
-python -m compileall -q absorb stock_papi reporting backtest
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
+```
+
+開啟 [本機首頁](http://127.0.0.1:5000/) 或 [服務檢查](http://127.0.0.1:5000/healthz)。只啟動網站時，市場快照、真實 LINE Login 與 Gemini 功能視環境設定而定。
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m compileall -q absorb stock_papi reporting backtest
 node --check static/app.js
 ```
 
-開發伺服器預設只監聽 loopback：
+### 環境設定
 
-```powershell
-python app.py
-```
+以 [`.env.example`](.env.example) 對照變數名稱，透過 PowerShell 環境或部署設定注入。正式憑證由 Secret Manager 管理。
 
-## 設定
-
-`.env.example` 只列新名稱。品牌化設定的讀取規則是：
-
-1. `ABSORB_*` 優先。
-2. migration period 可 fallback 到對應 `STOCK_PAPI_*`。
-3. 新舊同時存在且值不同時 fail closed。
-4. 錯誤與 log 不顯示值。
-
-主要變數：
-
-| 變數 | 用途 |
+| 設定 | 用途 |
 | --- | --- |
-| `ABSORB_ENV` | 執行環境 |
-| `ABSORB_DATA_ROOT` | 本機 canonical data root，預設 `D:\AbsorbData` |
-| `ABSORB_REPORT_ROOT` | 本機報告目錄 |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API 標準變數，名稱不改 |
-| `LINE_CHANNEL_SECRET` | LINE webhook 驗證，名稱不改 |
-| `GEMINI_API_KEY` | 自然語言規劃與 grounded answer |
-| `GCP_PROJECT_ID` | GCP project |
-| `QUANT_SNAPSHOT_BUCKET` | 已驗證快照 bucket |
+| `ABSORB_DATA_ROOT`、`ABSORB_REPORT_ROOT` | 本機資料及報告根目錄，預設為 `D:\AbsorbData` 與 `D:\AbsorbData\reports` |
+| `GCP_PROJECT_ID`、`QUANT_SNAPSHOT_BUCKET` | GCP 專案及私有快照儲存桶 |
+| `LINE_CHANNEL_ACCESS_TOKEN`、`LINE_CHANNEL_SECRET` | LINE Messaging API 與 webhook 驗證 |
+| `LINE_LOGIN_CHANNEL_ID`、`LINE_LOGIN_CHANNEL_SECRET`、`LINE_LOGIN_REDIRECT_URI`、`SESSION_SECRET` | Web 登入與 session 設定。LINE Login 與 Messaging API 使用同一 Provider |
+| `ASKSORB_GEMINI_API_KEY`、`GEMINI_API_KEY` | ASKsorb 專用 Gemini 設定及其他 Gemini 功能 |
+| `ABSORB_PREDICTION_MODE` | 量化功能的顯示權限，預設 `research` |
 
-所有 secrets 應由 Secret Manager 或部署平台注入，不提交 `.env`、key、token、cookie 或 service-account JSON。
+`ABSORB_*` 是品牌遷移後的設定名稱，對應的舊 `STOCK_PAPI_*` 設定保留相容讀取。新舊變數同時存在但值不同時，程式會拒絕使用該組設定。
 
-## 固定 LINE 指令
+### 程式與維運文件
 
-固定指令仍由既有 deterministic handler 優先處理，不先呼叫 LLM，也不依賴 conversation context。實際 inventory 包含：
+| 路徑 | 職責 |
+| --- | --- |
+| [`app.py`](app.py)、[`absorb/`](absorb) | Flask 入口、設定與 Web／LINE 共用研究對話 |
+| [`stock_papi/`](stock_papi) | 市場資料、批次、LINE 整合、Web 路由與儲存介面 |
+| [`reporting/`](reporting)、[`backtest/`](backtest) | 報告、量化研究與回測 |
+| [`scripts/`](scripts) | Windows 排程及部署腳本。排程定義見 [`install_pipeline_tasks.ps1`](scripts/install_pipeline_tasks.ps1)，執行入口為 [`invoke_pipeline_task.ps1`](scripts/invoke_pipeline_task.ps1) |
 
-- `今日盤勢`、`大盤`、`大盤預測`
-- `預測`、`熱門產業`、`產業列表`、`選產業_<名稱>`、`分類第_<頁碼>頁`
-- `我的關注`、`強勢訊號`、`提醒管理`
-- `完整分析`、`投資試算`、`試算 <代碼> <金額>`、`功能選單`
-- `免責聲明`、`新手教學`
-- 股票代碼／名稱查詢與既有 alert pending input
-
-舊自然語言 prefix 在 migration period 仍可辨識，但不再顯示舊品牌或舊人格。
-
-## 自然語言研究助理
-
-一般文字在固定指令與股票直接查詢都不匹配後，才進入 `absorb/conversation/`：
-
-```text
-trusted transport identity
-  -> TTL entity context
-  -> LLM tool plan
-  -> allowlisted application tools
-  -> bounded normalized evidence
-  -> grounded answer
-  -> action-label validation
-```
-
-安全規則：
-
-- LLM 不直接接觸 Firestore、GCS、SQL、本機檔案、shell、secrets 或任意 repository path。
-- market、symbol、tool name、arguments、access、timeout、呼叫次數與輸出大小都由 server 驗證。
-- `None` 保持 `None`；stale 顯示日期；核心資料不足時不提供進場／追價判斷。
-- LINE 與 Web 共用 orchestrator、schema、context、tools、prompt 與 policy。
-- Web context 使用 HttpOnly 隨機 cookie；LINE 使用 webhook event 的 user id；request body 的 user id 不可信。
-- 不永久保存完整聊天紀錄，也不把完整問題寫入 log。
-
-自然語言 watchlist 新增、移除、清空，以及建立提醒、關閉全部提醒，都會先建立綁定身分、canonical 參數、nonce、expiry 與 idempotency key 的 proposal，再呼叫既有狀態服務。確認碼不符、過期、重放或未登入時不執行。模糊的單筆提醒更新／刪除不猜測，改用既有「提醒管理」流程。
-
-可觀測性只使用固定、無 label 的程序內計數器，例如自然語言請求、LLM 成功／錯誤、工具呼叫／錯誤、資料不足、過期資料、提示注入拒絕與寫入確認。Log 只記錄隨機 correlation ID，不記錄問題全文、使用者識別、股票代碼或工具參數。
-
-## Python package migration
-
-長期 canonical package 是 `absorb`。本階段已完成：
-
-- `absorb` lightweight entry facade。
-- 新 conversation、config 與 Web conversation route 實作位於 `absorb/`。
-- 根入口 `app.py` 從 `absorb` 匯入。
-
-既有量化、repository、LINE 與 report implementation 暫留 `stock_papi`，作為明確 compatibility boundary。原因是一次搬動 70+ 模組會放大 circular import、Flask endpoint、pickled type、task entry point 與 cold-start 風險。移除條件：所有 production entry points 已使用 `absorb`、兩個完整 release cycle 無 legacy import、歷史 artifact／pickle 讀取已驗證、所有外部 task 與 deployment 已切換。
-
-## 本機資料遷移
-
-舊 root 不 move、不刪除。先 dry-run，再 copy、hash verify，最後才切設定：
-
-```powershell
-.\scripts\migrate_stock_papi_data_to_absorb.ps1 -Copy -WhatIf
-.\scripts\migrate_stock_papi_data_to_absorb.ps1 -Copy
-.\scripts\migrate_stock_papi_data_to_absorb.ps1 -VerifyOnly
-.\scripts\migrate_stock_papi_data_to_absorb.ps1 -SwitchConfig -WhatIf
-```
-
-Rollback 只把使用者層 `ABSORB_DATA_ROOT` 指回舊 root，不刪任何資料：
-
-```powershell
-.\scripts\migrate_stock_papi_data_to_absorb.ps1 -Rollback -WhatIf
-```
-
-## Windows Task Scheduler migration
-
-新 task 使用 `ABSORB-*`，由舊 task XML 建立 disabled shadow；不自動刪舊 task：
-
-```powershell
-.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode Inventory
-.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode InstallShadow -WhatIf
-.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode Cutover -ConfirmCutover -WhatIf
-.\scripts\migrate_stock_papi_tasks_to_absorb.ps1 -Mode Rollback -WhatIf
-```
-
-Cutover 前必須比對 action、working directory、principal、retry、IgnoreNew、Limited run level、candidate 與已驗證輸出。
-
-## Reports
-
-新 writer 使用 `ABSORB` title、`absorb-*` local filename、`absorb-report` 與 `absorb-report-index` kind。reader 與 uploader 在 migration period 同時接受舊 `stock-papi-report*` kind。正式發布順序維持 immutable object -> metadata -> index -> latest；失敗不得覆蓋上一份成功的 latest。
-
-## 外部 cutover
-
-下列操作不由 repository commit 自動完成，必須在維護窗口逐項核准：
-
-- GitHub repository rename、origin、Actions、webhook、badge、branch protection。
-- 新 Cloud Run service、shadow deploy、domain／callback、traffic cutover 與停舊 service。
-- Secret Manager 名稱與 deployment bindings。
-- GCS／Firestore 新資源或 provider switch。
-- LINE profile image、rich menu、display name 與 callback。
-- 啟用新 Windows tasks、停用或刪除舊 tasks、刪除舊 data root 或 compatibility shims。
-
-完整設計、cutover 與 rollback 邊界見：
-
-- `docs/specs/2026-07-15-absorb-rebrand-conversation-design.md`
-- `docs/plans/2026-07-15-absorb-rebrand-conversation-plan.md`
-- `docs/deployment_guide.md`
-- `docs/dual-daily-report-runbook.md`
-- `docs/absorb-cutover-checklist.md`
+- [技術架構](docs/architecture_overview.md)
+- [報告操作手冊](docs/dual-daily-report-runbook.md)
+- [部署與回復](docs/deployment/README.md)
+- [資料及排程遷移](docs/migration/README.md)
+- [設計規範](DESIGN.md)
