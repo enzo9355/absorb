@@ -363,6 +363,7 @@ function initQuickAsk() {
     }
     lastFocus = document.activeElement;
     dialog.hidden = false;
+    dialog.inert = false;
     dataQuickAskOpen.forEach((button) => button.setAttribute("aria-expanded", "true"));
     const reveal = () => {
       dialog.classList.add("is-open");
@@ -374,10 +375,12 @@ function initQuickAsk() {
 
   const close = () => {
     dialog.classList.remove("is-open");
+    dialog.inert = true;
     dataQuickAskOpen.forEach((button) => button.setAttribute("aria-expanded", "false"));
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(() => {
       dialog.hidden = true;
+      dialog.inert = true;
       if (lastFocus instanceof HTMLElement) lastFocus.focus({ preventScroll: true });
     }, reduceMotion ? 0 : 180);
   };
@@ -539,6 +542,9 @@ function parseChartPoints(value) {
 function createPriceChart(container, raw, { predictionMarker = false, compact = false } = {}) {
   const candles = parseChartPoints(raw.candles);
   if (!candles.length) return null;
+  const computed = window.getComputedStyle(container);
+  const upColor = computed.getPropertyValue("--market-chart-up").trim() || "#b53a4c";
+  const downColor = computed.getPropertyValue("--market-chart-down").trim() || "#18704a";
   const height = compact
     ? Math.max(250, Math.min(350, Math.round(container.clientWidth * 0.46)))
     : measureChartHeight(container);
@@ -548,14 +554,14 @@ function createPriceChart(container, raw, { predictionMarker = false, compact = 
     layout: { background: { color: "transparent" }, textColor: "#536575" },
     grid: { vertLines: { color: "#cbd8de" }, horzLines: { color: "#cbd8de" } },
     rightPriceScale: { borderColor: "#aebfc8" },
-    timeScale: { borderColor: "#aebfc8", rightOffset: predictionMarker ? 6 : 1 },
+    timeScale: { borderColor: "#aebfc8", rightOffset: predictionMarker ? 9 : 1 },
   });
   const candleSeries = chart.addCandlestickSeries({
-    upColor: "#7c1f31",
-    downColor: "#3f8060",
+    upColor,
+    downColor,
     borderVisible: false,
-    wickUpColor: "#7c1f31",
-    wickDownColor: "#3f8060",
+    wickUpColor: upColor,
+    wickDownColor: downColor,
   });
   candleSeries.setData(candles);
   const ma20 = parseChartPoints(raw.ma20);
@@ -598,7 +604,7 @@ function setChartRange(days) {
   if (container) container.setAttribute("aria-busy", "true");
   try {
     const { chart, length } = window.stockChart;
-    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, length - days), to: length + 5 });
+    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, length - days), to: length + 8 });
   } finally {
     if (container) container.setAttribute("aria-busy", "false");
   }
@@ -977,11 +983,24 @@ async function loadTradingState() {
   }
 }
 
+function tradePlanLoginPrompt(body, message) {
+  const wrap = element("div", "trade-plan-auth");
+  wrap.appendChild(emptyState(message));
+  const link = element("a", "button button-secondary", "使用 LINE 登入");
+  link.href = loginLocation();
+  wrap.appendChild(link);
+  body.replaceChildren(wrap);
+}
+
 async function loadTradePlan(container) {
   const market = container.dataset.market;
   const symbol = container.dataset.symbol;
   const body = bySelector("[data-plan-body]", container);
   if (!market || !symbol || !body) return;
+  if (document.body.dataset.accountSession !== "present") {
+    tradePlanLoginPrompt(body, "請先使用 LINE 登入以查看條件式交易計畫。");
+    return;
+  }
   body.replaceChildren(emptyState("載入中…"));
   let plan = null;
   try {
@@ -989,6 +1008,10 @@ async function loadTradePlan(container) {
       headers: { "Accept": "application/json" },
       credentials: "same-origin",
     });
+    if (response.status === 401) {
+      tradePlanLoginPrompt(body, "登入已逾時，請重新登入。");
+      return;
+    }
     if (response.status === 403) {
       body.replaceChildren(emptyState("交易計畫尚未開放給此帳號。"));
       return;

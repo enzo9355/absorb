@@ -343,7 +343,11 @@ def register_report_routes(
                     pdf_download_url=pdf_download_url,
                 )
                 response = make_response(
-                    render_template("reports/post_close_professional.html", report=view_model)
+                    render_template(
+                        "reports/post_close_professional.html",
+                        report=view_model,
+                        market=market,
+                    )
                 )
             else:
                 abort(404)

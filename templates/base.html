@@ -86,8 +86,9 @@
     <a class="{{ 'active' if market_active else '' }}" href="{{ market_url }}"{% if market_active %} aria-current="page"{% endif %}>市場</a>
     <a class="{{ 'active' if stocks_active else '' }}" href="{{ stocks_url }}"{% if stocks_active %} aria-current="page"{% endif %}>個股</a>
     <a class="{{ 'active' if reports_active else '' }}" href="{{ reports_url }}"{% if reports_active %} aria-current="page"{% endif %}>報告</a>
-    <details class="mobile-more-menu"{% if industries_active or ask_active or learn_active or relationships_active or events_active or trading_active or perspectives_active %} open{% endif %}>
-      <summary aria-label="開啟更多功能">更多</summary>
+    {% set more_active = industries_active or ask_active or learn_active or relationships_active or events_active or trading_active or perspectives_active %}
+    <details class="mobile-more-menu">
+      <summary class="{{ 'active' if more_active else '' }}" aria-label="開啟更多功能">更多</summary>
       <div>
         <a href="{{ industries_url }}"{% if industries_active %} aria-current="page"{% endif %}>產業觀察</a>
         <a href="/ask"{% if ask_active %} aria-current="page"{% endif %}>ASKsorb</a>
@@ -101,7 +102,7 @@
   </nav>
   {% if not ask_active %}
   <button class="quick-ask-trigger" type="button" data-quick-ask-open aria-controls="quick-ask-dialog" aria-expanded="false">ASKsorb</button>
-  <div class="quick-ask-backdrop" data-quick-ask-dialog id="quick-ask-dialog" hidden>
+  <div class="quick-ask-backdrop" data-quick-ask-dialog id="quick-ask-dialog" hidden inert>
     <section class="quick-ask-sheet" role="dialog" aria-modal="true" aria-labelledby="quick-ask-title" data-conversation-endpoint="/api/conversation" data-market-context="{{ market_context }}" data-page-context="{{ page_context }}"{% if page_context == 'stock' and d is defined and d.get('code') %} data-symbol-context="{{ d.get('code') }}"{% endif %}>
       <header class="quick-ask-header"><div><h2 id="quick-ask-title">ASKsorb</h2><p>正在閱讀：{% if page_context == 'stock' and d is defined and d.get('code') and d.get('name') %}{{ d.get('name') }} · {{ d.get('code') }}{% else %}{{ '美股已驗證研究摘要' if us_market_active else '台股市場總覽' }}{% endif %}</p></div><button type="button" data-quick-ask-close aria-label="關閉 ASKsorb">×</button></header>
       <div class="conversation-log quick-ask-log" data-conversation-log aria-live="polite"><p class="empty-state">可詢問目前已發布的市場、產業與個股觀察。</p></div>
