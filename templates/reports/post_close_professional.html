@@ -172,7 +172,7 @@
     </div>
 
     {% if market_sec.status == 'available' %}
-      {% set market = market_sec.data %}
+      {% set market = market_sec.data if market_sec.data is mapping else {} %}
       {% set return_1d = market.get('return_1d_pct') %}
       {% set return_1d_ok = return_1d is number and return_1d is not boolean %}
       {% set adv_count = market.get('advancing_count') %}
@@ -217,8 +217,9 @@
           <span class="kpi-sub">年化波動率監控</span>
         </div>
       </div>
-      {% set market_count = (adv_count if adv_ok else 0) + (dec_count if dec_ok else 0) + (unch_count if unch_ok else 0) %}
-      {% set advancing_ratio = (adv_count * 100 / market_count) if (adv_ok and market_count) else none %}
+      {% set counts_ok = adv_ok and dec_ok and unch_ok and adv_count >= 0 and dec_count >= 0 and unch_count >= 0 %}
+      {% set market_count = (adv_count + dec_count + unch_count) if counts_ok else 0 %}
+      {% set advancing_ratio = (adv_count * 100 / market_count) if (counts_ok and market_count > 0) else none %}
       <div class="report-evidence-bars" aria-label="市場視覺摘要">
         <div><span>上漲家數占比</span><progress value="{{ advancing_ratio or 0 }}" max="100">{{ advancing_ratio or 0 }}</progress><strong>{{ '%.1f%%'|format(advancing_ratio) if advancing_ratio is not none else '—' }}</strong></div>
         <div><span>站上 MA20</span><progress value="{{ ma20_breadth if ma20_ok else 0 }}" max="100">{{ ma20_breadth if ma20_ok else 0 }}</progress><strong>{{ '%.1f%%'|format(ma20_breadth) if ma20_ok else '—' }}</strong></div>
@@ -240,7 +241,7 @@
     </div>
 
     {% if flows_sec.status == 'available' %}
-      {% set flows = flows_sec.data %}
+      {% set flows = flows_sec.data if flows_sec.data is mapping else {} %}
       {% set flow_scope = flows.get('scope') %}
       {% set flow_source = flows.get('source') %}
       {% set foreign_net = flows.get('foreign_net') %}
@@ -328,11 +329,27 @@
         </div>
       {% endif %}
 
+      {% set ind_data = ind_sec.data if ind_sec.data is mapping else {} %}
+      {% set raw_ranking = ind_data.get('ranking') %}
+      {% set safe_ranking = namespace(items=[]) %}
+      {% if raw_ranking is sequence and raw_ranking is not string and raw_ranking is not mapping %}
+        {% for row in raw_ranking %}
+          {% if row is mapping %}
+            {% set safe_ranking.items = safe_ranking.items + [row] %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+
       <div class="industry-detail-list" aria-label="產業相對強弱視覺">
-        {% for industry in ind_sec.data.get('ranking', [])[:8] %}
+        {% for industry in safe_ranking.items[:8] %}
+          {% set ind_name = industry.get('name') %}
+          {% set ind_avail = industry.get('available_count') %}
+          {% set ind_avail_ok = ind_avail is number and ind_avail is not boolean %}
+          {% set ind_comp = industry.get('component_count') %}
+          {% set ind_comp_ok = ind_comp is number and ind_comp is not boolean %}
           {% set rel_ret = industry.get('relative_return_5d_pct') %}
           {% set rel_ok = rel_ret is number and rel_ret is not boolean %}
-          <article class="industry-detail"><header><div><h3>{{ industry.get('name', '—') }}</h3><p>{{ industry.get('available_count', '—') }}／{{ industry.get('component_count', '—') }} 檔可用</p></div><strong class="return {{ 'up' if rel_ok and rel_ret > 0 else ('down' if rel_ok and rel_ret < 0 else '') }}">{{ '%+.2f%%'|format(rel_ret) if rel_ok else '資料不足' }}</strong></header>{% if rel_ok %}<progress class="industry-strength-bar {{ 'negative' if rel_ret < 0 else '' }}" value="{{ rel_ret|abs }}" max="10">{{ rel_ret|abs }}</progress>{% endif %}</article>
+          <article class="industry-detail"><header><div><h3>{{ ind_name if ind_name is string and ind_name else '—' }}</h3><p>{{ ind_avail if ind_avail_ok else '—' }}／{{ ind_comp if ind_comp_ok else '—' }} 檔可用</p></div><strong class="return {{ 'up' if rel_ok and rel_ret > 0 else ('down' if rel_ok and rel_ret < 0 else '') }}">{{ '%+.2f%%'|format(rel_ret) if rel_ok else '資料不足' }}</strong></header>{% if rel_ok %}<progress class="industry-strength-bar {{ 'negative' if rel_ret < 0 else '' }}" value="{{ rel_ret|abs }}" max="10">{{ rel_ret|abs }}</progress>{% endif %}</article>
         {% else %}<div class="empty-state">產業觀察資料不足。</div>{% endfor %}
       </div>
 
@@ -349,7 +366,14 @@
             </tr>
           </thead>
           <tbody>
-            {% for industry in ind_sec.data.get('ranking', []) %}
+            {% for industry in safe_ranking.items %}
+              {% set ind_name = industry.get('name') %}
+              {% set ind_rank = industry.get('rank') %}
+              {% set ind_rank_ok = ind_rank is number and ind_rank is not boolean and ind_rank > 0 %}
+              {% set ind_avail = industry.get('available_count') %}
+              {% set ind_avail_ok = ind_avail is number and ind_avail is not boolean %}
+              {% set ind_comp = industry.get('component_count') %}
+              {% set ind_comp_ok = ind_comp is number and ind_comp is not boolean %}
               {% set rel_ret = industry.get('relative_return_5d_pct') %}
               {% set rel_ok = rel_ret is number and rel_ret is not boolean %}
               {% set ind_cov = industry.get('coverage') %}
@@ -357,16 +381,16 @@
               <tr>
                 <td>
                   <span class="rank-badge {{ 'top-rank' if loop.index <= 3 else ('bottom-rank' if loop.index >= loop.length - 2 else '') }}">
-                    {{ industry.get('rank') or loop.index }}
+                    {{ ind_rank if ind_rank_ok else loop.index }}
                   </span>
                 </td>
-                <td><strong>{{ industry.get('name', '—') }}</strong></td>
+                <td><strong>{{ ind_name if ind_name is string and ind_name else '—' }}</strong></td>
                 <td class="align-right {{ 'positive' if rel_ok and rel_ret > 0 else ('negative' if rel_ok and rel_ret < 0 else '') }}">
                   <strong>{{ '%+.2f%%'|format(rel_ret) if rel_ok else '資料不足' }}</strong>
                 </td>
                 <td class="align-right muted">
-                  {{ industry.get('available_count', '—') }} / {{ industry.get('component_count', '—') }} 檔
-                  {% if ind_cov_ok and ind_cov %}<span class="small">({{ '%.0f%%'|format(ind_cov * 100) }})</span>{% endif %}
+                  {{ ind_avail if ind_avail_ok else '—' }} / {{ ind_comp if ind_comp_ok else '—' }} 檔
+                  {% if ind_cov_ok %}<span class="small">({{ '%.0f%%'|format(ind_cov * 100) }})</span>{% endif %}
                 </td>
                 <td class="align-center">
                   {% if rel_ok %}
@@ -697,7 +721,7 @@
     </div>
 
     {% if gov_sec.status == 'available' %}
-      {% set gov = gov_sec.data %}
+      {% set gov = gov_sec.data if gov_sec.data is mapping else {} %}
       {% set gov_cov = gov.get('coverage') %}
       {% set gov_cov_ok = gov_cov is number and gov_cov is not boolean %}
       {% set gov_sym = gov.get('symbol_count') %}

@@ -331,6 +331,66 @@ class P0WebHotfixTests(unittest.TestCase):
             self.assertIn("資料不足", html)
             self.assertIn("—", html)
 
+        with self.subTest(case="partial_breadth_denominator"):
+            for mut in (
+                {"advancing_count": 10, "unchanged_count": 0},
+                {"advancing_count": 10, "declining_count": 10, "unchanged_count": True},
+                {"advancing_count": 10, "declining_count": 10},
+            ):
+                view = build_professional_report_view(base_report)
+                view["market"]["data"] = mut
+                html = render_view(view)
+                market_sec = html.split('id="market-analysis"', 1)[1].split(
+                    'id="capital-flows"', 1
+                )[0]
+                self.assertIn("<span>上漲家數占比</span>", market_sec)
+                ratio_block = market_sec.split("<span>上漲家數占比</span>", 1)[1].split(
+                    "</div>", 1
+                )[0]
+                self.assertIn("<strong>—</strong>", ratio_block)
+                self.assertNotIn("100.0%", ratio_block)
+
+        with self.subTest(case="ranking_is_none"):
+            view = build_professional_report_view(base_report)
+            view["industries"]["data"]["ranking"] = None
+            html = render_view(view)
+            ind_sec = html.split('id="industry-analysis"', 1)[1].split(
+                'id="security-analysis"', 1
+            )[0]
+            self.assertIn("產業觀察資料不足。", ind_sec)
+            self.assertIn("產業資料不足。", ind_sec)
+
+        with self.subTest(case="ranking_contains_null_row"):
+            view = build_professional_report_view(base_report)
+            view["industries"]["data"]["ranking"] = [None]
+            html = render_view(view)
+            ind_sec = html.split('id="industry-analysis"', 1)[1].split(
+                'id="security-analysis"', 1
+            )[0]
+            self.assertIn("產業觀察資料不足。", ind_sec)
+            self.assertIn("產業資料不足。", ind_sec)
+
+        with self.subTest(case="zero_coverage_and_invalid_counts"):
+            view = build_professional_report_view(base_report)
+            view["industries"]["data"]["ranking"] = [
+                {
+                    "name": "測試產業",
+                    "available_count": None,
+                    "component_count": True,
+                    "coverage": 0.0,
+                    "relative_return_5d_pct": 0.0,
+                }
+            ]
+            html = render_view(view)
+            ind_sec = html.split('id="industry-analysis"', 1)[1].split(
+                'id="security-analysis"', 1
+            )[0]
+            self.assertIn("(0%)", ind_sec)
+            self.assertIn("—／— 檔可用", ind_sec)
+            self.assertIn("— / — 檔", ind_sec)
+            self.assertNotIn("None", ind_sec)
+            self.assertNotIn("True", ind_sec)
+
     def test_app_js_and_css_enforce_market_colors_and_session_guard(self):
         js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
         css = (ROOT / "static" / "app.css").read_text(encoding="utf-8")
