@@ -173,44 +173,56 @@
 
     {% if market_sec.status == 'available' %}
       {% set market = market_sec.data %}
+      {% set return_1d = market.get('return_1d_pct') %}
+      {% set return_1d_ok = return_1d is number and return_1d is not boolean %}
+      {% set adv_count = market.get('advancing_count') %}
+      {% set adv_ok = adv_count is number and adv_count is not boolean %}
+      {% set dec_count = market.get('declining_count') %}
+      {% set dec_ok = dec_count is number and dec_count is not boolean %}
+      {% set unch_count = market.get('unchanged_count') %}
+      {% set unch_ok = unch_count is number and unch_count is not boolean %}
+      {% set ma20_breadth = market.get('ma20_breadth_pct') %}
+      {% set ma20_ok = ma20_breadth is number and ma20_breadth is not boolean %}
+      {% set vol_20d = market.get('realized_volatility_20d_pct') %}
+      {% set vol_ok = vol_20d is number and vol_20d is not boolean %}
       <div class="report-kpi-grid">
         <div class="kpi-card">
           <span class="kpi-label">全市場單日中位報酬</span>
-          <strong class="kpi-value {{ 'positive' if market.return_1d_pct is not none and market.return_1d_pct > 0 else ('negative' if market.return_1d_pct is not none and market.return_1d_pct < 0 else '') }}">
-            {{ '%+.2f%%'|format(market.return_1d_pct) if market.return_1d_pct is not none else '資料不足' }}
+          <strong class="kpi-value {{ 'positive' if return_1d_ok and return_1d > 0 else ('negative' if return_1d_ok and return_1d < 0 else '') }}">
+            {{ '%+.2f%%'|format(return_1d) if return_1d_ok else '資料不足' }}
           </strong>
           <span class="kpi-sub">全市場股票中位數，非{{ market_index_label }}；指數走勢見首頁 K 線</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">上漲／下跌家數</span>
           <strong class="kpi-value">
-            <span class="positive">{{ market.advancing_count if market.advancing_count is not none else '—' }}</span>
+            <span class="positive">{{ adv_count if adv_ok else '—' }}</span>
             <span class="muted">/</span>
-            <span class="negative">{{ market.declining_count if market.declining_count is not none else '—' }}</span>
+            <span class="negative">{{ dec_count if dec_ok else '—' }}</span>
           </strong>
           <span class="kpi-sub">全市場漲跌廣度</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">站上 MA20 比例</span>
-          <strong class="kpi-value {{ 'positive' if market.ma20_breadth_pct is not none and market.ma20_breadth_pct >= 50 else ('negative' if market.ma20_breadth_pct is not none else '') }}">
-            {{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '資料不足' }}
+          <strong class="kpi-value {{ 'positive' if ma20_ok and ma20_breadth >= 50 else ('negative' if ma20_ok else '') }}">
+            {{ '%.1f%%'|format(ma20_breadth) if ma20_ok else '資料不足' }}
           </strong>
           <span class="kpi-sub">月線多空結構指標</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">20 日已實現波動率</span>
           <strong class="kpi-value">
-            {{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '資料不足' }}
+            {{ '%.1f%%'|format(vol_20d) if vol_ok else '資料不足' }}
           </strong>
           <span class="kpi-sub">年化波動率監控</span>
         </div>
       </div>
-      {% set market_count = (market.advancing_count or 0) + (market.declining_count or 0) + (market.unchanged_count or 0) %}
-      {% set advancing_ratio = market.advancing_count * 100 / market_count if market_count else none %}
+      {% set market_count = (adv_count if adv_ok else 0) + (dec_count if dec_ok else 0) + (unch_count if unch_ok else 0) %}
+      {% set advancing_ratio = (adv_count * 100 / market_count) if (adv_ok and market_count) else none %}
       <div class="report-evidence-bars" aria-label="市場視覺摘要">
         <div><span>上漲家數占比</span><progress value="{{ advancing_ratio or 0 }}" max="100">{{ advancing_ratio or 0 }}</progress><strong>{{ '%.1f%%'|format(advancing_ratio) if advancing_ratio is not none else '—' }}</strong></div>
-        <div><span>站上 MA20</span><progress value="{{ market.ma20_breadth_pct or 0 }}" max="100">{{ market.ma20_breadth_pct or 0 }}</progress><strong>{{ '%.1f%%'|format(market.ma20_breadth_pct) if market.ma20_breadth_pct is not none else '—' }}</strong></div>
-        <div><span>20 日波動</span><progress value="{{ market.realized_volatility_20d_pct or 0 }}" max="50">{{ market.realized_volatility_20d_pct or 0 }}</progress><strong>{{ '%.1f%%'|format(market.realized_volatility_20d_pct) if market.realized_volatility_20d_pct is not none else '—' }}</strong></div>
+        <div><span>站上 MA20</span><progress value="{{ ma20_breadth if ma20_ok else 0 }}" max="100">{{ ma20_breadth if ma20_ok else 0 }}</progress><strong>{{ '%.1f%%'|format(ma20_breadth) if ma20_ok else '—' }}</strong></div>
+        <div><span>20 日波動</span><progress value="{{ vol_20d if vol_ok else 0 }}" max="50">{{ vol_20d if vol_ok else 0 }}</progress><strong>{{ '%.1f%%'|format(vol_20d) if vol_ok else '—' }}</strong></div>
       </div>
     {% else %}
       <div class="empty-state">{{ market_sec.reason or '市場資料尚未提供。' }}</div>
@@ -229,37 +241,47 @@
 
     {% if flows_sec.status == 'available' %}
       {% set flows = flows_sec.data %}
-      {% if flows.scope == 'TWSE' %}
+      {% set flow_scope = flows.get('scope') %}
+      {% set flow_source = flows.get('source') %}
+      {% set foreign_net = flows.get('foreign_net') %}
+      {% set foreign_ok = foreign_net is number and foreign_net is not boolean %}
+      {% set trust_net = flows.get('investment_trust_net') %}
+      {% set trust_ok = trust_net is number and trust_net is not boolean %}
+      {% set dealer_net = flows.get('dealer_net') %}
+      {% set dealer_ok = dealer_net is number and dealer_net is not boolean %}
+      {% set total_net = flows.get('total_institutional_net') %}
+      {% set total_ok = total_net is number and total_net is not boolean %}
+      {% if flow_scope == 'TWSE' and flow_source %}
       <p class="muted small">僅含上市市場，不含上櫃；外資不含外資自營商，自營商合計自行買賣與避險。
-        <a href="{{ flows.source }}" target="_blank" rel="noopener noreferrer">證交所三大法人買賣金額統計表</a>
+        <a href="{{ flow_source }}" target="_blank" rel="noopener noreferrer">證交所三大法人買賣金額統計表</a>
       </p>
       {% endif %}
       <div class="report-kpi-grid">
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_primary_label }}</span>
-          <strong class="kpi-value {{ 'positive' if flows.foreign_net is not none and flows.foreign_net > 0 else ('negative' if flows.foreign_net is not none and flows.foreign_net < 0 else '') }}">
-            {{ '{:+,.1f}'.format(flows.foreign_net) if flows.foreign_net is not none else '—' }}
+          <strong class="kpi-value {{ 'positive' if foreign_ok and foreign_net > 0 else ('negative' if foreign_ok and foreign_net < 0 else '') }}">
+            {{ '{:+,.1f}'.format(foreign_net) if foreign_ok else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_primary_sub }}</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_secondary_label }}</span>
-          <strong class="kpi-value {{ 'positive' if flows.investment_trust_net is not none and flows.investment_trust_net > 0 else ('negative' if flows.investment_trust_net is not none and flows.investment_trust_net < 0 else '') }}">
-            {{ '{:+,.1f}'.format(flows.investment_trust_net) if flows.investment_trust_net is not none else '—' }}
+          <strong class="kpi-value {{ 'positive' if trust_ok and trust_net > 0 else ('negative' if trust_ok and trust_net < 0 else '') }}">
+            {{ '{:+,.1f}'.format(trust_net) if trust_ok else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_secondary_sub }}</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_dealer_label }}</span>
-          <strong class="kpi-value {{ 'positive' if flows.dealer_net is not none and flows.dealer_net > 0 else ('negative' if flows.dealer_net is not none and flows.dealer_net < 0 else '') }}">
-            {{ '{:+,.1f}'.format(flows.dealer_net) if flows.dealer_net is not none else '—' }}
+          <strong class="kpi-value {{ 'positive' if dealer_ok and dealer_net > 0 else ('negative' if dealer_ok and dealer_net < 0 else '') }}">
+            {{ '{:+,.1f}'.format(dealer_net) if dealer_ok else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_dealer_sub }}</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">{{ flow_total_label }}</span>
-          <strong class="kpi-value {{ 'positive' if flows.total_institutional_net is not none and flows.total_institutional_net > 0 else ('negative' if flows.total_institutional_net is not none and flows.total_institutional_net < 0 else '') }}">
-            {{ '{:+,.1f}'.format(flows.total_institutional_net) if flows.total_institutional_net is not none else '—' }}
+          <strong class="kpi-value {{ 'positive' if total_ok and total_net > 0 else ('negative' if total_ok and total_net < 0 else '') }}">
+            {{ '{:+,.1f}'.format(total_net) if total_ok else '—' }}
           </strong>
           <span class="kpi-sub">{{ flow_total_sub }}</span>
         </div>
@@ -307,8 +329,10 @@
       {% endif %}
 
       <div class="industry-detail-list" aria-label="產業相對強弱視覺">
-        {% for industry in ind_sec.data.ranking[:8] %}
-          <article class="industry-detail"><header><div><h3>{{ industry.name }}</h3><p>{{ industry.available_count }}／{{ industry.component_count }} 檔可用</p></div><strong class="return {{ 'up' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct > 0 else ('down' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct < 0 else '') }}">{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong></header>{% if industry.relative_return_5d_pct is not none %}<progress class="industry-strength-bar {{ 'negative' if industry.relative_return_5d_pct < 0 else '' }}" value="{{ industry.relative_return_5d_pct|abs }}" max="10">{{ industry.relative_return_5d_pct|abs }}</progress>{% endif %}</article>
+        {% for industry in ind_sec.data.get('ranking', [])[:8] %}
+          {% set rel_ret = industry.get('relative_return_5d_pct') %}
+          {% set rel_ok = rel_ret is number and rel_ret is not boolean %}
+          <article class="industry-detail"><header><div><h3>{{ industry.get('name', '—') }}</h3><p>{{ industry.get('available_count', '—') }}／{{ industry.get('component_count', '—') }} 檔可用</p></div><strong class="return {{ 'up' if rel_ok and rel_ret > 0 else ('down' if rel_ok and rel_ret < 0 else '') }}">{{ '%+.2f%%'|format(rel_ret) if rel_ok else '資料不足' }}</strong></header>{% if rel_ok %}<progress class="industry-strength-bar {{ 'negative' if rel_ret < 0 else '' }}" value="{{ rel_ret|abs }}" max="10">{{ rel_ret|abs }}</progress>{% endif %}</article>
         {% else %}<div class="empty-state">產業觀察資料不足。</div>{% endfor %}
       </div>
 
@@ -325,26 +349,30 @@
             </tr>
           </thead>
           <tbody>
-            {% for industry in ind_sec.data.ranking %}
+            {% for industry in ind_sec.data.get('ranking', []) %}
+              {% set rel_ret = industry.get('relative_return_5d_pct') %}
+              {% set rel_ok = rel_ret is number and rel_ret is not boolean %}
+              {% set ind_cov = industry.get('coverage') %}
+              {% set ind_cov_ok = ind_cov is number and ind_cov is not boolean %}
               <tr>
                 <td>
                   <span class="rank-badge {{ 'top-rank' if loop.index <= 3 else ('bottom-rank' if loop.index >= loop.length - 2 else '') }}">
-                    {{ industry.rank or loop.index }}
+                    {{ industry.get('rank') or loop.index }}
                   </span>
                 </td>
-                <td><strong>{{ industry.name }}</strong></td>
-                <td class="align-right {{ 'positive' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct > 0 else ('negative' if industry.relative_return_5d_pct is not none and industry.relative_return_5d_pct < 0 else '') }}">
-                  <strong>{{ '%+.2f%%'|format(industry.relative_return_5d_pct) if industry.relative_return_5d_pct is not none else '資料不足' }}</strong>
+                <td><strong>{{ industry.get('name', '—') }}</strong></td>
+                <td class="align-right {{ 'positive' if rel_ok and rel_ret > 0 else ('negative' if rel_ok and rel_ret < 0 else '') }}">
+                  <strong>{{ '%+.2f%%'|format(rel_ret) if rel_ok else '資料不足' }}</strong>
                 </td>
                 <td class="align-right muted">
-                  {{ industry.available_count }} / {{ industry.component_count }} 檔
-                  {% if industry.coverage %}<span class="small">({{ '%.0f%%'|format(industry.coverage * 100) }})</span>{% endif %}
+                  {{ industry.get('available_count', '—') }} / {{ industry.get('component_count', '—') }} 檔
+                  {% if ind_cov_ok and ind_cov %}<span class="small">({{ '%.0f%%'|format(ind_cov * 100) }})</span>{% endif %}
                 </td>
                 <td class="align-center">
-                  {% if industry.relative_return_5d_pct is not none %}
-                    {% if industry.relative_return_5d_pct >= 2 %}
+                  {% if rel_ok %}
+                    {% if rel_ret >= 2 %}
                       <span class="badge badge-market-up">強勢跑贏（≥+2%）</span>
-                    {% elif industry.relative_return_5d_pct > -2 %}
+                    {% elif rel_ret > -2 %}
                       <span class="badge badge-neutral">貼近大盤（-2%～+2%）</span>
                     {% else %}
                       <span class="badge badge-market-down">相對落後（≤-2%）</span>
@@ -669,20 +697,27 @@
     </div>
 
     {% if gov_sec.status == 'available' %}
+      {% set gov = gov_sec.data %}
+      {% set gov_cov = gov.get('coverage') %}
+      {% set gov_cov_ok = gov_cov is number and gov_cov is not boolean %}
+      {% set gov_sym = gov.get('symbol_count') %}
+      {% set gov_sym_ok = gov_sym is number and gov_sym is not boolean %}
+      {% set gov_fail = gov.get('failure_count') %}
+      {% set gov_fail_ok = gov_fail is number and gov_fail is not boolean %}
       <div class="report-kpi-grid">
         <div class="kpi-card">
           <span class="kpi-label">資料全市場覆蓋率</span>
-          <strong class="kpi-value">{{ '%.2f%%'|format(gov_sec.data.coverage * 100) if gov_sec.data.coverage is not none else '資料不足' }}</strong>
+          <strong class="kpi-value">{{ '%.2f%%'|format(gov_cov * 100) if gov_cov_ok else '資料不足' }}</strong>
           <span class="kpi-sub">上市櫃完整覆蓋</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">驗證有效標的數</span>
-          <strong class="kpi-value">{{ gov_sec.data.symbol_count if gov_sec.data.symbol_count is not none else '—' }} 檔</strong>
+          <strong class="kpi-value">{{ (gov_sym ~ ' 檔') if gov_sym_ok else '—' }}</strong>
           <span class="kpi-sub">無缺失正常標的</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">未納入或缺失標的</span>
-          <strong class="kpi-value">{{ gov_sec.data.failure_count if gov_sec.data.failure_count is not none else '0' }} 檔</strong>
+          <strong class="kpi-value">{{ (gov_fail ~ ' 檔') if gov_fail_ok else '—' }}</strong>
           <span class="kpi-sub">{{ governance_gap_label }}</span>
         </div>
         <div class="kpi-card">
@@ -692,9 +727,9 @@
         </div>
       </div>
       <dl class="report-meta report-meta-spaced">
-        <div><dt>覆蓋率</dt><dd>{{ '%.2f%%'|format(gov_sec.data.coverage * 100) if gov_sec.data.coverage is not none else '資料不足' }}</dd></div>
-        <div><dt>有效標的</dt><dd>{{ gov_sec.data.symbol_count if gov_sec.data.symbol_count is not none else '資料不足' }}</dd></div>
-        <div><dt>未納入標的</dt><dd>{{ gov_sec.data.failure_count if gov_sec.data.failure_count is not none else '資料不足' }}</dd></div>
+        <div><dt>覆蓋率</dt><dd>{{ '%.2f%%'|format(gov_cov * 100) if gov_cov_ok else '資料不足' }}</dd></div>
+        <div><dt>有效標的</dt><dd>{{ gov_sym if gov_sym_ok else '資料不足' }}</dd></div>
+        <div><dt>未納入標的</dt><dd>{{ gov_fail if gov_fail_ok else '資料不足' }}</dd></div>
       </dl>
     {% else %}
       <div class="empty-state">{{ gov_sec.reason or '資料治理指標尚未提供。' }}</div>

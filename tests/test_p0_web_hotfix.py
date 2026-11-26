@@ -296,6 +296,41 @@ class P0WebHotfixTests(unittest.TestCase):
         self.assertIn("<code>1.94</code>", html)
         self.assertIn("<code>p=0.083</code>", html)
 
+    def test_professional_report_missing_market_flow_and_industry_keys_do_not_error(
+        self,
+    ):
+        def render_view(view):
+            with stock_app.app.test_request_context("/reports/tw/2026-07-17/post-close"):
+                return stock_app.app.jinja_env.get_template(
+                    "reports/post_close_professional.html"
+                ).render(report=view, market="TW")
+
+        base_report = build_professional_post_close_artifact(
+            ProfessionalReportHtmlTests()._metadata(), code_commit_sha="b" * 40
+        )
+
+        with self.subTest(missing="return_1d_pct"):
+            view = build_professional_report_view(base_report)
+            view["market"]["data"].pop("return_1d_pct", None)
+            html = render_view(view)
+            self.assertIn("資料不足", html)
+
+        with self.subTest(missing="ma20_breadth_pct"):
+            view = build_professional_report_view(base_report)
+            view["market"]["data"].pop("ma20_breadth_pct", None)
+            html = render_view(view)
+            self.assertIn("資料不足", html)
+
+        with self.subTest(missing="all_numeric_keys"):
+            view = build_professional_report_view(base_report)
+            view["market"]["data"] = {}
+            view["capital_flows"] = {"status": "available", "reason": None, "data": {}}
+            view["industries"]["data"]["ranking"] = [{"name": "半導體製造"}]
+            view["governance"]["data"] = {}
+            html = render_view(view)
+            self.assertIn("資料不足", html)
+            self.assertIn("—", html)
+
     def test_app_js_and_css_enforce_market_colors_and_session_guard(self):
         js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
         css = (ROOT / "static" / "app.css").read_text(encoding="utf-8")
